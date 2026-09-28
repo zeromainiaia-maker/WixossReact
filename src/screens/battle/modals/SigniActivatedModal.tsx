@@ -15,7 +15,8 @@ import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 import { OppVirusPicker } from './OppVirusPicker';
-import { oppVirusChoiceNeeded } from '../costs';
+import { oppVirusChoiceNeeded, ownCharmCandidates, ownAcceCandidates, ownCostChoiceNeeded } from '../costs';
+import { CostCardPicker } from './CostCardPicker';
 
 interface SigniActivatedModalProps {
   ctx: BattleModalCtx;
@@ -41,12 +42,14 @@ interface SigniActivatedModalProps {
   setSigniActCharmTrashVar: Dispatch<SetStateAction<number>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
-  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>, underTrashKeys?: Set<string>, virusZones?: number[]) => void;
+  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>, underTrashKeys?: Set<string>, virusZones?: number[], charmPicks?: string[], accePicks?: string[]) => void;
 }
 
 export function SigniActivatedModal(p: SigniActivatedModalProps) {
   // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（カード＋効果ごと。別の効果を開いたら空に戻る）
   const [virusPick, setVirusPick] = useState<{ key: string; zones: number[] }>({ key: '', zones: [] });
+  // 🆕2026-09-29＝コストで置く【チャーム】／【アクセ】（カード＋効果ごと）
+  const [cardPick, setCardPick] = useState<{ key: string; charm: string[]; acce: string[] }>({ key: '', charm: [], acce: [] });
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
   return (
@@ -134,6 +137,16 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actVirusNeedSelect = oppVirusChoiceNeeded(op, virusNeededAct);
               const actVirusZones = virusPick.key === actVirusKey ? virusPick.zones : [];
               const actVirusSelectOk = !actVirusNeedSelect || actVirusZones.length === virusNeededAct;
+              const actCharmNeed = eff.cost?.charmTrash ?? 0;
+              const actAcceNeed = eff.cost?.acceTrash ?? 0;
+              const actCharmCands = ownCharmCandidates(my);
+              const actAcceCands = ownAcceCandidates(my);
+              const actCharmNeedSelect = ownCostChoiceNeeded(actCharmCands, actCharmNeed);
+              const actAcceNeedSelect = ownCostChoiceNeeded(actAcceCands, actAcceNeed);
+              const actCardPick = cardPick.key === actVirusKey ? cardPick : { key: actVirusKey, charm: [], acce: [] };
+              const actCardSelectOk = (!actCharmNeedSelect || actCardPick.charm.length === actCharmNeed)
+                && (!actAcceNeedSelect || actCardPick.acce.length === actAcceNeed)
+                && actAcceCands.length >= actAcceNeed;
               const virusOkAct = virusNeededAct === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAct;
               const charmTrashNActM = eff.cost?.charmTrash ?? 0;
               const charmOkAct = charmTrashNActM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNActM;
@@ -220,7 +233,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               // 支払い関数に判定させる（centerOnly / level の条件を UI 側で写経しない）。タスク12(cviii)
               const actLrigDownCost = eff.cost?.lrigDown;
               const actLrigDownOk = !actLrigDownCost || payLrigDownCost(my, actLrigDownCost, battleCardMap) !== null;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actAttachedOk && actBeatSelectOk && actLrigDownOk && actVirusSelectOk;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actAttachedOk && actBeatSelectOk && actLrigDownOk && actVirusSelectOk && actCardSelectOk;
 
               return (
                 <>
@@ -743,6 +756,16 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     <OppVirusPicker op={op} count={virusNeededAct} cardMap={battleCardMap}
                       value={actVirusZones} onChange={zones => setVirusPick({ key: actVirusKey, zones })} />
                   )}
+                  {actCharmNeedSelect && (
+                    <CostCardPicker label="トラッシュに置く【チャーム】を選択" candidates={actCharmCands} count={actCharmNeed}
+                      cardMap={battleCardMap} testIdPrefix="signiact-charm" value={actCardPick.charm}
+                      onChange={charm => setCardPick({ ...actCardPick, charm })} />
+                  )}
+                  {actAcceNeedSelect && (
+                    <CostCardPicker label="トラッシュに置く【アクセ】を選択" candidates={actAcceCands} count={actAcceNeed}
+                      cardMap={battleCardMap} testIdPrefix="signiact-acce" value={actCardPick.acce}
+                      onChange={acce => setCardPick({ ...actCardPick, acce })} />
+                  )}
                   {/* beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき） */}
                   {actBeatNeedSelect && (
                     <>
@@ -799,7 +822,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     </button>
                     <button
                       data-testid="signiact-fire"
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash, actVirusZones)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash, actVirusZones, actCardPick.charm, actCardPick.acce)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

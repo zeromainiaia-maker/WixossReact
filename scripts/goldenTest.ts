@@ -275,7 +275,8 @@ import { facedownPeek } from '../src/screens/battle/facedownPeek';
 import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
 import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
 import { choiceLabelFromText } from '../src/screens/battle/choiceLabels';
-import { oppVirusChoiceNeeded, payRemoveOppVirus } from '../src/screens/battle/costs';
+import { oppVirusChoiceNeeded, payRemoveOppVirus, payCharmTrash, payAcceTrash, ownCharmCandidates, ownAcceCandidates, ownCostChoiceNeeded } from '../src/screens/battle/costs';
+import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93260,6 +93261,47 @@ test('2026-09-29 報告 08499934 と同型＝取り除く【ウィルス】を�
   // 選ぶ余地が無ければ対話を増やさない
   ctx.otherState.field.signi_virus = [0, 2, 0];
   ok(executeAction(rv, ctx).done, '1ゾーンだけなら自動');
+});
+
+test('2026-09-29 報告 08499934 の同型＝コストで置く【チャーム】／【アクセ】／【トラップ】をプレイヤーが選ぶ（旧＝左から自動）', () => {
+  const my = mkState({});
+  my.field.signi_charms = ['CH-A', null, 'CH-C'];
+  my.field.signi_acce = [['AC-A'], null, ['AC-C']] as typeof my.field.signi_acce;
+  my.field.signi_traps = ['TR-A', 'TR-B', null];
+  eq(JSON.stringify(ownCharmCandidates(my)), '["CH-A","CH-C"]', 'チャームの候補');
+  eq(JSON.stringify(ownAcceCandidates(my)), '["AC-A","AC-C"]', 'アクセの候補');
+  eq(ownCostChoiceNeeded(ownCharmCandidates(my), 1), true, '2枚から1枚＝選ぶ');
+  eq(ownCostChoiceNeeded(ownCharmCandidates(my), 2), false, '全部＝選ぶ余地なし');
+  const ch = payCharmTrash(my, 1, ['CH-C'])!;
+  eq(JSON.stringify(ch.state.field.signi_charms), '["CH-A",null,null]', '🔴選んだ右のチャームではなく左を置いた');
+  ok(ch.state.trash.includes('CH-C'), '置いたチャームはトラッシュへ');
+  eq(JSON.stringify(payCharmTrash(my, 1)!.moved), '["CH-A"]', '選択なし（CPU）は左から');
+  const ac = payAcceTrash(my, 1, ['AC-C'])!;
+  eq(JSON.stringify(ac.state.field.signi_acce), '[["AC-A"],null,null]', '🔴選んだアクセを置かない');
+  const tr = payTrapToHandCost(my, 1, ['TR-B'])!;
+  eq(JSON.stringify(tr.state.field.signi_traps), '["TR-A",null,null]', '🔴選んだトラップを手札に加えない');
+  ok(tr.state.hand.includes('TR-B'), 'トラップは手札へ');
+  // engine の任意コスト（アーツ・スペル）＝2枚から1枚なら選ばせ、選んだものを置く
+  const ctx = mkCtx({}, {}, 'WX07-021');
+  ctx.ownerState.field.signi_charms = ['CH-A', null, 'CH-C'];
+  const r = executeAction({ type: 'STUB', id: 'INTERNAL_PAY_CHARM_TRASH_VARIABLE', charmTrash: 1 } as unknown as EffectAction, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE' && r.pending.options.length === 2, '🔴どのチャームを置くかを選ばせない');
+  if (!r.done && r.pending.type === 'CHOOSE') {
+    const fin = resumeChoose('charm_pick_2', r.pending, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+    ok(fin.done, '1枚選べば完了');
+    eq(JSON.stringify(fin.ownerState.field.signi_charms), '["CH-A",null,null]', '選んだゾーン3のチャームを置く');
+    eq(fin.ownerState.last_charm_trash_count, 1, '可変コストは置いた枚数を記録');
+    eq(JSON.stringify(fin.lastProcessedCards), '["CH-C"]', '置いた札を後段へ');
+  }
+  // 全部置くなら選ばせない
+  ok(executeAction({ type: 'STUB', id: 'INTERNAL_PAY_CHARM_TRASH', charmTrash: 2 } as unknown as EffectAction, ctx).done, '全部＝自動');
+  // 支払い経路が共通関数を通る
+  for (const [f, fn] of [['src/screens/battle/controller/performSigniActivated.ts', 'payCharmTrash('], ['src/screens/battle/controller/performSigniActivated.ts', 'payAcceTrash('],
+    ['src/screens/battle/controller/performLrigActivated.ts', 'payCharmTrash('], ['src/screens/battle/controller/performLrigActivated.ts', 'sel.trapPicks'],
+    ['src/screens/battle/controller/performLrigActivated.ts', 'sel.beatZones']] as const) {
+    ok(fs.readFileSync(join(root, f), 'utf-8').includes(fn), `🔴${f} が ${fn} を通らない`);
+  }
+  ok(battleScreenSource().includes('payCharmTrash(paid, charmTrashN, charmPicks)'), '🔴【出】のチャームが選んだ札を使わない');
 });
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-29（第492バッチ）コストで置く【チャーム】／【アクセ】／【トラップ】・【ビート】にするシグニもプレイヤーが選ぶ（報告 08499934 の同型の残り）
+
+`src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs charmCostPick`（新設・右のチャームを選ぶ）／`virusCostPick`／`turnEndOnEntry` PASS／`node scripts/verifyFullMatch.mjs cpu` PASS。`npm run gates` 全緑（golden 4428/4428）。
+
+- **真因**＝ウィルスと同じく「左のゾーン（先頭）から自動」の手書きループ＝①シグニ【起】のチャーム（6効果）・アクセ（2効果＋付与1）②ルリグ【起】のチャーム（WX04-021）・トラップを手札へ（WX21-003）・【ビート】にするシグニ（WDK14-001・レベルの低い順で自動）③【出】のコストのチャーム（固定・可変）④engine の任意コストのチャーム（アーツ・スペル＝`INTERNAL_PAY_CHARM_TRASH(_VARIABLE)`）。
+- **直し方**＝共通の支払い `payCharmTrash`／`payAcceTrash`（`costs.ts`）・`payTrapToHandCost(…, picked)`・`payBeatSigniCost(…, zones)` に選択を渡し、汎用の選択欄 `CostCardPicker`（シグニ【起】／ルリグ【起】／【出】）。engine 側は `INTERNAL_PAY_CHARM_PICK` で1枚ずつ選ぶ CHOOSE（選ぶ余地が無ければ左から）。
+- **調べて対象外**＝効果側の「【トラップ】を手札に加える」は選ぶ余地があれば既に選ばせている（`TRAP_TO_HAND` の SELECT_TARGET）。シグニ【起】と【出】のビートは既に選択欄あり。トラッシュからの【起】のチャーム支払いは live 0件（手を入れていない）。
+- 検証＝`npm run golden -- --only "08499934"`（2本）。
+
 ## 2026-09-29（第491バッチ）取り除く【ウィルス】をプレイヤーが選ぶ（報告 08499934 とその同型・コスト5経路＋効果側）
 
 `src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs virusCostPick`（新設・コレラの【起】でゾーン2・3を選び [1,1,1]→[1,0,0]）PASS。`npm run gates` の golden 以外は全緑・golden はフィルタなし全件で 4427/4427。

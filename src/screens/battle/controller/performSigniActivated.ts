@@ -3,13 +3,12 @@ import { beatSigniCostCount, getCardNum, payBeatSigniCost, removeFromField } fro
 import { initStack, pushToStack } from '../../../engine/effectStack';
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers } from '../../../engine/triggerCollect';
 import { type PlayerState, type StackEntry } from '../../../types';
-import { cloneAcceSlots } from '../../../utils/acce';
 import { payAttachedOrUnderTrash } from '../attachedOrUnderCost';
 import { activateCostZeroApplies } from '../activateCostZero';
 import { consumeActivateCostZero } from '../turnScopedState';
 import { generateUUID } from '../battleUtils';
 import { reduceBattle } from '../controller/battleController';
-import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord, paySelectedExceed, payRemoveOppVirus } from '../costs';
+import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord, paySelectedExceed, payRemoveOppVirus, payCharmTrash, payAcceTrash } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldToDeckTopCost } from '../fieldToDeckTopCost';
@@ -57,6 +56,9 @@ export const performSigniActivated = async (
     charmTrashVarCount?: number;
     /** 🆕`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・CPU は省略＝左から）。 */
     virusZones?: number[];
+    /** 🆕`charmTrash`／`acceTrash` で置く札（人間が選んだ cardNum・CPU は省略＝左から）。 */
+    charmPicks?: string[];
+    accePicks?: string[];
   },
   p: {
     actor: PlayerState; opponent: PlayerState;
@@ -269,16 +271,12 @@ export const performSigniActivated = async (
         excluded: [...(afterRemove.excluded ?? []), cardNum],
       };
     }
-    // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
+    // charmTrash: 自分の場のチャームN枚をトラッシュ（🆕2026-09-29 どれを置くかはプレイヤーの選択＝`sel.charmPicks`）
     const charmTrashNAct2 = effect.cost?.charmTrash ?? 0;
     if (charmTrashNAct2 > 0) {
-      const newCharmsAct = [...(paid.field.signi_charms ?? [null, null, null])];
-      const movedCA: string[] = [];
-      for (let zi = 0; zi < newCharmsAct.length && movedCA.length < charmTrashNAct2; zi++) {
-        if (newCharmsAct[zi]) { movedCA.push(newCharmsAct[zi]!); newCharmsAct[zi] = null; }
-      }
-      if (movedCA.length < charmTrashNAct2) return; // 支払い不能
-      paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+      const charmPaid = payCharmTrash(paid, charmTrashNAct2, sel.charmPicks);
+      if (!charmPaid) return; // 支払い不能
+      paid = charmPaid.state;
     }
     // 🆕**handBottomDeck**（§5.7 `S-31` ② 第6段・`WXK10-072-E2`）＝「手札を１枚**デッキの一番下**に置く：」。
     //   🔴**支払いも提示の検算も無く、手札を1枚も失わずに撃てた**。
@@ -367,19 +365,12 @@ export const performSigniActivated = async (
         paid = { ...paid, last_charm_trash_count: 0 };
       }
     }
-    // acceTrash: あなたの【アクセ】N枚をトラッシュ（自動選択。先頭のゾーンから）
+    // acceTrash: あなたの【アクセ】N枚をトラッシュ（🆕2026-09-29 どれを置くかはプレイヤーの選択＝`sel.accePicks`）
     const acceTrashNAct = effect.cost?.acceTrash ?? 0;
     if (acceTrashNAct > 0) {
-      const newAcceAct = cloneAcceSlots(paid.field);
-      const movedAcceAct: string[] = [];
-      for (let zi = 0; zi < newAcceAct.length && movedAcceAct.length < acceTrashNAct; zi++) {
-        while (newAcceAct[zi]?.length && movedAcceAct.length < acceTrashNAct) {
-          movedAcceAct.push(newAcceAct[zi]!.shift()!);
-        }
-        if (newAcceAct[zi]?.length === 0) newAcceAct[zi] = null;
-      }
-      if (movedAcceAct.length < acceTrashNAct) return; // 支払い不能
-      paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct }, trash: [...paid.trash, ...movedAcceAct] };
+      const accePaid = payAcceTrash(paid, acceTrashNAct, sel.accePicks);
+      if (!accePaid) return; // 支払い不能
+      paid = accePaid.state;
     }
     // fieldBanish: 場のシグニをコストで**バニッシュ**（§5.3 `O-67`・`WX05-044-E1`）。
     // 🔴**行き先はエナゾーン**＝下の `fieldTrash` ブロック（トラッシュ送り）へ落とすと資源を失う。

@@ -6097,6 +6097,10 @@ export interface StubAction {
   virusRemovedSoFar?: number;
   /** 🆕2026-09-29＝「取り除いてから続き」の STUB が、【ウィルス】の選択（`removeOppVirusThen`）を終えて戻ってきた印。 */
   afterVirusRemoved?: boolean;
+  /** 🆕2026-09-29＝コスト「【チャーム】N枚をトラッシュ」を1枚ずつ選ぶ対話の持ち回り（総数・可変か・ここまでに置いた札）。 */
+  charmTotal?: number;
+  charmVariable?: boolean;
+  charmMovedSoFar?: string[];
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
   /**

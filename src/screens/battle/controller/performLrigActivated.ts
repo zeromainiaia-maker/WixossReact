@@ -5,7 +5,7 @@ import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers } from '../../..
 import { type PlayerState } from '../../../types';
 import { generateUUID } from '../battleUtils';
 import { type PlayerStateKey, reduceBattle } from '../controller/battleController';
-import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, activatedDiscardCostRecord, handDiscardHistoryRecord, payRemoveOppVirus } from '../costs';
+import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, activatedDiscardCostRecord, handDiscardHistoryRecord, payRemoveOppVirus, payCharmTrash } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldBanishCost } from '../fieldBanishCost';
@@ -53,6 +53,10 @@ export const performLrigActivated = async (
     exceedIndices?: Set<number>;
     /** 🆕`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・CPU は省略＝左から）。 */
     virusZones?: number[];
+    /** 🆕2026-09-29＝`charmTrash`／`trapToHand` で動かす札・`beat_signi` で【ビート】にするゾーン（人間の選択・CPU は省略＝自動）。 */
+    charmPicks?: string[];
+    trapPicks?: string[];
+    beatZones?: number[];
   },
   p: {
     actor: PlayerState; opponent: PlayerState;
@@ -256,13 +260,9 @@ export const performLrigActivated = async (
     // charmTrash: 自分の場のチャームN枚をトラッシュ（ルリグ起動コスト）
     const charmTrashNLrig = effect.cost?.charmTrash ?? 0;
     if (charmTrashNLrig > 0) {
-      const newCharmsLrig = [...(paid.field.signi_charms ?? [null, null, null])];
-      const movedCL: string[] = [];
-      for (let zi = 0; zi < newCharmsLrig.length && movedCL.length < charmTrashNLrig; zi++) {
-        if (newCharmsLrig[zi]) { movedCL.push(newCharmsLrig[zi]!); newCharmsLrig[zi] = null; }
-      }
-      if (movedCL.length < charmTrashNLrig) { ctx.io.setLoading(false); return; }
-      paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
+      const charmPaidLrig = payCharmTrash(paid, charmTrashNLrig, sel.charmPicks);
+      if (!charmPaidLrig) { ctx.io.setLoading(false); return; }
+      paid = charmPaidLrig.state;
     }
     // 🆕**beat_signi**（§5.7 `S-31` ② 第6段・`WDK14-001-E2`「シグニ１体を【ビート】にする：」）＝
     //   🔴**この経路には支払いが1行も無く、シグニを【ビート】にせずに撃てた**。
@@ -270,7 +270,7 @@ export const performLrigActivated = async (
     //     **レベルの低い順で自動**（人間の選択UIはシグニ【起】側にしかない＝honest defer）。
     //   ⚠効果元はルリグなので `sourceCardNum` にセンタールリグを渡す（`selfEligible` の判定に使う）。
     if (beatSigniCostCount(effect.cost?.beat_signi) > 0) {
-      const beatPaidLg = payBeatSigniCost(paid, p.sourceCardNum ?? my.field.lrig.at(-1) ?? '', ctx.cardMap, effect.cost!.beat_signi!);
+      const beatPaidLg = payBeatSigniCost(paid, p.sourceCardNum ?? my.field.lrig.at(-1) ?? '', ctx.cardMap, effect.cost!.beat_signi!, sel.beatZones);
       if (!beatPaidLg.ok) { ctx.io.setLoading(false); return; }
       paid = beatPaidLg.state;
       if (beatPaidLg.log) ctx.io.appendLogs([beatPaidLg.log]);
@@ -278,7 +278,7 @@ export const performLrigActivated = async (
     // 🆕**trapToHand**（§5.7 `S-31` ② 第6段・`WX21-003-E1`「あなたの【トラップ】１つを手札に加える：」）＝
     //   🔴**支払いも検算も無く、トラップを設置したまま撃てた**。
     if (effect.cost?.trapToHand) {
-      const trapPaid = payTrapToHandCost(paid, effect.cost.trapToHand);
+      const trapPaid = payTrapToHandCost(paid, effect.cost.trapToHand, sel.trapPicks);
       if (!trapPaid) { ctx.io.setLoading(false); return; }
       paid = trapPaid.state;
       ctx.io.appendLogs([`【トラップ】${trapPaid.moved.length}つを手札に加えた（コスト）`]);

@@ -346,6 +346,48 @@ export function removeOppVirusAffordable(op: PlayerState, count: number | undefi
 }
 
 /**
+ * 🆕2026-09-29（報告 08499934 の同型）＝コスト「あなたの【チャーム】N枚をトラッシュに置く」「あなたの【アクセ】N枚をトラッシュに置く」の
+ * **どれを置くかをプレイヤーが選ぶ**。旧実装は左のゾーン（アクセは先頭）から自動＝チャーム／アクセは札ごとに能力が違うのに選べなかった。
+ * 候補は「場のシグニに付いている札」の cardNum。候補が N 枚ちょうど以下なら選ぶ余地が無い。
+ */
+export function ownCharmCandidates(my: PlayerState): string[] {
+  return (my.field.signi_charms ?? []).filter((n): n is string => !!n);
+}
+export function ownAcceCandidates(my: PlayerState): string[] {
+  return (my.field.signi_acce ?? []).flatMap(slot => (Array.isArray(slot) ? slot : slot ? [slot] : []) as string[]);
+}
+/** 選ぶ余地があるか（候補が必要数より多い）。 */
+export function ownCostChoiceNeeded(candidates: readonly string[], count: number | undefined): boolean {
+  return !!count && candidates.length > count;
+}
+/** 選んだ札（`picked`）が候補から重複なく N 枚か。不正なら `null`＝支払い側は先頭から。 */
+function validPicks(candidates: readonly string[], count: number, picked?: readonly string[]): string[] | null {
+  if (!picked || picked.length !== count) return null;
+  if (new Set(picked).size !== picked.length || !picked.every(n => candidates.includes(n))) return null;
+  return [...picked];
+}
+/** `cost.charmTrash` の支払い。払えないなら `null`。 */
+export function payCharmTrash(my: PlayerState, count: number, picked?: readonly string[]): { state: PlayerState; moved: string[] } | null {
+  const cands = ownCharmCandidates(my);
+  if (cands.length < count) return null;
+  const moved = validPicks(cands, count, picked) ?? cands.slice(0, count);
+  const charms = (my.field.signi_charms ?? [null, null, null]).map(n => (n && moved.includes(n) ? null : n));
+  return { state: { ...my, field: { ...my.field, signi_charms: charms }, trash: [...my.trash, ...moved] }, moved };
+}
+/** `cost.acceTrash` の支払い。払えないなら `null`。 */
+export function payAcceTrash(my: PlayerState, count: number, picked?: readonly string[]): { state: PlayerState; moved: string[] } | null {
+  const cands = ownAcceCandidates(my);
+  if (cands.length < count) return null;
+  const moved = validPicks(cands, count, picked) ?? cands.slice(0, count);
+  const slots = (my.field.signi_acce ?? [null, null, null]).map(slot => {
+    const arr = (Array.isArray(slot) ? slot : slot ? [slot] : []) as string[];
+    const rest = arr.filter(n => !moved.includes(n));
+    return rest.length > 0 ? rest : null;
+  });
+  return { state: { ...my, field: { ...my.field, signi_acce: slots as typeof my.field.signi_acce }, trash: [...my.trash, ...moved] }, moved };
+}
+
+/**
  * 🆕2026-09-29（バグ報告 08499934＝マイプラのコストのウィルスが自動で選ばれる）＝**どのゾーンの【ウィルス】を取り除くか
  * プレイヤーが選ぶ必要があるか**。【ウィルス】のあるゾーンが2つ以上あり、かつ全部は取り除かないとき（＝結果が選び方で変わる）。
  * ⚠全部取り除く／1ゾーンにしか無いなら選ぶ余地が無い＝選択UIを出さない。

@@ -905,45 +905,53 @@ export function execStubPart1(
       lastProcessedCards: moved,
     }, `【ビート】コストで${moved.length}枚を支払った`));
   }
-  if (stub.id === 'INTERNAL_PAY_CHARM_TRASH') {
-    const count = stub.charmTrash ?? 0;
-    const charms = [...(ctx.ownerState.field.signi_charms ?? [null, null, null])];
-    const moved: string[] = [];
-    for (let zi = 0; zi < charms.length && moved.length < count; zi++) {
-      if (charms[zi]) {
-        moved.push(charms[zi]!);
-        charms[zi] = null;
+  // 🆕2026-09-29（報告 08499934 の同型）＝どの【チャーム】を置くかを選ばせる（選ぶ余地が無ければ従来どおり左から）。
+  if (stub.id === 'INTERNAL_PAY_CHARM_TRASH' || stub.id === 'INTERNAL_PAY_CHARM_TRASH_VARIABLE' || stub.id === 'INTERNAL_PAY_CHARM_PICK') {
+    const variable = stub.id === 'INTERNAL_PAY_CHARM_TRASH_VARIABLE' || stub.charmVariable === true;
+    const total = stub.charmTotal ?? stub.charmTrash ?? 0;
+    let movedSoFar = stub.charmMovedSoFar ?? [];
+    let c = ctx;
+    if (stub.id === 'INTERNAL_PAY_CHARM_PICK' && typeof stub.value === 'number') {
+      const charms = [...(c.ownerState.field.signi_charms ?? [null, null, null])];
+      const picked = charms[stub.value];
+      if (picked) {
+        charms[stub.value] = null;
+        movedSoFar = [...movedSoFar, picked];
+        c = { ...c, ownerState: { ...c.ownerState, trash: [...c.ownerState.trash, picked], field: { ...c.ownerState.field, signi_charms: charms } } };
       }
     }
-    if (moved.length < count) return done(addLog(ctx, `チャーム${count}枚をコストでトラッシュに置けない`));
-    return done(addLog({
-      ...ctx,
-      ownerState: {
-        ...ctx.ownerState,
-        trash: [...ctx.ownerState.trash, ...moved],
-        field: { ...ctx.ownerState.field, signi_charms: charms },
-      },
-      lastProcessedCards: moved,
-    }, `チャーム${count}枚をコストでトラッシュに置いた`));
-  }
-  if (stub.id === 'INTERNAL_PAY_CHARM_TRASH_VARIABLE') {
-    const count = stub.charmTrash ?? 0;
-    const charms = [...(ctx.ownerState.field.signi_charms ?? [null, null, null])];
-    const moved: string[] = [];
-    for (let zi = 0; zi < charms.length && moved.length < count; zi++) {
+    const remaining = total - movedSoFar.length;
+    const zonesWithCharm = [0, 1, 2].filter(z => !!c.ownerState.field.signi_charms?.[z]);
+    if (remaining > 0 && zonesWithCharm.length > remaining) {
+      const options = zonesWithCharm.map(z => {
+        const charm = c.ownerState.field.signi_charms![z]!;
+        return {
+          id: `charm_pick_${z}`,
+          label: `ゾーン${z + 1}の【チャーム】《${c.cardMap.get(getCardNum(charm))?.CardName ?? charm}》をトラッシュに置く`,
+          action: ({ type: 'STUB', id: 'INTERNAL_PAY_CHARM_PICK', value: z, charmTotal: total, charmVariable: variable, charmMovedSoFar: movedSoFar } as StubAction) as EffectAction,
+          available: true,
+        };
+      });
+      return needsInteraction(addLog(c, `トラッシュに置く【チャーム】を選択（あと${remaining}枚）`), { type: 'CHOOSE', options, count: 1 });
+    }
+    // 選ぶ余地なし＝残りは左から
+    const charms = [...(c.ownerState.field.signi_charms ?? [null, null, null])];
+    const moved = [...movedSoFar];
+    for (let zi = 0; zi < charms.length && moved.length < total; zi++) {
       if (charms[zi]) { moved.push(charms[zi]!); charms[zi] = null; }
     }
-    if (moved.length < count) return done(addLog(ctx, `チャーム${count}枚をコストでトラッシュに置けない`));
+    if (moved.length < total) return done(addLog(ctx, `チャーム${total}枚をコストでトラッシュに置けない`));
+    const autoMoved = moved.slice(movedSoFar.length);
     return done(addLog({
-      ...ctx,
+      ...c,
       ownerState: {
-        ...ctx.ownerState,
-        trash: [...ctx.ownerState.trash, ...moved],
-        field: { ...ctx.ownerState.field, signi_charms: charms },
-        last_charm_trash_count: count,
+        ...c.ownerState,
+        trash: [...c.ownerState.trash, ...autoMoved],
+        field: { ...c.ownerState.field, signi_charms: charms },
+        ...(variable ? { last_charm_trash_count: total } : {}),
       },
       lastProcessedCards: moved,
-    }, `チャーム${count}枚をコストでトラッシュに置いた`));
+    }, `チャーム${total}枚をコストでトラッシュに置いた`));
   }
   if (stub.id === 'INTERNAL_PAY_TRASH_ARTS_FROM_LRIG_DECK') {
     const cost = stub.trashArtsFromLrigDeck;

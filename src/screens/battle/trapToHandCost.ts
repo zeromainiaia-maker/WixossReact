@@ -7,17 +7,24 @@ import type { PlayerState } from '../../types';
  * `WX21-003-E1`「【起】《ターン１回》あなたの【トラップ】１つを手札に加える：…」が
  * **トラップを1つも回収せずに撃てた**（設置したままコストだけ踏み倒せた）。
  *
- * ⚠**どのトラップを戻すかは自動（左のゾーンから）**＝honest defer。
- *   トラップは**裏向き**なので画面に選択UIが無く、人間にも CPU にも同じ既定を使う
- *   （選ばせるなら「裏向きのまま選ぶ」UI が要る＝別バッチ）。
+ * 🆕2026-09-29（報告 08499934 の同型）＝**どのトラップを戻すかは `picked`（人間が選んだ札）**。自分の【トラップ】は
+ *   自分には見えている＝ルリグ【起】の支払い画面に選択欄を足した。省略・不正なら左のゾーンから（CPU の既定）。
  * ⚠足りなければ `null`（＝発動を中止する＝踏み倒しを作らない）。
  */
 export function payTrapToHandCost(
   state: PlayerState,
   count: number | undefined,
+  picked?: readonly string[],
 ): { state: PlayerState; moved: string[] } | null {
   if (!count) return { state, moved: [] };
   const traps = [...(state.field.signi_traps ?? [null, null, null])];
+  const present = traps.filter((t): t is string => !!t);
+  if (picked && picked.length === count && new Set(picked).size === count && picked.every(t => present.includes(t))) {
+    return {
+      state: { ...state, field: { ...state.field, signi_traps: traps.map(t => (t && picked.includes(t) ? null : t)) }, hand: [...state.hand, ...picked] },
+      moved: [...picked],
+    };
+  }
   const moved: string[] = [];
   for (let zi = 0; zi < traps.length && moved.length < count; zi++) {
     const t = traps[zi];

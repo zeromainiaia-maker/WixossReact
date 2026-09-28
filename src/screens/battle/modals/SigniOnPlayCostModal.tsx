@@ -2,13 +2,14 @@
 import { createPortal } from 'react-dom';
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { OppVirusPicker } from './OppVirusPicker';
+import { CostCardPicker } from './CostCardPicker';
 import type { PlayerState, StackEntry } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied } from '../fieldLimit';
 import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { isEnergyPaymentSelectionValid, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, applyNextOnPlayCostReduction, oppVirusChoiceNeeded } from '../costs';
+import { isEnergyPaymentSelectionValid, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, applyNextOnPlayCostReduction, oppVirusChoiceNeeded, ownCharmCandidates, ownCostChoiceNeeded } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -45,13 +46,14 @@ interface SigniOnPlayCostModalProps {
   setSelectedSigniOnPlayUnderTrash: Dispatch<SetStateAction<Set<string>>>;
   signiOnPlayCharmTrashVar: number;
   setSigniOnPlayCharmTrashVar: Dispatch<SetStateAction<number>>;
-  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>, exceedIndices?: Set<number>, underTrashKeys?: Set<string>, virusZones?: number[]) => void;
+  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>, exceedIndices?: Set<number>, underTrashKeys?: Set<string>, virusZones?: number[], charmPicks?: string[]) => void;
   skipSigniOnPlayCost: (cardNum: string, placedState: PlayerState, mandatoryEntries: StackEntry[], remainingCostEffects?: CardEffect[], placedZone?: number) => void;
 }
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
   // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（支払い画面ごと）
   const [virusSel, setVirusSel] = useState<{ owner: unknown; zones: number[] }>({ owner: null, zones: [] });
+  const [charmSel, setCharmSel] = useState<{ owner: unknown; picks: string[] }>({ owner: null, picks: [] });
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, selectedSigniOnPlayTrashToDeck, setSelectedSigniOnPlayTrashToDeck, selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
@@ -164,6 +166,12 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const virusNeedSelect = oppVirusChoiceNeeded(op, virusNeeded);
               const virusZonesOP = virusSel.owner === pendingSigniOnPlayCost ? virusSel.zones : [];
               const virusSelectOk = !virusNeedSelect || virusZonesOP.length === virusNeeded;
+              // 🆕2026-09-29＝トラッシュに置く【チャーム】を選ぶ（固定枚数＝charmTrash／可変＝charmTrashVariable の選んだ枚数）
+              const opCharmCount = (eff.cost?.charmTrash ?? 0) || (eff.cost?.charmTrashVariable ? signiOnPlayCharmTrashVar : 0);
+              const opCharmCands = ownCharmCandidates(pState);
+              const opCharmNeedSelect = ownCostChoiceNeeded(opCharmCands, opCharmCount);
+              const opCharmPicks = charmSel.owner === pendingSigniOnPlayCost ? charmSel.picks.slice(0, opCharmCount) : [];
+              const opCharmSelectOk = !opCharmNeedSelect || opCharmPicks.length === opCharmCount;
               const deckTrashNeeded = eff.cost?.deckTrash ?? 0;
               // charmTrashVariable
               const charmVarOPCostM = eff.cost?.charmTrashVariable;
@@ -224,7 +232,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               //   `selfZone` が -1 のことがある（ここで自身を要求すると払える形まで塞ぐ）。
               const beatFieldOkM = beatSigniCostCount(eff.cost?.beat_signi) === 0
                 || beatCostM.eligibleOtherZones.length >= beatCostM.otherPart;
-              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && virusSelectOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatFieldOkM && beatSelectOk && t2dOk
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && virusSelectOk && opCharmSelectOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatFieldOkM && beatSelectOk && t2dOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && handDiscardSigniOk
@@ -804,6 +812,11 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     <OppVirusPicker op={op} count={virusNeeded} cardMap={battleCardMap}
                       value={virusZonesOP} onChange={zones => setVirusSel({ owner: pendingSigniOnPlayCost, zones })} />
                   )}
+                  {opCharmNeedSelect && (
+                    <CostCardPicker label="トラッシュに置く【チャーム】を選択" candidates={opCharmCands} count={opCharmCount}
+                      cardMap={battleCardMap} testIdPrefix="onplay-charm" value={opCharmPicks}
+                      onChange={picks => setCharmSel({ owner: pendingSigniOnPlayCost, picks })} />
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => skipSigniOnPlayCost(
@@ -834,6 +847,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         selectedSigniOnPlayExceed,
                         selectedSigniOnPlayUnderTrash,
                         virusZonesOP,
+                        opCharmPicks,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',

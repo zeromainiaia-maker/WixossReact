@@ -8391,6 +8391,60 @@ const scenarios = {
   //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
   //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
   //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  // 🆕2026-09-29（報告 08499934 の同型）＝**コストで置く【チャーム】をプレイヤーが選ぶ**。
+  //   `WXEX1-73-E2`【起】【チャーム】1枚をトラッシュ：相手シグニ1体のパワー－3000。自分のゾーン1と3にチャームを付け、
+  //   **右（ゾーン3）のチャーム**を選ぶ。旧実装は左から自動＝ゾーン1のチャームが必ず外れた。
+  charmCostPick: {
+    title: 'コストで置く【チャーム】をゾーン3から選べる（左から自動にならない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXEX1-73#1'], null, ['WD01-009#h3']],
+        'field.signi_down': [false, false, false],
+        'field.signi_charms': ['WD01-013#c1', null, 'WD01-014#c3'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#g1'], null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      H.log(`開始 charms=${JSON.stringify(st0?.host?.signiCharms)}`);
+      await H.clickTestId('my-signi-zone-0');
+      await page.waitForTimeout(800);
+      // ⚠このシグニは【起】を2つ持つ＝チャームをコストにする方をボタン名で選ぶ（先頭は「ダウン」の【起】）
+      const actBtn = page.getByRole('button', { name: /^【起】.*チャーム/ }).first();
+      if (!((await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false))) return { pass: false, detail: '前提崩れ＝【起】が提示されない' };
+      await actBtn.click().catch(() => {});
+      let picked = false, fired = false;
+      for (let i = 0; i < 20; i++) {
+        await page.waitForTimeout(700);
+        await page.screenshot({ path: `${SHOT}/charmCostPick-${i}.png`, fullPage: true });
+        let did = null;
+        if (!picked) {
+          const c = page.getByTestId('signiact-charm-1').first();   // 候補2番目＝ゾーン3のチャーム
+          if (await c.count() && await c.isVisible().catch(() => false)) { await c.click().catch(() => {}); picked = true; did = 'charm-1'; }
+          else if (i > 3) return { pass: false, detail: '🔴置く【チャーム】の選択欄が出ない（左から自動のまま）' };
+        } else if (!fired) { did = await H.clickTestId('signiact-fire'); if (did) fired = true; }
+        if (!did && fired) did = await H.stdStep();
+        const st = await H.queryState();
+        const tr = (st?.host?.trashCards ?? []).map(String);
+        H.log(`  [${i}] -> ${did ?? 'なし'} | trash=${JSON.stringify(tr)} fired=${fired} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // ⚠`queryState` にチャーム欄は無い＝トラッシュに入った札で判定する（ゾーン3＝ボーニャ c3／ゾーン1＝ククリ c1）
+        if (fired && tr.some(n => n.includes('#c'))) {
+          return (tr.includes('WD01-014#c3') && !tr.includes('WD01-013#c1'))
+            ? { pass: true, detail: `選んだゾーン3のチャーム（ボーニャ）をトラッシュに置いた（trash=${JSON.stringify(tr)}）` }
+            : { pass: false, detail: `🔴選んだのと違うチャームを置いた（trash=${JSON.stringify(tr)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着しなかった（trash=${JSON.stringify(fin?.host?.trashCards)} fired=${fired}）` };
+    },
+  },
+
   // 🆕2026-09-29（バグ報告 08499934 とその同型）＝**コストで取り除く【ウィルス】をプレイヤーが選ぶ**。
   //   `WXEX1-78-E2`（羅菌　コレラ）【起】コスト＝対戦相手の場の【ウィルス】2つを取り除く。相手の3ゾーンに1つずつ置き、
   //   **左端（ゾーン1）以外の2つ**を選ぶ。旧実装は左から自動＝ゾーン1とゾーン2が必ず外れた。

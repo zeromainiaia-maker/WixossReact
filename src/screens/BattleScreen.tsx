@@ -170,7 +170,7 @@ import {assistLrigAttackableSlots, lrigSlotTop, type LrigAttackSlot} from './bat
 import {centerLrigAttackBlock} from './battle/lrigAttackGate';
 import {sideAttackEmptyZoneDealsDamage} from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
-import {handDiscardHistoryRecord, payRemoveOppVirus} from './battle/costs';
+import {handDiscardHistoryRecord, payRemoveOppVirus, payCharmTrash} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
 import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
@@ -4503,13 +4503,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   /** 人間UI（`SigniActivatedModal`）から呼ぶ薄いラッパー。判定・実行の本体は `performSigniActivated`。 */
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set(), virusZones: number[] = []) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set(), virusZones: number[] = [], charmPicks?: string[], accePicks?: string[]) => {
     if (loading) return;
     closeSigniActivated();
     setKeySubstituteEnabled(false);
     await performSigniActivated(cardNum, effect, {
       costIndices, discardCostIndices, useKeySub, discardVarIndices, energyTrashIndices,
-      trashExileIndices, fieldTrashZones, beatZones, underTrashKeys, virusZones,
+      trashExileIndices, fieldTrashZones, beatZones, underTrashKeys, virusZones, charmPicks, accePicks,
       charmTrashVarCount: signiActCharmTrashVar,
     }, {
       actor: my, opponent: op,
@@ -4778,6 +4778,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     exceedIndices: Set<number> = new Set(),
     underTrashKeys: Set<string> = new Set(),
     virusZones: number[] = [],
+    charmPicks: string[] = [],
   ) => {
     if (loading) return;
     setLoading(true);
@@ -4962,17 +4963,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = { ...paid, deck: paid.deck.slice(movedD.length), trash: [...paid.trash, ...movedD] };
         payLogs.push(`デッキ上${movedD.length}枚をコストでトラッシュ`);
       }
-      // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（🆕2026-09-29 どれを置くかはプレイヤーの選択＝`charmPicks`）
       const charmTrashN = cost?.charmTrash ?? 0;
       if (charmTrashN > 0) {
-        const newCharmsC = [...(paid.field.signi_charms ?? [null, null, null])];
-        const movedC: string[] = [];
-        for (let zi = 0; zi < newCharmsC.length && movedC.length < charmTrashN; zi++) {
-          if (newCharmsC[zi]) { movedC.push(newCharmsC[zi]!); newCharmsC[zi] = null; }
-        }
-        if (movedC.length < charmTrashN) return;
-        paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsC }, trash: [...paid.trash, ...movedC] };
-        payLogs.push(`チャーム${movedC.length}枚をコストでトラッシュ`);
+        const charmPaidOP = payCharmTrash(paid, charmTrashN, charmPicks);
+        if (!charmPaidOP) return;
+        paid = charmPaidOP.state;
+        payLogs.push(`チャーム${charmPaidOP.moved.length}枚をコストでトラッシュ`);
       }
       // charmTrashVariable: チャームを可変枚数トラッシュ（プレイヤーが選択した枚数）
       const charmVarOPCost = cost?.charmTrashVariable;
@@ -4980,13 +4977,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const n = signiOnPlayCharmTrashVar;
         if (n < charmVarOPCost.min) return;
         if (n > 0) {
-          const newCharmsOPV = [...(paid.field.signi_charms ?? [null, null, null])];
-          const movedOPV: string[] = [];
-          for (let zi = 0; zi < newCharmsOPV.length && movedOPV.length < n; zi++) {
-            if (newCharmsOPV[zi]) { movedOPV.push(newCharmsOPV[zi]!); newCharmsOPV[zi] = null; }
-          }
-          if (movedOPV.length < n) return;
-          paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsOPV }, trash: [...paid.trash, ...movedOPV], last_charm_trash_count: n };
+          // 🆕2026-09-29＝どれを置くかはプレイヤーの選択（`charmPicks`・枚数が合わなければ左から）
+          const charmPaidOPV = payCharmTrash(paid, n, charmPicks);
+          if (!charmPaidOPV) return;
+          paid = { ...charmPaidOPV.state, last_charm_trash_count: n };
           payLogs.push(`チャーム${n}枚をコストでトラッシュ`);
         } else {
           paid = { ...paid, last_charm_trash_count: 0 };
@@ -5085,11 +5079,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set(), trashArtsNums: string[] = [], virusZones: number[] = []) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set(), trashArtsNums: string[] = [], virusZones: number[] = [], picks: { charmPicks?: string[]; trapPicks?: string[]; beatZones?: number[] } = {}) => {
     if (loading) return;
     closeLrigGranted();
     // 🆕§5.7 `S-31` ② 第4段＝`trashArtsNums`（ルリグデッキから徴収するアーツ）も実行へ渡す。
-    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices, trashArtsNums, virusZones }, {
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices, trashArtsNums, virusZones, ...picks }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,

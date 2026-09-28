@@ -9,7 +9,9 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, isEnergyPaymentSelectionValid, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
-import { oppVirusChoiceNeeded } from '../costs';
+import { oppVirusChoiceNeeded, ownCharmCandidates, ownCostChoiceNeeded } from '../costs';
+import { CostCardPicker } from './CostCardPicker';
+import { analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/execUtils';
 import { OppVirusPicker } from './OppVirusPicker';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from '../artsTrashCost';
@@ -33,7 +35,7 @@ interface LrigGrantedModalProps {
   /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
   selectedLrigGrantedFieldBanish: Set<number>;
   setSelectedLrigGrantedFieldBanish: Dispatch<SetStateAction<Set<number>>>;
-  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>, trashArtsNums?: string[], virusZones?: number[]) => void;
+  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>, trashArtsNums?: string[], virusZones?: number[], picks?: { charmPicks?: string[]; trapPicks?: string[]; beatZones?: number[] }) => void;
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
@@ -41,6 +43,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish, executeLrigGranted } = p;
   // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（効果ごと）
   const [virusPick, setVirusPick] = useState<{ key: string; zones: number[] }>({ key: '', zones: [] });
+  // 🆕2026-09-29＝コストで動かす【チャーム】／【トラップ】・【ビート】にするシグニ（効果ごと）
+  const [cardPick, setCardPick] = useState<{ key: string; charm: string[]; trap: string[]; beat: string[] }>({ key: '', charm: [], trap: [], beat: [] });
   // 🆕§5.3 `O-118`（2026-09-02）＝エクシードで「どのカードを置くか」の選択。
   //   🔴旧＝この経路には選択UIが無く**下から機械的に**払っていた（色指定は貪欲に満たすだけ）＝
   //   原文（「エクシード２（白と赤のカード）」）は満たす組が複数あるとき**プレイヤーが選べる**。
@@ -120,6 +124,20 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const virusNeedSelectLrig = oppVirusChoiceNeeded(op, virusNeededLrig);
               const virusZonesLrig = virusPick.key === virusKeyLrig ? virusPick.zones : [];
               const virusSelectOkLrig = !virusNeedSelectLrig || virusZonesLrig.length === virusNeededLrig;
+              const lgPick = cardPick.key === virusKeyLrig ? cardPick : { key: virusKeyLrig, charm: [], trap: [], beat: [] };
+              const lgCharmCands = ownCharmCandidates(my);
+              const lgCharmNeedSelect = ownCostChoiceNeeded(lgCharmCands, charmTrashNLrigM);
+              const lgTrapNeed = eff.cost?.trapToHand ?? 0;
+              const lgTrapCands = (my.field.signi_traps ?? []).filter((t): t is string => !!t);
+              const lgTrapNeedSelect = ownCostChoiceNeeded(lgTrapCands, lgTrapNeed);
+              const lgBeatCost = beatSigniCostCount(eff.cost?.beat_signi) > 0
+                ? analyzeBeatSigniCost(my, pendingLrigGranted.sourceCardNum, battleCardMap, eff.cost!.beat_signi!) : null;
+              const lgBeatCands = (lgBeatCost?.eligibleOtherZones ?? []).map(zi => my.field.signi[zi]?.at(-1)).filter((n): n is string => !!n);
+              const lgBeatNeedSelect = !!lgBeatCost && ownCostChoiceNeeded(lgBeatCands, lgBeatCost.otherPart);
+              const lgBeatZones = lgPick.beat.map(n => my.field.signi.findIndex(st => st?.at(-1) === n)).filter(z => z >= 0);
+              const lgPickOk = (!lgCharmNeedSelect || lgPick.charm.length === charmTrashNLrigM)
+                && (!lgTrapNeedSelect || lgPick.trap.length === lgTrapNeed)
+                && (!lgBeatNeedSelect || lgPick.beat.length === lgBeatCost!.otherPart);
               const lgEnergyTrashCost = eff.cost?.energyTrash;
               // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
               const lgEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedLrigGrantedEnergyTrash, lgEnergyTrashCost, battleCardMap);
@@ -159,7 +177,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const lgArtsCost = eff.cost?.trashArtsFromLrigDeck;
               const lgArtsCands = trashArtsFromLrigDeckCandidates(my, lgArtsCost, battleCardMap, isImmovableArtsFromLrigDeck);
               const lgArtsOk = !lgArtsCost || selectedLrigArts.length === lgArtsCost.count;
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && virusSelectOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk && lgArtsOk;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && virusSelectOkLrig && lgPickOk && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk && lgArtsOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -559,6 +577,18 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     <OppVirusPicker op={op} count={virusNeededLrig} cardMap={battleCardMap}
                       value={virusZonesLrig} onChange={zones => setVirusPick({ key: virusKeyLrig, zones })} />
                   )}
+                  {lgCharmNeedSelect && (
+                    <CostCardPicker label="トラッシュに置く【チャーム】を選択" candidates={lgCharmCands} count={charmTrashNLrigM}
+                      cardMap={battleCardMap} testIdPrefix="lrigact-charm" value={lgPick.charm} onChange={charm => setCardPick({ ...lgPick, charm })} />
+                  )}
+                  {lgTrapNeedSelect && (
+                    <CostCardPicker label="手札に加える【トラップ】を選択" candidates={lgTrapCands} count={lgTrapNeed}
+                      cardMap={battleCardMap} testIdPrefix="lrigact-trap" value={lgPick.trap} onChange={trap => setCardPick({ ...lgPick, trap })} />
+                  )}
+                  {lgBeatNeedSelect && (
+                    <CostCardPicker label="【ビート】にするシグニを選択" candidates={lgBeatCands} count={lgBeatCost!.otherPart}
+                      cardMap={battleCardMap} testIdPrefix="lrigact-beat" value={lgPick.beat} onChange={beat => setCardPick({ ...lgPick, beat })} />
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); setSelectedExceed([]); setSelectedLrigArts([]); }}
@@ -568,7 +598,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                       キャンセル
                     </button>
                     <button
-                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed), selectedLrigArts, virusZonesLrig); setSelectedExceed([]); setSelectedLrigArts([]); }}
+                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed), selectedLrigArts, virusZonesLrig, { charmPicks: lgPick.charm, trapPicks: lgPick.trap, beatZones: lgBeatZones }); setSelectedExceed([]); setSelectedLrigArts([]); }}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
