@@ -209,8 +209,15 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
    * 🆕2026-09-22＝**ルリグデッキに残っているアーツの価値**（`artsKept`・自分側だけ）。
    * 🔴これが無いとアーツを使うことが**タダ**に見え、探索が「少しでも点が上がるアーツ」を撃ち尽くす（バグ報告 `aa903772`）。
    */
+  //   🆕2026-09-28＝**アシストルリグも同じ値段**（ユーザー指示「アシストグロウは実質アーツ」）。
+  //   🔴無いとアシストグロウがタダに見え、探索が「1枚引いて1枚捨てる」程度の得でも使い切る（実機で観測＝除去の対象がいないのにハウリング）。
+  //   ⚠旧挙動（`legacy-assistgrow`）では数えない（探索に入らないので値段も要らない）。
+  const assistAsArts = (ctx.policy ?? DEFAULT_CPU_POLICY).assistGrowAsArts > 0;
   const artsValue = (st: PlayerState) =>
-    st.lrig_deck.filter(id => (ctx.cardMap.get(getCardNum(id)) ?? ctx.cardMap.get(id))?.Type === 'アーツ').length * (W.artsKept ?? 0);
+    st.lrig_deck.filter(id => {
+      const type = (ctx.cardMap.get(getCardNum(id)) ?? ctx.cardMap.get(id))?.Type;
+      return type === 'アーツ' || (assistAsArts && type === 'アシストルリグ');
+    }).length * (W.artsKept ?? 0);
   /** センタールリグのレベル（🆕§5.7 `S-18`＝グロウの価値）。 */
   const lrigLevelOf = (st: PlayerState) => {
     const top = st.field.lrig.at(-1);

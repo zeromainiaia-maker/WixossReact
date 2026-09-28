@@ -112,6 +112,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'chargeSpellKeep', base: 8000, values: [0, 16000] },
   { key: 'chargeSkipSlack', base: 1, values: [-1, 3] },
   { key: 'choiceLookahead', base: 1, values: [0] },
+  { key: 'assistGrowAsArts', base: 1, values: [0] },
   // ── 🆕§5.7 `S-22`＝対象選択を置き場で決めるか（0＝旧挙動＝乱数）。⚠つまみではなく**反転確認の口**。
   { key: 'targetIntentByScope', base: 1, values: [0] },
   // ── 🆕§5.7 `S-24`＝マリガンで確保しに行くレベル1の枚数（0＝旧規則＝レベル2を掘らない）。

@@ -181,6 +181,7 @@ import { performCpuMulligan } from '../src/screens/battle/controller/performMull
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyCpuMoveSim, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, cpuChargeNeedOf, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects, offFieldActivateTiming } from '../src/screens/battle/offFieldActivateGate';
@@ -87325,10 +87326,15 @@ test('§5.7 S-16 探索の配線：既定は幅0（挙動不変）・実行は�
     ok(re.test(battle), `🔴探索が有効でも従来の優先順が同じ種類を打つ（${re.source.slice(0, 40)}…）`);
   }
   // ④ 探索が扱えない手は**従来の優先順のまま**（`cpuSearchOn` で止めない）＝止めると CPU がレゾナもライズも出さなくなる
-  for (const call of ['tryCpuAssistGrow(newCpuSt)', 'tryCpuResona(newCpuSt)', 'tryCpuRise(newCpuSt)', "tryCpuKeyPiece(newCpuSt, 'MAIN')"]) {
+  //   🆕2026-09-28＝アシストグロウは探索に入った（アーツと同じ）＝ここから外し、下の⑤で「探索が有効なら打たない」を見る。
+  for (const call of ['tryCpuResona(newCpuSt)', 'tryCpuRise(newCpuSt)', "tryCpuKeyPiece(newCpuSt, 'MAIN')"]) {
     const line = battle.split('\n').find(l => l.includes(call) && l.includes('await'));
     ok(!!line && !line.includes('cpuSearchOn'), `🔴探索の外に置いた手（${call}）まで探索の有無で止めている`);
   }
+  // ⑤ 🆕2026-09-28＝アシストグロウは探索が選ぶ＝探索が有効なら従来の経路では打たない（二重に打たない）
+  const agLine = battle.split(/\r?\n/).find(l => l.includes('tryCpuAssistGrow(newCpuSt)') && l.includes('await'));
+  ok(!!agLine && agLine.includes('!cpuSearchOn'), '🔴探索が有効でもメインフェイズの従来の経路がアシストグロウを打つ');
+  ok(/case 'assistGrow': return tryCpuAssistGrow\(actorState, phase, move\);/.test(battle), '🔴探索が選んだアシストグロウを本番の実行関数へ流していない');
 }));
 
 
@@ -87531,9 +87537,11 @@ test('§5.7 S-16 探索用の1手適用：支払い・使用済みの印を写�
   eq(listCpuMoves({ ...ctx, actor: afterEnergy!.cpu }, 'ENERGY', { pendingSpell: false }).length, 0,
     '🔴エナチャージ後も候補が残る（1ターン1回の印を刻んでいない）');
   // ⑤ 🔴**まだ適用できない手は `null`**（実行関数の盤面操作を写経しない＝§5.6.3）＝「弱い手」として0点で並べない
-  for (const kind of ['assistGrow', 'resona', 'rise', 'piece'] as const) {
+  for (const kind of ['resona', 'rise', 'piece'] as const) {
     eq(CPU_SIM_APPLICABLE_KINDS.has(kind), false, `🔴${kind} を「適用できる」と宣言しているのに実装が無い`);
   }
+  // 🆕2026-09-28＝アシストグロウは適用できる（`simAssistGrow`＝アーツと同じく探索に入る）。
+  eq(CPU_SIM_APPLICABLE_KINDS.has('assistGrow'), true, '🔴アシストグロウが探索に入っていない');
   eq(applyCpuMoveSim(ctx, { kind: 'rise', card: cardMap.get(VANILLA)!, handIndex: 0, zone: 0, selection: undefined } as unknown as CpuMove), null,
     '🔴適用を実装していない種類が null を返さない（探索が嘘の盤面で進む）');
 }));
@@ -92922,37 +92930,112 @@ test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇
   eq(allow('offense'), '010', '🔴「攻め」＝自分のアタックフェイズだけになっていない');
   eq(allow('defense'), '001', '🔴「守り」＝相手のアタックフェイズだけになっていない');
   eq(allow('both'), '011', '🔴「両方」＝両方のアタックフェイズ（メインでは使わない）になっていない');
-  for (const f of ['cpuActivate', 'cpuLrigActivate', 'cpuOffFieldActivate', 'cpuKeyPiece', 'cpuMoves']) {
+  for (const f of ['cpuActivate', 'cpuLrigActivate', 'cpuOffFieldActivate', 'cpuKeyPiece']) {
     ok(fs.readFileSync(join(root, `src/screens/battle/${f}.ts`), 'utf-8').includes('planAllowsUseIn('), `🔴${f} が使いどころの窓を見ていない`);
   }
 
-  // ── ③ S-37＝アシストグロウをアタックフェイズの窓でも（作戦データで書いた札だけ）──
+  // ── ③ S-37 → 🆕2026-09-28＝アシストグロウは**アーツと同じ扱い**（ユーザー指示「実質アーツ」・`cpuAssistGrow.ts`）──
+  //   列挙＝作戦データの読み方はアーツ（`listCpuArts`）と同じ／使うかどうか＝アーツと同じ足切り（攻め＝塞がれていれば除去・
+  //   それ以外は指名だけ／守り＝実害の見込みがあるときだけ）。🔴旧＝候補の先頭を必ず使っていた（メインでは指定が無ければ無条件）。
   const ASSIST1 = 'WXDi-P01-021';   // ノヴァ Lv1・グロウコスト《無》×０・メインフェイズ／アタックフェイズ
   const assist0 = findCard(c => c.Type === 'ルリグ' && c.Level === '0' && (c.CardClass ?? '').includes('ノヴァ'));
   const center = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
   const cm = cardMap as Map<string, CardData>;
+  const im = new InstanceMap<CardData>(cardMap) as Map<string, CardData>;
   const actor = () => {
     const st = mkState({ lrig: [center], assistL: [assist0] });
     st.lrig_deck = [ASSIST1];
     return st;
   };
   const threat = board([`${P12}#t`, null, null]);   // 正面が空いたアップ状態のシグニ＝実害の見込みあり
-  const grows = (u: string | undefined, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP', oppSt = threat) => listCpuAssistGrows({
+  const agCtx = (u: string | undefined, oppSt = threat): CpuMoveCtx => ({
     actor: actor(), opponent: oppSt, allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap: cm, effectsMap,
+    lookahead: { cardMap: im, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] },
     reserveFor: () => undefined, plan: normalizeCpuDeckPlan(u ? { cardUse: { [ASSIST1]: u } } : {}),
-  }, phase).map(m => m.card.CardNum).join(',');
-  eq(grows(undefined, 'MAIN'), ASSIST1, '前提崩れ＝メインフェイズにアシストグロウの候補が出ない');
-  eq(grows(undefined, 'ATTACK_ARTS'), '', '🔴指定なしの札をアタックフェイズでグロウした（挙動不変が正）');
-  eq(grows('offense', 'MAIN'), '', '🔴「攻め」と書いた札をメインフェイズでグロウした');
-  eq(grows('offense', 'ATTACK_ARTS'), ASSIST1, '🔴「攻め」と書いた札を自分のアタックフェイズでグロウしない');
-  eq(grows('offense', 'ATTACK_ARTS_OP'), '', '🔴「攻め」と書いた札を相手のアタックフェイズでグロウした');
-  eq(grows('defense', 'ATTACK_ARTS_OP'), ASSIST1, '🔴「守り」と書いた札を相手のアタックフェイズでグロウしない');
-  eq(grows('defense', 'ATTACK_ARTS_OP', board([null, null, null])), '', '🔴実害の見込みが無いのに守りでグロウした');
-  eq(grows('both', 'ATTACK_ARTS') + '/' + grows('both', 'ATTACK_ARTS_OP'), `${ASSIST1}/${ASSIST1}`, '🔴「両方」が片方の窓でしか効かない');
-  eq(grows('never', 'MAIN'), '', '🔴「使わない」と書いたアシストルリグをグロウした');
+  });
+  const grows = (u: string | undefined, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP', oppSt = threat) =>
+    listCpuAssistGrows(agCtx(u, oppSt), phase).map(m => m.card.CardNum).join(',');
+  const picks = (u: string | undefined, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP', oppSt = threat) =>
+    (phase === 'ATTACK_ARTS_OP' ? pickCpuResponseAssistGrow(agCtx(u, oppSt)) : pickCpuOffensiveAssistGrow(agCtx(u, oppSt), phase))?.move.card.CardNum ?? '';
+  // 列挙＝アーツと同じ読み方
+  eq(grows(undefined, 'MAIN') + '/' + grows(undefined, 'ATTACK_ARTS'), `${ASSIST1}/${ASSIST1}`, '前提崩れ＝指定なしの札が列挙に出ない');
+  eq(grows('offense', 'MAIN') + '/' + grows('offense', 'ATTACK_ARTS_OP'), `${ASSIST1}/`, '🔴「攻め」の読み方がアーツと違う（自分のターン＝メインも含む）');
+  eq(grows('defense', 'MAIN') + '/' + grows('defense', 'ATTACK_ARTS_OP'), `/${ASSIST1}`, '🔴「守り」の読み方がアーツと違う（相手のターンだけ）');
+  eq(grows('never', 'MAIN') + grows('never', 'ATTACK_ARTS_OP'), '', '🔴「使わない」と書いたアシストルリグを列挙した');
+  // 使うかどうか＝アーツと同じ足切り
+  eq(picks(undefined, 'MAIN') + picks(undefined, 'ATTACK_ARTS'), '', '🔴指定なし・塞がれていない・除去でもない札をグロウした（旧＝先頭を必ず使っていた）');
+  eq(picks('offense', 'MAIN') + '/' + picks('offense', 'ATTACK_ARTS'), `${ASSIST1}/${ASSIST1}`, '🔴「攻め」と書いた札を自分のターンにグロウしない');
+  eq(picks('offense', 'ATTACK_ARTS_OP'), '', '🔴「攻め」と書いた札を相手のアタックフェイズでグロウした');
+  eq(picks('defense', 'ATTACK_ARTS_OP'), ASSIST1, '🔴「守り」と書いた札を相手のアタックフェイズでグロウしない');
+  eq(picks('defense', 'ATTACK_ARTS_OP', board([null, null, null])), '', '🔴実害の見込みが無いのに守りでグロウした');
+  eq(picks('both', 'ATTACK_ARTS') + '/' + picks('both', 'ATTACK_ARTS_OP'), `${ASSIST1}/${ASSIST1}`, '🔴「両方」が片方の窓でしか効かない');
+  eq(picks('never', 'MAIN'), '', '🔴「使わない」と書いたアシストルリグをグロウした');
   const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
   ok(turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')") && turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')"),
     '🔴本番のアタックフェイズの窓にアシストグロウが無い');
+}));
+test('2026-09-28 CPU のアシストグロウ＝アーツと同じ扱い（除去は塞がれていて対象がいるときだけ・探索が【出】まで解く）', () => withSavedCursor(() => {
+  // 🔑ユーザー指示「アシストグロウはルリグと名のついているが実質アーツである。扱いをアーツと同じに」。
+  //   🔴旧＝`listCpuAssistGrows(...)[0]` を必ず使っていた＝「何を」だけで「するか」を判断していなかった。
+  //   アシストルリグ188枚のうち184枚が【出】を持つ（2026-09-28 実測）＝その【出】がアーツの本体。
+  const HOWL = 'WXDi-D01-006';   // タウィル＝ハウリング Lv1《無》×0＝【出】相手のパワー8000以下のシグニ1体をバニッシュ（＋1枚引いて1枚捨てる）
+  const im = new InstanceMap<CardData>(cardMap) as Map<string, CardData>;
+  const mk = (mySigni: (string | null)[], oppSigni: (string | null)[]): CpuMoveCtx => {
+    const actor = mkState({ lrig: ['WXDi-D01-004#c'], assistL: ['WXDi-D01-005#a'], signi: mySigni as never });
+    actor.lrig_deck = [`${HOWL}#d`];
+    return {
+      actor, opponent: mkState({ signi: oppSigni as never }),
+      allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap: im, effectsMap,
+      lookahead: { cardMap: im, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] },
+      reserveFor: () => undefined,
+    };
+  };
+  const P3 = SIGNI_P3000, P12 = SIGNI_P12000;
+  // ① 分類＝除去は対象が相手の場にいるときだけ（アーツの《付和雷同》と同じ規律）
+  eq(assistGrowKindsOf(mk([null, null, null], [`${P3}#o`, null, null]), HOWL).join(','), 'removal', '🔴除去の【出】を除去と分類しない');
+  eq(assistGrowKindsOf(mk([null, null, null], [`${P12}#o`, null, null]), HOWL).join(','), '', '🔴対象（8000以下）がいないのに除去と数えた');
+  // ② 攻め＝正面が塞がれていて除去の対象がいるときだけ
+  const blocked = mk([null, null, `${P3}#m`], [`${P3}#o`, null, null]);   // 自分のゾーン3の正面＝相手のゾーン1
+  eq(pickCpuOffensiveAssistGrow(blocked, 'MAIN')?.move.card.CardNum ?? '', HOWL, '🔴塞がれていて除去できるのにグロウしない');
+  eq(pickCpuOffensiveAssistGrow(blocked, 'MAIN')?.kind ?? '', 'removal', '🔴選んだ理由が除去でない');
+  eq(pickCpuOffensiveAssistGrow(mk([null, null, null], [`${P3}#o`, null, null]), 'MAIN'), null, '🔴塞がれていない（こちらにシグニがいない）のにグロウした');
+  eq(pickCpuOffensiveAssistGrow(mk([null, null, `${P3}#m`], [`${P12}#o`, null, null]), 'MAIN'), null, '🔴除去の対象がいないのにグロウした');
+  // ③ 探索＝【出】まで解いた盤面（本番と同じ collector が積む効果）
+  const mv = listCpuAssistGrows(blocked).find(m => m.card.CardNum === HOWL);
+  ok(!!mv, '前提崩れ＝アシストグロウの候補が出ない');
+  const after = applyCpuMoveSim(blocked, mv!);
+  ok(!!after, '🔴アシストグロウを先読みで解けない');
+  eq(after!.cpu.field.assist_lrig_l.at(-1), `${HOWL}#d`, '🔴アシストゾーンに重なっていない');
+  eq(after!.cpu.lrig_deck.length, 0, '🔴ルリグデッキから抜けていない');
+  eq((after!.opp.field.signi[0] ?? []).length, 0, '🔴【出】の除去が先読みに入っていない');
+  ok(listCpuMoves(blocked, 'MAIN', { pendingSpell: false }).some(m => m.kind === 'assistGrow'), '🔴探索の候補にアシストグロウが無い');
+  // ③' 値段＝ルリグデッキに残るアシストルリグはアーツと同じ値段（`artsKept`）＝使うことはタダではない
+  //   🔴実機で観測＝値段が無いと、相手の場が空でも「1枚引いて1枚捨てる」だけの得でハウリングを使い切っていた。
+  const lk = blocked.lookahead;
+  const withAssist = evaluateBoard(blocked.actor, blocked.opponent, lk);
+  const noAssist = evaluateBoard({ ...blocked.actor, lrig_deck: [] }, blocked.opponent, lk);
+  eq(withAssist - noAssist, DEFAULT_CPU_POLICY.boardWeights.artsKept, '🔴ルリグデッキのアシストルリグに値段が無い＝アシストグロウがタダに見える');
+  const empty = mk([null, null, `${P3}#m`], [null, null, null]);
+  const emptyMv = listCpuAssistGrows(empty).find(m => m.card.CardNum === HOWL)!;
+  const emptyAfter = applyCpuMoveSim(empty, emptyMv);
+  ok(!!emptyAfter && evaluateBoard(emptyAfter.cpu, emptyAfter.opp, lk) <= evaluateBoard(empty.actor, empty.opponent, lk),
+    '🔴除去の対象がいないのにアシストグロウが得に見える（探索が空撃ちする）');
+  //   反転確認＝使った前後の差に値段がそのまま入っている（値段を外した採点との差がちょうど `artsKept`）。
+  //   ⚠この盤面では値段が無くても差は 0（引く札・捨てる札が同じ無地）＝実機で得に見えたのは引いた札の中身の差。
+  const noPrice = { ...lk, policy: { ...DEFAULT_CPU_POLICY, assistGrowAsArts: 0 } };
+  const diff = (l: typeof lk) => evaluateBoard(emptyAfter!.cpu, emptyAfter!.opp, l) - evaluateBoard(empty.actor, empty.opponent, l);
+  eq(diff(noPrice) - diff(lk), DEFAULT_CPU_POLICY.boardWeights.artsKept, '🔴アシストグロウの前後の差に値段が入っていない');
+  // ④ 配線＝本番の3つの窓がすべてアーツと同じ選び方を通る
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(turn.includes('pickCpuResponseAssistGrow(mctx)') && turn.includes('pickCpuOffensiveAssistGrow(mctx, phase)'), '🔴本番のアシストグロウがアーツと同じ選び方を通っていない');
+  ok(!turn.includes('listCpuAssistGrows('), '🔴本番が列挙の先頭を直接使っている（旧挙動）');
+  // ⑤ A/B の口＝`legacy-assistgrow` は旧挙動（塞がれていなくても先頭を使う・探索に入れない）
+  const legacy = { ...mk([null, null, null], [`${P3}#o`, null, null]), policy: CPU_POLICIES['legacy-assistgrow'] };
+  eq(pickCpuOffensiveAssistGrow(legacy, 'MAIN')?.move.card.CardNum ?? '', HOWL, '🔴`legacy-assistgrow` で旧挙動に戻らない');
+  eq(applyCpuMoveSim({ ...blocked, lookahead: { ...blocked.lookahead, policy: CPU_POLICIES['legacy-assistgrow'] } }, mv!), null,
+    '🔴`legacy-assistgrow` でも探索がアシストグロウを解く');
+  ok(SCAN_KNOBS.some(k => k.key === 'assistGrowAsArts'), '🔴走査表に `assistGrowAsArts` が無い');
+  ok(turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')") && turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')"), '🔴本番のアタックフェイズの窓にアシストグロウが無い');
 }));
 test('2026-09-26 ルール：使用タイミングにアタックフェイズがあるものは相手ターンの相手のアーツステップでも使える（ピース・場／場以外の【起】）', () => withSavedCursor(() => {
   // 🔑ルール（ユーザー確認）＝「使用タイミングにアタックフェイズがあるものは、相手ターンの相手アーツステップで起動できる」。

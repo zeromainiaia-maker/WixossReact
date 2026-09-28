@@ -62,7 +62,8 @@ import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpu
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
-import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
+import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssistGrow';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -269,9 +270,15 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   });
   const tryCpuAssistGrow = async (
     actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP' = 'MAIN',
+    /** 探索が選んだ手（渡されたらここでは選ばない）。 */
+    preset?: Extract<CpuMove, { kind: 'assistGrow' }>,
   ): Promise<boolean> => {
-    // 🆕2026-09-26 `S-37`＝アタックフェイズの窓でも（作戦データで「攻め／守り／両方」と書いた札だけ）。
-    const m = listCpuAssistGrows(cpuMoveCtx(actorState), phase)[0];
+    // 🆕2026-09-28（ユーザー指示「アシストグロウは実質アーツ」）＝**するかどうかをアーツと同じ規則で決める**（`cpuAssistGrow.ts`）。
+    //   🔴旧＝候補の先頭を必ず使っていた。
+    const mctx = cpuMoveCtx(actorState);
+    const m = preset ?? (phase === 'ATTACK_ARTS_OP'
+      ? pickCpuResponseAssistGrow(mctx)
+      : pickCpuOffensiveAssistGrow(mctx, phase))?.move;
     if (!m) return false;
     // ⚠観測フック（探索の候補列挙との突き合わせ）はメインフェイズの手だけ＝アタックフェイズの列挙には載せていない。
     if (phase === 'MAIN') d.observeChoice?.(m);
@@ -635,6 +642,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       case 'arts': return tryCpuUseArts(actorState, phase, pickCpuOffensiveArts,
         { card: move.choice.card, check: move.choice.check, kind: move.choice.kinds[0] ?? 'removal', costIndices: move.choice.costIndices, betCoins: move.choice.betCoins });
       case 'spell': return tryCpuMainSpell(actorState, move.choice);
+      case 'assistGrow': return tryCpuAssistGrow(actorState, phase, move);
       default: return false;
     }
   };
@@ -1238,7 +1246,9 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // ⚠召喚ループは**同じ呼び出しのまま**下の候補へ進む＝置いたあとの盤面で観測し直す（`S-15` の照合が別の盤面同士を比べない）。
     if (newCpuSt.field.signi.some((stk, zi) => (stk ?? []).length !== (cpuSt.field.signi[zi] ?? []).length)) observeMovesAt(newCpuSt);
     // 🆕§5.6 `C-5`/`C-6`＝アシストグロウ → レゾナ → ライズ（どれも1回ごとに state が動く＝再実行で次へ進む）。
-    if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuAssistGrow(newCpuSt)) return;
+    // 🆕2026-09-28＝アシストグロウは**アーツと同じ**＝探索が有効なら探索が選ぶ（ここでは打たない＝二重に打たない）。
+    //   ⚠旧挙動（`legacy-assistgrow`）は探索に入らない＝探索の有無に関わらずここで打つ。
+    if ((!cpuSearchOn || cpuPolicy.assistGrowAsArts <= 0) && !cpuMainSkipped && cpuHuSt === huSt && await tryCpuAssistGrow(newCpuSt)) return;
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuResona(newCpuSt)) return;
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuRise(newCpuSt)) return;
     // 🆕§5.6 `C-7`＝キー → ピース（1回ごとに state が動く＝再実行で次へ進む）。

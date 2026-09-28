@@ -5,6 +5,8 @@ import {
   collectGrowCostReductions,
 } from '../../engine/effectEngine';
 import { banishDestination, getCardNum, getRiseRequirement, removeFromField } from '../../engine/execUtils';
+import { applyCoinGain } from '../../engine/coinGain';
+import { collectAssistOnPlayTriggers } from '../../engine/triggerCollect';
 import { deployLimitBlockReason, deployCountCap } from '../../engine/deployLimit';
 import { isHandSigniPlayBlockedByPower } from '../../engine/blockAction';
 import { buildArtsPayerCtx, hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
@@ -21,13 +23,13 @@ import {
 } from './costs';
 import { withCpuBet } from './cpuBet';
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
-import { hasIncomingThreat, listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
+import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import type { CpuResonaBudget } from './cpuCutin';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import { cpuUseWindowOf, planAllowsUseIn, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan, type CpuPlanDeployRoom } from './cpuDeckPlan';
+import { planCardUse, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan, type CpuPlanDeployRoom } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -316,27 +318,29 @@ export function listCpuDeploys(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'deplo
 // ─── アシストグロウ・レゾナ・ライズ（§5.6 `C-5`/`C-6`） ─────────────────
 
 /**
- * いまできるアシストグロウを全部（左→右・候補順）。
- * 🆕2026-09-26 `S-37`＝**アタックフェイズの窓**（自分の `ATTACK_ARTS`／相手の `ATTACK_ARTS_OP`）でもグロウする。
- *   ⚠**アタックフェイズでグロウするのは作戦データで「攻め／守り／両方」と書いた札だけ**（`planAllowsUseIn`）＝
- *   指定なしの札は従来どおりメインフェイズだけ（挙動不変）。
- *   ⚠相手のアタックフェイズは**実害が出る見込みがあるときだけ**（`hasIncomingThreat`＝守りのアーツと同じ足切り）。
+ * いまできるアシストグロウを全部（左→右・候補順）。**使う価値で絞らない**（アーツの `listCpuArts` と同じ）。
+ * 🆕2026-09-28（ユーザー指示「アシストグロウは実質アーツ＝扱いをアーツと同じに」）＝
+ *   **使うかどうかはアーツと同じ規則で選ぶ側が決める**＝メインフェイズは探索（`applyCpuMoveSim` が【出】まで解く）、
+ *   探索の外（アタックフェイズの窓・相手のアーツステップ・探索なし）は `cpuAssistGrow.ts`。
+ *   旧（`S-37`）＝**候補の先頭を必ず使っていた**（メインでは作戦の指定が無ければ無条件）。
  */
 export function listCpuAssistGrows(
   ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP' = 'MAIN',
 ): Extract<CpuMove, { kind: 'assistGrow' }>[] {
   const s = ctx.actor;
   const isOwnerTurn = phase !== 'ATTACK_ARTS_OP';
-  const window = cpuUseWindowOf(phase);
-  if (window === 'oppAttack' && !hasIncomingThreat(s, ctx.opponent)) return [];
   const pool = buildEnergyPayPool(s, { turnPhase: phase, isMyTurn: isOwnerTurn, effectsMap: ctx.effectsMap });
   const { isAffordable, wholeSubstitutes } = basicAffordable(ctx, s);
   const out: Extract<CpuMove, { kind: 'assistGrow' }>[] = [];
   for (const side of ['l', 'r'] as const) {
     for (const card of listAssistGrowCandidates({ state: s, side, phase, isOwnerTurn, cardMap: ctx.cardMap })) {
       if (usedThisTurn(s, card.CardNum)) continue;
-      // 🆕`S-37`＝メインでは「攻め／守り」と書いた札を温存し、アタックフェイズでは書いた札だけを使う。
-      if (!planAllowsUseIn(ctx.plan, card.CardNum, window, window !== 'main')) continue;
+      // 🆕2026-09-28＝**作戦データの「使いどころ」はアーツと同じ読み方**（`listCpuArts`）＝
+      //   `never` はどの窓にも出さない／`offense` は自分のターン（メイン＋アタック）だけ／`defense` は相手のターンだけ。
+      //   ⚠「その窓で使う価値があるか」は列挙では決めない＝探索（メイン）か `cpuAssistGrow.ts` の選ぶ側が決める。
+      const use = planCardUse(ctx.plan, card.CardNum);
+      if (use === 'never') continue;
+      if ((use === 'defense' && isOwnerTurn) || (use === 'offense' && !isOwnerTurn)) continue;
       // ⚠コインは `performAssistGrow` が払わない＝コインを要する札は選ばない（踏み倒さない）。
       if (parseCoinCost(card.GrowCost) > 0) continue;
       const costStr = applyGrowCostReduction(card.GrowCost,
@@ -1065,6 +1069,48 @@ function simLrigAttack(ctx: CpuMoveCtx): CpuSimBoard | null {
   return { cpu, opp: simCrushLife(opp), risk };
 }
 
+/**
+ * 🆕2026-09-28＝**アシストグロウの近似適用**（ユーザー指示「アシストグロウは実質アーツ」）。
+ * 🔑盤面の操作は `performAssistGrow` と同じ4つ＝エナを払う／ルリグデッキからアシストゾーンへ重ねる／印刷コインを得る／
+ *   「次のアシストグロウ」の修正を消す。そのあと**本番と同じ collector（`collectAssistOnPlayTriggers`）が積む【出】**を解く
+ *   ＝任意（コスト付き）の【出】も本番と同じ「支払いますか？」の包みで解く（CPU の応答と同じ選び方）。
+ * ⚠**【出】が1つでも解けなければ `null`**（アーツと同じ＝先読みでは判断しない）。
+ * ⚠近似＝コイン獲得の誘発（`ON_COIN_GAINED`）は解かない。
+ */
+export function simAssistGrow(
+  ctx: CpuMoveCtx, move: Extract<CpuMove, { kind: 'assistGrow' }>, turnPhase: TurnPhase,
+): CpuSimBoard | null {
+  const { actor, opponent } = ctx;
+  const inst = actor.lrig_deck.find(id => getCardNum(id) === move.card.CardNum);
+  if (!inst) return null;
+  const sideKey = move.side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
+  const paid = planEnergyPayment(actor, move.pool, move.costIndices).applyTo(actor);
+  const coins = applyCoinGain(paid, parseInt(move.card.Coin) || 0).state;
+  let cpu: PlayerState = {
+    ...paid,
+    lrig_deck: paid.lrig_deck.filter(id => id !== inst),
+    field: { ...paid.field, [sideKey]: [...(paid.field[sideKey] ?? []), inst] },
+    coins: coins.coins ?? 0,
+    coins_gained_this_game: coins.coins_gained_this_game,
+    next_assist_grow_mods: undefined,
+    cpu_used_card_nums_this_turn: [...(paid.cpu_used_card_nums_this_turn ?? []), move.card.CardNum],
+  };
+  let opp = opponent;
+  const lctx: LookaheadCtx = { ...ctx.lookahead, turnPhase };
+  const cpuTurn = lctx.isCpuTurn ?? true;
+  const { entries } = collectAssistOnPlayTriggers({
+    hostId: 'opp', guestId: 'cpu', meId: 'cpu', activeUserId: cpuTurn ? 'cpu' : 'opp', turnPhase,
+    effectsMap: ctx.effectsMap, cardMap: ctx.cardMap, genId: () => 'sim',
+  }, inst, cpu, opp, 'cpu');
+  for (const e of entries) {
+    if (!e.effect) continue;
+    const after = simulateEffect(e.effect, inst, cpu, opp, lctx);
+    if (!after) return null;
+    cpu = after.cpu; opp = after.opp;
+  }
+  return { cpu, opp };
+}
+
 export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | null {
   const { actor, opponent } = ctx;
   /** エナの支払いを写す（人間の支払いと同じ `planEnergyPayment`＝下敷き払いも含む）。 */
@@ -1188,8 +1234,11 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       };
       return resolveActivated(inst, used, opponent, 'MAIN');
     }
+    // 🆕2026-09-28＝アシストグロウはアーツと同じく探索に入る（`simAssistGrow`）。
+    //   ⚠旧挙動（`legacy-assistgrow`）は探索に入れない＝`null`（従来の経路が先頭を必ず使う）。
+    case 'assistGrow': return policyOf(ctx).assistGrowAsArts <= 0 ? null : simAssistGrow(ctx, move, ctx.lookahead.turnPhase ?? 'MAIN');
     // 🔴engine だけでは写せない（実行関数の盤面操作を写経しない＝§5.6.3）。探索はこの手を扱わない。
-    case 'assistGrow': case 'resona': case 'rise': case 'piece': return null;
+    case 'resona': case 'rise': case 'piece': return null;
     // 🆕§5.7 `S-17` 第2段＝**アタックの近似適用**（下の `simAttack` が本体・限界もそこに書いてある）。
     case 'signiAttack': return simAttack(ctx, move.zone, move.id);
     case 'lrigAttack': return simLrigAttack(ctx);
@@ -1198,7 +1247,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
 
 /** 探索用の適用ができる手の種類（できないものは従来の優先順に委ねる＝上の `applyCpuMoveSim`）。 */
 export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
-  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
+  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'assistGrow', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
 
 /**
  * 🆕**その手が作戦データ（`S-2`）のどの「手」に当たるか**（§5.7 `S-14`・2026-09-21）。

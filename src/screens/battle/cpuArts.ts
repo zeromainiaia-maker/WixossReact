@@ -41,7 +41,7 @@ const KIND_PRIORITY: Record<CpuDefensiveKind, number> = { negate: 0, removal: 1,
  */
 export type CpuArtsPickKind = CpuDefensiveKind | 'plan';
 
-const PICK_PRIORITY: Record<CpuArtsPickKind, number> = { plan: -1, negate: 0, removal: 1, prevent: 2 };
+export const PICK_PRIORITY: Record<CpuArtsPickKind, number> = { plan: -1, negate: 0, removal: 1, prevent: 2 };
 
 /** ダメージそのものを止める／肩代わりするアクション。 */
 const PREVENT_TYPES = new Set<string>([
@@ -414,6 +414,12 @@ const NO_KINDS: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>();
 const KEEP_PREVENT: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal']);
 
 /**
+ * 🆕2026-09-28＝攻めの窓で**分類から**使ってよい札の種類（正面が塞がれているときだけ除去・それ以外は作戦データの指名だけ）。
+ * ⚠アシストグロウ（`cpuAssistGrow.ts`）も同じ線を使う＝**アーツと同じ扱い**（ユーザー指示）。
+ */
+export const offensiveArtsAllowedKinds = (blocked: boolean): ReadonlySet<CpuDefensiveKind> => blocked ? REMOVAL_ONLY : NO_KINDS;
+
+/**
  * 応答窓で**使ってよい分類**（§8 `O-1` (g)＝「守りの札を温存する」）。
  *
  * `prevent`（ダメージ軽減・肩代わり）は**ライフが実際に危ないときだけ**使う。ライフ7枚で
@@ -459,7 +465,7 @@ export function pickCpuOffensiveArts(p: CpuArtsPickInput): CpuArtsChoice | null 
   if (!blocked && !hasPlanMarkedArts(p, true, 'offense')) return null;
   return pickCpuArtsBy(p, {
     isMyTurn: true,
-    allowKinds: blocked ? REMOVAL_ONLY : NO_KINDS,
+    allowKinds: offensiveArtsAllowedKinds(blocked),
     window: 'offense',
   });
 }
