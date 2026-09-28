@@ -67,6 +67,8 @@ export function isInPublicZone(state: PlayerState, cardNum: string): boolean {
   if ((f.check_rest ?? []).includes(cardNum)) return true;
   if (f.key_piece === cardNum) return true;
   if ((f.key_piece_extra ?? []).includes(cardNum)) return true;
+  // 🆕§5.3 `O-538`＝チアゾーンは公開領域（旧形式の `free_zone` も公開＝バリアトークン・チアガール）。
+  if (f.cheer === cardNum || (f.free_zone ?? []).includes(cardNum)) return true;
   return false;
 }
 

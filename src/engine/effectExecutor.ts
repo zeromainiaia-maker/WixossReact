@@ -1,4 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
+import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
 import { currentRng, mulberry32, setRng } from './rng';
 import type {
@@ -4796,6 +4797,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       scanNums(s.deck); scanNums(s.hand); scanNums(s.trash); scanNums(s.energy);
       s.field.signi.forEach(z => scanNums(z));
       scanNums(s.field.free_zone);
+      scanNums(cheerCardOf(s) ? [cheerCardOf(s)!] : []);
     };
     scanSt(ctx.ownerState);
     scanSt(ctx.otherState);
@@ -6026,6 +6028,19 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
+    // 🆕§5.3 `O-538`＝「このシグニをチアガールにする」はキーワードの付与ではなく**チアゾーンへの移動**（`engine/cheerZone.ts`）。
+    //   旧＝`free_zone` へ移して印を付けるだけ＝【起】【自】【常】が全部動かず、手動で手札／トラッシュへ戻せた（報告 f51afd57）。
+    if (a.keyword === CHEER_GIRL) {
+      let st = ownerState(tgtOwner, c);
+      const moved: string[] = [];
+      for (const n of selected) {
+        const next = moveToCheerZone(st, n);
+        if (next) { st = next; moved.push(n); }
+      }
+      const names = (ns: string[]) => ns.map(n => c.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+      return addLog({ ...setOwnerState(tgtOwner, st, c), lastProcessedCards: moved },
+        moved.length > 0 ? `${names(moved)}をチアガールにした（チアゾーンへ）` : 'チアゾーンに既にシグニがいる（チアガールにできない）');
+    }
     const s = ownerState(tgtOwner, c);
     // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時＝付与者の次ターン開始時までクリアされない）。
     // 通常の keyword_grants は付与者のターン終了時にクリアされるため、ターン終了時付与は必ずこちらを使う。
@@ -6040,19 +6055,6 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     //   **このアタックで足した分の台帳**だけを別に持つ。`clearEndOfAttackEffects` がその分を引く。
     //   ⚠**読み手を増やさない**のが肝（キーワードの読み手は engine／UI に多数ある）。
     newS = noteEndOfAttackKeywordGrants(newS, a.duration, grantable, a.keyword);
-
-    // チアガールはフリーゾーンへ移動
-    if (a.keyword === 'チアガール') {
-      for (const n of grantable) {
-        const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
-        if (zoneIdx >= 0) {
-          const newSigni = [...newS.field.signi] as (string[] | null)[];
-          newSigni[zoneIdx] = null;
-          const newFreeZone = [...(newS.field.free_zone ?? []), n];
-          newS = { ...newS, field: { ...newS.field, signi: newSigni, free_zone: newFreeZone } };
-        }
-      }
-    }
 
     return addLog(setOwnerState(tgtOwner, newS, c),
       grantable.length > 0

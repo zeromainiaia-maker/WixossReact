@@ -780,6 +780,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   これを走査しないと自身のON_ACCE_ATTACH能力等がeffectsMapから脱落する。WXK05-041デコレ）。
       allAcceCards(s.field).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.free_zone);
+      if (s.field.cheer) nums.add(getCardNum(s.field.cheer));   // 🆕§5.3 `O-538` チアゾーン
       // beat_zone: シグニが【ビート】になると field.signi から外れ beat_zone に移るため、これを走査しないと
       //   なったカード自身の ON_BECOME_BEAT（self）が effectsMap から脱落し collectBeatBecameTriggers の
       //   self ループ（effectsMap.get(becameNum)）が空を引く（続き121・WDK14-017 で確認）。any_ally 側は

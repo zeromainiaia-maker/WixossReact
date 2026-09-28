@@ -8391,6 +8391,63 @@ const scenarios = {
   //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
   //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
   //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  // 🆕§5.3 `O-538` 段階1（2026-09-29）＝**「このシグニをチアガールにする」はチアゾーン（`field.cheer`）へ移す**。
+  //   羅菌姫　アクダマ（`WXEX2-53`）を手札から出し【出】《黒》を払う → シグニゾーンから抜けてチアゾーンに入り、盤面に CHEER で出る。
+  //   旧実装はフリーゾーンへ移すだけ（【起】【自】【常】が動かず、手動で手札／トラッシュへ戻せた＝報告 f51afd57）。
+  cheerZonePlace: {
+    title: 'O-538 段階1：アクダマの【出】でチアゾーン（field.cheer）へ移り、盤面に CHEER で表示される',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX15-004#1'],                  // ナナシ　其ノ四ノ別（Lv4・ナナシ限定を満たす）
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD19-013#e1', 'WD19-013#e2', 'WD19-013#e3', 'WD19-013#e4', 'WD19-013#e5'],   // 黒（アクダマの召喚＋【出】《黒》）
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [null, null, null] },
+      handPrepend: ['WXEX2-53#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/cheerZonePlace-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) {
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            await e0.click().catch(() => {}); await page.waitForTimeout(250);
+            const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); }
+            did = 'onplaycost:発動';
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動する', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const slot = page.getByTestId('my-cheer-zone').first();
+        const cheer = await slot.getAttribute('data-cheer').catch(() => null);
+        const inZones = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => String(n).startsWith('WXEX2-53')));
+        H.log(`  [${s}] -> ${did ?? 'なし'} | cheer=${cheer || '-'} inSigniZones=${inZones} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (cheer && cheer.startsWith('WXEX2-53')) {
+          await page.waitForTimeout(800);
+          await page.screenshot({ path: `${SHOT}/cheerZonePlace-final.png`, fullPage: true });
+          const label = await slot.innerText().catch(() => '');
+          if (inZones) return { pass: false, detail: '🔴チアゾーンとシグニゾーンの両方に居る（複製）' };
+          return /CHEER/.test(label)
+            ? { pass: true, detail: `チアゾーンへ移り CHEER で表示（cheer=${cheer}・シグニゾーンから抜けた）` }
+            : { pass: false, detail: `チアゾーンに入ったが CHEER 表示が無い（"${label}"）` };
+        }
+      }
+      return { pass: false, detail: '🔴チアゾーンへ移らなかった' };
+    },
+  },
+
   // 🆕2026-09-29（報告 08499934 の同型）＝**コストで置く【チャーム】をプレイヤーが選ぶ**。
   //   `WXEX1-73-E2`【起】【チャーム】1枚をトラッシュ：相手シグニ1体のパワー－3000。自分のゾーン1と3にチャームを付け、
   //   **右（ゾーン3）のチャーム**を選ぶ。旧実装は左から自動＝ゾーン1のチャームが必ず外れた。

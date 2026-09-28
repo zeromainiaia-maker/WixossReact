@@ -229,6 +229,8 @@ import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
+import { cheerCardOf, moveToCheerZone } from '../src/engine/cheerZone';
+import { applyUpPhaseToField as applyUpPhaseToFieldCheer } from '../src/screens/battle/upPhase';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
 import { cpuCanAutoPayCutin, cutinCounterGain, pickCpuCutin } from '../src/screens/battle/cpuCutin';
@@ -93302,6 +93304,34 @@ test('2026-09-29 報告 08499934 の同型＝コストで置く【チャーム�
     ok(fs.readFileSync(join(root, f), 'utf-8').includes(fn), `🔴${f} が ${fn} を通らない`);
   }
   ok(battleScreenSource().includes('payCharmTrash(paid, charmTrashN, charmPicks)'), '🔴【出】のチャームが選んだ札を使わない');
+});
+
+test('§5.3 O-538 段階1＝「チアガールにする」はチアゾーン（field.cheer）へ移す・1体まで・場を離れる／アップ', () => {
+  // live の「このシグニをチアガールにする」（羅菌姫　アクダマ WXEX2-53-E1）を実行する
+  const eff = effectsMap.get('WXEX2-53')!.find(e => e.effectId === 'WXEX2-53-E1')!;
+  const ctx = mkCtx({ signi: ['WXEX2-53', SIGNI, null] }, {}, 'WXEX2-53');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq(r.ownerState.field.cheer, 'WXEX2-53', '🔴チアゾーンへ移らない');
+  eq(r.ownerState.field.signi[0], null, 'シグニゾーンから抜ける');
+  eq((r.ownerState.field.free_zone ?? []).length, 0, '🔴旧形式（フリーゾーン）へ置いた');
+  ok(!r.ownerState.keyword_grants?.['WXEX2-53'], 'キーワードの印は付けない（置き場で表す）');
+  ok(r.logs.some(l => l.includes('チアガールにした')), 'ログ');
+  // 1体まで＝埋まっていれば移さない
+  const again = moveToCheerZone(r.ownerState, SIGNI);
+  eq(again, null, '🔴チアゾーンに2体目を置けた');
+  // 場を離れる共通処理がチアゾーンも探す
+  const left = removeFromField('WXEX2-53', r.ownerState);
+  eq(left.field.cheer, null, '🔴場を離れてもチアゾーンに残る');
+  // アップフェイズでアップ
+  const up = applyUpPhaseToFieldCheer({ ...r.ownerState.field, cheer_down: true });
+  eq(up.cheer_down, false, '🔴チアゾーンのシグニがアップしない');
+  // 旧形式（free_zone＋印）も読める
+  const legacy = mkState({});
+  legacy.field.free_zone = ['WXEX2-53'];
+  legacy.keyword_grants = { 'WXEX2-53': ['チアガール'] };
+  eq(cheerCardOf(legacy), 'WXEX2-53', '旧形式の読み替え');
+  // 手動で手札／トラッシュへ戻すボタンは無い（v0.591）
+  ok(battleScreenSource().includes('const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];'), '手動ボタンが戻った');
 });
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

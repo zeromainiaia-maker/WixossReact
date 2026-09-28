@@ -2068,7 +2068,7 @@ export function freshTokenInstanceId(base: string, ...states: PlayerState[]): st
   });
   for (const s of states) {
     scan(s.deck); scan(s.hand); scan(s.trash); scan(s.energy); scan(s.lrig_deck); scan(s.lrig_trash);
-    s.field.signi.forEach(z => scan(z)); scan(s.field.lrig); scan(s.field.free_zone);
+    s.field.signi.forEach(z => scan(z)); scan(s.field.lrig); scan(s.field.free_zone); scan(s.field.cheer ? [s.field.cheer] : []);
   }
   return `${base}#${maxIdx + 1}`;
 }
@@ -4259,6 +4259,8 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_soul:   newSoul   as (string | null)[],
       signi_armor:  newArmor  as boolean[],
       ...(newFacedown ? { signi_facedown_attached: newFacedown } : {}),
+      // 🆕§5.3 `O-538`＝チアゾーンのシグニも「場」＝場を離れる処理はここを通る。
+      ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false } : {}),
     },
   };
 }

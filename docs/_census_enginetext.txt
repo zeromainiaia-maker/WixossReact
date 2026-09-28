@@ -161,6 +161,6 @@ miss = 各ソース行について、その行の門から来る live カード�
   execUtils.ts:1751 <fn:matchesFilter> const txt = card.EffectText ?? '';
   execUtils.ts:1881 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:3117 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:4581 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
-  execUtils.ts:4928 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
-  triggerCollect.ts:1921 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+  execUtils.ts:4583 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
+  execUtils.ts:4930 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  triggerCollect.ts:1922 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

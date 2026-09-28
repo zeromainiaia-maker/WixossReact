@@ -1083,13 +1083,19 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const displaySigni = isMe ? rawSigni : [...rawSigni].reverse();
   const freeZoneCards = state.field.free_zone ?? [];
   const beatZoneCards = state.field.beat_zone ?? [];
+  // 🆕§5.3 `O-538`＝チアゾーン（`field.cheer`）も同じ枠に出す（先頭＝画像はチアゾーンのカード）
+  const cheerNum = state.field.cheer ?? null;
+  const cheerDown = !!cheerNum && !!state.field.cheer_down;
   // フリーゾーンとビートゾーンを合算して表示
-  const allFreeCards = [...freeZoneCards, ...beatZoneCards];
+  const allFreeCards = [...(cheerNum ? [cheerNum] : []), ...freeZoneCards, ...beatZoneCards];
   const hasBeat = beatZoneCards.length > 0;
   const freeZoneW = 52, freeZoneH = signiH;
 
   const freeZoneSlot = (
     <div
+      data-testid={`${isMe ? 'my' : 'op'}-cheer-zone`}
+      data-cheer={cheerNum ?? ''}
+      data-cheer-down={cheerDown ? '1' : '0'}
       onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: allFreeCards, isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
@@ -1102,14 +1108,15 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       {allFreeCards.length > 0 ? (
         <>
           <img
-            src={cards.find(c => c.CardNum === getCardNum(allFreeCards[allFreeCards.length - 1]))?.ImgURL ?? ''}
-            alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
+            src={cards.find(c => c.CardNum === getCardNum(cheerNum ?? allFreeCards[allFreeCards.length - 1]))?.ImgURL ?? ''}
+            alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: cheerNum ? (cheerDown ? 0.5 : 0.9) : 0.6,
+              ...(cheerDown ? { transform: 'rotate(90deg) scale(0.7)' } : {}) }}
             onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
           <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
             {hasBeat && (
               <div style={{ fontSize: 8, color: '#ffaa66', fontWeight: 'bold', marginBottom: 2 }}>BEAT</div>
             )}
-            {freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール')) && (
+            {(cheerNum || freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール'))) && (
               <div style={{ fontSize: 8, color: '#aaddff', fontWeight: 'bold', marginBottom: 2 }}>CHEER</div>
             )}
             <div style={{

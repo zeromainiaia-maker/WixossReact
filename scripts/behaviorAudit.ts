@@ -465,6 +465,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     put(s.field.key_piece, `${side}キー`);
     (s.field.key_piece_extra ?? []).forEach(id => put(id, `${side}キー`));
     (s.field.free_zone ?? []).forEach(id => put(id, `${side}フリー`));
+    put(s.field.cheer, `${side}チア`);
     (s.field.beat_zone ?? []).forEach(id => put(id, `${side}ビート`));
     (s.field.signi_traps ?? []).forEach((id, z) => put(id, `${side}トラップ${z}`));
     (s.field.signi_soul ?? []).forEach((id, z) => put(id, `${side}ソウル${z}`));

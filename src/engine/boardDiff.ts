@@ -104,6 +104,7 @@ export function detectPlacedFromZone(
     before.field.key_piece,
     ...(before.field.key_piece_extra ?? []),
     ...(before.field.free_zone ?? []),
+    ...(before.field.cheer ? [before.field.cheer] : []),   // 🆕§5.3 `O-538` チアゾーン
     ...(before.field.beat_zone ?? []),
     ...(before.field.signi_traps ?? []),
     ...(before.field.signi_magic_boxes ?? []),

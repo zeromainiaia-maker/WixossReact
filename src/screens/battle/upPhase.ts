@@ -37,6 +37,8 @@ export function applyUpPhaseToField(field: Field, keepCenterLrigDown = false): F
     assist_lrig_r_down: (field.assist_lrig_r_down ?? false) && (field.assist_lrig_r_frozen ?? false),
     assist_lrig_l_frozen: false,
     assist_lrig_r_frozen: false,
+    // 🆕§5.3 `O-538`＝チアゾーンのシグニもアップする（「あなたの全てのシグニ」）。
+    ...(field.cheer ? { cheer_down: false } : {}),
   };
 }
 

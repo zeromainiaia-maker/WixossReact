@@ -149,7 +149,7 @@ export function execStubPart1(
       ...cards([field.key_piece]), ...cards(field.key_piece_extra),
       ...cards(field.signi_charms), ...(field.signi_acce ?? []).flatMap(acce => acce ?? []), ...cards(field.signi_soul),
       ...cards(field.signi_traps), ...cards(field.signi_magic_boxes), ...cards(field.signi_seeds),
-      ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone),
+      ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone), ...cards([field.cheer]),
     ];
     const newOwnerState: PlayerState = {
       ...ctx.ownerState,
@@ -177,7 +177,7 @@ export function execStubPart1(
         signi_soul: [null, null, null], signi_traps: [null, null, null],
         signi_magic_boxes: [null, null, null], signi_seeds: [null, null, null],
         facedown_signi: [null, null, null], signi_armor: [false, false, false],
-        puppet_signi: [], free_zone: [], beat_zone: [],
+        puppet_signi: [], free_zone: [], beat_zone: [], cheer: null, cheer_down: false,
         cross_state: [false, false, false], heaven_state: [false, false, false],
       },
       deck_shuffled_count: (ctx.ownerState.deck_shuffled_count ?? 0) + 1,

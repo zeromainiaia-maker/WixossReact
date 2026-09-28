@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-29（第493バッチ）§5.3 `O-538` 段階1＝チアゾーンの置き場（`field.cheer`）
+
+`src/screens/`・`src/components/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs cheerZonePlace`（新設・アクダマの【出】でチアゾーンへ移り CHEER 表示）PASS。`npm run gates` 全緑（golden 4429/4429）。
+
+- **同じ形の在庫（先に全数で洗った）**＝盤面の全ゾーンを列挙している箇所＝①場を離れる共通処理 `removeFromField` ②アップフェイズ `applyUpPhaseToField` ③盤面差分（`boardDiff`）④トークン番号の走査2か所 ⑤公開ゾーン判定（`hiddenInfo`）⑥トリガー抑止の収集 ⑦CPU の所有判定 ⑧画像の先読み ⑨夢限 -Q- の全除外 ⑩監査ハーネスの位置表 ⑪盤面表示。全部にチアゾーンを足した。
+- **直し方**＝`engine/cheerZone.ts`（`field.cheer`＋`cheer_down`・1体まで・`moveToCheerZone`・旧形式 `free_zone`＋印の読み替え `cheerCardOf`）。「チアガールにする」は `GRANT_KEYWORD{チアガール}` の分岐でキーワード付与をやめ、チアゾーンへの移動にした。
+- ⚠**段階1の割り切り**＝シグニゾーンから抜くとき下に重なったカード・付いていたチャーム／アクセは `removeFromField` どおりトラッシュ（裁定では「チャーム・アクセは付けられる」＝移動時に付いたまま移るかは未確認）。
+- 検証＝`npm run golden -- --only "O-538"`。
+
 ## 2026-09-29（第492バッチ）コストで置く【チャーム】／【アクセ】／【トラップ】・【ビート】にするシグニもプレイヤーが選ぶ（報告 08499934 の同型の残り）
 
 `src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs charmCostPick`（新設・右のチャームを選ぶ）／`virusCostPick`／`turnEndOnEntry` PASS／`node scripts/verifyFullMatch.mjs cpu` PASS。`npm run gates` 全緑（golden 4428/4428）。
