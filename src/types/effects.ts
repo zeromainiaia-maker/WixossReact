@@ -6095,6 +6095,8 @@ export interface StubAction {
   virusOptional?: boolean;
   /** `virusCount:'any'` の対話ループ内で、ここまでに取り除いた数を運ぶ。 */
   virusRemovedSoFar?: number;
+  /** 🆕2026-09-29＝「取り除いてから続き」の STUB が、【ウィルス】の選択（`removeOppVirusThen`）を終えて戻ってきた印。 */
+  afterVirusRemoved?: boolean;
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
   /**

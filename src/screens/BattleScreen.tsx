@@ -170,7 +170,7 @@ import {assistLrigAttackableSlots, lrigSlotTop, type LrigAttackSlot} from './bat
 import {centerLrigAttackBlock} from './battle/lrigAttackGate';
 import {sideAttackEmptyZoneDealsDamage} from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
-import {handDiscardHistoryRecord} from './battle/costs';
+import {handDiscardHistoryRecord, payRemoveOppVirus} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
 import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
@@ -3373,12 +3373,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ── アシストルリグ 起動効果 ──
-  const executeAssistActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {
+  const executeAssistActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set(), virusZones: number[] = []) => {
     if (loading) return;
     closeAssistActivated();
     // 🆕2026-09-28＝**センタールリグの【起】と同じ実行関数**（発生源だけ渡す）＝CPU も同じ関数を通る。
     //   🔴旧＝ここに手書きの支払い（エナ・手札・ウィルス除去）があり、《ゲーム１回》の記録もコイン等の支払いも無かった。
-    await performLrigActivated(effect, { costIndices, handDiscardIndices: discardIndices }, {
+    await performLrigActivated(effect, { costIndices, handDiscardIndices: discardIndices, virusZones }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,
@@ -4503,13 +4503,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   /** 人間UI（`SigniActivatedModal`）から呼ぶ薄いラッパー。判定・実行の本体は `performSigniActivated`。 */
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set()) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set(), virusZones: number[] = []) => {
     if (loading) return;
     closeSigniActivated();
     setKeySubstituteEnabled(false);
     await performSigniActivated(cardNum, effect, {
       costIndices, discardCostIndices, useKeySub, discardVarIndices, energyTrashIndices,
-      trashExileIndices, fieldTrashZones, beatZones, underTrashKeys,
+      trashExileIndices, fieldTrashZones, beatZones, underTrashKeys, virusZones,
       charmTrashVarCount: signiActCharmTrashVar,
     }, {
       actor: my, opponent: op,
@@ -4584,11 +4584,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeTrashActivated = async (
     cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>,
     discardIndices: Set<number> = new Set(), exceedIndices: Set<number> = new Set(),
-    trashExileIndices: Set<number> = new Set(), actorCtx?: OffFieldActor,
+    trashExileIndices: Set<number> = new Set(), actorCtx?: OffFieldActor, virusZones?: number[],
   ) => {
     if (!actorCtx && loading) return;
     await executeTrashActivatedImpl(cardNum, effect, costIndices, discardIndices, exceedIndices, trashExileIndices,
-      actorCtx ?? humanOffFieldActor(), performCtx(), actorCtx ? undefined : { close: closeTrashActivated });
+      actorCtx ?? humanOffFieldActor(), performCtx(), actorCtx ? undefined : { close: closeTrashActivated, virusZones });
   };
 
 
@@ -4777,6 +4777,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     beatZones: Set<number> = new Set(),
     exceedIndices: Set<number> = new Set(),
     underTrashKeys: Set<string> = new Set(),
+    virusZones: number[] = [],
   ) => {
     if (loading) return;
     setLoading(true);
@@ -5016,17 +5017,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
         payLogs.push(`ルリグデッキからアーツをトラッシュ`);
       }
-      // removeOppVirus: 相手の場のウィルスN個を取り除く（左のゾーンから自動選択）
+      // removeOppVirus: 相手の場のウィルスN個を取り除く（🆕2026-09-29 どのゾーンからかはプレイヤーの選択＝`virusZones`）
       const removeVirusN = cost?.removeOppVirus ?? 0;
       if (removeVirusN > 0) {
-        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
-        let removedV = 0;
-        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusN; zi++) {
-          while (newOppVirus[zi] > 0 && removedV < removeVirusN) { newOppVirus[zi]--; removedV++; }
-        }
-        if (removedV < removeVirusN) return;
+        const newOpState = payRemoveOppVirus(op, removeVirusN, virusZones);
+        if (!newOpState) return;
+        const removedV = removeVirusN;
         const oppKey = isHost ? 'guest_state' : 'host_state';
-        const newOpState: PlayerState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: oppKey, myState: newOpState }));
         // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（コストによる除去も発火対象）
         paid = { ...paid, opp_virus_removed_just: true };
@@ -5088,11 +5085,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set(), trashArtsNums: string[] = []) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set(), trashArtsNums: string[] = [], virusZones: number[] = []) => {
     if (loading) return;
     closeLrigGranted();
     // 🆕§5.7 `S-31` ② 第4段＝`trashArtsNums`（ルリグデッキから徴収するアーツ）も実行へ渡す。
-    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices, trashArtsNums }, {
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices, trashArtsNums, virusZones }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,
@@ -5652,7 +5649,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <HandActivatedModal ctx={modalCtx} pendingHandActivated={pendingHandActivated} setPendingHandActivated={setPendingHandActivated} selectedHandActivatedCost={selectedHandActivatedCost} setSelectedHandActivatedCost={setSelectedHandActivatedCost} executeHandActivated={executeHandActivated} />
 
       {/* トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）のエナコスト支払い */}
-      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} selectedTrashActivatedDiscard={selectedTrashActivatedDiscard} setSelectedTrashActivatedDiscard={setSelectedTrashActivatedDiscard} selectedTrashActivatedExceed={selectedTrashActivatedExceed} setSelectedTrashActivatedExceed={setSelectedTrashActivatedExceed} selectedTrashActivatedTrashExile={selectedTrashActivatedTrashExile} setSelectedTrashActivatedTrashExile={setSelectedTrashActivatedTrashExile} executeTrashActivated={executeTrashActivated} />
+      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} selectedTrashActivatedDiscard={selectedTrashActivatedDiscard} setSelectedTrashActivatedDiscard={setSelectedTrashActivatedDiscard} selectedTrashActivatedExceed={selectedTrashActivatedExceed} setSelectedTrashActivatedExceed={setSelectedTrashActivatedExceed} selectedTrashActivatedTrashExile={selectedTrashActivatedTrashExile} setSelectedTrashActivatedTrashExile={setSelectedTrashActivatedTrashExile} executeTrashActivated={(cn, eff, cost, discard, exceed, exile, virusZones) => executeTrashActivated(cn, eff, cost, discard, exceed, exile, undefined, virusZones)} />
 
       {/* v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア */}
       <GuardBarrierActModal ctx={modalCtx} pendingGuardBarrierAct={pendingGuardBarrierAct} setPendingGuardBarrierAct={setPendingGuardBarrierAct} selectedBarrierGuardCard={selectedBarrierGuardCard} setSelectedBarrierGuardCard={setSelectedBarrierGuardCard} executeGuardBarrierAct={executeGuardBarrierAct} />

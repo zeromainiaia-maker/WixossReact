@@ -3,7 +3,8 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
-import { energyCostToString, isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
+import { energyCostToString, isEnergyPaymentSelectionValid, isMultiEna, oppVirusChoiceNeeded } from '../costs';
+import { OppVirusPicker } from './OppVirusPicker';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { handActivateFieldTrashOk, handActivateFieldTrashZones, type HandActivateSelections } from '../handActivateCost';
@@ -22,12 +23,15 @@ const fmtStory = (story: string | string[] | undefined) =>
   story ? (Array.isArray(story) ? story : [story]).map(x => `＜${x}＞`).join('か') + 'の' : '';
 
 export function HandActivatedModal(p: HandActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost, executeHandActivated } = p;
   // 🆕§5.3 `O-533`＝`fieldTrash`（場のシグニをトラッシュに置く）で選んだゾーン。
   //   開いている効果（`pendingHandActivated`）と組で持つ＝別の効果を開くと空として読む。
   const [fieldTrashSel, setFieldTrashSel] = useState<{ owner: typeof pendingHandActivated; zones: Set<number> }>({ owner: null, zones: new Set() });
   const selectedFieldTrash = fieldTrashSel.owner === pendingHandActivated ? fieldTrashSel.zones : new Set<number>();
+  // 🆕2026-09-29＝取り除く【ウィルス】のゾーン
+  const [virusSel, setVirusSel] = useState<{ owner: typeof pendingHandActivated; zones: number[] }>({ owner: null, zones: [] });
+  const selectedVirusZones = virusSel.owner === pendingHandActivated ? virusSel.zones : [];
   const setSelectedFieldTrash = (f: (prev: Set<number>) => Set<number>) =>
     setFieldTrashSel({ owner: pendingHandActivated, zones: f(selectedFieldTrash) });
   return (
@@ -59,7 +63,10 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                 ...(fieldTrashCost ? [`場の${fmtStory(fieldTrashCost.filter?.story)}シグニ${fieldTrashCost.count}体${fieldTrashCost.upToCount ? 'まで' : ''}をトラッシュ`] : []),
                 ...(energyTotal > 0 ? [`エナ${energyTotal}枚`] : []),
               ];
-              const isValid = fieldTrashOk && (energyTotal === 0 ||
+              const virusNeededHA = haEffect.cost?.removeOppVirus ?? 0;
+              const virusNeedSelectHA = oppVirusChoiceNeeded(op, virusNeededHA);
+              const virusOkHA = !virusNeedSelectHA || selectedVirusZones.length === virusNeededHA;
+              const isValid = fieldTrashOk && virusOkHA && (energyTotal === 0 ||
                 isEnergyPaymentSelectionValid({
                   selectedEnergyNums: selectedNums, cards: battleCards, baseCost: energyCostStr,
                   keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
@@ -90,6 +97,10 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                   <p style={{ color: C.textMuted, fontSize: 11, margin: 0, textAlign: 'center' }}>
                     {discardSelf ? 'このカードを手札からトラッシュに捨てます' : 'このカードを手札から公開します（手札に残ります）'}
                   </p>
+                  {virusNeedSelectHA && (
+                    <OppVirusPicker op={op} count={virusNeededHA} cardMap={battleCardMap}
+                      value={selectedVirusZones} onChange={zones => setVirusSel({ owner: pendingHandActivated, zones })} />
+                  )}
                   {fieldTrashCost && (
                     <>
                       <p style={{ color: fieldTrashOk ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
@@ -196,7 +207,7 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                   )}
                   <button
                     data-testid="handact-confirm"
-                    onClick={() => executeHandActivated(pendingHandActivated.cardNum, pendingHandActivated.handIndex, haEffect, { energy: selectedHandActivatedCost, fieldTrash: selectedFieldTrash })}
+                    onClick={() => executeHandActivated(pendingHandActivated.cardNum, pendingHandActivated.handIndex, haEffect, { energy: selectedHandActivatedCost, fieldTrash: selectedFieldTrash, virusZones: selectedVirusZones })}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? '#ff6b35' : C.disabled,

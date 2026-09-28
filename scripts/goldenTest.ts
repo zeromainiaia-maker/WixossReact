@@ -275,6 +275,7 @@ import { facedownPeek } from '../src/screens/battle/facedownPeek';
 import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
 import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
 import { choiceLabelFromText } from '../src/screens/battle/choiceLabels';
+import { oppVirusChoiceNeeded, payRemoveOppVirus } from '../src/screens/battle/costs';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -1991,8 +1992,16 @@ test('batch7 virus extra cost scales', () => {
     eq(first.pending.options.length, expectedMax + 1);
     const after0 = resumeChoose('remove_0', first.pending, { ...base, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
     ok(!after0.done && after0.pending.type === 'CHOOSE' && after0.pending.count === 1);
-    const after2 = resumeChoose('remove_2', first.pending, { ...base, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
+    let after2 = resumeChoose('remove_2', first.pending, { ...base, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
+    // 🆕2026-09-29＝【ウィルス】が複数ゾーンにあり全部は取り除かない＝**どのゾーンからかを1つずつ選ぶ**（旧＝左から自動）。
+    for (let k = 0; k < 2; k++) {
+      ok(!after2.done && after2.pending.type === 'CHOOSE' && after2.pending.options.every(o => o.id.startsWith('remove_virus_zone_')), `🔴${k + 1}つ目の【ウィルス】のゾーンを選ばせない`);
+      if (after2.done || after2.pending.type !== 'CHOOSE') break;
+      const zoneOpt = after2.pending.options[after2.pending.options.length - 1];   // 右端から選ぶ（左から自動と区別する）
+      after2 = resumeChoose(zoneOpt.id, after2.pending, { ...base, ownerState: after2.ownerState, otherState: after2.otherState, logs: after2.logs });
+    }
     ok(!after2.done && after2.pending.type === 'CHOOSE' && after2.pending.count === 3);
+    eq((after2.otherState.field.signi_virus ?? [])[0], 1, '🔴選んでいない左端のゾーンから取り除いた');
   }
   cursor = savedCursor;
 });
@@ -93017,7 +93026,7 @@ test('2026-09-28 アシストルリグの【起】＝センタールリグと同
   // ④ 配線＝人間も CPU も `performLrigActivated`（発生源を渡す）
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(battle.includes('listActivatableAssistLrigEffects({'), '🔴人間のボタンが共通の判定を通っていない');
-  ok(/await performLrigActivated\(effect, \{ costIndices, handDiscardIndices: discardIndices \}, \{[\s\S]{0,200}sourceCardNum: cardNum,/.test(battle),'🔴人間の実行が performLrigActivated（発生源つき）を通っていない');
+  ok(/await performLrigActivated\(effect, \{ costIndices, handDiscardIndices: discardIndices(, virusZones)? \}, \{[\s\S]{0,200}sourceCardNum: cardNum,/.test(battle),'🔴人間の実行が performLrigActivated（発生源つき）を通っていない');
   ok(!battle.includes('const assistActPay = planEnergyPayment('), '🔴手書きの支払いが画面に残っている');
   const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
   ok(turn.includes('sourceCardNum: choice.sourceCardNum,'), '🔴CPU の実行が発生源を渡していない');
@@ -93215,6 +93224,42 @@ test('2026-09-29 同型＝公開した札が条件に合えば「このシグニ
   const removed = r.otherState.abilities_removed ?? [];
   ok(removed.includes('WD01-013') && !removed.includes('WD01-009'), '同じレベル（1）だけが能力を失う');
   ok(r.logs.includes('小剣　ククリは能力を失う'), '🔴能力を失うログが数字だけ');
+});
+
+test('2026-09-29 報告 08499934 と同型＝取り除く【ウィルス】をプレイヤーが選ぶ（コスト5経路の共通支払い＋効果側）', () => {
+  const op = mkState({});
+  op.field.signi_virus = [1, 0, 2];
+  // 選ぶ余地の判定
+  eq(oppVirusChoiceNeeded(op, 1), true, '2ゾーンにあり全部は取らない＝選ぶ');
+  eq(oppVirusChoiceNeeded(op, 3), false, '全部取り除く＝選ぶ余地なし');
+  eq(oppVirusChoiceNeeded({ ...op, field: { ...op.field, signi_virus: [0, 0, 2] } } as PlayerState, 1), false, '1ゾーンだけ＝選ぶ余地なし');
+  // 支払い＝選んだゾーンから／不正な指定は左から
+  eq(JSON.stringify(payRemoveOppVirus(op, 1, [2])!.field.signi_virus), '[1,0,1]', '🔴選んだ右端から取り除かない（左から自動）');
+  eq(JSON.stringify(payRemoveOppVirus(op, 2, [2, 2])!.field.signi_virus), '[1,0,0]', '同じゾーンから2つ');
+  eq(JSON.stringify(payRemoveOppVirus(op, 1, [1])!.field.signi_virus), '[0,0,2]', '無いゾーンの指定は左からへ倒す');
+  eq(payRemoveOppVirus(op, 4), null, '足りなければ払えない');
+  // 支払い経路に手書きの「左から」ループが残っていない
+  for (const f of ['src/screens/battle/controller/performSigniActivated.ts', 'src/screens/battle/controller/performLrigActivated.ts',
+    'src/screens/battle/handActivateCost.ts', 'src/screens/battle/trashActivateCost.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf-8');
+    ok(src.includes('payRemoveOppVirus('), `🔴${f} が共通の支払い（選んだゾーン）を通らない`);
+  }
+  ok(battleScreenSource().includes('payRemoveOppVirus(op, removeVirusN, virusZones)'), '🔴【出】のコストが選んだゾーンを使わない');
+  // 効果側（エンザ①「【ウィルス】１つを取り除く」）＝2ゾーンにあれば選ばせ、選んだゾーンから取り除く
+  const rv = { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 1 } as unknown as EffectAction;
+  const ctx = mkCtx({}, {}, 'WX20-078');
+  ctx.otherState.field.signi_virus = [1, 0, 1];
+  const r = executeAction(rv, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE' && r.pending.options.length === 2, '🔴取り除く【ウィルス】のゾーンを選ばせない（左から自動）');
+  if (!r.done && r.pending.type === 'CHOOSE') {
+    const fin = resumeChoose('remove_virus_zone_2', r.pending, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+    ok(fin.done, '1つ選べば完了');
+    eq(JSON.stringify(fin.otherState.field.signi_virus), '[1,0,0]', '選んだゾーン3から取り除く');
+    eq(fin.lastProcessedCount, 1, '取り除いた数を後段へ渡す（「そうした場合」）');
+  }
+  // 選ぶ余地が無ければ対話を増やさない
+  ctx.otherState.field.signi_virus = [0, 2, 0];
+  ok(executeAction(rv, ctx).done, '1ゾーンだけなら自動');
 });
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

@@ -1,12 +1,13 @@
 // トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）のコスト支払いモーダル。
 // エナに加えて手札捨て／コイン／【ウィルス】除去／【チャーム】／ルリグダウン／エクシードを払える（PLAN §6.4）。
 // ⚠ 支払い可否の判定は `trashActivateCost.ts` の共有関数だけを使う（自前で条件を写経しない）。
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
-import { energyCostToString, canAffordGrowCost, isMultiEna, canAddTrashExileIndex } from '../costs';
+import { energyCostToString, canAffordGrowCost, isMultiEna, canAddTrashExileIndex, oppVirusChoiceNeeded } from '../costs';
+import { OppVirusPicker } from './OppVirusPicker';
 import { applyActivateCostZero } from '../activateCostZero';
 import {
   trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateOutcomeLabel,
@@ -31,6 +32,7 @@ interface TrashActivatedModalProps {
     cardNum: string, effect: CardEffect,
     costIndices: Set<number>, discardIndices: Set<number>, exceedIndices: Set<number>,
     trashExileIndices: Set<number>,
+    virusZones?: number[],
   ) => void;
 }
 
@@ -44,6 +46,8 @@ function toggleCapped(prev: Set<number>, index: number, cap: number): Set<number
 }
 
 export function TrashActivatedModal(p: TrashActivatedModalProps) {
+  // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（開いたカードごと）
+  const [virusSel, setVirusSel] = useState<{ owner: TrashActivatedModalProps['pendingTrashActivated']; zones: number[] }>({ owner: null, zones: [] });
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const {
     pendingTrashActivated, setPendingTrashActivated,
@@ -94,7 +98,11 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                 battleCardMap,
               );
               const trashExileCost = trashActivateTrashExile(taEffect.cost);
-              const isValid = energyOk && selectionsOk && shortfall === null;
+              const virusNeededTA = taEffect.cost?.removeOppVirus ?? 0;
+              const virusNeedSelectTA = oppVirusChoiceNeeded(op, virusNeededTA);
+              const virusZonesTA = virusSel.owner === pendingTrashActivated ? virusSel.zones : [];
+              const isValid = energyOk && selectionsOk && shortfall === null
+                && (!virusNeedSelectTA || virusZonesTA.length === virusNeededTA);
               const costLabels = trashActivateCostLabels(taEffect, my, op);
               return (
                 <>
@@ -310,11 +318,15 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                     </>
                   )}
 
+                  {virusNeedSelectTA && (
+                    <OppVirusPicker op={op} count={virusNeededTA} cardMap={battleCardMap}
+                      value={virusZonesTA} onChange={zones => setVirusSel({ owner: pendingTrashActivated, zones })} />
+                  )}
                   <button data-testid="trashact-pay"
                     onClick={() => executeTrashActivated(
                       pendingTrashActivated.cardNum, taEffect,
                       selectedTrashActivatedCost, selectedTrashActivatedDiscard, selectedTrashActivatedExceed,
-                      selectedTrashActivatedTrashExile,
+                      selectedTrashActivatedTrashExile, virusZonesTA,
                     )}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',

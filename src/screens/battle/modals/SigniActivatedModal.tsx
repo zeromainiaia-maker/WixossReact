@@ -1,6 +1,6 @@
 // シグニ起動効果【起】コスト支払いモーダル（エナ/手札捨て/チャーム/エナトラッシュ/場トラッシュ/ビート等の複合コスト）。BattleScreen.tsx から Stage 1 で抽出。
 import { createPortal } from 'react-dom';
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
@@ -14,6 +14,8 @@ import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../attac
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
+import { OppVirusPicker } from './OppVirusPicker';
+import { oppVirusChoiceNeeded } from '../costs';
 
 interface SigniActivatedModalProps {
   ctx: BattleModalCtx;
@@ -39,10 +41,12 @@ interface SigniActivatedModalProps {
   setSigniActCharmTrashVar: Dispatch<SetStateAction<number>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
-  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>, underTrashKeys?: Set<string>) => void;
+  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>, underTrashKeys?: Set<string>, virusZones?: number[]) => void;
 }
 
 export function SigniActivatedModal(p: SigniActivatedModalProps) {
+  // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（カード＋効果ごと。別の効果を開いたら空に戻る）
+  const [virusPick, setVirusPick] = useState<{ key: string; zones: number[] }>({ key: '', zones: [] });
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
   return (
@@ -126,6 +130,10 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
               const virusNeededAct = eff.cost?.removeOppVirus ?? 0;
+              const actVirusKey = `${pendingSigniActivated.cardNum}:${eff.effectId}`;
+              const actVirusNeedSelect = oppVirusChoiceNeeded(op, virusNeededAct);
+              const actVirusZones = virusPick.key === actVirusKey ? virusPick.zones : [];
+              const actVirusSelectOk = !actVirusNeedSelect || actVirusZones.length === virusNeededAct;
               const virusOkAct = virusNeededAct === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAct;
               const charmTrashNActM = eff.cost?.charmTrash ?? 0;
               const charmOkAct = charmTrashNActM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNActM;
@@ -212,7 +220,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               // 支払い関数に判定させる（centerOnly / level の条件を UI 側で写経しない）。タスク12(cviii)
               const actLrigDownCost = eff.cost?.lrigDown;
               const actLrigDownOk = !actLrigDownCost || payLrigDownCost(my, actLrigDownCost, battleCardMap) !== null;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actAttachedOk && actBeatSelectOk && actLrigDownOk;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actAttachedOk && actBeatSelectOk && actLrigDownOk && actVirusSelectOk;
 
               return (
                 <>
@@ -731,6 +739,10 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                       )}
                     </>
                   )}
+                  {actVirusNeedSelect && (
+                    <OppVirusPicker op={op} count={virusNeededAct} cardMap={battleCardMap}
+                      value={actVirusZones} onChange={zones => setVirusPick({ key: actVirusKey, zones })} />
+                  )}
                   {/* beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき） */}
                   {actBeatNeedSelect && (
                     <>
@@ -787,7 +799,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     </button>
                     <button
                       data-testid="signiact-fire"
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash, actVirusZones)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

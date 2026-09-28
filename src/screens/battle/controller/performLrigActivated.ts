@@ -5,7 +5,7 @@ import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers } from '../../..
 import { type PlayerState } from '../../../types';
 import { generateUUID } from '../battleUtils';
 import { type PlayerStateKey, reduceBattle } from '../controller/battleController';
-import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, activatedDiscardCostRecord, handDiscardHistoryRecord } from '../costs';
+import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, activatedDiscardCostRecord, handDiscardHistoryRecord, payRemoveOppVirus } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldBanishCost } from '../fieldBanishCost';
@@ -51,6 +51,8 @@ export const performLrigActivated = async (
      * ⚠**省略＝従来どおり自動**（色指定を貪欲に満たしてから下から補う）＝CPU 経路はこちら。
      */
     exceedIndices?: Set<number>;
+    /** 🆕`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・CPU は省略＝左から）。 */
+    virusZones?: number[];
   },
   p: {
     actor: PlayerState; opponent: PlayerState;
@@ -324,13 +326,9 @@ export const performLrigActivated = async (
     const removeVirusNLrig = effect.cost?.removeOppVirus ?? 0;
     let newOpVirusStateLrig: typeof op | null = null;
     if (removeVirusNLrig > 0) {
-      const newOppVirusLrig = [...(op.field.signi_virus ?? [0, 0, 0])];
-      let removedVL = 0;
-      for (let zi = 0; zi < newOppVirusLrig.length && removedVL < removeVirusNLrig; zi++) {
-        while (newOppVirusLrig[zi] > 0 && removedVL < removeVirusNLrig) { newOppVirusLrig[zi]--; removedVL++; }
-      }
-      if (removedVL < removeVirusNLrig) { ctx.io.setLoading(false); return; }
-      newOpVirusStateLrig = { ...op, field: { ...op.field, signi_virus: newOppVirusLrig } };
+      // 🆕2026-09-29＝どのゾーンから取り除くかはプレイヤーの選択（`sel.virusZones`）。CPU は左から。
+      newOpVirusStateLrig = payRemoveOppVirus(op, removeVirusNLrig, sel.virusZones);
+      if (!newOpVirusStateLrig) { ctx.io.setLoading(false); return; }
       paid = { ...paid, opp_virus_removed_just: true };
     }
     // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）。

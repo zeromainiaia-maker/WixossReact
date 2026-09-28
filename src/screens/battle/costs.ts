@@ -346,6 +346,40 @@ export function removeOppVirusAffordable(op: PlayerState, count: number | undefi
 }
 
 /**
+ * 🆕2026-09-29（バグ報告 08499934＝マイプラのコストのウィルスが自動で選ばれる）＝**どのゾーンの【ウィルス】を取り除くか
+ * プレイヤーが選ぶ必要があるか**。【ウィルス】のあるゾーンが2つ以上あり、かつ全部は取り除かないとき（＝結果が選び方で変わる）。
+ * ⚠全部取り除く／1ゾーンにしか無いなら選ぶ余地が無い＝選択UIを出さない。
+ */
+export function oppVirusChoiceNeeded(op: PlayerState, count: number | undefined): boolean {
+  if (!count) return false;
+  const v = op.field.signi_virus ?? [0, 0, 0];
+  const total = v.reduce((s, n) => s + n, 0);
+  return v.filter(n => n > 0).length >= 2 && total > count;
+}
+
+/**
+ * `cost.removeOppVirus` の支払い（人間・CPU の全経路の共通地点）。**`zones` はプレイヤーが選んだゾーン**（同じゾーンを
+ * 複数回指定＝そこから複数個）。指定が無い／不正（数が合わない・そのゾーンに足りない）なら**左のゾーンから**取り除く（CPU の既定）。
+ * 払えないなら `null`。旧実装は7か所に同じ「左から」ループを手書きしていた。
+ */
+export function payRemoveOppVirus(op: PlayerState, count: number, zones?: readonly number[]): PlayerState | null {
+  const virus = [...(op.field.signi_virus ?? [0, 0, 0])];
+  if (virus.reduce((s, n) => s + n, 0) < count) return null;
+  const picked = zones && zones.length === count ? [...zones] : null;
+  const chosenOk = !!picked && picked.every(z => z >= 0 && z < virus.length)
+    && [0, 1, 2].every(z => picked.filter(p => p === z).length <= (virus[z] ?? 0));
+  if (chosenOk) {
+    for (const z of picked!) virus[z]--;
+  } else {
+    let removed = 0;
+    for (let zi = 0; zi < virus.length && removed < count; zi++) {
+      while (virus[zi] > 0 && removed < count) { virus[zi]--; removed++; }
+    }
+  }
+  return { ...op, field: { ...op.field, signi_virus: virus } };
+}
+
+/**
  * 🆕**`cost.discardGroups`（「手札から○1枚と△1枚を捨てる」）を払える手札が在るか**（§5.7 `S-31` ② 第6段）。
  *
  * 🔴**提示ゲートに1行も無かった**＝条件に合う手札が無くても【起】が提示され、支払いUIの「発動」が

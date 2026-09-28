@@ -101,7 +101,8 @@ export interface OffFieldActor {
   /** 🆕§5.7 `S-7`＝行為者（CPU）。省略時は人間（自分）＝従来と同一。 */
   actorCtx: OffFieldActor,
   ctx: PerformCtx,
-  ui?: { close?: () => void },
+  /** `virusZones`＝人間が選んだ【ウィルス】のゾーン（CPU は省略＝左から）。 */
+  ui?: { close?: () => void; virusZones?: number[] },
 ) => {
   const { actor: my, opponent: op, actorId, opponentId, actorKey, energyPayPool } = actorCtx;
   ctx.io.setLoading(true);
@@ -114,7 +115,7 @@ export interface OffFieldActor {
     const payment = payTrashActivateCost(
       costEffect, my, op,
       // 🆕§5.3 `O-373`＝`trashExile{count}`（トラッシュの《X》N枚を除外）の選択。
-      { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices, trashExile: trashExileIndices },
+      { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices, trashExile: trashExileIndices, virusZones: ui?.virusZones },
       // 🆕**§5.3 `O-262`**＝`cost.trashExile.self`（このカード自身の除外）を払うために効果元を渡す。
       ctx.cardMap, energyPayPool, cardNum,
     );

@@ -1,9 +1,10 @@
 // アシストルリグ 起動効果モーダル（【起】コスト＝エナ＋手札捨て＋ウィルス除去）。BattleScreen.tsx から Stage 1 で抽出。
 import { createPortal } from 'react-dom';
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
-import { isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
+import { isEnergyPaymentSelectionValid, isMultiEna, oppVirusChoiceNeeded } from '../costs';
+import { OppVirusPicker } from './OppVirusPicker';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -15,10 +16,12 @@ interface AssistActivatedModalProps {
   setSelectedAssistActivatedCost: Dispatch<SetStateAction<Set<number>>>;
   selectedAssistActivatedDiscard: Set<number>;
   setSelectedAssistActivatedDiscard: Dispatch<SetStateAction<Set<number>>>;
-  executeAssistActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>) => void;
+  executeAssistActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>, virusZones?: number[]) => void;
 }
 
 export function AssistActivatedModal(p: AssistActivatedModalProps) {
+  // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（カード＋効果ごと）
+  const [virusPick, setVirusPick] = useState<{ key: string; zones: number[] }>({ key: '', zones: [] });
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost, selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard, executeAssistActivated } = p;
   return (
@@ -47,7 +50,11 @@ export function AssistActivatedModal(p: AssistActivatedModalProps) {
               });
               const virusNeededAssist = eff.cost?.removeOppVirus ?? 0;
               const virusOkAssist = virusNeededAssist === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAssist;
-              const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded && virusOkAssist;
+              const virusKeyAssist = `${pendingAssistActivated.cardNum}:${eff.effectId}`;
+              const virusNeedSelectAssist = oppVirusChoiceNeeded(op, virusNeededAssist);
+              const virusZonesAssist = virusPick.key === virusKeyAssist ? virusPick.zones : [];
+              const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded && virusOkAssist
+                && (!virusNeedSelectAssist || virusZonesAssist.length === virusNeededAssist);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>アシスト【起】効果を発動</p>
@@ -123,12 +130,16 @@ export function AssistActivatedModal(p: AssistActivatedModalProps) {
                       </div>
                     </>
                   )}
+                  {virusNeedSelectAssist && (
+                    <OppVirusPicker op={op} count={virusNeededAssist} cardMap={battleCardMap}
+                      value={virusZonesAssist} onChange={zones => setVirusPick({ key: virusKeyAssist, zones })} />
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); setSelectedAssistActivatedDiscard(new Set()); }} disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
-                    <button onClick={() => executeAssistActivated(pendingAssistActivated.cardNum, eff, selectedAssistActivatedCost, selectedAssistActivatedDiscard)} disabled={loading || !canAfford}
+                    <button onClick={() => executeAssistActivated(pendingAssistActivated.cardNum, eff, selectedAssistActivatedCost, selectedAssistActivatedDiscard, virusZonesAssist)} disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>

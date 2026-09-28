@@ -3,6 +3,7 @@ import type { CardEffect, EffectCost } from '../../types/effects';
 import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import { fieldTrashCostCountOk, payFieldTrashCost } from './fieldTrashCost';
 import { fieldTrashSelectableZones } from './fieldLimit';
+import { payRemoveOppVirus } from './costs';
 
 /**
  * **手札の【起】のコスト**（提示の可否・支払い）の1本。
@@ -37,6 +38,8 @@ export interface HandActivateSelections {
   energy: Set<number>;
   /** `fieldTrash` で場からトラッシュに置くシグニゾーン。 */
   fieldTrash: Set<number>;
+  /** 🆕`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・省略＝左から）。 */
+  virusZones?: number[];
 }
 
 export const emptyHandActivateSelections = (): HandActivateSelections => ({ energy: new Set(), fieldTrash: new Set() });
@@ -97,17 +100,12 @@ export function payHandActivateCost(p: {
   if (my.hand[p.handIndex] !== cardNum) return null;
   if (!handActivateFieldTrashOk(effect, my, p.selections.fieldTrash, p.cardMap)) return null;
   const logs: string[] = [];
-  // removeOppVirus（WX21-030）＝左のシグニゾーンから順に取り除く（【起】/【出】経路と同じ決定論）。
+  // removeOppVirus（WX21-030）＝🆕2026-09-29 どのゾーンから取り除くかはプレイヤーの選択（省略＝左から）。
   let newOp: PlayerState | null = null;
   const virusNeeded = cost?.removeOppVirus ?? 0;
   if (virusNeeded > 0) {
-    const v = [...(op.field.signi_virus ?? [0, 0, 0])];
-    let removed = 0;
-    for (let zi = 0; zi < v.length && removed < virusNeeded; zi++) {
-      while (v[zi] > 0 && removed < virusNeeded) { v[zi]--; removed++; }
-    }
-    if (removed < virusNeeded) return null;
-    newOp = { ...op, field: { ...op.field, signi_virus: v } };
+    newOp = payRemoveOppVirus(op, virusNeeded, p.selections.virusZones);
+    if (!newOp) return null;
   }
   const plan = planEnergyPayment(my, p.energyPool, p.selections.energy);
   const discardSelf = cost?.discardSelfFromHand === true;

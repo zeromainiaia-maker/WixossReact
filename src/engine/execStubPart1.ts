@@ -72,6 +72,58 @@ function exileArtsFromLrigDeckCandidates(
   });
 }
 
+/**
+ * 🆕2026-09-29（バグ報告 08499934 の同型＝効果側）＝**対戦相手の場の【ウィルス】を N つ取り除く**共通処理。
+ * 旧実装は3か所（`REMOVE_VIRUS` の個数指定／`INTERNAL_REMOVE_VIRUS_N`／コストの `INTERNAL_PAY_REMOVE_OPP_VIRUS`）が
+ * 全部「左のゾーンから自動」＝どのシグニの感染を外すかで結果が変わるのに選べなかった（エンザ①など）。
+ * ⇒ 選び方で結果が変わるとき（【ウィルス】のあるゾーンが2つ以上 かつ 全部は取り除かない）だけ、1つずつゾーンを選ばせる。
+ *   それ以外は従来どおり自動（選ぶ余地が無いので対話を増やさない）。完了時に `lastProcessedCount` へ取り除いた総数を置く。
+ */
+function removeOppVirusChoosing(ctx: ExecCtx, n: number, removedSoFar = 0, finalLog = true): ExecResult {
+  const virusArr = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
+  const total = virusArr.reduce((s, v) => s + v, 0);
+  const finish = (c: ExecCtx, removed: number) => {
+    const owner = removed > 0 ? { ...c.ownerState, opp_virus_removed_just: true } : c.ownerState;
+    const next = { ...c, ownerState: owner, lastProcessedCount: removed };
+    return done(finalLog && removed > 0 ? addLog(next, `ウイルス${removed}つを取り除く`) : next);
+  };
+  if (n <= 0 || total === 0) return finish(ctx, removedSoFar);
+  const zones = [0, 1, 2].filter(z => (virusArr[z] ?? 0) > 0);
+  if (zones.length < 2 || total <= n) {
+    let removed = 0;
+    for (let z = 0; z < 3 && removed < n; z++) {
+      const take = Math.min(virusArr[z], n - removed);
+      virusArr[z] -= take; removed += take;
+    }
+    return finish({ ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: virusArr } } }, removedSoFar + removed);
+  }
+  const options = zones.map(z => {
+    const top = ctx.otherState.field.signi[z]?.at(-1);
+    const name = top ? (ctx.cardMap.get(getCardNum(top))?.CardName ?? top) : 'シグニなし';
+    return {
+      id: `remove_virus_zone_${z}`,
+      label: `相手のゾーン${z + 1}（${name}）の【ウィルス】を取り除く（残り${virusArr[z]}つ）`,
+      action: ({ type: 'SEQUENCE', steps: [
+        ({ type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_AT_ZONE', value: z } as StubAction) as EffectAction,
+        ({ type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_CHOICE', value: n - 1, virusRemovedSoFar: removedSoFar + 1 } as StubAction) as EffectAction,
+      ] } as SequenceAction) as EffectAction,
+      available: true,
+    };
+  });
+  return needsInteraction(addLog(ctx, `取り除く【ウィルス】を選択（あと${n}つ）`), { type: 'CHOOSE', options, count: 1 });
+}
+
+/**
+ * 取り除いてから続きを行う形（「【ウィルス】を N つ取り除き、取り除いた数だけ〜」）。選択が要れば対話を挟み、
+ * 完了後に `resumeStub`（`afterVirusRemoved:true` を立てた同じ STUB）へ戻る。戻った側は `lastProcessedCount` を読む。
+ */
+function removeOppVirusThen(ctx: ExecCtx, n: number, resumeStub: StubAction, after: (c: ExecCtx, removed: number) => ExecResult): ExecResult {
+  const r = removeOppVirusChoosing(ctx, n, 0, false);
+  if (!r.done) return { ...r, pending: { ...r.pending, continuation: ({ ...resumeStub, afterVirusRemoved: true } as StubAction) as EffectAction } };
+  const removed = r.lastProcessedCount ?? 0;
+  return after({ ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs, lastProcessedCount: removed }, removed);
+}
+
 export function execStubPart1(
   stub: StubAction,
   ctx: ExecCtx,
@@ -979,6 +1031,10 @@ export function execStubPart1(
   }
   if (stub.id === 'INTERNAL_PAY_REMOVE_OPP_VIRUS') {
     const count = stub.removeOppVirus ?? 0;
+    // 🆕2026-09-29＝コストも同じく選ばせる（足りなければ払えない）。
+    if ((ctx.otherState.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= count && count > 0) {
+      return removeOppVirusChoosing(ctx, count);
+    }
     const virus = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
     let removed = 0;
     for (let zi = 0; zi < virus.length && removed < count; zi++) {
@@ -2171,6 +2227,8 @@ export function execStubPart1(
     const removeCount = stub.virusCount === 'all'
       ? totalVirus
       : Math.min(typeof stub.virusCount === 'number' ? stub.virusCount : 1, totalVirus);
+    // 🆕2026-09-29＝個数指定はどのゾーンから取り除くかを選ばせる（全部なら選ぶ余地が無い）。
+    if (stub.virusCount !== 'all') return removeOppVirusChoosing(ctx, removeCount);
     const newVirus = [...virusArr];
     let removed = 0;
     for (let z = 0; z < 3 && removed < removeCount; z++) {
@@ -2196,20 +2254,14 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, opp_virus_removed_just: true }, otherState: newOther }, `ゾーン${zone + 1}のウイルス1つを取り除く`));
   }
   // INTERNAL_REMOVE_VIRUS_N: N個ウイルスを除去（effectExecutorのREMOVE_VIRUS+IS_MY_TURNハンドラから使用）
+  if (stub.id === 'INTERNAL_REMOVE_VIRUS_CHOICE') {
+    return removeOppVirusChoosing(ctx, typeof stub.value === 'number' ? stub.value : 0, stub.virusRemovedSoFar ?? 0);
+  }
   if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
     const n = typeof stub.value === 'number' ? stub.value : 0;
     if (n === 0) return done({ ...ctx, lastProcessedCount: 0 });
-    const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
-    const newVirus = [...virusArr];
-    let removed = 0;
-    for (let z = 0; z < 3 && removed < n; z++) {
-      const take = Math.min(newVirus[z], n - removed);
-      newVirus[z] -= take;
-      removed += take;
-    }
-    const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
-    const newOwnerIRVN = removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState;
-    return done(addLog({ ...ctx, ownerState: newOwnerIRVN, otherState: newOther, lastProcessedCount: removed }, `ウイルス${removed}つを取り除く`));
+    // 🆕2026-09-29＝どのゾーンから取り除くかを選ばせる（選ぶ余地が無ければ従来どおり自動）。
+    return removeOppVirusChoosing(ctx, n);
   }
   // REMOVE_VIRUS_TARGET_ZONE: lastProcessedCards[0]と同じゾーンのウィルスを1個除去（WX15-064型）
   // 表示: この方法で対象にしたシグニと同じゾーンにある【ウィルス】1つを取り除く
@@ -2233,18 +2285,10 @@ export function execStubPart1(
   if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
     const n = typeof stub.value === 'number' ? stub.value : 0;
     if (n === 0) return done(addLog(ctx, 'ウイルス取り除かない'));
-    const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
-    const newVirus = [...virusArr];
-    let removed = 0;
-    for (let z = 0; z < 3 && removed < n; z++) {
-      const take = Math.min(newVirus[z], n - removed);
-      newVirus[z] -= take;
-      removed += take;
-    }
-    const newCtx = addLog({ ...ctx,
-      ownerState: removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState,
-      otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
-      `ウイルス${removed}つを取り除く`);
+    // 🆕2026-09-29＝どのゾーンから取り除くかを選ばせる（`removeOppVirusThen`）。戻り（`afterVirusRemoved`）は取り除き済み。
+    if (!stub.afterVirusRemoved) return removeOppVirusThen(ctx, n, stub, (c, r) => exec(({ ...stub, afterVirusRemoved: true, value: r } as StubAction) as EffectAction, c));
+    const removed = ctx.lastProcessedCount ?? n;
+    const newCtx = addLog(ctx, `ウイルス${removed}つを取り除く`);
     // トラッシュから黒のシグニをN枚選択して手札へ（SELECT_TARGETで選ばせる）
     const blackTrashCands = newCtx.ownerState.trash.filter(cn => {
       const c = newCtx.cardMap.get(cn);
@@ -2290,17 +2334,10 @@ export function execStubPart1(
   // INTERNAL_ECRV_APPLY: ウイルスN個除去→(N+1)択効果を選ぶ
   if (stub.id === 'INTERNAL_ECRV_APPLY') {
     const removeN = typeof stub.value === 'number' ? stub.value : 0;
-    // ウイルスをN個除去
-    const newVirusECRV = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
-    let removedECRV = 0;
-    for (let zi = 0; zi < 3 && removedECRV < removeN; zi++) {
-      const take = Math.min(newVirusECRV[zi], removeN - removedECRV);
-      newVirusECRV[zi] -= take;
-      removedECRV += take;
-    }
-    let ctxECRV: typeof ctx = { ...ctx,
-      ownerState: removedECRV > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState,
-      otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
+    // 🆕2026-09-29＝どのゾーンから取り除くかを選ばせる。戻り（`afterVirusRemoved`）は取り除き済み。
+    if (removeN > 0 && !stub.afterVirusRemoved) return removeOppVirusThen(ctx, removeN, stub, (c) => exec(({ ...stub, afterVirusRemoved: true } as StubAction) as EffectAction, c));
+    const removedECRV = removeN > 0 ? (ctx.lastProcessedCount ?? removeN) : 0;
+    let ctxECRV: typeof ctx = ctx;
     if (removedECRV > 0) ctxECRV = addLog(ctxECRV as import('./execUtils').ExecCtx, `ウイルス${removedECRV}個除去`) as typeof ctx;
     const chooseCount = removeN + 1;
     // 🆕§5.3 `O-234`（2026-09-04）＝**選択肢は parser が解いた payload から**組む。

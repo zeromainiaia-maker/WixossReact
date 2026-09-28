@@ -9,7 +9,7 @@ import { activateCostZeroApplies } from '../activateCostZero';
 import { consumeActivateCostZero } from '../turnScopedState';
 import { generateUUID } from '../battleUtils';
 import { reduceBattle } from '../controller/battleController';
-import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord, paySelectedExceed } from '../costs';
+import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord, paySelectedExceed, payRemoveOppVirus } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldToDeckTopCost } from '../fieldToDeckTopCost';
@@ -55,6 +55,8 @@ export const performSigniActivated = async (
     underTrashKeys?: Set<string>;
     /** `charmTrashVariable` で選んだ枚数（人間はUIの state、CPU は 0）。 */
     charmTrashVarCount?: number;
+    /** 🆕`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・CPU は省略＝左から）。 */
+    virusZones?: number[];
   },
   p: {
     actor: PlayerState; opponent: PlayerState;
@@ -144,13 +146,9 @@ export const performSigniActivated = async (
     const removeVirusNAct = effect.cost?.removeOppVirus ?? 0;
     let newOpVirusState: typeof op | null = null;
     if (removeVirusNAct > 0) {
-      const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
-      let removedV = 0;
-      for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusNAct; zi++) {
-        while (newOppVirus[zi] > 0 && removedV < removeVirusNAct) { newOppVirus[zi]--; removedV++; }
-      }
-      if (removedV < removeVirusNAct) return; // 支払い不能
-      newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
+      // 🆕2026-09-29＝どのゾーンから取り除くかはプレイヤーの選択（`sel.virusZones`）。CPU は左から（`payRemoveOppVirus`）。
+      newOpVirusState = payRemoveOppVirus(op, removeVirusNAct, sel.virusZones);
+      if (!newOpVirusState) return; // 支払い不能
     }
     const isGameOnceAct = effect.usageLimit === 'once_per_game';
     // 🆕§5.6 `C-0`＝《黒×0》は「**次に**それの【起】能力を使用する場合」＝一発なので、

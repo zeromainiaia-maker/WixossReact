@@ -9,6 +9,8 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, isEnergyPaymentSelectionValid, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
+import { oppVirusChoiceNeeded } from '../costs';
+import { OppVirusPicker } from './OppVirusPicker';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from '../artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../../../engine/execUtils';
@@ -31,12 +33,14 @@ interface LrigGrantedModalProps {
   /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
   selectedLrigGrantedFieldBanish: Set<number>;
   setSelectedLrigGrantedFieldBanish: Dispatch<SetStateAction<Set<number>>>;
-  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>, trashArtsNums?: string[]) => void;
+  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>, trashArtsNums?: string[], virusZones?: number[]) => void;
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish, executeLrigGranted } = p;
+  // 🆕2026-09-29＝取り除く【ウィルス】のゾーン（効果ごと）
+  const [virusPick, setVirusPick] = useState<{ key: string; zones: number[] }>({ key: '', zones: [] });
   // 🆕§5.3 `O-118`（2026-09-02）＝エクシードで「どのカードを置くか」の選択。
   //   🔴旧＝この経路には選択UIが無く**下から機械的に**払っていた（色指定は貪欲に満たすだけ）＝
   //   原文（「エクシード２（白と赤のカード）」）は満たす組が複数あるとき**プレイヤーが選べる**。
@@ -112,6 +116,10 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const charmOkLrig = charmTrashNLrigM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNLrigM;
               const virusNeededLrig = eff.cost?.removeOppVirus ?? 0;
               const virusOkLrig = virusNeededLrig === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededLrig;
+              const virusKeyLrig = `${pendingLrigGranted.sourceCardNum}:${eff.effectId}`;
+              const virusNeedSelectLrig = oppVirusChoiceNeeded(op, virusNeededLrig);
+              const virusZonesLrig = virusPick.key === virusKeyLrig ? virusPick.zones : [];
+              const virusSelectOkLrig = !virusNeedSelectLrig || virusZonesLrig.length === virusNeededLrig;
               const lgEnergyTrashCost = eff.cost?.energyTrash;
               // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
               const lgEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedLrigGrantedEnergyTrash, lgEnergyTrashCost, battleCardMap);
@@ -151,7 +159,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const lgArtsCost = eff.cost?.trashArtsFromLrigDeck;
               const lgArtsCands = trashArtsFromLrigDeckCandidates(my, lgArtsCost, battleCardMap, isImmovableArtsFromLrigDeck);
               const lgArtsOk = !lgArtsCost || selectedLrigArts.length === lgArtsCost.count;
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk && lgArtsOk;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && virusSelectOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk && lgArtsOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -547,6 +555,10 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     </>
                   )}
 
+                  {virusNeedSelectLrig && (
+                    <OppVirusPicker op={op} count={virusNeededLrig} cardMap={battleCardMap}
+                      value={virusZonesLrig} onChange={zones => setVirusPick({ key: virusKeyLrig, zones })} />
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); setSelectedExceed([]); setSelectedLrigArts([]); }}
@@ -556,7 +568,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                       キャンセル
                     </button>
                     <button
-                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed), selectedLrigArts); setSelectedExceed([]); setSelectedLrigArts([]); }}
+                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed), selectedLrigArts, virusZonesLrig); setSelectedExceed([]); setSelectedLrigArts([]); }}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

@@ -10,7 +10,7 @@ import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import {
   activatedDiscardCostRecord, canPayExceed, exceedPoolOf, handDiscardHistoryRecord, paySelectedExceed,
   fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni,
-  trashExileAffordable, trashExileCostSatisfied,
+  trashExileAffordable, trashExileCostSatisfied, payRemoveOppVirus,
 } from './costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './lrigDownCost';
 
@@ -230,6 +230,8 @@ export interface TrashActivateSelections {
   exceed: Set<number>;
   /** 🆕§5.3 `O-373`＝`my.trash` のインデックス（`trashExile{count}` で除外する札）。省略＝空。 */
   trashExile?: Set<number>;
+  /** 🆕2026-09-29＝`removeOppVirus` で取り除く【ウィルス】のゾーン（人間が選んだ列・省略＝左から）。 */
+  virusZones?: number[];
 }
 
 export const emptyTrashActivateSelections = (): TrashActivateSelections => ({
@@ -315,17 +317,12 @@ export function payTrashActivateCost(
   const coinPaid = cost?.coin ?? 0;
   if (coinPaid > 0 && (my.coins ?? 0) < coinPaid) return null;
 
-  // removeOppVirus: 左のシグニゾーンから順に取り除く（既存の【起】/【出】経路と同じ決定論）。
+  // removeOppVirus: 🆕2026-09-29 どのゾーンから取り除くかはプレイヤーの選択（省略＝左から）。
   let nextOp: PlayerState | null = null;
   const virusNeeded = cost?.removeOppVirus ?? 0;
   if (virusNeeded > 0) {
-    const virus = [...(op.field.signi_virus ?? [0, 0, 0])];
-    let removed = 0;
-    for (let zi = 0; zi < virus.length && removed < virusNeeded; zi++) {
-      while (virus[zi] > 0 && removed < virusNeeded) { virus[zi]--; removed++; }
-    }
-    if (removed < virusNeeded) return null;
-    nextOp = { ...op, field: { ...op.field, signi_virus: virus } };
+    nextOp = payRemoveOppVirus(op, virusNeeded, selections.virusZones);
+    if (!nextOp) return null;
   }
 
   let paid: PlayerState = energyPlan.applyTo({

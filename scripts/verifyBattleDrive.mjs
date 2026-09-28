@@ -8391,6 +8391,59 @@ const scenarios = {
   //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
   //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
   //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  // 🆕2026-09-29（バグ報告 08499934 とその同型）＝**コストで取り除く【ウィルス】をプレイヤーが選ぶ**。
+  //   `WXEX1-78-E2`（羅菌　コレラ）【起】コスト＝対戦相手の場の【ウィルス】2つを取り除く。相手の3ゾーンに1つずつ置き、
+  //   **左端（ゾーン1）以外の2つ**を選ぶ。旧実装は左から自動＝ゾーン1とゾーン2が必ず外れた。
+  virusCostPick: {
+    title: 'コストで取り除く【ウィルス】をゾーン2・3から選べる（左から自動にならない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXEX1-78#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'trash': ['WD19-013#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#g1'], ['WD01-014#g2'], ['WD01-009#g3']],
+        'field.signi_virus': [1, 1, 1],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      H.log(`開始 gVirus=${JSON.stringify(st0?.guest?.signiVirus)}`);
+      await H.clickTestId('my-signi-zone-0');
+      await page.waitForTimeout(800);
+      const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+      if (!((await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false))) return { pass: false, detail: '前提崩れ＝【起】が提示されない' };
+      await actBtn.click().catch(() => {});
+      let pickedZones = 0, fired = false, sawPicker = false;
+      for (let i = 0; i < 20; i++) {
+        await page.waitForTimeout(700);
+        await page.screenshot({ path: `${SHOT}/virusCostPick-${i}.png`, fullPage: true });
+        let did = null;
+        if (pickedZones < 2) {
+          const z = page.getByTestId(`opp-virus-zone-${pickedZones + 1}`).first();   // ゾーン2 → ゾーン3
+          if (await z.count() && await z.isVisible().catch(() => false)) { sawPicker = true; await z.click().catch(() => {}); did = `virus-zone-${pickedZones + 1}`; pickedZones++; }
+        } else if (!fired) { did = await H.clickTestId('signiact-fire'); if (did) fired = true; }
+        if (!did && fired) did = await H.stdStep();
+        const st = await H.queryState();
+        const gv = st?.guest?.signiVirus ?? [];
+        H.log(`  [${i}] -> ${did ?? 'なし'} | gVirus=${JSON.stringify(gv)} fired=${fired} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (!sawPicker && i > 3) return { pass: false, detail: '🔴取り除く【ウィルス】の選択欄が出ない（左から自動のまま）' };
+        if (fired && JSON.stringify(gv) !== JSON.stringify(st0?.guest?.signiVirus ?? [])) {
+          return JSON.stringify(gv) === '[1,0,0]'
+            ? { pass: true, detail: `選んだゾーン2・3から取り除いた（gVirus ${JSON.stringify(st0?.guest?.signiVirus)}→${JSON.stringify(gv)}）` }
+            : { pass: false, detail: `🔴選んだゾーンと違う（gVirus→${JSON.stringify(gv)}・期待 [1,0,0]）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着しなかった（gVirus=${JSON.stringify(fin?.guest?.signiVirus)} fired=${fired}）` };
+    },
+  },
+
   // 🆕2026-09-29（バグ報告 001668ea とその同型）＝**「ターン終了時」はエンドフェイズに入った時点で解決する**。
   //   公式のエンドフェイズ＝①ターン終了時の効果 ②手札調整・期限切れ ③ターン終了。旧実装は①を「ターン終了」ボタン押下時に
   //   まとめて処理していた（マイプラの【自】も、予約型の「ターン終了時にトラッシュ」も）。

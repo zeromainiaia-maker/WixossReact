@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-29（第491バッチ）取り除く【ウィルス】をプレイヤーが選ぶ（報告 08499934 とその同型・コスト5経路＋効果側）
+
+`src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs virusCostPick`（新設・コレラの【起】でゾーン2・3を選び [1,1,1]→[1,0,0]）PASS。`npm run gates` の golden 以外は全緑・golden はフィルタなし全件で 4427/4427。
+
+- **真因**＝「対戦相手の場の【ウィルス】N つを取り除く」は、コストの支払い7か所（シグニ【起】／ルリグ【起】／アシスト【起】／手札から【起】／トラッシュから【起】／【出】のコスト／engine の任意コスト）と効果側3か所（`REMOVE_VIRUS` の個数指定・`INTERNAL_REMOVE_VIRUS_N`・`INTERNAL_RV_BATCH_TRANSFER`・`INTERNAL_ECRV_APPLY`）が**全部「左のゾーンから自動」の手書きループ**だった。どのシグニの感染を外すかで結果が変わる（感染状態を条件にする効果＝エンザ③・マイプラ等）のに選べなかった。live＝コスト11効果＋効果11効果。
+- **直し方**＝①UI コストは共通の支払い `payRemoveOppVirus(op, n, zones)`（`costs.ts`・指定が無ければ左から＝CPU）と選択欄 `OppVirusPicker`（5つの支払い画面）。表示は `oppVirusChoiceNeeded`＝【ウィルス】のあるゾーンが2つ以上かつ全部は取り除かないときだけ。②効果側は `removeOppVirusChoosing`（`execStubPart1.ts`）＝同じ条件で1つずつゾーンを選ぶ CHOOSE、取り除いた数は `lastProcessedCount` へ。「取り除いてから続き」の2 STUB は `removeOppVirusThen`（選択後に `afterVirusRemoved` で戻る）。
+- 検証＝`npm run golden -- --only "08499934"`／`batch7 virus extra cost scales` を「ゾーンを2回選んでから3択」へ更新（右端を選び左端が残ることを assert）。
+- **残り（同型4の続き）**＝チャーム（15効果）・アクセ（4）・罠を手札へ（7）の自動選択。ビートはシグニ【起】と【出】の支払い画面に選択欄が既にある。
+
 ## 2026-09-29（第490バッチ）第489バッチの「同じ形のバグ」を全数で洗って直す（ユーザー指示「おなじ形のバグがないかを調べてから修正すること」）
 
 `src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs turnEndOnEntry`（新設）PASS／`craftTurnEndP03078`・`keysAbilityLossTurnEndNoDiscard`・`keysAbilityLossTurnEndWithDiscard` PASS／`node scripts/verifyFullMatch.mjs cpu` PASS。`npm run gates` 全緑（golden 4426/4426）。
