@@ -339,9 +339,14 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
       myFieldAfterCoinCheck = { ...exileAtEnd.field, beat_zone: exileAtEnd.field.beat_zone ?? [] };
       myExcludedEND = exileAtEnd.excluded;
 
+      // 🆕2026-09-29（報告 001668ea の同型）＝**予約型の「ターン終了時」（このシグニをトラッシュ／手札に戻す／カードを引く…）も
+      //   エンドフェイズに入った時点で解決する**。→END の遷移で `__TURN_END_ON_ENTRY__` を立てた回は、ここで①の結果だけを
+      //   確定して END に留まる（BattleScreen の自動進行がここへ1回だけ来る）。②手札調整・③ターン終了はボタン押下時。
+      //   ⚠確定は下の手札上限超過の経路と同じ書き込み＝`end_turn_effects_resolved` で二重適用を防ぐ。
+      const stopAfterStepOne = !turnEndEffectsAlreadyResolved && !!my.actions_done?.includes('__TURN_END_ON_ENTRY__');
       // ENDフェーズ②：手札上限チェック（①の「ターン終了時に」効果をすべて適用した後の手札で判定）
       const handLimitEND = myEffectiveHandLimit;
-      if (myHandEND.length > handLimitEND) {
+      if (stopAfterStepOne || myHandEND.length > handLimitEND) {
         // ①の解決結果を先に永続化してから捨て札選択へ。confirmEndDiscard は解決済み状態を参照し、
         // end_turn_effects_resolved マーカーで効果の二重適用を防ぐ
         // （特に game_turn_end_trash_to_hand は「このゲーム」持続でフラグを消せないため、マーカーで抑止）。
@@ -365,6 +370,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
           },
           opp: { key: isHost ? 'guest_state' : 'host_state', state: opEndState },
         }));
+        if (stopAfterStepOne) return; // ①だけ解決して END に留まる（②③は「ターン終了」ボタンで）
         openEndDiscard(myHandEND.length - handLimitEND);
         return; // ユーザー選択後に confirmEndDiscard で処理
       }
@@ -382,6 +388,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
         turn_end_energy_trash_targets: undefined,
         pending_exile_nums: undefined,
         turn_end_draw_count: undefined,
+        end_turn_effects_resolved: undefined, // ①をエンドフェイズ開始時に解決した印（次ターンへ持ち越さない）
         // temp_power_mods / temp_level_mods / keyword_grants / granted_effects は clearTurnEndScopedState が両プレイヤー分を失効させる。
         // blocked_card_names のリセットは clearTurnEndScopedState のレジストリへ集約した（§6.4 O-3 続き498）。
         //   ⚠ここで個別に空へ倒すと `blocked_card_names_next_turn` の昇格結果まで握り潰しうる。

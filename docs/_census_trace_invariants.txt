@@ -273,7 +273,7 @@ SPDi43-05-E2	base/both	選択肢なし・差分: 自状態 granted_effects_until
 SPDi43-26-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; 自エナ対象: 自エナ → 自デッキ[0]
 SPDi44-12-E2	base/both	選択肢なし・差分: 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"SPDi44-12-sub-E1","duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DAMAGE_REPLACE_BY_COST","damageReplaceByCost":{"options":[{"handDiscard":1},{"en…
 
-## I3（76効果）
+## I3（77効果）
 WX02-026-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自S対象1: 自シグニ1(上) → 自トラッシュ ; 自デッキ上対象2: 自デッキ[0] → 自シグニ1(上)
 WX11-025-E2	nofield/both	失敗ログ「並び替え対象が1体以下のためスキップ」・差分: 自S源: 状態[なし]→[ダウン]
 WX14-012-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り14枚） ; 自状態 deck_shuffled_count: なし → 1
@@ -343,6 +343,7 @@ WXK10-013-E1	base/both	失敗ログ「相手はシグニを配置できない」
 WXK11-007-E1	base/decline	辞退・差分: 相S対象0: 付与[なし]→[アタックできない]
 WXK11-008-E1	base/decline	辞退・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WXK11-010-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札 ; 自デッキ上3: 自デッキ[2] → 自手札
+WXK09-TK-01A-E1	base/both	失敗ログ「《改造素材》を使用できない」・差分: 自S対象1: パワー+4000 ; 自制限: [なし]→[改造素材] ; 自状態 material_used_targets: なし → ["自S対象1"]
 WD12-013-E1	base/both	失敗ログ「空きシグニゾーンなし（コードアート　Ｓ・Ｔ・Ｇ配置不可）」・差分: 自S源: 状態[なし]→[ダウン]
 WD12-015-E1	base/both	失敗ログ「空きシグニゾーンなし（コードアート　Ｔ・Ｖ配置不可）」・差分: 自S源: 状態[なし]→[ダウン]
 WD20-018-E1	empty/both	失敗ログ「デッキの上から1枚を公開：甲冑　ローメイル（該当なし）」・差分: 自S対象1: 自シグニ1(上) → 自エナ

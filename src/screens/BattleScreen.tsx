@@ -444,6 +444,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const stackProcessingRef        = useRef(false);  // resolveStackNext の多重実行防止
   const lastResolvedEntryIdRef    = useRef<string | null>(null); // 直前に処理したキュー先頭のID（DB伝播前の二重処理防止）
   const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
+  // 🆕2026-09-29＝エンドフェイズの自動進行（下の useEffect）は**そのターンのエンドフェイズにつき1回だけ**。
+  //   実行中フラグだけでは足りなかった（実機で観測）＝書き込みが返った直後の再発火はまだ古い state を見ており、
+  //   ①（予約型の「ターン終了時」）を3回計算してログが三重に出た。古い state のまま書き戻すと、
+  //   「ターン終了」で進めたフェイズを END へ戻してしまう危険もある。⇒ ターン単位の鍵で止める。
+  const turnEndAutoKeyRef                = useRef<string | null>(null);
   const triggerPendingCrashRef           = useRef<(() => Promise<void>) | null>(null);
   const resolveStackNextRef              = useRef<(() => Promise<void>) | null>(null);
   const handleCutinPassRef               = useRef<(() => Promise<void>) | null>(null);
@@ -2067,8 +2072,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (!(localMy.actions_done?.includes('__TURN_END__'))) return;
-    // エンドフェイズ開始時に収集した回はボタン押下を待つ（phaseAdvance.ts の →END 収集）
-    if (localMy.actions_done?.includes('__TURN_END_ON_ENTRY__')) return;
+    // エンドフェイズ開始時に収集した回（phaseAdvance.ts の →END 収集）＝【自】の解決後に1回だけ進めて
+    // 予約型の「ターン終了時」（①の残り）を解決し、あとは「ターン終了」ボタンを待つ。
+    if (localMy.actions_done?.includes('__TURN_END_ON_ENTRY__') && localMy.end_turn_effects_resolved) return;
+    const autoKey = `${bs.room_id}:${bs.turn_count}:${bs.active_user_id}:${localMy.actions_done?.includes('__TURN_END_ON_ENTRY__') ? 'entry' : 'end'}`;
+    if (turnEndAutoKeyRef.current === autoKey) return;
+    turnEndAutoKeyRef.current = autoKey;
     doPhaseAdvanceRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2741,6 +2750,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!iControlThisPhase || loading) return;
     if (my.pending_signi_battle) return; // シグニアタック解決中はフェイズ移行不可
     if (my.field.check || op.field.check) return; // チェックゾーンにカードがある間はブロック
+    // 🆕2026-09-29＝エンドフェイズ①（予約型の「ターン終了時」）の自動解決が画面に届くまでは「ターン終了」を受け付けない
+    //   （届く前に押すと古い state から①をもう一度計算し、ログが二重に出て END に留まる＝実機で観測）。
+    if (bs.turn_phase === 'END' && my.actions_done?.includes('__TURN_END_ON_ENTRY__') && !my.end_turn_effects_resolved) return;
     // UPKEEP_OR_NO_UP: センタールリグのアップ条件未払いなら確認を挟む
     if (bs.turn_phase === 'UP' && my.lrig_upkeep_condition) {
       setShowUpkeepPayConfirm(true);

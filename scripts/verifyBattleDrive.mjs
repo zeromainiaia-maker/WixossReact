@@ -8391,6 +8391,67 @@ const scenarios = {
   //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
   //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
   //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  // 🆕2026-09-29（バグ報告 001668ea とその同型）＝**「ターン終了時」はエンドフェイズに入った時点で解決する**。
+  //   公式のエンドフェイズ＝①ターン終了時の効果 ②手札調整・期限切れ ③ターン終了。旧実装は①を「ターン終了」ボタン押下時に
+  //   まとめて処理していた（マイプラの【自】も、予約型の「ターン終了時にトラッシュ」も）。
+  //   観測点＝「エンドフェイズへ」を押した後、**END のまま**マイプラ（【自】）とククリ（予約型）がトラッシュにあること。
+  //   その後「ターン終了」で相手のターンへ移ること（①の二重適用・止まりっぱなしが無いこと）。
+  turnEndOnEntry: {
+    title: 'ターン終了時の効果（【自】＋予約型）はエンドフェイズ開始時に解決し、ターン終了ボタンで相手へ',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX20-030#1'], ['WD01-013#1'], null],
+        'field.signi_down': [false, false, false],
+        'turn_end_field_trash_targets': ['WD01-013#1'],
+        'actions_done': [],
+        'hand': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, null],
+        'field.signi_virus': [0, 0, 0],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      const active0 = st0?.activeUser;
+      H.log(`開始 phase=${st0?.turnPhase} hField=${JSON.stringify(st0?.host?.fieldSigni)}`);
+      let pressedEnd = false, sawOnEntry = false, pressedTurnEnd = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/turnEndOnEntry-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        const trash = (st?.host?.trashCards ?? []).map(String);
+        const mypraGone = trash.some(n => n.startsWith('WX20-030'));
+        const kukuriGone = trash.some(n => n.startsWith('WD01-013'));
+        H.log(`  [${s}] phase=${st?.turnPhase} active=${st?.activeUser === active0 ? 'host' : 'guest'} マイプラ→トラッシュ=${mypraGone} ククリ→トラッシュ=${kukuriGone} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (s <= 10) H.log(`     done=${JSON.stringify(st?.host?.actionsDone)} logs=${JSON.stringify((st?.logTail ?? []).slice(-5))}`);
+        if (pressedTurnEnd && st?.activeUser !== active0) {
+          const dup = (st?.logTail ?? []).filter(l => String(l).includes('ターン終了時：小剣　ククリをトラッシュへ')).length;
+          if (dup > 1) return { pass: false, detail: `🔴予約型のログが${dup}回出た（①の二重実行）` };
+          return sawOnEntry
+            ? { pass: true, detail: 'END に入った時点で①（【自】＋予約型）が解決 → 「ターン終了」で相手のターンへ（ログ重複なし）' }
+            : { pass: false, detail: '相手へ移ったが、END の間に①が解決していなかった' };
+        }
+        if (pressedEnd && st?.turnPhase === 'END' && !(st?.stackLen > 0) && !st?.pendingEffect && mypraGone && kukuriGone) sawOnEntry = true;
+        let did = null;
+        if (!pressedEnd) { did = await H.clickTextOrBtn(['エンドフェイズへ']); if (did) pressedEnd = true; }
+        else if (sawOnEntry && st?.turnPhase === 'END') {  // 受け付けられるまで押し直す（①の反映待ちの間は無視される）
+          // ⚠ボタンを名前の完全一致で押す（`clickTextOrBtn` はログの「ターン終了時：…」の文字を押してしまう）
+          const b = page.getByRole('button', { name: 'ターン終了', exact: true }).first();
+          if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:ターン終了'; pressedTurnEnd = true; }
+        }
+        else if (!sawOnEntry && s > 10 && st?.turnPhase === 'END') {
+          return { pass: false, detail: `🔴END に入っても①が解決しない（マイプラ=${mypraGone} ククリ=${kukuriGone}）＝ボタン押下待ちの旧挙動` };
+        }
+        if (!did) did = await H.clickTextOrBtn(['このまま進む', '決定', 'OK', 'はい']);
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着しなかった（phase=${fin?.turnPhase} sawOnEntry=${sawOnEntry} pressedTurnEnd=${pressedTurnEnd}）` };
+    },
+  },
+
   craftTurnEndP03078: {
     title: 'WXDi-P03-078（ON_TURN_END＋ADD_TO_FIELD source:ENERGY_CARD powerLtSelf動的フィルタ）',
     spec: {

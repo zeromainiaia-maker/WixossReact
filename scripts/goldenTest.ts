@@ -93173,8 +93173,13 @@ test('2026-09-28 報告 001668ea＝「ターン終了時」はエンドフェイ
   ok(/nextPhase === 'END'[^\n]*\n\s*const endRes = collectTurnTriggers\('ON_TURN_END', newMyState, op, 'END'\)/.test(src),
     '🔴→END の遷移で ON_TURN_END を収集していない');
   ok(src.includes("'__TURN_END__', '__TURN_END_ON_ENTRY__'"), '収集済みの印が無い（押下時に二重に収集する）');
-  ok(battleScreenSource().includes("includes('__TURN_END_ON_ENTRY__')) return;"),
+  ok(battleScreenSource().includes("includes('__TURN_END_ON_ENTRY__') && localMy.end_turn_effects_resolved) return;"),
     '🔴入口で収集した回に自動でターン終了してしまう（手札調整の前にボタンで止まらない）');
+  // 🆕2026-09-29 同型＝予約型の「ターン終了時」（トラッシュ／手札に戻す／引く…）もエンドフェイズ開始時に解決して止まる
+  ok(src.includes("const stopAfterStepOne = !turnEndEffectsAlreadyResolved && !!my.actions_done?.includes('__TURN_END_ON_ENTRY__');")
+    && src.includes('if (stopAfterStepOne) return;'), '🔴予約型のターン終了時がボタン押下時まで遅れる');
+  ok(/turn_end_draw_count: undefined,\s*end_turn_effects_resolved: undefined,/.test(src),
+    '🔴①解決済みの印が通常の終了経路で消えない（次ターンの予約型が飛ばされる）');
 });
 
 test('2026-09-28 報告 393a4ab0／4ed74737＝公開した札を手札に加える（デッキから）が実際に手札へ入り、公開した札の名前がログに出る', () => {
@@ -93187,6 +93192,29 @@ test('2026-09-28 報告 393a4ab0／4ed74737＝公開した札を手札に加え�
   ok(fin.ownerState.hand.includes(top) && !fin.ownerState.deck.includes(top), 'ペズトがデッキに残った');
   ok(fin.logs.some(l => l.includes('公開') && l.includes('羅菌染姫　ペズト')), '公開した札の名前がログに無い');
   ok(fin.logs.some(l => l === '羅菌染姫　ペズトを手札に加える'), '手札に加えた札が「カード１枚」のまま');
+});
+
+test('2026-09-29 同型＝公開した札が条件に合えば「このシグニ」／相手のシグニに作用する（公開した札そのものに当てない・live 9効果）', () => {
+  const runTop = (eid: string, src: string, top: string, opp: (string | null)[]) => {
+    const eff = findEffectDeep(effectsMap.get(src)!, eid)!;
+    const ctx = mkCtx({ signi: [src, null, null], deckTop: [top] }, { signi: opp }, src);
+    return finish(executeEffect(eff, ctx), ctx);
+  };
+  // WX24-P4-060「公開したのがレベル1のシグニなら、このシグニのパワー＋7000」
+  const p = runTop('WX24-P4-060-E1', 'WX24-P4-060', 'WD01-013', [null, null, null]);
+  const mods = p.ownerState.power_mods_until_opp_turn ?? [];
+  ok(mods.some(m => m.cardNum === 'WX24-P4-060' && m.delta === 7000), '🔴＋7000 が「このシグニ」に付かない');
+  ok(!mods.some(m => m.cardNum === 'WD01-013'), '🔴＋7000 が公開したデッキの札に付いた');
+  // WX22-027「〜なら対戦相手のシグニ１体をバニッシュ」＝公開札の条件を作れる札を live の filter から引く
+  const rap = findActionByType(findEffectDeep(effectsMap.get('WX22-027')!, 'WX22-027-E2')!.action, 'REVEAL_AND_PICK')!;
+  const hit = [...cardMap.values()].find(c => c.Type === 'シグニ' && matchesFilter(c, rap.filter!))!.CardNum;
+  const b = runTop('WX22-027-E2', 'WX22-027', hit, [SIGNI, null, null]);
+  eq(b.otherState.field.signi[0], null, '🔴相手のシグニがバニッシュされない（公開札に BANISH を当てて空振り）');
+  // WX24-P3-063「公開したシグニと同じレベルの対戦相手のシグニは能力を失う」＋ログに名前
+  const r = runTop('WX24-P3-063-E1', 'WX24-P3-063', 'WD01-014', ['WD01-013', 'WD01-009', null]);
+  const removed = r.otherState.abilities_removed ?? [];
+  ok(removed.includes('WD01-013') && !removed.includes('WD01-009'), '同じレベル（1）だけが能力を失う');
+  ok(r.logs.includes('小剣　ククリは能力を失う'), '🔴能力を失うログが数字だけ');
 });
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

@@ -9818,7 +9818,7 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
       return [...cards, ...(stack ?? [])];
     }) as (string[] | null)[];
     const newOwner = { ...ctx.ownerState, deck: newDeck, field: { ...ctx.ownerState.field, signi: newSigni } };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `${count}`));
+    return done(addLog({ ...ctx, ownerState: newOwner }, `デッキの上から${count}枚を${ctx.cardMap.get(getCardNum(sourceCardNum))?.CardName ?? sourceCardNum}の下に置く`));
   }
 
   // trash/hand/energy/field: SELECT_TARGET インタラクション
@@ -10247,6 +10247,13 @@ function execReturnAssistLrigToDeck(a: ReturnAssistLrigToDeckAction, ctx: ExecCt
   return selectOrInteract(candidates, 1, false, 'self_assist_lrig', a, undefined, ctx);
 }
 
+// 🆕2026-09-29＝ログが「対象の数」だけ（`1`）だった＝誰が能力を失ったか読めない（3か所）。
+function removeAbilitiesLog(nums: string[], a: RemoveAbilitiesAction, ctx: ExecCtx): string {
+  if (nums.length === 0) return '能力を失うシグニがいない';
+  const names = nums.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+  return `${names}は${a.grantedOnly ? '効果によって得ている能力' : '能力'}を失う`;
+}
+
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   // §6.4 O-16(b):「対戦相手の場にある**キーと**シグニは能力を失い、新たに得られない」＝キーは
@@ -10372,12 +10379,12 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     const selected = cands.filter(n => previous.has(n));
     if (selected.length === 0) return done(ctx);
     const newS = applyAbilitiesRemoval(a, state, selected, nextOwnTurnEndSpan(ctx));
-    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: selected }, `${selected.length}`));
+    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: selected }, removeAbilitiesLog(selected, a, ctx)));
   }
   if (cands.length === 0) return done(ctx);
   if (a.targetsStored || a.fixedCardNums) {
     const newS = applyAbilitiesRemoval(a, state, cands, nextOwnTurnEndSpan(ctx));
-    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
+    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, removeAbilitiesLog(cands, a, ctx)));
   }
   // count:'ALL'（または thisCardOnly/frontOfSelf で対象が確定済み）は全候補に適用。
   // count が数値（「対戦相手のシグニ1体を対象とし」等。G085）は選択して該当数だけに適用する。
@@ -10390,7 +10397,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   }
   const newS = applyAbilitiesRemoval(a, state, cands, nextOwnTurnEndSpan(ctx));
   // 非対話経路（ALL / thisCardOnly / frontOfSelf で対象確定）も lastProcessedCards を残す（§3タスク6 E）。
-  return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
+  return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, removeAbilitiesLog(cands, a, ctx)));
 }
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
@@ -11595,7 +11602,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'BLOCK_CARD_USE': {
       const bcu = action as import('../types/effects').BlockCardUseAction;
       const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${bcu.cardName}`));
+      return done(addLog({ ...ctx, ownerState: newOwner }, `《${bcu.cardName}》を使用できない`));
     }
     case 'NAME_BAN': {
       // 直前に処理（除外等）したカードと同名のカードを、このゲームの間使用禁止にする（WX10-023/WXDi-P13-040）。
@@ -13706,7 +13713,45 @@ export function resumeRearrangeSigni(
 
 // ===== 直接アクション適用（特定のcardNumに対して） =====
 
+/** 選んだカードを元の領域（先に見つかった方）から取り除く。どこにも無ければ `null`（＝動かさない）。 */
+function removeFromPickSource(s: PlayerState, cardNum: string, zones: ('deck' | 'trash' | 'energy' | 'hand')[]): PlayerState | null {
+  for (const z of zones) {
+    const i = s[z].indexOf(cardNum);
+    if (i >= 0) { const arr = [...s[z]]; arr.splice(i, 1); return { ...s, [z]: arr }; }
+  }
+  return null;
+}
+
+/**
+ * 🆕2026-09-29（バグ報告 393a4ab0 の同型調査）＝**選んだカードが、この行動の対象ではない**形。
+ *   「デッキの一番上を公開する。それが〜の場合、**このシグニ**のパワーを＋する／**対戦相手のシグニ**をバニッシュする」は
+ *   `REVEAL_AND_PICK{then}` で表され、`resumeSearch` は公開した札（デッキにある）を `cardNum` に入れてここへ来る。
+ *   旧実装は `UP` だけがこれを見分けており、他の型は**公開した札そのものに当てていた**＝
+ *   パワー修正が公開札に付く（`WX24-P4-060`／`WXDi-P12-057`）・バニッシュ／能力を失う／キーワード付与が無言で空振り
+ *   （`WX22-027`／`WX24-P3-063`／`WXDi-P00-034` ほか・live 9効果）。
+ *   ⇒ 対象が場のシグニ／ルリグなのに `cardNum` が場に居ない、または対象が「このシグニ」なのに `cardNum` が効果元でないなら、
+ *     通常の実行（対象の選択・「このシグニ」の解決を含む）へ回す。
+ */
+function directActionTargetsOther(action: EffectAction, cardNum: string, ctx: ExecCtx): boolean {
+  const tgt = (action as { target?: EffectTarget }).target;
+  if (!tgt || typeof tgt !== 'object') return false;
+  // 🔴**公開・探した札（まだデッキにある）に限る**＝対象選択（`resumeSelectTarget`）から来る札は場・エナ・アシストなどにあり、
+  //   それを通常の実行へ回すと同じ対象選択へ戻って無限に回る（golden の autopilot hang で検出）。
+  const inDeck = ctx.ownerState.deck.includes(cardNum) || ctx.otherState.deck.includes(cardNum);
+  if (!inDeck) return false;
+  //   ⚠同じ番号が対象になりうる領域にも居るなら手当てしない（素のカード番号で組む盤面＝golden で番号が衝突する）。
+  const elsewhere = (st: PlayerState) => st.energy.includes(cardNum) || st.hand.includes(cardNum) || st.trash.includes(cardNum)
+    || st.field.signi.some(z => z?.includes(cardNum)) || st.field.lrig.includes(cardNum)
+    || (st.field.assist_lrig_l ?? []).includes(cardNum) || (st.field.assist_lrig_r ?? []).includes(cardNum);
+  if (elsewhere(ctx.ownerState) || elsewhere(ctx.otherState)) return false;
+  if (tgt.filter?.thisCardOnly) return true;
+  return tgt.type === 'SIGNI' || tgt.type === 'LRIG';
+}
+
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
+  if (action.type !== 'SEQUENCE' && directActionTargetsOther(action, cardNum, ctx)) {
+    return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
+  }
   switch (action.type) {
     case 'HAND_TO_CHECK_ZONE': {
       // 選ばれた手札1枚をチェックゾーン（`check_rest`）へ（§5.3 `O-71`・型コメント参照）。
@@ -14147,18 +14192,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'ADD_TO_HAND': {
       // インスタンスIDで正確な1枚を特定しデッキ/トラッシュから除去して手札へ
       const ownerH = (action as { owner?: Owner }).owner ?? 'self';
-      let s = { ...ownerState(ownerH, ctx) };
-      const di = s.deck.indexOf(cardNum);
-      if (di >= 0) {
-        const newDeck = [...s.deck]; newDeck.splice(di, 1);
-        s = { ...s, deck: newDeck };
-      } else {
-        const ti = s.trash.indexOf(cardNum);
-        if (ti >= 0) {
-          const newTrash = [...s.trash]; newTrash.splice(ti, 1);
-          s = { ...s, trash: newTrash };
-        }
-      }
+      // 🆕2026-09-29＝**元の場所から取り除けないときは加えない**（旧実装はデッキにもトラッシュにも無いと
+      //   取り除かずに手札へ足していた＝カードの複製。live の流入元は現状デッキ／トラッシュだけだが、
+      //   エナから選ばせる経路が増えた瞬間に踏むので、エナも元の場所として扱う）。
+      const s0 = ownerState(ownerH, ctx);
+      const s = removeFromPickSource(s0, cardNum, ['deck', 'trash', 'energy']);
+      if (!s) return done(ctx);
       const newS: PlayerState = { ...s, hand: [...s.hand, cardNum] };
       // 🆕🔴**§5.3 `O-537`＝公開していないサーチの札名を共有ログに書かない**（§5.1 `V-286` の残り）。
       //   🔑`logCardLabel` は「公開領域に居る」か「この解決で `REVEAL` を通った」札だけ名前を出す＝
@@ -14169,18 +14208,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // デッキ/トラッシュから除去してエナゾーンへ
       const cnE = getCardNum(cardNum);
       const ownerE = (action as { owner?: Owner }).owner ?? 'self';
-      let sE = { ...ownerState(ownerE, ctx) };
-      const diE = sE.deck.indexOf(cardNum);
-      if (diE >= 0) {
-        const newDeck = [...sE.deck]; newDeck.splice(diE, 1);
-        sE = { ...sE, deck: newDeck };
-      } else {
-        const tiE = sE.trash.indexOf(cardNum);
-        if (tiE >= 0) {
-          const newTrash = [...sE.trash]; newTrash.splice(tiE, 1);
-          sE = { ...sE, trash: newTrash };
-        }
-      }
+      // 🆕2026-09-29＝ADD_TO_HAND と同じ（取り除けないときは置かない＝複製しない）。
+      const sE = removeFromPickSource(ownerState(ownerE, ctx), cardNum, ['deck', 'trash', 'hand']);
+      if (!sE) return done(ctx);
       const newSE: PlayerState = { ...sE, energy: [...sE.energy, cardNum] };
       return done(addLog(setOwnerState(ownerE, newSE, ctx), `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
     }
