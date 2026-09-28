@@ -1,4 +1,5 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
+import { CHEER_ZONE } from '../../engine/cheerZone';
 import type { CardEffect } from '../../types/effects';
 import {
   calcContinuousBlockedActions, calcFieldPowers, collectEnergyCostSubstitutes, collectForcePlaceFrontZones,
@@ -918,6 +919,10 @@ function payCpuSelfCostSim(
       const paid = payLrigDownSelfCost(out);
       if (!paid) return null;
       out = paid;
+    } else if (zoneIndex === CHEER_ZONE) {
+      // 🆕§5.3 `O-538`＝チアゾーンのシグニの down_self。
+      if (out.field.cheer_down) return null;
+      out = { ...out, field: { ...out.field, cheer_down: true } };
     } else {
       // ⚠既にダウンしていれば払えない（`performSigniActivated` と同じ多重発動防止）。
       if (out.field.signi_down?.[zoneIndex]) return null;

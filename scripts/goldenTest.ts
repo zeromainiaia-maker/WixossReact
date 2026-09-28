@@ -229,7 +229,7 @@ import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
-import { cheerCardOf, moveToCheerZone } from '../src/engine/cheerZone';
+import { cheerCardOf, moveToCheerZone, CHEER_ZONE } from '../src/engine/cheerZone';
 import { applyUpPhaseToField as applyUpPhaseToFieldCheer } from '../src/screens/battle/upPhase';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
@@ -93331,12 +93331,37 @@ test('§5.3 O-538 段階1＝「チアガールにする」はチアゾーン（f
   legacy.keyword_grants = { 'WXEX2-53': ['チアガール'] };
   eq(cheerCardOf(legacy), 'WXEX2-53', '旧形式の読み替え');
   // 手動で手札／トラッシュへ戻すボタンは無い（v0.591）
-  ok(battleScreenSource().includes('const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];'), '手動ボタンが戻った');
+  ok(!/getMyFreeZoneActions[\s\S]{0,300}label: '手札に戻す'/.test(battleScreenSource()), '手動ボタンが戻った');
 });
+
+test('§5.3 O-538 段階2＝チアゾーンのシグニの【起】が提示され（人間のゲート）、CPU の候補にも入る', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const AKUDAMA = 'WXEX2-53';
+  const center = 'WX15-004';                     // ナナシ　其ノ四ノ別（アクダマの「ナナシ限定」）
+  const my = mkState({ lrig: [center], energy: 0 });
+  my.field.cheer = AKUDAMA;
+  my.energy = ['WD19-013', 'WD19-013', 'WD19-013'];                      // 黒
+  my.trash = ['WD19-013'];                                               // ＜微菌＞のシグニ（E2 の対象）
+  const op = mkState({ lrig: [center] });
+  const ids = listActivatableSigniEffects({ my, op, zoneIndex: CHEER_ZONE, phase: 'MAIN', isMyTurn: true, effectsMap, cardMap: cm })
+    .map(e => e.effectId);
+  ok(ids.includes(`${AKUDAMA}-E2`), `🔴チアゾーンのアクダマの【起】（${AKUDAMA}-E2）が提示されない: ${ids.join(',')}`);
+  ok(!ids.includes(`${AKUDAMA}-E3`), 'トラッシュから使う【起】（E3）はチアゾーンでは出さない');
+  eq(listActivatableSigniEffects({ my: { ...my, field: { ...my.field, cheer: null } }, op, zoneIndex: CHEER_ZONE, phase: 'MAIN', isMyTurn: true, effectsMap, cardMap: cm }).length, 0,
+    'チアゾーンが空なら何も出さない');
+  // CPU の候補（作戦の指定なし＝メインでは撃つ）
+  const ctx: CpuMoveCtx = {
+    actor: my, opponent: op, allCards: [...cm.values()], battleCards: [...cm.values()], cardMap: cm, effectsMap,
+    reserveFor: () => undefined,
+  };
+  const cpuIds = listCpuSigniActivated(cpuSigniActivatedInput(ctx, 'MAIN', true)).map(c => `${c.effect.effectId}@${c.zoneIndex}`);
+  ok(cpuIds.includes(`${AKUDAMA}-E2@${CHEER_ZONE}`), `🔴CPU がチアゾーンの【起】を候補にしない: ${cpuIds.join(',')}`);
+}));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {
   const src = battleScreenSource();
-  ok(src.includes('const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];'), '🔴フリーゾーンの手動操作が残っている');
+  ok(!/getMyFreeZoneActions[\s\S]{0,300}label: '(手札に戻す|トラッシュへ)'/.test(src), '🔴フリーゾーンの手動操作が残っている');
+  ok(src.includes('cheerCardOf(my) === cardNum ? getMySigniZoneActions(CHEER_ZONE) : []'), '🔴チアゾーンのシグニに【起】のボタンが出ない（O-538 段階2）');
 });
 
 if (listMode) {

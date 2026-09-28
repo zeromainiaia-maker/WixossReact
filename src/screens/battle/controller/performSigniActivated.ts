@@ -85,6 +85,7 @@ export const performSigniActivated = async (
   if (effect.cost?.down_self) {
     const dzi = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
     if (dzi >= 0 && (my.field.signi_down?.[dzi] ?? false)) return;
+    if (my.field.cheer === cardNum && my.field.cheer_down) return;   // 🆕§5.3 `O-538` チアゾーン
   }
   ctx.io.setLoading(true);
   try {
@@ -137,9 +138,11 @@ export const performSigniActivated = async (
     const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
     const keySubRemovalAct = keySub
       ? removeKeyToLrigTrash(my.field, my.lrig_trash, p.energyTrashSubInfo.keySubInstId!) : null;
+    // 🆕§5.3 `O-538`＝チアゾーンのシグニの down_self はチアゾーンのダウン状態へ。
+    const cheerDownPaid = effect.cost?.down_self && my.field.cheer === cardNum ? { cheer_down: true } : {};
     const newField = keySubRemovalAct
-      ? { ...keySubRemovalAct.field, signi_down: newSigniDown }
-      : { ...my.field, signi_down: newSigniDown };
+      ? { ...keySubRemovalAct.field, signi_down: newSigniDown, ...cheerDownPaid }
+      : { ...my.field, signi_down: newSigniDown, ...cheerDownPaid };
     const newLrigTrash = keySubRemovalAct ? keySubRemovalAct.lrigTrash : my.lrig_trash;
     // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
     const coinCostAct = activateCostZeroApplies(my, cardNum) ? 0 : (effect.cost?.coin ?? 0);

@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { CHEER_ZONE, signiStackAt } from '../../engine/cheerZone';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, canAddTrashExileIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, trashExileCostSatisfied, type WholeEnergyCostSubstituteOption } from './costs';
 import { fieldTrashGroupsSatisfied, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones } from './fieldLimit';
@@ -589,8 +590,9 @@ export function pickCpuFieldTrashZones(p: {
  */
 export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator<CpuActivatedChoice> {
   const { actor, opponent, effectsMap, cardMap, cards } = p;
-  for (let zoneIndex = 0; zoneIndex < actor.field.signi.length; zoneIndex++) {
-    const cardNum = actor.field.signi[zoneIndex]?.at(-1);
+  // 🆕§5.3 `O-538` 段階2＝チアゾーン（`CHEER_ZONE`）のシグニの【起】も人間と同じ候補に入れる。
+  for (const zoneIndex of [...actor.field.signi.map((_, i) => i), CHEER_ZONE]) {
+    const cardNum = signiStackAt(actor, zoneIndex)?.at(-1);
     if (!cardNum) continue;
     // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札の【起】は撃たない。
     //   🆕2026-09-26 `S-37`＝「攻め」＝自分のアタックフェイズだけ（メインでは撃たない）。

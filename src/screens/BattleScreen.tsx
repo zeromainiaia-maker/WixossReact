@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
+import { CHEER_ZONE, cheerCardOf, signiStackAt } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
@@ -5097,9 +5098,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     //   （`ATTACK_ARTS_OP`＝自分が非ターンプレイヤーのアーツステップ）。判定は同じゲートに `phase: 'ATTACK_ARTS'` で渡す。
     const oppArtsStep = !isMyTurn && bs.turn_phase === 'ATTACK_ARTS_OP';
     if ((!isMyTurn && !oppArtsStep) || loading) return [];
-    const stack = my.field.signi[rawZoneIdx];
+    // 🆕§5.3 `O-538` 段階2＝`CHEER_ZONE` でチアゾーンのシグニも同じ関数で扱う（【起】）。
+    const stack = signiStackAt(my, rawZoneIdx);
+    const isCheer = rawZoneIdx === CHEER_ZONE;
 
     if (bs.turn_phase === 'ENERGY') {
+      if (isCheer) return [];   // チアゾーンからのエナチャージは段階5（`O-538`）
       const used    = my.actions_done?.includes('ENERGY') ?? false;
       const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
       if (used || blocked) return [];
@@ -5116,7 +5120,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //     ＝`field.signi_seeds` を読むのは cardMap のロード1箇所で、能力を surface するコードが無かった。
       //   ⚠**シグニの有無と独立**＝シードはシグニが居ないゾーンにも置ける（先に返さない）。
       const seedActions: CardAction[] = [];
-      const seedNum = my.field.signi_seeds?.[rawZoneIdx] ?? null;
+      const seedNum = isCheer ? null : (my.field.signi_seeds?.[rawZoneIdx] ?? null);
       if (seedNum) {
         for (const seedEff of listActivatableSeedEffects({
           my, op, zoneIndex: rawZoneIdx, phase: actPhase, isMyTurn,
@@ -5184,6 +5188,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     if (bs.turn_phase === 'ATTACK_SIGNI') {
+      if (isCheer) return [];   // チアゾーンのアタックは段階4（`O-538`）
       if (!stack || stack.length === 0) return []; // シグニなし
       // ⚠「すでにダウン」は **gate（`ALREADY_DOWN`）** が見る（§6.4 O-10）＝ここに写経すると
       //   【常】「このシグニはダウン状態でもアタックできる」の例外が人間側にだけ効かない。
@@ -5570,7 +5575,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // フリーゾーン（チアゾーン・バリアトークン）のカードアクション。
   // 🔴2026-09-28 バグ報告 f51afd57＝旧はここに「手札に戻す／トラッシュへ」の手動操作があり、
   //   チアガールをルールに無い方法で動かせた。チアゾーンのシグニは効果・ルール処理でしか動かない。
-  const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];
+  //   🆕§5.3 `O-538` 段階2＝チアゾーンのシグニは【起】を出す（シグニゾーンと同じ関数＝`CHEER_ZONE`）。
+  const getMyFreeZoneActions = (cardNum: string): CardAction[] =>
+    cheerCardOf(my) === cardNum ? getMySigniZoneActions(CHEER_ZONE) : [];
 
   // 勝敗確定後の終了確認（両者が押したらルーム削除）
   const handleEndAck = async () => {

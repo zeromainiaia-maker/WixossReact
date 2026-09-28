@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-29（第494バッチ）§5.3 `O-538` 段階2＝チアゾーンのシグニの【起】
+
+`src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs cheerZoneActivate`（新設・チアゾーンのアクダマの【起】でトラッシュのナットーが手札へ）PASS／`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4430/4430）。
+
+- **同じ形の在庫（先に全数で洗った）**＝シグニの【起】を扱う経路でシグニゾーン前提の箇所＝①提示ゲート `listActivatableSigniEffects`（`field.signi[zoneIndex]`・`signi_down[zoneIndex]`）②人間のボタン `getMySigniZoneActions`（同）③実行 `performSigniActivated` の `down_self`（判定と支払い）④CPU の候補列挙 `iterCpuSigniActivated`（0〜2 だけ回す）⑤CPU の先読みの支払い `payCpuSelfCostSim` の `down_self`。自分自身を動かすコスト（`trash_self`／`bounceSelf`／`fieldExileSelf`）は段階1の `removeFromField` で対応済み。
+- **直し方**＝入口のゾーン番号に `CHEER_ZONE`（=3）を足し、盤面は `signiStackAt`／`isZoneDown` で読む（`engine/cheerZone.ts`）。チアゾーンの枠のカードに `getMySigniZoneActions(CHEER_ZONE)` のボタン（エナチャージ・アタックは段階5・4まで出さない）。
+- 検証＝`npm run golden -- --only "O-538"`（段階1・2）。
+
 ## 2026-09-29（第493バッチ）§5.3 `O-538` 段階1＝チアゾーンの置き場（`field.cheer`）
 
 `src/screens/`・`src/components/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs cheerZonePlace`（新設・アクダマの【出】でチアゾーンへ移り CHEER 表示）PASS。`npm run gates` 全緑（golden 4429/4429）。

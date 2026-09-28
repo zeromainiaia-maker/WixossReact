@@ -8391,6 +8391,60 @@ const scenarios = {
   //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
   //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
   //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  // 🆕§5.3 `O-538` 段階2（2026-09-29）＝**チアゾーンのシグニの【起】が使える**。
+  //   チアゾーンのアクダマ（`WXEX2-53-E2`【起】《ターン１回》《黒》：トラッシュの＜微菌＞のシグニ1枚を手札へ）を
+  //   チアゾーンの枠 → カード → 【起】で撃ち、トラッシュのナットーが手札に入ることを見る。
+  cheerZoneActivate: {
+    title: 'O-538 段階2：チアゾーンのアクダマの【起】（《黒》：トラッシュの＜微菌＞を手札へ）が使える',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX15-004#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'field.cheer': 'WXEX2-53#1',
+        'field.cheer_down': false,
+        'energy': ['WD19-013#e1', 'WD19-013#e2'],
+        'trash': ['WD19-013#t1'],
+        'hand': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      let opened = false, act = false, paid = false, fired = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/cheerZoneActivate-${s}.png`, fullPage: true });
+        let did = null;
+        if (!opened) { did = await H.clickTestId('my-cheer-zone'); if (did) opened = true; }
+        else if (!act) {
+          const b = page.getByRole('button', { name: /^【起】/ }).first();
+          if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:【起】'; act = true; }
+          else did = await H.clickTestId('zone-card-0');
+        } else if (!paid) {
+          const e0 = page.getByTestId('signiactcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'ena:0'; paid = true; }
+        } else if (!fired) { did = await H.clickTestId('signiact-fire'); if (did) fired = true; }
+        if (!did && fired) {
+          // ⚠1回だけ選んで「決定」（押し直すとトグルで外れる）。候補はトラッシュのナットー2枚（支払ったエナの分も入る）。
+          const confirm = page.getByRole('button', { name: /^決定 \(1\// }).first();
+          if (await confirm.count() && await confirm.isEnabled().catch(() => false)) { await confirm.click().catch(() => {}); did = 'btn:決定'; }
+          const pick0 = page.getByTestId('pick-0').first();
+          if (!did && await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+          if (!did) did = await H.stdStep();
+        }
+        const st = await H.queryState();
+        const hand = (st?.host?.handCards ?? []).map(String);
+        H.log(`  [${s}] -> ${did ?? 'なし'} | opened=${opened} act=${act} paid=${paid} fired=${fired} hand=${JSON.stringify(hand)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (hand.some(n => n.startsWith('WD19-013'))) return { pass: true, detail: `チアゾーンのアクダマの【起】で、トラッシュのナットーが手札に入った（hand=${JSON.stringify(hand)}）` };
+        if (opened && !act && s > 6) return { pass: false, detail: '🔴チアゾーンのシグニに【起】のボタンが出ない' };
+      }
+      return { pass: false, detail: `決着しなかった（act=${act} fired=${fired}）` };
+    },
+  },
+
   // 🆕§5.3 `O-538` 段階1（2026-09-29）＝**「このシグニをチアガールにする」はチアゾーン（`field.cheer`）へ移す**。
   //   羅菌姫　アクダマ（`WXEX2-53`）を手札から出し【出】《黒》を払う → シグニゾーンから抜けてチアゾーンに入り、盤面に CHEER で出る。
   //   旧実装はフリーゾーンへ移すだけ（【起】【自】【常】が動かず、手動で手札／トラッシュへ戻せた＝報告 f51afd57）。

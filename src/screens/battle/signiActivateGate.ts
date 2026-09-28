@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { signiStackAt, isZoneDown } from '../../engine/cheerZone';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
 import { analyzeBeatSigniCost, beatSigniCostCount, evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
@@ -33,7 +34,7 @@ export interface SigniActivateGateInput {
   my: PlayerState;
   /** その対戦相手。 */
   op: PlayerState;
-  /** 判定するシグニのゾーン index（`my.field.signi` の添字）。 */
+  /** 判定するシグニのゾーン index（`my.field.signi` の添字・🆕`CHEER_ZONE`＝チアゾーン）。 */
   zoneIndex: number;
   /**
    * 判定するフェイズ。`'MAIN'`＝無印【起】、`'ATTACK_ARTS'`＝《アタックフェイズアイコン》付き【起】。
@@ -135,7 +136,7 @@ function energyTrashAffordableFor(e: CardEffect, my: PlayerState, cardMap: Map<s
  */
 export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffect[] {
   const { my, op, zoneIndex, phase, isMyTurn, effectsMap, cardMap } = p;
-  const stack = my.field.signi[zoneIndex];
+  const stack = signiStackAt(my, zoneIndex);
   if (!stack || stack.length === 0) return [];
   const topNum = stack[stack.length - 1];
   // REMOVE_ABILITIES で能力を失っているシグニは【起】を発動できない（G085-E2 等）
@@ -166,7 +167,7 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     );
   });
   // down_self コストは、このシグニが既にダウンしていると支払えない
-  const isAlreadyDown = my.field.signi_down?.[zoneIndex] ?? false;
+  const isAlreadyDown = isZoneDown(my, zoneIndex);
   // discard コストは手札の枚数が足りないと支払えない
   const handCount = my.hand.length;
   // acceTrash コストは【アクセ】枚数が足りないと支払えない
