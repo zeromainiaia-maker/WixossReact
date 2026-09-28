@@ -274,6 +274,7 @@ import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, listCpuLrigActi
 import { facedownPeek } from '../src/screens/battle/facedownPeek';
 import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
 import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
+import { choiceLabelFromText } from '../src/screens/battle/choiceLabels';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93141,6 +93142,57 @@ test('2026-09-26 ルール：使用タイミングにアタックフェイズが
   ok(["tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS_OP')", "tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS_OP')", "tryCpuLrigActivated(cpuSt, 'ATTACK_ARTS_OP')"].every(x => turn.includes(x)),
     '🔴CPU の相手のアーツステップにピース／シグニ／ルリグの【起】が無い');
 }));
+
+// 🆕2026-09-28 バグ報告（ユーザー実機・羅菌デッキ）の3件。
+test('2026-09-28 報告 7e71c7d1＝エンザ：2つ選ぶときは①が【ウィルス】を取り除いた後の②も選べる／選択肢は原文の文で出す', () => {
+  const eff = effectsMap.get('WX20-078')!.find(e => e.effectId === 'WX20-078-E1')!;
+  const ctx = mkCtx({ signi: [null, null, 'WX20-078'], trash: 0 }, { signi: [SIGNI, SIGNI, SIGNI] }, 'WX20-078');
+  ctx.ownerState.trash = ['WX16-032'];                                  // 《インフル》＝2つまで選べる
+  ctx.otherState.field.signi_virus = [1, 1, 1];                         // 相手の全ゾーンに【ウィルス】＝②は単独では置けない
+  const r = executeEffect(eff, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE', 'CHOOSE が出ない');
+  const p = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(p.count, 2, '2つまで');
+  ok(p.options.find(o => o.id === 'c1')?.available === true, '🔴①と組めば置ける②が選べない');
+  // ①→② を選ぶと、①で空いたゾーンへ②が置ける
+  const fin = finish(resumeChoose(['c0', 'c1'], p, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs }), ctx);
+  eq((fin.otherState.field.signi_virus ?? []).reduce((s, n) => s + (n ?? 0), 0), 3, '①で1つ取り除き②で1つ置く');
+  // 1つだけ選ぶ（インフル無し）ときは従来どおり②はグレー
+  const one = executeEffect(eff, { ...ctx, ownerState: { ...ctx.ownerState, trash: [] } });
+  const p1 = (one as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(p1.options.find(o => o.id === 'c1')?.available, false, '1つ選ぶときに②を開けた（実行できない肢は選べない）');
+  // ラベル
+  const text = cardMap.get('WX20-078')!.EffectText;
+  ok(choiceLabelFromText('選択肢2', text, 3).startsWith('②対戦相手のシグニゾーン１つに【ウィルス】'), '②のラベルが原文にならない');
+  ok(choiceLabelFromText('選択肢3', text, 3).startsWith('③対戦相手のシグニ１体を対象とし'), '③のラベルが原文にならない');
+  eq(choiceLabelFromText('選択肢1', text, 2), '選択肢1', '🔴①の中の2択（エナ/ドロー）に①の文を当てた');
+});
+
+test('2026-09-28 報告 001668ea＝「ターン終了時」はエンドフェイズに入った時点で収集する（押下時ではない）', () => {
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf-8');
+  ok(/nextPhase === 'END'[^\n]*\n\s*const endRes = collectTurnTriggers\('ON_TURN_END', newMyState, op, 'END'\)/.test(src),
+    '🔴→END の遷移で ON_TURN_END を収集していない');
+  ok(src.includes("'__TURN_END__', '__TURN_END_ON_ENTRY__'"), '収集済みの印が無い（押下時に二重に収集する）');
+  ok(battleScreenSource().includes("includes('__TURN_END_ON_ENTRY__')) return;"),
+    '🔴入口で収集した回に自動でターン終了してしまう（手札調整の前にボタンで止まらない）');
+});
+
+test('2026-09-28 報告 393a4ab0／4ed74737＝公開した札を手札に加える（デッキから）が実際に手札へ入り、公開した札の名前がログに出る', () => {
+  const eff = effectsMap.get('WX18-058')!.find(e => e.effectId === 'WX18-058-E1')!;
+  const top = 'WX21-030';                                               // 羅菌染姫　ペズト（＜微菌＞のシグニ）
+  const ctx = mkCtx({ signi: [null, null, 'WX18-058'], deckTop: [top] }, {}, 'WX18-058');
+  const handBefore = ctx.ownerState.hand.length;
+  const fin = finish(executeEffect(eff, ctx), ctx);
+  eq(fin.ownerState.hand.length, handBefore + 1, '🔴ログは出るのに手札が増えない（TRANSFER_TO_HAND の DECK_CARD 枝が無い）');
+  ok(fin.ownerState.hand.includes(top) && !fin.ownerState.deck.includes(top), 'ペズトがデッキに残った');
+  ok(fin.logs.some(l => l.includes('公開') && l.includes('羅菌染姫　ペズト')), '公開した札の名前がログに無い');
+  ok(fin.logs.some(l => l === '羅菌染姫　ペズトを手札に加える'), '手札に加えた札が「カード１枚」のまま');
+});
+
+test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {
+  const src = battleScreenSource();
+  ok(src.includes('const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];'), '🔴フリーゾーンの手動操作が残っている');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

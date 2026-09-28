@@ -743,6 +743,19 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
             : initStack(bs.active_user_id ?? user.id, mpsEntries);
         }
       }
+      // 🆕→END（エンドフェイズ開始時）: 「ターン終了時」の【自】をここで収集する（2026-09-28 バグ報告 001668ea）。
+      //   旧は END で「ターン終了」ボタンを押した時点（＝エンドフェイズが終わる時）に初めて収集していたので、
+      //   `WX20-030-E1`（マイプラ）が「エンドフェイズが終わった時に発動する」ように見えていた。
+      //   `__TURN_END_ON_ENTRY__` は「収集済みだがターン終了はまだ押されていない」印＝解決後の自動進行を止める
+      //   （END のボタンで止まる挙動は、トリガーの有無にかかわらず従来どおり）。
+      // ⚠アタックフェイズ終了時のトリガーが積まれた回は従来どおりボタン押下時に収集する
+      //   （同じ並べ替えバッチへ混ぜると「アタックフェイズ終了時」より先に解決させられてしまう）。
+      if (nextPhase === 'END' && !phaseStack && !bs.effect_stack) {
+        const endRes = collectTurnTriggers('ON_TURN_END', newMyState, op, 'END');
+        foldTurnUsed(endRes);
+        newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), '__TURN_END__', '__TURN_END_ON_ENTRY__'] };
+        if (endRes.entries.length > 0) phaseStack = initStack(bs.active_user_id ?? user.id, endRes.entries);
+      }
     }
 
     // END 分岐（次ターン開始）は上で BEGIN_NEXT_TURN を commit して return 済み＝ここに来る全分岐が

@@ -2067,6 +2067,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (!(localMy.actions_done?.includes('__TURN_END__'))) return;
+    // エンドフェイズ開始時に収集した回はボタン押下を待つ（phaseAdvance.ts の →END 収集）
+    if (localMy.actions_done?.includes('__TURN_END_ON_ENTRY__')) return;
     doPhaseAdvanceRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -5561,48 +5563,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return actions;
   };
 
-  // フリーゾーンのカードアクション
-  const getMyFreeZoneActions = (cardNum: string): CardAction[] => {
-    if (!isMyTurn || loading) return [];
-    const actions: CardAction[] = [];
-    actions.push({
-      label: '手札に戻す',
-      color: C.textSub,
-      onClick: async () => {
-        const newFreeZone = (my.field.free_zone ?? []).filter(n => n !== cardNum);
-        const newGrants = { ...(my.keyword_grants ?? {}) };
-        delete newGrants[cardNum];
-        const newMy: typeof my = {
-          ...my,
-          hand: [...my.hand, cardNum],
-          keyword_grants: newGrants,
-          field: { ...my.field, free_zone: newFreeZone },
-        };
-        const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMy }));
-        setCloseZoneSignal(s => s + 1);
-      },
-    });
-    actions.push({
-      label: 'トラッシュへ',
-      color: C.danger,
-      onClick: async () => {
-        const newFreeZone = (my.field.free_zone ?? []).filter(n => n !== cardNum);
-        const newGrants = { ...(my.keyword_grants ?? {}) };
-        delete newGrants[cardNum];
-        const newMy: typeof my = {
-          ...my,
-          trash: [...my.trash, cardNum],
-          keyword_grants: newGrants,
-          field: { ...my.field, free_zone: newFreeZone },
-        };
-        const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMy }));
-        setCloseZoneSignal(s => s + 1);
-      },
-    });
-    return actions;
-  };
+  // フリーゾーン（チアゾーン・バリアトークン）のカードアクション。
+  // 🔴2026-09-28 バグ報告 f51afd57＝旧はここに「手札に戻す／トラッシュへ」の手動操作があり、
+  //   チアガールをルールに無い方法で動かせた。チアゾーンのシグニは効果・ルール処理でしか動かない。
+  const getMyFreeZoneActions = (_cardNum: string): CardAction[] => [];
 
   // 勝敗確定後の終了確認（両者が押したらルーム削除）
   const handleEndAck = async () => {

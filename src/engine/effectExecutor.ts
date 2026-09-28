@@ -7692,6 +7692,44 @@ function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
   }
 }
 
+/**
+ * 🆕2026-09-28 バグ報告 7e71c7d1（`WX20-078` エンザ）＝**2つ以上選ぶときは、前の肢が盤面を変えてから後の肢が解決する。**
+ *   `choiceExecutable` は各肢を「いまの盤面で単独に」試すので、①「【ウィルス】を取り除く」→②「【ウィルス】を置く」の
+ *   ②が（相手の全ゾーンに【ウィルス】がある盤面で）選べなくなっていた＝①と組めば置ける。
+ *   ⇒ 複数選ぶときは、**それより前に並ぶ選べる肢を解決した後の盤面**でもう一度試す（肢は記載順に解決する）。
+ *   ⚠前の肢が対話で止まる／STUB を含む（盤面を先読みできない）ときは開ける＝選べないと言い切れない。
+ *   ⚠前の肢が盤面を変えないなら閉じたまま（`WD22-011-G`＝①遅延トリガー設置のあとも②「自分のシグニ２体」は1体では選べない）。
+ *   ⚠緩めるのは「実行できない」だけ＝肢の条件（`ch.condition`）や「選び済み」で閉じた肢は開けない。
+ */
+function chooseOptionsForCount<T extends { available: boolean; gateOk: boolean; action: EffectAction }>(
+  options: T[], count: number, ctx: ExecCtx,
+): Omit<T, 'gateOk'>[] {
+  const boardAfter = (action: EffectAction): ExecCtx | 'unknown' => {
+    if (JSON.stringify(action).includes('"STUB"')) return 'unknown';
+    const prevRng = currentRng();
+    setRng(mulberry32(0x5eed));
+    try {
+      const res = executeAction(action, {
+        ...ctx, logs: [], ownerState: structuredClone(ctx.ownerState), otherState: structuredClone(ctx.otherState),
+      });
+      return res.done ? { ...ctx, ownerState: res.ownerState, otherState: res.otherState } : 'unknown';
+    } catch {
+      return 'unknown';
+    } finally {
+      setRng(prevRng);
+    }
+  };
+  return options.map(({ gateOk, ...o }, i) => {
+    if (count <= 1 || o.available || !gateOk) return o;
+    const opened = options.slice(0, i).some(p => {
+      if (!p.available) return false;
+      const after = boardAfter(p.action);
+      return after === 'unknown' || choiceExecutable(o.action, after);
+    });
+    return opened ? { ...o, available: true } : o;
+  });
+}
+
 function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
   // 🆕`noRepeat`＝「まだ選んでいないもの１つを選ぶ」（`WXDi-P11-003-E1-GRANT`）。
   //   🔑記録キーは **実行時に組み立てる**（live JSON には `noRepeat` しか入れない）＝
@@ -7721,6 +7759,8 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
       //   いなくても選べて何も起きない）＝選択肢を1つずつ消化していく強制の手順で、実行できない肢を塞ぐと手順が崩れる。
       //   同じ形は WXDi-P11-003・PR-469 の計3枚。
       && (a.noRepeat === true || choiceExecutable(ch.action, ctx)),
+    gateOk: (ch.condition ? evalCondition(ch.condition, ctx) : true)
+      && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`)),
   }));
   // 🆕2026-09-28＝どの肢も実行できない＝何も起きない（`noRepeat` の「選び終えた」と同じ帰結）。
   if (!a.noRepeat && options.every(o => !o.available)) {
@@ -7803,7 +7843,7 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     ? { ...chooseCtx0, ownerState: { ...chooseCtx0.ownerState, declared_choose_count: undefined } }
     : chooseCtx0;
   return needsInteraction(chooseCtx, {
-    type: 'CHOOSE', options, count: effectiveCount,
+    type: 'CHOOSE', options: chooseOptionsForCount(options, effectiveCount, ctx), count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),
     ...(effectiveUpTo ? { upTo: true } as Record<string, unknown> : {}),
     // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝UI を回数マップへ切り替える。
@@ -9088,7 +9128,8 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
         ...(a.remainder.location === 'trash' ? { trash: [...state.trash, ...restOrdered] } : {}),
         ...(a.remainder.location === 'energy' ? { energy: [...state.energy, ...restOrdered] } : {}),
       };
-      const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ${fromBottom ? '下' : '上'}${count}枚を確認`);
+      const unmatched = addLog(setOwnerState(a.owner, newS, ctx),
+        `デッキの${fromBottom ? '一番下' : '上'}から${visible.length}枚を公開：${visible.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}（該当なし）`);
       const recorded = { ...unmatched, lastProcessedCards: a.recordRevealed ? visible : [] };
       return a.elseAction ? executeAction(a.elseAction, recorded) : done(recorded);
     }
@@ -9099,7 +9140,9 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   // デッキはスライスせず公開カードを残す（resumeSearch が picked を各領域へ、未pick公開カードを
   // revealRemainder で指定場所へ移す＝公開カードの消失を防ぐ）。旧実装は deck.slice で公開分を除去し
   // 未pick/非対象カードを復元できず消失させていた（実バグ）。
-  return needsInteraction(setOwnerState(a.owner, state, ctx), {
+  // 🆕2026-09-28 バグ報告 4ed74737＝「公開する」のに公開した札がログに出ていなかった。
+  const revealedNames = visible.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+  return needsInteraction(addLog(setOwnerState(a.owner, state, ctx), `デッキの${fromBottom ? '一番下' : '上'}から${visible.length}枚を公開：${revealedNames}`), {
     type: 'SEARCH',
     visibleCards: pickable,
     maxPick,
@@ -12653,7 +12696,10 @@ export function resumeSearch(
     // 外部応答でも exact/max を再検証し、不正集合は部分採用せず0枚へ倒す。
     if (!satisfiesSelectionConstraint(picked, pending.selectionConstraint, ctx.cardMap)) picked = [];
   }
-  let cur = ctx;
+  // 🔑`revealRemainder` を持つ SEARCH は「公開した札から選ぶ」形＝公開札はログで名前を出してよい（`logCardLabel`）。
+  let cur: ExecCtx = pending.revealRemainder
+    ? { ...ctx, publiclyRevealedCards: [...(ctx.publiclyRevealedCards ?? []), ...pending.revealRemainder.cards] }
+    : ctx;
   // §6.4 O-2: 公開元デッキ／残り札の行き先の持ち主。既定 'self'＝従来挙動（live の公開系は全件 self）。
   const dOwner: 'self' | 'opponent' = pending.deckOwner ?? 'self';
   const deckState = (c: ExecCtx) => ownerState(dOwner, c);
@@ -14171,6 +14217,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newS = newS.field.check === cardNum
           ? { ...newS, field: { ...newS.field, check: null }, hand: [...newS.hand, cardNum] }
           : { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== cardNum) }, hand: [...newS.hand, cardNum] };
+      } else if (src.type === 'DECK_CARD') {
+        // 🆕2026-09-28 バグ報告 393a4ab0（`WX18-058` クスリセラー）＝**この枝が無く、ログだけ出てカードがデッキに残っていた**。
+        //   `REVEAL_AND_PICK{then:TRANSFER_TO_HAND{source:DECK_CARD}}` の **live 59効果**がすべてこの経路（公開した札を手札へ）。
+        const di = newS.deck.indexOf(cardNum);
+        if (di < 0) return done(ctx);
+        const d = [...newS.deck]; d.splice(di, 1);
+        newS = { ...newS, deck: d, hand: [...newS.hand, cardNum] };
+      } else {
+        return done(ctx);
       }
       return done(addLog(setOwnerState(src.owner, newS, ctx), `${logCardLabel(ctx, cardNum)}を手札に加える`));
     }

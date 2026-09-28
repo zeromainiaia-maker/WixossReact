@@ -8,6 +8,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi
 import { energyPayEntryLabel } from '../energyPaySource';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effectInteractionSelection';
 import { declareNameCandidates } from '../declareNameCandidates';
+import { choiceLabelFromText } from '../choiceLabels';
 import type { BattleModalCtx } from './types';
 import type { EffectAction } from '../../../types/effects';
 
@@ -719,7 +720,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                             color: C.text, fontSize: 13, fontWeight: 'bold', textAlign: 'left',
                             cursor: (loading || !canAdd) ? 'default' : 'pointer',
                             outline: n > 0 ? `2px solid ${C.success}` : 'none' }}>
-                          {n > 0 ? `×${n} ` : ''}{opt.label}
+                          {n > 0 ? `×${n} ` : ''}{choiceLabelFromText(opt.label, srcCard?.EffectText, inter.options.length)}
                         </button>
                         <button
                           data-testid={`repeat-choice-minus-${opt.id}`}
@@ -790,7 +791,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                           color: C.text, fontSize: 13, fontWeight: 'bold', textAlign: 'left',
                           cursor: (loading || (!isSel && !canAdd)) ? 'default' : 'pointer',
                           outline: isSel ? `2px solid ${C.success}` : 'none' }}>
-                        {isSel ? '✓ ' : ''}{opt.label}
+                        {isSel ? '✓ ' : ''}{choiceLabelFromText(opt.label, srcCard?.EffectText, inter.options.length)}
                       </button>
                     );
                   })}
@@ -839,7 +840,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       backgroundColor: opt.available ? C.success : C.disabled,
                       color: C.text, fontSize: 13, fontWeight: 'bold',
                       cursor: (!opt.available || loading) ? 'default' : 'pointer' }}>
-                    {opt.label}
+                    {choiceLabelFromText(opt.label, srcCard?.EffectText, inter.options.length)}
                   </button>
                 ))}
               </div>

@@ -273,12 +273,13 @@ SPDi43-05-E2	base/both	選択肢なし・差分: 自状態 granted_effects_until
 SPDi43-26-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; 自エナ対象: 自エナ → 自デッキ[0]
 SPDi44-12-E2	base/both	選択肢なし・差分: 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"SPDi44-12-sub-E1","duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DAMAGE_REPLACE_BY_COST","damageReplaceByCost":{"options":[{"handDiscard":1},{"en…
 
-## I3（72効果）
+## I3（76効果）
 WX02-026-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自S対象1: 自シグニ1(上) → 自トラッシュ ; 自デッキ上対象2: 自デッキ[0] → 自シグニ1(上)
 WX11-025-E2	nofield/both	失敗ログ「並び替え対象が1体以下のためスキップ」・差分: 自S源: 状態[なし]→[ダウン]
 WX14-012-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り14枚） ; 自状態 deck_shuffled_count: なし → 1
 WX14-026-BURST	base/decline	失敗ログ「任意アクションをスキップ」・差分: 自デッキ上1: 自デッキ[0] → 自手札
 WX14-048-E1	base/both	失敗ログ「空きシグニゾーンなし（アイン＝ダガ配置不可）」・差分: 自S対象0: 自シグニ0(上) → 自エナ ; 自トラッシュ対象2: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX05-079:trash"]
+WX16-Re04-E1	empty/both	失敗ログ「デッキの上から1枚を公開：甲冑　ローメイル（該当なし）」・差分: 自S甲: 自シグニ0(上) → 自エナ
 WX17-063-TRAP	base/decline	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 相デッキの並びが変わった（残り12枚） ; 相トラッシュ1: 相トラッシュ → 相デッキ[1] ; 相トラッシュ2: 相トラッシュ → 相デッキ[6]
 WX20-003-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自状態 deck_shuffled_count: なし → 1
 WX20-026-BURST	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札
@@ -292,6 +293,7 @@ WXDi-P05-042-E1	base/both	失敗ログ「任意コストの条件を満たさな
 WXDi-P06-011-E1	base/decline	辞退・差分: 相エナ白: 相エナ → 相トラッシュ
 WXDi-P06-047-E1	base/accept	失敗ログ「【アタックできない】は新たに得られない」・差分: 自S源: 自シグニ0(上) → 自トラッシュ
 WXDi-P06-082-E1	base/both	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
+WXDi-P08-046-E2	empty/accept	失敗ログ「デッキの上から0枚を公開：（該当なし）」・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自状態 deck_shuffled_count: なし → 1
 WXDi-P10-034-E1	base/both	失敗ログ「空きシグニゾーンなし：見た4枚をデッキの一番下へ」・差分: 自デッキの並びが変わった（残り12枚）
 WXDi-P11-055-E1	base/accept	失敗ログ「指定シグニゾーンのシグニはアタックできない（次のターンの間）」・差分: 自状態 cancel_current_signi_attack: なし → true ; 相状態 designated_zones: なし → [0] ; 相状態 field_grants_next_turn: なし → [{"kind":"blockAction","actionId":"ATTACK","filter":{"cardType":"シグニ"},"zone":0}]
 WXDi-P13-054-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
@@ -343,6 +345,8 @@ WXK11-008-E1	base/decline	辞退・差分: 相S対象0: 相シグニ0(上) → �
 WXK11-010-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札 ; 自デッキ上3: 自デッキ[2] → 自手札
 WD12-013-E1	base/both	失敗ログ「空きシグニゾーンなし（コードアート　Ｓ・Ｔ・Ｇ配置不可）」・差分: 自S源: 状態[なし]→[ダウン]
 WD12-015-E1	base/both	失敗ログ「空きシグニゾーンなし（コードアート　Ｔ・Ｖ配置不可）」・差分: 自S源: 状態[なし]→[ダウン]
+WD20-018-E1	empty/both	失敗ログ「デッキの上から1枚を公開：甲冑　ローメイル（該当なし）」・差分: 自S対象1: 自シグニ1(上) → 自エナ
+WD22-036-G-E1	empty/both	失敗ログ「デッキの上から1枚を公開：甲冑　ローメイル（該当なし）」・差分: 自S対象0: 自シグニ0(上) → 自エナ
 WD23-039-A-TRAP	full/accept	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自状態 deck_shuffled_count: なし → 1
 WDK07-Y20-E1	base/both	失敗ログ「SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シードなし」・差分: 自S対象1: 自シグニ1(上) → 自トラッシュ
 SP07-009-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自ライフ
