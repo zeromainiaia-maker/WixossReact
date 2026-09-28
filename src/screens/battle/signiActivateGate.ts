@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import { signiStackAt, isZoneDown } from '../../engine/cheerZone';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
@@ -158,7 +159,7 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
   const isInfectedBlocked = infectedBlocked.includes(topNum);
   // RESTRICT_CHARMED_SIGNI_ACTIVATED: 相手フィールドにあれば、チャーム付きシグニの【起】能力を封じる
   const hasCharmInZone = (my.field.signi_charms?.[zoneIndex] ?? null) !== null;
-  const isCharmActivateBlocked = hasCharmInZone && op.field.signi.some(s => {
+  const isCharmActivateBlocked = hasCharmInZone && fieldSigniStacks(op).some(s => {
     const top = s?.at(-1);
     return !!top && (effectsMap.get(top) ?? []).some(eff =>
       eff.effectType === 'CONTINUOUS' &&

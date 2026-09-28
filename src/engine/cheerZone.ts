@@ -10,13 +10,8 @@ import { removeFromField } from './execUtils';
  *   `free_zone`（バリアトークンの置き場）にも同居させない。
  * ⚠旧実装（〜v0.594）は `free_zone` へ移して `keyword_grants` に「チアガール」の印を付けていた＝`cheerCardOf` はその形も読む（進行中の対戦の互換）。
  */
-export const CHEER_GIRL = 'チアガール';
-
-/** チアゾーンのシグニ（いなければ `null`）。旧形式（`free_zone`＋印）も読む。 */
-export function cheerCardOf(state: PlayerState): string | null {
-  if (state.field.cheer) return state.field.cheer;
-  return (state.field.free_zone ?? []).find(n => state.keyword_grants?.[n]?.includes(CHEER_GIRL)) ?? null;
-}
+export { CHEER_GIRL, cheerCardOf, fieldSigniStacks } from './cheerZoneView';
+import { cheerCardOf } from './cheerZoneView';
 
 /**
  * 「このシグニをチアガールにする」＝シグニゾーンのシグニをチアゾーンへ移す。**チアゾーンが埋まっていれば移さない**（1体まで）＝`null`。

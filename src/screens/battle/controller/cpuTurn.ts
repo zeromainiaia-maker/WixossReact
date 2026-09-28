@@ -1,4 +1,5 @@
 import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase, BattleStateRow} from '../../../types';
+import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {CardEffect, TriggerOriginZone} from '../../../types/effects';
 import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectHandLimits, collectHandGuardIconClasses, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
 import {getCardNum, evalUseCondition} from '../../../engine/effectExecutor';
@@ -813,7 +814,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     //   📋`collectDrawLimits`（`LIMIT_OPP_DRAW_COUNT`）と `draw_limit` は CPU 側では従来から未適用＝別の穴（§7 送り）。
     const cpuDrawCount = Math.min(drawCount, drawPhaseLimitFromBlocked(cpuContBlockedSelf) ?? drawCount);
     appendBattleLogs([`[CPU] ${cpuDrawCount}枚ドロー`]);
-    const cpuPreventRefresh = cpuSt.field.signi.some(s => {
+    const cpuPreventRefresh = fieldSigniStacks(cpuSt).some(s => {
       const top = s?.at(-1);
       return top && (effectsMap.get(top) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' &&

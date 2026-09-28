@@ -1,4 +1,5 @@
 import type { PlayerState, TargetScope, SigniZoneBlock, CardData } from '../types';
+import { fieldSigniStacks } from './cheerZoneView';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -1682,7 +1683,7 @@ export function execStubPart2(
     const hasCharmSTINOC = (ctx.otherState.field.signi_charms ?? []).some(c => c != null);
     if (hasCharmSTINOC) return done(addLog(ctx, '相手チャームあり（トラッシュなし）'));
     if (!ctx.sourceCardNum) return done(ctx);
-    if (!ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+    if (!fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === ctx.sourceCardNum))
       return done(addLog(ctx, 'フィールドにいない（SELF_TRASH_IF_NO_OPP_CHARM）'));
     const removedSTINOC = removeFromField(ctx.sourceCardNum, ctx.ownerState);
     const newSSTINOC: PlayerState = { ...removedSTINOC, trash: [...removedSTINOC.trash, ctx.sourceCardNum] };

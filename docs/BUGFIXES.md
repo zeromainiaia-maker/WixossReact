@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-29（第495バッチ）§5.3 `O-538` 段階3＝チアゾーンのシグニの【常】
+
+`src/screens/` を触ったので実機まで＝既存 `cheerZonePlace`・`cheerZoneActivate`・`verifyFullMatch cpu` PASS（【常】そのものは engine＝golden で確認）。`npm run gates` 全緑（golden 4431/4431）。
+
+- **同じ形の在庫（先に全数で洗った）**＝`field.signi` を**ゾーン番号を使わずに**回す走査＝`effectEngine.ts` 141か所（`for…of` 113・`some/filter/flatMap/map` 28）／外で【常】（CONTINUOUS）を読む23か所（置換の宣言者・リフレッシュ防止・保護・バトル時・リミットに効く相手の【常】・チャーム付き【起】の封印など）。**ゾーン番号を使う走査（正面・隣・シグニゾーン）は含めない**＝ルールの軸（チアゾーンは「場」だが「シグニゾーン」ではない）。
+- **直し方**＝`engine/cheerZoneView.ts`（import を持たない読み手）の `fieldSigniStacks(state)`＝シグニゾーン3つ＋チアゾーン（**空なら元の配列そのもの**＝挙動不変）を上記164か所に通した（機械置換・`.map` 2か所は集合として使っていることを目視）。
+- **残りの在庫（PLAN の段階表へ）**＝ゾーン番号を使わない走査はほかに約300か所（対象・数＝段階5／【自】の発生源 `triggerCollect` 27＝段階4）。🔴リミットの消費は含めてはいけない（`lrigLimit.ts` の数える側）。
+- 検証＝`npm run golden -- --only "O-538"`（段階1〜3）。反転確認＝`fieldSigniStacks` を元の配列に戻すと段階3が FAIL。
+
 ## 2026-09-29（第494バッチ）§5.3 `O-538` 段階2＝チアゾーンのシグニの【起】
 
 `src/screens/` を触ったので実機まで＝`node scripts/verifyBattleDrive.mjs cheerZoneActivate`（新設・チアゾーンのアクダマの【起】でトラッシュのナットーが手札へ）PASS／`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4430/4430）。

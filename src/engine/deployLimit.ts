@@ -1,4 +1,5 @@
 import type { CardData, PlayerState, SigniDeployBan } from '../types';
+import { fieldSigniStacks } from './cheerZoneView';
 import type { CardEffect } from '../types/effects';
 import { collectDeployCountLimit } from './effectEngine';
 import { signiPlaceableByLevel } from './placeLevelGate';
@@ -165,7 +166,7 @@ function blockedByZoneLevelRestrict(p: DeployLimitInput): boolean {
   const lv = p.cardMap.get(p.cardNum)?.Level ?? p.cardMap.get(p.cardNum.split('#')[0])?.Level;
   const level = parseInt(lv ?? '', 10) || 0;
   const holders = [
-    ...p.opponentState.field.signi.map(st => st?.at(-1)).filter((n): n is string => !!n),
+    ...fieldSigniStacks(p.opponentState).map(st => st?.at(-1)).filter((n): n is string => !!n),
     ...(p.opponentState.field.lrig?.at(-1) ? [p.opponentState.field.lrig.at(-1)!] : []),
   ];
   for (const cn of holders) {

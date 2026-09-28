@@ -1,6 +1,7 @@
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決（`resolvePendingSigniBattleFor`・1,588行）を
 //   `BattleScreen` から**逐語で移設**し、材料と I/O を `PerformCtx` で注入にした（人間・CPU 共用）。
 // ⚠可否の判定はここに書かない。⚠`loading` の確認は画面のラッパ。
+import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {BattleStateRow, PlayerState, CardData, StackEntry} from '../../../types';
 import type {CardEffect} from '../../../types/effects';
 import {leaveToTrashWindowApplies, calcFieldPowers, checkActiveCondition, collectCrossStates, cardHasCrossIcon, collectFrozenBanishOverrides, collectRiseBanishSubstitutes, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, matchesStateFilter} from '../../../engine/effectEngine';
@@ -378,7 +379,7 @@ export async function resolvePendingSigniBattleFor(
         ),
       );
       const contGrantedKeywords = new Set<string>();
-      for (const stack of myS.field.signi) {
+      for (const stack of fieldSigniStacks(myS)) {
         if (!stack?.length) continue;
         const sourceNum = stack[stack.length - 1];
         for (const eff of (effectsMap.get(sourceNum) ?? [])) {
@@ -689,7 +690,7 @@ export async function resolvePendingSigniBattleFor(
           const opTopCardClass = opTopCardNum ? (battleCardMap.get(opTopCardNum)?.CardClass ?? '') : '';
           const cookingBanishSub = opTopCardClass.includes('調理') &&
             hasAcceAt(opS.field, opZoneIndex) &&
-            opS.field.signi.some(stack => {
+            fieldSigniStacks(opS).some(stack => {
               const top = stack?.at(-1);
               return top && (effectsMap.get(top) ?? []).some(eff =>
                 eff.effectType === 'CONTINUOUS' &&
@@ -751,7 +752,7 @@ export async function resolvePendingSigniBattleFor(
             const opTopCardData = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
             const resonaSubCardNum = (opTopCardData?.Type === 'レゾナ' && (opTopCardData?.CardClass ?? '').includes('宇宙'))
               ? (() => {
-                  for (const stack of opS.field.signi) {
+                  for (const stack of fieldSigniStacks(opS)) {
                     const top = stack?.at(-1);
                     if (!top || top === opTopCardNum) continue;
                     const hasRLSSS = (effectsMap.get(top) ?? []).some(eff =>

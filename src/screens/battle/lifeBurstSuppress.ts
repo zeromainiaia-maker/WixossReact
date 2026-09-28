@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardEffect, StubAction, TargetFilter } from '../../types/effects';
 import { checkActiveCondition, collectGrantedFromLayer } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
@@ -76,7 +77,7 @@ export function crashSourceSuppressesLifeBurst(
 ): boolean {
   if (!crashSourceCardNum) return false;
   // 発生源が持ち主の場にいなければ（既に離場等）判定しない。
-  const onField = sourceOwnerState.field.signi.some(stack => stack?.at(-1) === crashSourceCardNum);
+  const onField = fieldSigniStacks(sourceOwnerState).some(stack => stack?.at(-1) === crashSourceCardNum);
   if (!onField) return false;
   const granted = collectGrantedFromLayer(
     sourceOwnerState, sourceOpponentState, isSourceOwnerTurn, effectsMap, cardMap,

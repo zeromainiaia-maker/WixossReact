@@ -1,4 +1,5 @@
 import type {BattleStateRow, PlayerState, StackEntry, EffectStack, TurnPhase} from '../../../types';
+import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {CardEffect} from '../../../types/effects';
 import {applyLrigDrawPhaseReplacement, calcContinuousBlockedActions, collectHandLimits, collectDrawLimits, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
 import {getCardNum} from '../../../engine/effectExecutor';
@@ -104,7 +105,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
         .reduce<number | undefined>((min, n) => (min === undefined ? n : Math.min(min, n)), undefined);
       const replacedDrawCount = applyLrigDrawPhaseReplacement(my, drawCount);
       const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(replacedDrawCount, effectiveDrawLimit) : replacedDrawCount;
-      const preventRefreshTrash = my.field.signi.some(s => {
+      const preventRefreshTrash = fieldSigniStacks(my).some(s => {
         const top = s?.at(-1);
         return top && (effectsMap.get(top) ?? []).some(e =>
           e.effectType === 'CONTINUOUS' &&

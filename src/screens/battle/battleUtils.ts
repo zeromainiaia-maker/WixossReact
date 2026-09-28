@@ -1,4 +1,5 @@
 // バトル画面の汎用ヘルパー（ID採番・シャッフル・リフレッシュ/ドロー・じゃんけん等）。BattleScreen.tsx から Stage 0 で抽出。
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, Condition } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
@@ -157,7 +158,7 @@ const isRideAbility = (eff: CardEffect): boolean => {
 export function rideUsableInAttackPhase(
   state: PlayerState, effectsMap: Map<string, CardEffect[]>,
 ): boolean {
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     const effs = effectsMap.get(getCardNum(top)) ?? [];

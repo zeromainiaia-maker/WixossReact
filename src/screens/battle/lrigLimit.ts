@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardEffect } from '../../types/effects';
 import { checkActiveCondition, collectLrigColorAndLimitMods } from '../../engine/effectEngine';
 
@@ -23,7 +24,7 @@ export function computeEffectiveLrigLimit(
   };
   const center = lrigCardOf(state, centerInstance);
   const otherCenter = lrigCardOf(otherState, otherCenterInstance);
-  const basicOverride = otherState.field.signi.some(stack => {
+  const basicOverride = fieldSigniStacks(otherState).some(stack => {
     const top = stack?.at(-1);
     return !!top && (effectsMap.get(top) ?? effectsMap.get(baseCardNum(top)) ?? []).some(effect =>
       effect.effectType === 'CONTINUOUS'
@@ -82,7 +83,7 @@ export function collectOppDeclaredLrigLimitDelta(
 ): number {
   let delta = 0;
   const sources = [
-    ...declarerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...fieldSigniStacks(declarerState).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
     ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
     ...(declarerState.field.assist_lrig_l?.at(-1) ? [declarerState.field.assist_lrig_l.at(-1)!] : []),
     ...(declarerState.field.assist_lrig_r?.at(-1) ? [declarerState.field.assist_lrig_r.at(-1)!] : []),

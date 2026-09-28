@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
+import { fieldSigniStacks } from './cheerZoneView';
 import { privateLine, isInPublicZone } from './hiddenInfo';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
 import { enforceResonaZoneRule, resonaLeaveDestination } from './resonaZone';
@@ -1806,7 +1807,7 @@ export function canSatisfyDiscardGroups(
 export function allZoneTrapGrantOf(state: PlayerState, effectsMap?: Map<string, CardEffect[]>): StubAction | null {
   if (!effectsMap) return null;
   const hosts: string[] = [];
-  for (const stack of state.field.signi) { const top = stack?.at(-1); if (top) hosts.push(top); }
+  for (const stack of fieldSigniStacks(state)) { const top = stack?.at(-1); if (top) hosts.push(top); }
   for (const top of [state.field.lrig.at(-1), (state.field.assist_lrig_l ?? []).at(-1), (state.field.assist_lrig_r ?? []).at(-1)]) {
     if (top) hosts.push(top);
   }
@@ -2459,7 +2460,7 @@ export function isTrashImmuneByOpponent(
   effectsMap?: Map<string, CardEffect[]>,
 ): boolean {
   const sources = [
-    ...declarerState.field.signi.flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
+    ...fieldSigniStacks(declarerState).flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
     ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
   ];
   for (const num of sources) {
@@ -2559,7 +2560,7 @@ export function isEnergyImmuneByOpponent(
   effectsMap?: Map<string, CardEffect[]>,
 ): boolean {
   const sources = [
-    ...declarerState.field.signi.flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
+    ...fieldSigniStacks(declarerState).flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
     ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
   ];
   for (const num of sources) {

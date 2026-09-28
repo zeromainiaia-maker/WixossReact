@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
+import { fieldSigniStacks } from './cheerZoneView';
 import { effectiveIdentityOverrides } from './nameIdentityRules';
 import type {
   CardEffect,
@@ -266,7 +267,7 @@ export function checkActiveCondition(
     case 'FIELD_LEVEL_SUM': {
       const sum = (state: PlayerState): number => {
         const nums = cond.target === 'signi'
-          ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+          ? fieldSigniStacks(state).map(stack => stack?.at(-1)).filter((n): n is string => !!n)
             // 🆕§5.3 `O-308`④＝合計に数えるシグニを filter で絞る（`evalCondition` 側と同じ式）。
             .filter(n => !cond.filter || matchesFilter(cardMap.get(n), cond.filter))
           : cond.lrigRole === 'assist'
@@ -512,7 +513,7 @@ export function checkActiveCondition(
       const eichiLevelOverrides = ownerState.attack_phase_level_overrides ?? {};
       const eichiOptions = ownerState.eichi_level_options ?? {};
       let eichiSums = new Set<number>([0]);
-      for (const stack of ownerState.field.signi) {
+      for (const stack of fieldSigniStacks(ownerState)) {
         const top = stack?.at(-1);
         if (!top) continue;
         const card = cardMap.get(top);
@@ -779,7 +780,7 @@ export function checkActiveCondition(
           case 'hand': return st2.hand;
           case 'deck': return st2.deck;
           case 'lrig_trash': return st2.lrig_trash;
-          case 'field': return st2.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n);
+          case 'field': return fieldSigniStacks(st2).map(stack => stack?.at(-1)).filter((n): n is string => !!n);
           default: return [];
         }
       };
@@ -1407,7 +1408,7 @@ export function calcContinuousSigniMutations(
     ownerIsHost: boolean,
   ) => {
     if (ownerState.all_cont_effects_negated) return;
-    for (const sourceStack of ownerState.field.signi) {
+    for (const sourceStack of fieldSigniStacks(ownerState)) {
       if (!sourceStack?.length) continue;
       const sourceNum = sourceStack[sourceStack.length - 1];
       for (const eff of (effectsMap.get(sourceNum) ?? [])) {
@@ -2143,7 +2144,7 @@ function buildLevelMods(
 ): Map<string, number> {
   const levelMods = new Map<string, number>();
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -2182,7 +2183,7 @@ function buildLevelMods(
   //   🔴上のループは各ゾーンの**最前面だけ**を効果元にするので、クラフト（下段）の能力は1つも拾われない
   //     ＝**書いても恒久 no-op**。パワー側は `calcFieldPowers` の aboveSelf ループが既に同じことをしている。
   //   ⚠`activeCondition` 付きは評価器を通していないので適用しない（過剰実行を作らない側へ倒す）。
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack || stack.length < 2) continue;
     const hostNum = stack[stack.length - 1];
     const hostBase = hostNum.includes('#') ? hostNum.slice(0, hostNum.indexOf('#')) : hostNum;
@@ -2217,7 +2218,7 @@ export function calcSigniLevels(
 ): Map<string, number> {
   const levels = new Map<string, number>();
   for (const state of [myState, opState]) {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];
       const baseLv = parseInt(cardMap.get(topNum)?.Level ?? '', 10);
@@ -2259,7 +2260,7 @@ export function calcFieldPowers(
   const collectBase = (state: PlayerState) => {
     // 🆕§5.3 `O-306`＝宣言名の変身規則も合成する（変身後のパワーは変身先カードの印刷値）。
     const identityOverrides = effectiveIdentityOverrides(state, cardMap);
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];
       // COPY_SIGNI: card_identity_overrides でコピー元カードのパワーを使用
@@ -2300,7 +2301,7 @@ export function calcFieldPowers(
     const otherPowerProtection: PowerDeltaProtection = { minus: new Set(), plus: new Set() };
     const otherPowerProtected = otherPowerProtection.minus!; // 既存 minus STUB 用の別名
     const allOtherSigniProtectionSources = new Set<string>();
-    const protectionHosts = otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    const protectionHosts = fieldSigniStacks(otherState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
     const lrig = otherState.field.lrig.at(-1); if (lrig) protectionHosts.push(lrig);
     const assistL = otherState.field.assist_lrig_l?.at(-1); if (assistL) protectionHosts.push(assistL);
     const assistR = otherState.field.assist_lrig_r?.at(-1); if (assistR) protectionHosts.push(assistR);
@@ -2343,7 +2344,7 @@ export function calcFieldPowers(
     // ⚠発生源ごとに「自分以外」を足す（兄弟実装 PREVENT_SIGNI_DOWN_BY_OPP_ALL と同じ形）。
     // 発生源をまとめて除外すると、同じ能力を持つシグニが2体並んだとき互いに保護し合えなくなる。
     for (const protectionSource of allOtherSigniProtectionSources) {
-      for (const stack of otherState.field.signi) {
+      for (const stack of fieldSigniStacks(otherState)) {
         const top = stack?.at(-1);
         if (top && top !== protectionSource) otherPowerProtected.add(top);
       }
@@ -2361,7 +2362,7 @@ export function calcFieldPowers(
     // PREVENT_OPP_POWER_PLUS: 相手（ownerState）のCONT効果による正パワー修正を、otherState側がブロック
     // otherStateのシグニがPREVENT_OPP_POWER_PLUSを持つ場合、ownerState由来の正デルタをブロック
     let blockOwnerPosDelta = false;
-    for (const stack of otherState.field.signi) {
+    for (const stack of fieldSigniStacks(otherState)) {
       const top = stack?.at(-1);
       if (!top) continue;
       for (const eff of (effectsMap.get(top) ?? [])) {
@@ -2383,7 +2384,7 @@ export function calcFieldPowers(
     // POWER_FLIP: otherState のシグニが POWER_FLIP CONT を持ち、ownerState（対戦相手）の自己バフを反転
     // 「対戦相手のシグニのパワーが対戦相手の効果によって＋される場合、代わりに－される」
     let flipOwnerPosDelta = false;
-    for (const stack of otherState.field.signi) {
+    for (const stack of fieldSigniStacks(otherState)) {
       const top = stack?.at(-1);
       if (!top) continue;
       for (const eff of (effectsMap.get(top) ?? [])) {
@@ -2419,7 +2420,7 @@ export function calcFieldPowers(
     }
 
     // SELF_BUFF_BY_UNDER_CARDS: 下にLv4シグニが3枚あれば+2000（WXK05-035 CONT）
-    for (const stack of ownerState.field.signi) {
+    for (const stack of fieldSigniStacks(ownerState)) {
       const topNum = stack?.at(-1);
       if (!topNum || !stack || stack.length <= 1) continue;
       const hasSBUC = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -2440,7 +2441,7 @@ export function calcFieldPowers(
 
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
     // （WX04-038-E1 のスペル版はフィールドに残らないため double_power_minus_this_turn フラグでも判定）
-    const hasDoublePowerMinus = ownerState.double_power_minus_this_turn === true || ownerState.field.signi.some(stack => {
+    const hasDoublePowerMinus = ownerState.double_power_minus_this_turn === true || fieldSigniStacks(ownerState).some(stack => {
       const top = stack?.at(-1);
       if (!top) return false;
       return (effectsMap.get(top) ?? []).some(eff =>
@@ -2454,7 +2455,7 @@ export function calcFieldPowers(
     // 効果を持ちうるフィールド上カードを列挙
     const candidates: string[] = [];
     // シグニ（各ゾーン最前面）
-    for (const stack of ownerState.field.signi) {
+    for (const stack of fieldSigniStacks(ownerState)) {
       if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
     }
     // センタールリグ（最前面）※lrig_abilities_disabledがある場合はCONT効果をスキップ
@@ -2508,7 +2509,7 @@ export function calcFieldPowers(
     // 一切拾われない。ここは aboveSelf を持つ POWER_MODIFY に限って下カードを見に行く（signi_acce ループの
     // スタック版。＜クラス＞/《名前》/色 限定はホスト側を matchesFilter で判定）。
     // ⚠activeCondition 付きは評価器を通していないので適用しない（過剰実行を作らない側へ倒す）。
-    for (const stack of ownerState.field.signi) {
+    for (const stack of fieldSigniStacks(ownerState)) {
       if (!stack || stack.length < 2) continue;
       const hostNumAS = stack[stack.length - 1];
       if (!powers.has(hostNumAS)) continue;
@@ -2787,7 +2788,7 @@ export function calcFieldPowers(
         for (const mod of perLevelSumMods) {
           const countState = mod.countOwner === 'self' ? ownerState : otherState;
           let levelSum = 0;
-          for (const s of countState.field.signi) {
+          for (const s of fieldSigniStacks(countState)) {
             if (!s || s.length === 0) continue;
             const sNum = s[s.length - 1];
             if (mod.excludeSelf && sNum === topNum) continue;
@@ -3098,7 +3099,7 @@ export function calcFieldPowers(
 
           // POWER_BY_RISE_SIGNI_COUNT: ライズ状態のシグニ（スタック2枚以上）数×値
           if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
-            const riseCount = ownerState.field.signi.filter(s => (s?.length ?? 0) >= 2).length;
+            const riseCount = fieldSigniStacks(ownerState).filter(s => (s?.length ?? 0) >= 2).length;
             const m = txt.match(/《ライズアイコン》.*シグニ１体につき[＋+]([０-９\d]+)/);
             if (m && riseCount > 0 && powers.has(topNum)) {
               applyDeltaToCard(topNum, riseCount * parseN(m[1]), powers, ownerPowerProtection);
@@ -3181,7 +3182,7 @@ export function calcFieldPowers(
     push(s.deck); push(s.lrig_deck); push(s.hand); push(s.life_cloth); push(s.trash); push(s.lrig_trash);
     push(s.excluded); push(s.energy); push(s.field.lrig); push(s.field.assist_lrig_l); push(s.field.assist_lrig_r);
     push(s.field.key_piece_extra); push([s.field.key_piece]); push([s.field.check]); push(s.field.check_rest);
-    for (const stack of s.field.signi) push(stack ?? []);
+    for (const stack of fieldSigniStacks(s)) push(stack ?? []);
     return out;
   };
   const myCardIds = cardIdsOf(myState);
@@ -3239,7 +3240,7 @@ export function calcFieldPowers(
   };
   // myState.replace_opp_power_plus が true の場合、相手シグニへの正デルタを負に置換
   const opSigniNums = new Set<string>();
-  for (const stack of opState.field.signi) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
+  for (const stack of fieldSigniStacks(opState)) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
   const negateForOp = myState.replace_opp_power_plus ? opSigniNums : undefined;
   // 各プレイヤーのシグニへの負デルタは、その対戦相手が「このターン2倍－」を持つ場合に倍化する
   applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true, opState.double_power_minus_sources);
@@ -3250,7 +3251,7 @@ export function calcFieldPowers(
   const applyActiveFieldPowerGrants = (state: PlayerState, otherState: PlayerState, negatePositive = false) => {
     const targetDoublers = state.double_power_minus_targets_this_turn ?? [];
     const sourceDoublers = otherState.double_power_minus_sources ?? [];
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const cardNum = stack?.at(-1);
       if (!cardNum || !powers.has(cardNum)) continue;
       for (const grant of activeFieldGrantsForSigni(state, otherState, cardNum, cardMap)) {
@@ -3294,7 +3295,7 @@ export function calcFieldPowers(
   //   旧実装は `cardMap.get(topNum)?.EffectText` を regex で読んでいた（＝効果元自身の全文）。
   // ⚠**payload が無い宣言は上限を掛けない**（fail-closed）。
   const applyCaps = (state: PlayerState) => {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const topNum = stack?.at(-1);
       if (!topNum || !powers.has(topNum)) continue;
       for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -3336,7 +3337,7 @@ interface PowerDeltaProtection {
 }
 
 function allFieldSigniNums(state: PlayerState): Set<string> {
-  return new Set(state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
+  return new Set(fieldSigniStacks(state).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
 }
 
 function applyDeltaToCard(
@@ -3454,7 +3455,7 @@ function countZoneUnitsForContinuous(
       : spec.zone === 'lrig_trash' ? (st.lrig_trash ?? [])
       : spec.zone === 'acce' ? (st.field.signi_acce ?? []).flatMap(slot => slot ?? [])
       // 🆕`signi_zone_all`＝スタックの**全カード**（下段も含む・ルリグは含まない）。`field` と取り違えない。
-      : spec.zone === 'signi_zone_all' ? st.field.signi.flatMap(stack => stack ?? [])
+      : spec.zone === 'signi_zone_all' ? fieldSigniStacks(st).flatMap(stack => stack ?? [])
       : [];
     n = zoneCards.filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), spec.filter)).length;
   }
@@ -3475,7 +3476,7 @@ export function calcActiveCostMods(
 
   const scanOwner = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
     const candidates: string[] = [];
-    for (const stack of ownerState.field.signi) {
+    for (const stack of fieldSigniStacks(ownerState)) {
       if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
     }
     if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig[ownerState.field.lrig.length - 1]);
@@ -3624,7 +3625,7 @@ export function collectGrowCostReductions(
     return false;
   }
   const candidates: string[] = [];
-  for (const stack of state.field.signi) if (stack?.length) candidates.push(stack[stack.length - 1]);
+  for (const stack of fieldSigniStacks(state)) if (stack?.length) candidates.push(stack[stack.length - 1]);
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
   // 🆕**キー枠も走査する**（§5.3 `O-259` 第9バッチ・`WXK11-014-E1`）＝旧実装は場のシグニとセンタールリグ
   //   しか見ておらず、**キーが宣言するグロウコスト軽減は恒久 no-op** だった。
@@ -3642,7 +3643,7 @@ export function collectGrowCostReductions(
   //   ⚠`allPlayers` を立てていない宣言はここで捨てる（`oppSideScan`）＝既存の全宣言は素通り。
   oppSideScan = true;
   const oppCandidates: string[] = [];
-  for (const stack of otherState.field.signi) if (stack?.length) oppCandidates.push(stack[stack.length - 1]);
+  for (const stack of fieldSigniStacks(otherState)) if (stack?.length) oppCandidates.push(stack[stack.length - 1]);
   if (otherState.field.lrig.length) oppCandidates.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
   oppCandidates.push(...keySlotCardNums(otherState));
   for (const num of oppCandidates) {
@@ -3762,7 +3763,7 @@ export function collectLrigGrantedEffects(
   const granted: CardEffect[] = [];
 
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
   }
   candidates.push(...activeKeyAbilitySources(ownerState));
@@ -3893,7 +3894,7 @@ export function calcContinuousBlockedActions(
   const cannotAttackSigniUnlessPayColorless = new Map<string, number>();
 
   function scanField(fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) {
-    for (const stack of fieldOwner.field.signi) {
+    for (const stack of fieldSigniStacks(fieldOwner)) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];
       const effects = effectsMap.get(topNum) ?? [];
@@ -3949,7 +3950,7 @@ export function calcContinuousBlockedActions(
   scanLrigBlocks(otherState, ownerState, !isOwnerTurn, false);
 
   // ONE_ATTACK_PER_TURN: このシグニ自身にこの常在効果があり、すでにアタック済みならアタック不可
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasOneAtk = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -3966,7 +3967,7 @@ export function calcContinuousBlockedActions(
   // ODD_LEVEL_SIGNI_CANT_ATTACK: 相手フィールドにこの効果があれば自分の奇数レベルシグニはアタック不可
   // 実効レベルを事前計算（LEVEL_MOD_PER_COUNT適用済み）
   const ownerEffectiveLevels = buildLevelMods(ownerState, otherState, effectsMap, cardMap);
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasEffect = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -3976,7 +3977,7 @@ export function calcContinuousBlockedActions(
       checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
     );
     if (!hasEffect) continue;
-    for (const myStack of ownerState.field.signi) {
+    for (const myStack of fieldSigniStacks(ownerState)) {
       if (!myStack?.length) continue;
       const myTop = myStack[myStack.length - 1];
       const level = ownerEffectiveLevels.has(myTop) ? ownerEffectiveLevels.get(myTop)! : parseInt(cardMap.get(myTop)?.Level ?? '', 10);
@@ -4014,7 +4015,7 @@ export function calcContinuousBlockedActions(
   }
 
   // BLOCK_OPP_ENCORE_AND_BET: 自フィールドにあれば相手のアンコール/ベットを封じる
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4026,7 +4027,7 @@ export function calcContinuousBlockedActions(
     if (hasBlock) { forOther.add('ENCORE'); forOther.add('BET'); }
   }
   // 相手フィールドにあれば自分のアンコール/ベットを封じる
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4039,7 +4040,7 @@ export function calcContinuousBlockedActions(
   }
 
   // BLOCK_OPP_DECK_TO_ENERGY: 自フィールドにあれば相手のデッキ→エナ効果を封じる
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4050,7 +4051,7 @@ export function calcContinuousBlockedActions(
     );
     if (hasBlock) forOther.add('DECK_TO_ENERGY');
   }
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4063,7 +4064,7 @@ export function calcContinuousBlockedActions(
   }
 
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 自フィールドにあれば相手はシグニ効果でシグニを出せない
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4074,7 +4075,7 @@ export function calcContinuousBlockedActions(
     );
     if (hasBlock) forOther.add('SIGNI_FIELD_PLACE_BY_EFFECT');
   }
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4087,7 +4088,7 @@ export function calcContinuousBlockedActions(
   }
 
   // ATTACK_COUNT_BY_POWER: 自シグニのパワー10000につき1回アタック制限
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const hasATK = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4106,7 +4107,7 @@ export function calcContinuousBlockedActions(
   }
 
   // BLOCK_ALL_OPP_ACTIVATE_ABILITY: 相手フィールドにありアクティブ条件(自ターン)が満たされていれば自分のUSE_ACTをブロック
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const has = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4119,7 +4120,7 @@ export function calcContinuousBlockedActions(
   }
 
   // BLOCK_COLORLESS_PLAY: 自フィールドにあれば自分が無色シグニ/スペルをプレイ不可
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const has = (effectsMap.get(topNum) ?? []).some(eff =>
@@ -4134,7 +4135,7 @@ export function calcContinuousBlockedActions(
   // keyword_grants で付与された「アタックできない」のシグニをアタック不可に追加
   // ownerState（自分）と otherState（相手）の両方を確認する。
   // 相手が付与した「アタックできない」は相手側の keyword_grants に格納されるため。
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     if ((ownerState.keyword_grants?.[topNum] ?? []).includes('アタックできない') ||
@@ -4177,7 +4178,7 @@ export function collectBlockLowCostSpellCount(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): number {
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4243,7 +4244,7 @@ export function collectColorlessOverrides(
     //   実機 `V-217` で発覚（条件を直しても支払い可否が反転しなかった）。
     // ⚠**場も引き続き走査する**＝場のシグニ自身を無色として読む消費地点が将来増えても壊さない。
     const zones: string[] = [
-      ...ps.field.signi.flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : [])),
+      ...fieldSigniStacks(ps).flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : [])),
       ...ps.energy,
     ];
     for (const cardNum of zones) {
@@ -4280,7 +4281,7 @@ export function collectEichiStubEffects(
   isOwnerTurn: boolean,
 ): string[] {
   const result: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -4350,7 +4351,7 @@ export function collectDrawLimits(
 ): number | undefined {
   // opponentState のフィールドシグニ・ルリグを走査してCONT LIMIT_OPP_DRAW_COUNT を検出
   const candidates: string[] = [
-    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(opponentState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...opponentState.field.lrig.slice(-1),
   ];
   candidates.push(...activeKeyAbilitySources(opponentState));
@@ -4397,7 +4398,7 @@ export function collectProtectedZoneRules(
 ): import('../types/effects').OppMoveImmunityRule[] {
   const result: import('../types/effects').OppMoveImmunityRule[] = [];
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4523,7 +4524,7 @@ export function isEffectDamagePreventedByOpp(args: {
 }): boolean {
   const { defender, attacker, cardMap, effectsMap, isDefenderTurn } = args;
   const printed: string[] = [
-    ...defender.field.signi.flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
+    ...fieldSigniStacks(defender).flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
     ...(defender.field.lrig.at(-1) ? [defender.field.lrig.at(-1)!] : []),
     ...(defender.field.assist_lrig_l?.at(-1) ? [defender.field.assist_lrig_l.at(-1)!] : []),
     ...(defender.field.assist_lrig_r?.at(-1) ? [defender.field.assist_lrig_r.at(-1)!] : []),
@@ -4570,7 +4571,7 @@ export function collectAttackPhaseLevelOverrides(
   const overrides: Record<string, number[]> = {};
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const inAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(turnPhase ?? '');
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of effectsMap.get(top) ?? []) {
@@ -4611,7 +4612,7 @@ export function collectEnergyColorSubs(
 ): { from: string[]; to: string }[] {
   const result: { from: string[]; to: string }[] = [];
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4675,7 +4676,7 @@ export function collectEnergyTrashSubstituteInfo(
 
   // フィールドシグニのCONTINUOUS効果チェック（ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI）
   let hasWhiteSubTrashSigni = false;
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     const effs = effectsMap.get(top) ?? [];
@@ -4785,7 +4786,7 @@ export function collectForcedTargets(
   effectSourceCardType?: string,
 ): string[] {
   const result: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -4826,7 +4827,7 @@ export function collectOppGuardExtraColorlessCost(
   };
   // シグニゾーン走査
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4859,7 +4860,7 @@ export function collectOppGuardExtraColorlessCost(
         if (txt.includes('覚醒状態のシグニがあるかぎり')) {
           const lv3AwakNum = txt.match(/レベル([１-９\d]+)の覚醒状態/)?.[1];
           const lv3 = lv3AwakNum ? parseInt(lv3AwakNum.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 3;
-          const hasAwakened = ownerState.field.signi.some(stack => {
+          const hasAwakened = fieldSigniStacks(ownerState).some(stack => {
             const top = stack?.at(-1);
             if (!top) return false;
             if (!(ownerState.awakened_signi ?? []).includes(top)) return false;
@@ -4909,7 +4910,7 @@ export function collectOppEnergyColorRestriction(
   const declared = chargingPlayerState.declared_color;
   if (!declared) return null;
   const candidates: string[] = [];
-  for (const stack of restrictOwnerState.field.signi) {
+  for (const stack of fieldSigniStacks(restrictOwnerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4934,7 +4935,7 @@ export function collectOppExtraGuardFromHand(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): boolean {
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -4974,7 +4975,7 @@ export function collectHandLimits(
 
   const scanForStub = (state: PlayerState, stubId: string) => {
     const candidates: string[] = [];
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (top) candidates.push(top);
     }
@@ -5011,7 +5012,7 @@ export function collectAbilityProtectedSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const protectedNums = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -5042,7 +5043,7 @@ export function collectAbilityProtectedSigni(
       if (act.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
         // 🆕§5.3 `O-356`＝保護対象の色は payload（`protectColor`）から読む（旧はカード原文を regex で読んでいた）。
         const protectedColor = act.protectColor;
-        for (const otherStack of state.field.signi) {
+        for (const otherStack of fieldSigniStacks(state)) {
           if (!otherStack || otherStack.length === 0) continue;
           const otherTop = otherStack[otherStack.length - 1];
           if (otherTop === topNum) continue;
@@ -5058,7 +5059,7 @@ export function collectAbilityProtectedSigni(
       // WHITE_SIGNI_ABILITY_PROTECT: 対戦相手ターン中に白シグニを保護
       if (act.id === 'WHITE_SIGNI_ABILITY_PROTECT') {
         if (isOwnerTurn === true) continue; // 自ターン中は不活性
-        for (const otherStack of state.field.signi) {
+        for (const otherStack of fieldSigniStacks(state)) {
           if (!otherStack || otherStack.length === 0) continue;
           const otherTop = otherStack[otherStack.length - 1];
           if (cardMap.get(otherTop)?.Color?.includes('白')) protectedNums.add(otherTop);
@@ -5081,7 +5082,7 @@ export function collectAttackNegationProtectedSigni(
   isOwnerTurn: boolean,
 ): Set<string> {
   const protectedNums = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const sourceNum = stack?.at(-1);
     if (!sourceNum) continue;
     const base = sourceNum.includes('#') ? sourceNum.slice(0, sourceNum.indexOf('#')) : sourceNum;
@@ -5108,7 +5109,7 @@ export function collectSpecificCardCostReductions(
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const baseNumSCCR = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5383,7 +5384,7 @@ export function collectContinuousGrantedKeywords(
     (result[num] ??= []);
     if (!result[num].includes(kw)) result[num].push(kw);
   };
-  const signiTops: string[] = ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : []));
+  const signiTops: string[] = fieldSigniStacks(ownerState).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : []));
   const signiSet = new Set(signiTops);
   // REMOVE_ABILITIES: 能力を失っているシグニは付与を発生させず（発生源）、新たに得もしない（対象）。
   const abilitiesRemoved = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, '常');
@@ -5550,7 +5551,7 @@ export function collectLrigNameAliases(
   }
 
   // シグニフィールドのキー/ピース（key_piece 以外の場所に置かれている場合）
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -5659,7 +5660,7 @@ export function collectFieldEnergySigniColorGains(
 ): { gainColor: string; instIds: string[] }[] {
   const results: { gainColor: string; instIds: string[] }[] = [];
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5679,7 +5680,7 @@ export function collectFieldEnergySigniColorGains(
       if (act.gainColorUnsupportedFilter) continue;
 
       const instIds: string[] = [];
-      for (const stack of ownerState.field.signi) {
+      for (const stack of fieldSigniStacks(ownerState)) {
         const top = stack?.at(-1);
         if (!top) continue;
         if (isDisonaFilter && (cardMap.get(top)?.Story ?? '') !== 'Dissona') continue;
@@ -5740,7 +5741,7 @@ export function collectHandGuardIconClasses(
 ): string[] {
   const classes: string[] = [];
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5774,7 +5775,7 @@ export function collectAllClassSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const result: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -5799,7 +5800,7 @@ export function collectArtsThresholdCostReductions(
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const results: { minTotalCost: number; color: string; reduction: number }[] = [];
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5846,7 +5847,7 @@ export function collectOppTurnArtsCostReductions(
   if (isOwnerTurn) return [];
   const lost = ownerState.lost_ability_effect_ids_this_turn ?? [];
   const out: { effectId: string; color: string; reduction: number }[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -5876,7 +5877,7 @@ export function collectOppLrigAttackExtraCost(
 ): number {
   let extraCost = 0;
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5913,7 +5914,7 @@ export function collectLrigColorAndLimitMods(
   const extraColors = new Set<string>();
   let limitDelta = 0;
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
@@ -5953,7 +5954,7 @@ export function collectLrigColorAndLimitMods(
 
   // 相手フィールドに CONTINUOUS LRIG_LIMIT_MODIFY owner:'opponent' があれば自分のリミットを修正
   const otherCandidates: string[] = [];
-  for (const stack of otherState.field.signi) {
+  for (const stack of fieldSigniStacks(otherState)) {
     const top = stack?.at(-1);
     if (top) otherCandidates.push(top);
   }
@@ -5987,7 +5988,7 @@ export function collectLrigColorInheritSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const result: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -6009,7 +6010,7 @@ export function collectMultiAcceLimits(
   isOwnerTurn: boolean,
 ): Map<string, number> {
   const result = new Map<string, number>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -6051,7 +6052,7 @@ export function collectDownProtectedSigni(
 
   // ソース候補: フィールド上のシグニ + センタールリグ
   const sourceCandidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (stack?.length) sourceCandidates.push(stack[stack.length - 1]);
   }
   if (state.field.lrig.length) sourceCandidates.push(state.field.lrig[state.field.lrig.length - 1]);
@@ -6067,7 +6068,7 @@ export function collectDownProtectedSigni(
         if (!gp.from?.includes('DOWN') && !gp.from?.includes('any')) continue;
         if (gp.subjectFilter) {
           // subjectFilter に一致する全シグニを保護
-          for (const stack of state.field.signi) {
+          for (const stack of fieldSigniStacks(state)) {
             if (!stack?.length) continue;
             const top = stack[stack.length - 1];
             if (matchesFilter(cardMap.get(top), gp.subjectFilter)) protected_.add(top);
@@ -6090,7 +6091,7 @@ export function collectDownProtectedSigni(
       }
 
       if (act.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL') {
-        for (const stack of state.field.signi) {
+        for (const stack of fieldSigniStacks(state)) {
           if (!stack || stack.length === 0) continue;
           const top = stack[stack.length - 1];
           if (top !== sourceNum) protected_.add(top);
@@ -6099,7 +6100,7 @@ export function collectDownProtectedSigni(
 
       // WEAPON_SIGNI_PREVENT_DOWN: ウェポンシグニはダウンしない（全ウェポンを保護）
       if (act.id === 'WEAPON_SIGNI_PREVENT_DOWN') {
-        for (const stack of state.field.signi) {
+        for (const stack of fieldSigniStacks(state)) {
           if (!stack?.length) continue;
           const top = stack[stack.length - 1];
           if ((cardMap.get(top)?.CardClass ?? '').includes('ウェポン')) protected_.add(top);
@@ -6112,7 +6113,7 @@ export function collectDownProtectedSigni(
         const storyM = txt.match(/場に他の＜([^＞]+)＞のシグニがあるかぎり/);
         if (storyM) {
           const requiredStory = storyM[1];
-          const hasOther = state.field.signi.some(s => {
+          const hasOther = fieldSigniStacks(state).some(s => {
             const top = s?.at(-1);
             if (!top || top === sourceNum) return false;
             return cardMap.get(top)?.CardClass?.includes(requiredStory);
@@ -6132,7 +6133,7 @@ export function collectDownProtectedSigni(
     }
   }
   // keyword_grants 経由のダウン保護（AUTO/ACTIVATED で付与）
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack?.length) continue;
     const top = stack[stack.length - 1];
     if (state.keyword_grants?.[top]?.includes('__down_protect__')) protected_.add(top);
@@ -6154,7 +6155,7 @@ export function collectCharmShieldSigni(
 ): Set<string> {
   // この state にチャーム盾の CONTINUOUS 効果があるか（signiFilter を集める）
   const filters: (import('../types/effects').TargetFilter | undefined)[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -6195,7 +6196,7 @@ export function collectBanishPreventLoseAbility(
   const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   const victimClass = cardMap.get(baseNum(victimNum))?.CardClass ?? '';
   const removed = new Set(state.abilities_removed ?? []);
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const src = stack?.at(-1);
     if (!src || removed.has(src)) continue; // 能力喪失済みは再発動不可
     // 🆕**付与された能力も見る**（2026-08-31 続き749・`WX15-010-E1`「あなたのすべての＜武勇＞のシグニは
@@ -6246,7 +6247,7 @@ export function collectBanishEffectProtectedSigni(
   const protected_ = new Set<string>();
   // BANISH耐性の宣言元はシグニに限らない（WXEX1-01-E2 はセンタールリグ）。
   const sourceNums = [
-    ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...fieldSigniStacks(state).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
   ];
   for (const sourceNum of sourceNums) {
@@ -6310,7 +6311,7 @@ export function collectBanishEffectProtectedSigni(
   //   入れ替えを忘れると条件が反転して「守るべきでないときに守る」）。
   {
     const otherSourceNums = [
-      ...otherState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+      ...fieldSigniStacks(otherState).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
       ...(otherState.field.lrig.at(-1) ? [otherState.field.lrig.at(-1)!] : []),
     ];
     let _otherPowers: Map<string, number> | undefined;
@@ -6346,14 +6347,14 @@ export function collectBanishEffectProtectedSigni(
       ? owner === 'opponent'
       : owner === 'any' || owner === effectSourceOwner;
   };
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top && activeFieldGrantKeywordsForSigni(state, otherState, top, cardMap).some(fieldKeywordBlocks)) {
       protected_.add(top);
     }
   }
   // PREVENT_SELF_MOVE_BY_OPP: バニッシュも含む場移動禁止（STUB）
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack?.length) continue;
     const sn = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sn) ?? [])) {
@@ -6414,7 +6415,7 @@ export function collectBanishBySourceProtectedSigni(
     bySourceLevel: GrantProtectionAction['bySourceLevel'],
   ): boolean => matchesSource(bySourceType) && matchesSourceLevel(bySourceLevel);
   const sourceNums = [
-    ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...fieldSigniStacks(state).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
   ];
   for (const sourceNum of sourceNums) {
@@ -6458,12 +6459,12 @@ export function collectBanishBySourceProtectedSigni(
   };
   for (const store of [state.keyword_grants, state.keyword_grants_until_opp_turn]) {
     if (!store) continue;
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (top && (store[top] ?? []).some(grantedMatches)) protected_.add(top);
     }
   }
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top && activeFieldGrantKeywordsForSigni(state, otherState, top, cardMap).some(grantedMatches)) protected_.add(top);
   }
@@ -6559,7 +6560,7 @@ export function resolveForcedSigniAttack(
         note(act.infectedOnly ?? false);
       }
     };
-    for (const stack of holder.field.signi) {
+    for (const stack of fieldSigniStacks(holder)) {
       const top = stack?.at(-1);
       if (!top) continue;
       consider(top, [
@@ -6606,7 +6607,7 @@ export function isSigniOnPlaySuppressedByContinuous(
 
   const scan = (holder: PlayerState, other: PlayerState, isHolderTurn: boolean, holderIsViewer: boolean): boolean => {
     const wantOwner = holderIsViewer ? 'self' : 'opponent';
-    for (const stack of holder.field.signi) {
+    for (const stack of fieldSigniStacks(holder)) {
       const top = stack?.at(-1);
       if (!top) continue;
       const base = baseCardNum(top);
@@ -6801,7 +6802,7 @@ export function collectEffectImmuneSigni(
 
   // Share the exact GRANT_PROTECTION evaluation between signi hosts and the
   // center-lrig host. A target-less protection adds only its own sourceNum.
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const sourceNum = stack?.at(-1);
     if (sourceNum) collectFromCard(sourceNum);
   }
@@ -6844,14 +6845,14 @@ export function collectEffectImmuneSigni(
   };
   for (const store of [state.keyword_grants, state.keyword_grants_until_opp_turn]) {
     if (!store) continue;
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (top && (store[top] ?? []).some(protMatches)) immune.add(top);
     }
     const lrigTop = state.field.lrig?.at(-1);
     if (lrigTop && (store[lrigTop] ?? []).some(protMatches)) immune.add(lrigTop);
   }
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top && activeFieldGrantKeywordsForSigni(state, opponentState, top, cardMap).some(protMatches)) immune.add(top);
   }
@@ -6869,7 +6870,7 @@ export function collectPowerProtectedSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const protected_ = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -6911,7 +6912,7 @@ export function collectBounceProtectedSigni(
 
   // ルリグ含む全候補
   const candidates: string[] = [];
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (stack?.length) candidates.push(stack[stack.length - 1]);
   }
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
@@ -6926,13 +6927,13 @@ export function collectBounceProtectedSigni(
         const gp = eff.action as GrantProtectionAction;
         if (gp.from?.includes('BOUNCE') || gp.from?.includes('any')) {
           if (gp.target?.count === 'ALL') {
-            for (const s of state.field.signi) {
+            for (const s of fieldSigniStacks(state)) {
               if (!s?.length) continue;
               protected_.add(s[s.length - 1]);
             }
           } else if (gp.target?.count === 1) {
             if (gp.target.filter) {
-              for (const s of state.field.signi) {
+              for (const s of fieldSigniStacks(state)) {
                 if (!s?.length) continue;
                 const sTop = s[s.length - 1];
                 if (matchesFilter(cardMap.get(sTop), gp.target.filter)) protected_.add(sTop);
@@ -6955,7 +6956,7 @@ export function collectBounceProtectedSigni(
       //   ⚠`matchesFilter` は `excludeSelf` を**見ない**（自己参照を持たない）ので、
       //   ここで宣言元（`topNum`）を明示的に外す。落とすと原文より広い**自己保護つき**になる。
       if (act.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') {
-        for (const s of state.field.signi) {
+        for (const s of fieldSigniStacks(state)) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
           if (act.moveProtectFilter?.excludeSelf && sTop === topNum) continue;
@@ -6966,7 +6967,7 @@ export function collectBounceProtectedSigni(
 
       // PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_SELF_MOVE_BY_OPP: このシグニ自身がバウンス不可
       if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || act.id === 'PREVENT_SELF_MOVE_BY_OPP') {
-        const inSigniField = state.field.signi.some(s => s?.at(-1) === topNum);
+        const inSigniField = fieldSigniStacks(state).some(s => s?.at(-1) === topNum);
         if (inSigniField) protected_.add(topNum);
       }
 
@@ -6975,7 +6976,7 @@ export function collectBounceProtectedSigni(
       // 🔴旧実装は `EffectText`/`BurstText` を regex で読み、外れると**発生源自身の `CardClass`** へ
       //   フォールバックしていた＝原文と無関係なクラスを守りうる（`O-60` 同型の「JSON を見ても分からない」形）。
       if (act.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH') {
-        for (const s of state.field.signi) {
+        for (const s of fieldSigniStacks(state)) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
           const sBase = sTop.includes('#') ? sTop.slice(0, sTop.indexOf('#')) : sTop;
@@ -6985,7 +6986,7 @@ export function collectBounceProtectedSigni(
 
       // SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: このシグニ自身がバウンス不可（エナへは移動可）
       if (act.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
-        const inSigniField = state.field.signi.some(s => s?.at(-1) === topNum);
+        const inSigniField = fieldSigniStacks(state).some(s => s?.at(-1) === topNum);
         if (inSigniField) protected_.add(topNum);
       }
     }
@@ -7006,7 +7007,7 @@ export function collectSelfTrashPreventNums(
   cardMap: Map<string, CardData>,
 ): Set<string> {
   const result = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -7031,7 +7032,7 @@ export function collectTrashFieldProtectedSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const protected_ = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -7049,7 +7050,7 @@ export function collectTrashFieldProtectedSigni(
         const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
         const classM = txt.match(/あなたの＜([^＞]+)＞のシグニを場から移動させない/) ?? txt.match(/あなたの＜([^＞]+)＞/);
         const protectedClass = classM?.[1] ?? (card?.CardClass ?? '');
-        for (const s of state.field.signi) {
+        for (const s of fieldSigniStacks(state)) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
           if (cardMap.get(sTop)?.CardClass?.includes(protectedClass)) protected_.add(sTop);
@@ -7186,7 +7187,7 @@ export function collectAbilityGainProtectedSigni(
 
   // otherState（相手）がPREVENT_OPP_SIGNI_ABILITY_GAIN CONTを持つ場合、ownerState（自分）の全シグニが対象
   const otherCands: string[] = [];
-  for (const stack of otherState.field.signi) { if (stack?.length) otherCands.push(stack[stack.length - 1]); }
+  for (const stack of fieldSigniStacks(otherState)) { if (stack?.length) otherCands.push(stack[stack.length - 1]); }
   if (otherState.field.lrig.length) otherCands.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
   for (const cn of otherCands) {
     const effects = [...(effectsMap.get(cn) ?? []), ...grantedEffectsOf(otherState, cn)];
@@ -7195,7 +7196,7 @@ export function collectAbilityGainProtectedSigni(
       if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB' && act.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN') {
-        for (const s of ownerState.field.signi) {
+        for (const s of fieldSigniStacks(ownerState)) {
           const top = s?.at(-1); if (top) protected_.add(top);
         }
       }
@@ -7206,12 +7207,12 @@ export function collectAbilityGainProtectedSigni(
   // 恒久版（下の CONTINUOUS 群）と違い**一度きりのフラグ**なので状態から読む。
   // ⚠フラグは効果を使った側（`ownerState`）に立つので、保護するのも `ownerState` の場のシグニ。
   if (ownerState.ability_gain_blocked_this_turn) {
-    for (const s of ownerState.field.signi) { const top = s?.at(-1); if (top) protected_.add(top); }
+    for (const s of fieldSigniStacks(ownerState)) { const top = s?.at(-1); if (top) protected_.add(top); }
   }
 
   // ownerState（自分）がPREVENT_ABILITY_CHANGE_BY_OPP CONTを持つ場合、自分の対象クラスシグニが保護
   const selfCands: string[] = [];
-  for (const stack of ownerState.field.signi) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }
+  for (const stack of fieldSigniStacks(ownerState)) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }
   for (const cn of selfCands) {
     const effects = [...(effectsMap.get(cn) ?? []), ...grantedEffectsOf(ownerState, cn)];
     for (const eff of effects) {
@@ -7223,7 +7224,7 @@ export function collectAbilityGainProtectedSigni(
         const txt = (cardMap.get(cn)?.EffectText ?? '');
         const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは/);
         const protectedClass = classM?.[1] ?? '';
-        for (const s of ownerState.field.signi) {
+        for (const s of fieldSigniStacks(ownerState)) {
           const top = s?.at(-1);
           if (top && (!protectedClass || cardMap.get(top)?.CardClass?.includes(protectedClass))) {
             protected_.add(top);
@@ -7244,7 +7245,7 @@ export function collectAbilityGainProtectedSigni(
     }
   }
   // keyword_grants 経由の能力取得禁止（AUTO/ACTIVATED で付与）
-  for (const s of ownerState.field.signi) {
+  for (const s of fieldSigniStacks(ownerState)) {
     const top = s?.at(-1);
     if (top && ownerState.keyword_grants?.[top]?.includes('__ability_gain_block__')) protected_.add(top);
   }
@@ -7265,7 +7266,7 @@ export function collectInfectedActivateBlockedSigni(
   // ownerState（相手）がPREVENT_INFECTED_SIGNI_ACTIVATEを持つかチェック
   let hasBlock = false;
   const ownerCands: string[] = [];
-  for (const stack of ownerState.field.signi) { if (stack?.length) ownerCands.push(stack[stack.length - 1]); }
+  for (const stack of fieldSigniStacks(ownerState)) { if (stack?.length) ownerCands.push(stack[stack.length - 1]); }
   for (const cn of ownerCands) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -7303,7 +7304,7 @@ export function hasPowerPlusBlocked(
   isProtectedTurn: boolean,
 ): boolean {
   const cands: string[] = [];
-  for (const stack of opponentState.field.signi) { if (stack?.length) cands.push(stack[stack.length - 1]); }
+  for (const stack of fieldSigniStacks(opponentState)) { if (stack?.length) cands.push(stack[stack.length - 1]); }
   for (const cn of cands) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -7435,7 +7436,7 @@ export function collectBanishSubstitutes(
   const isSpell = (n: string) => cardMap.get(baseNum(n))?.Type === 'スペル';
   const tops: string[] = [];
   const stackOf = new Map<string, string[]>();
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const t = stack?.at(-1);
     if (t) { tops.push(t); stackOf.set(t, stack!); }
   }
@@ -7583,7 +7584,7 @@ export function collectAllColorSigni(
   //     「トラッシュにシグニが10種類以上」を勝手に要求されていた＝**過少実行**（これが A群 miss 1 の正体）。
   // 🔑受け皿は既存＝`TRASH_HAS_CARD{filter, minCount, distinctName}` は両 union・両評価器とも実装済み。
   const result = new Set<string>();
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     const effs = effectsMap.get(top) ?? [];
@@ -7868,7 +7869,7 @@ export function hasAllCardsColorBlack(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
 ): boolean {
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -7899,7 +7900,7 @@ export function collectDeployCountLimit(
   isOpponentTurn: boolean,
 ): number | undefined {
   const candidates: string[] = [
-    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(opponentState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(opponentState.field.lrig?.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
   ];
   let cap: number | undefined;
@@ -8017,7 +8018,7 @@ export function collectOppSigniLeaveToTrash(
   effectivePowers?: Map<string, number>,
 ): boolean {
   const candidates: string[] = [
-    ...ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(ownerState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(ownerState.field.lrig.at(-1) ? [ownerState.field.lrig.at(-1)!] : []),
     ...activeKeyAbilitySources(ownerState),
   ];
@@ -8044,7 +8045,7 @@ export function collectFrozenBanishOverrides(
   let frozenBanishToDeckBottom = false;
   let frozenLeaveToTrash = false;
   const candidates: string[] = [
-    ...ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(ownerState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(ownerState.field.lrig.at(-1) ? [ownerState.field.lrig.at(-1)!] : []),
     ...activeKeyAbilitySources(ownerState),
   ];
@@ -8071,7 +8072,7 @@ export function collectAcceCostReduction(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): number {
   let reduction = 0;
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8093,7 +8094,7 @@ export function collectFirstSpellCostUp(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): number {
   const candidates: string[] = [
-    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(opponentState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
     ...activeKeyAbilitySources(opponentState),
   ];
@@ -8121,7 +8122,7 @@ export function collectIncreaseActCost(
 ): number {
   if (!isMyTurn) return 0; // カードの「相手ターン」条件 = 自分のターン中のみ
   const candidates: string[] = [
-    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...fieldSigniStacks(opponentState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
     ...activeKeyAbilitySources(opponentState),
   ];
@@ -8161,7 +8162,7 @@ export function collectAllColorSigniForField(
   // （完全全色ではなく黒追加なので別扱い。ここでは all-color バイパスには含めない）
 
   // story_overrides 'ALL_COLOR': ACCE_SIGNI_ALL_COLOR で既にセット済み
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (top && state.story_overrides?.[top] === 'ALL_COLOR') result.add(top);
   }
@@ -8295,7 +8296,7 @@ export function collectFieldSigniExtraColors(
     });
   });
   if (hasForcedBlack) {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (!top) continue;
       const existing = result.get(top) ?? [];
@@ -8304,7 +8305,7 @@ export function collectFieldSigniExtraColors(
   }
 
   // CARDS_OUTSIDE_ENERGY_BECOME_WHITE: フィールド上のシグニに白色を追加（エナゾーン以外→白の全ゾーン実装）
-  const hasOutsideEnergyWhite = state.field.signi.some(stack => {
+  const hasOutsideEnergyWhite = fieldSigniStacks(state).some(stack => {
     const top = stack?.at(-1);
     return top && (effectsMap.get(top) ?? []).some(eff =>
       eff.effectType === 'CONTINUOUS' &&
@@ -8313,7 +8314,7 @@ export function collectFieldSigniExtraColors(
     );
   });
   if (hasOutsideEnergyWhite) {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (!top) continue;
       const existing = result.get(top) ?? [];
@@ -8328,7 +8329,7 @@ export function collectFieldSigniExtraColors(
 
   // FIELD_ENERGY_SIGNI_GAIN_COLOR: フィールド上のシグニが「場とエナゾーンにあるシグニは追加でX色を得る」を持つ場合
   // fieldSigniExtraColors に対象フィールドシグニ分を追加する
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8340,7 +8341,7 @@ export function collectFieldSigniExtraColors(
       if (!gainColor) continue;
       const isDisonaFilter = !!act.gainColorDissonaOnly;
       // フィールドの全シグニに追加色を付与（フィルタ付きは条件チェック）
-      for (const targetStack of state.field.signi) {
+      for (const targetStack of fieldSigniStacks(state)) {
         const t = targetStack?.at(-1);
         if (!t) continue;
         if (isDisonaFilter && (cardMap.get(t)?.Story ?? '') !== 'Dissona') continue;
@@ -8363,7 +8364,7 @@ export function collectAltAttackFlipSigni(
   state: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { targetSigniName: string; maxFlip: number } | null {
-  for (const stack of state.field.signi) {
+  for (const stack of fieldSigniStacks(state)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8391,7 +8392,7 @@ export function collectGrowCostSubstitute(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { substituteColor: string; signiClass: string; sourceCardNum: string } | null {
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8429,7 +8430,7 @@ export function collectEnergyCostSubstitutes(
     sourceCardNum: string;
     eligibleEnergyInstIds: Set<string>;
   }> = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of effectsMap.get(top) ?? []) {
@@ -8457,7 +8458,7 @@ export function collectGuardAlternativeCost(
 ): { spec: NonNullable<import('../types/effects').StubAction['guardAltCost']>; sourceCardNum: string } | null {
   // シグニゾーンに加え、センタールリグも走査（COPY_LRIG_NAME_ABILITY でルリグが【常】コピーした場合に対応）。
   const lrigTop = ownerState.field.lrig.at(-1);
-  const holders = [...ownerState.field.signi.map(s => s?.at(-1)), lrigTop];
+  const holders = [...fieldSigniStacks(ownerState).map(s => s?.at(-1)), lrigTop];
   for (const top of holders) {
     if (!top) continue;
     // 期間つき GRANT_EFFECT は effectsMap ではなく granted_effects_until_opp_turn に入る。
@@ -8484,7 +8485,7 @@ export function collectResonanceExtraAttackPhaseCondition(
   ownerState: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): boolean {
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8508,7 +8509,7 @@ export function collectOppTrashLoseColorClass(
   isOwnerTurn: boolean,
 ): boolean {
   if (!isOwnerTurn) return false;
-  for (const stack of ownerState.field.signi) {
+  for (const stack of fieldSigniStacks(ownerState)) {
     const top = stack?.at(-1);
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8575,7 +8576,7 @@ export function collectDeckTrashLevel1Nums(
     //    ⚠`deckTrashLevel1Filter` が無い宣言はここでは何も集めない（fail-closed＝範囲が落ちても
     //      デッキ全部がレベル1に化けない）。①が `!act.deckTrashLevel1Filter` で受け持つ。
     if (!cardMap) continue;
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (!top) continue;
       for (const eff of (effectsMap.get(baseNumOf(top)) ?? [])) {
@@ -8616,7 +8617,7 @@ export function collectTreatAsClassAllZones(
   void cardMap;
   for (const state of [ownerState, otherState]) {
     const allZones = [
-      ...state.field.signi.flatMap(s => s ?? []),
+      ...fieldSigniStacks(state).flatMap(s => s ?? []),
       ...state.field.lrig,
       ...state.hand,
       ...state.trash,
@@ -8650,13 +8651,13 @@ export function applyDeclaredZoneClassOverride(
   if (decls.length === 0) return cardMap;
   const affectedNums = new Set<string>();
   for (const decl of decls) {
-    const onField = otherState.field.signi.some(s => s?.includes(decl.sourceCardNum));
+    const onField = fieldSigniStacks(otherState).some(s => s?.includes(decl.sourceCardNum));
     if (!onField) continue;
     let pool: string[];
     switch (decl.zone) {
       case 'deck':  pool = ownerState.deck; break;
       case 'hand':  pool = ownerState.hand; break;
-      case 'signi': pool = ownerState.field.signi.flatMap(s => s ?? []); break;
+      case 'signi': pool = fieldSigniStacks(ownerState).flatMap(s => s ?? []); break;
       case 'trash': pool = ownerState.trash; break;
       default: pool = [];
     }
@@ -8687,7 +8688,7 @@ export function applyContinuousBaseLevelOverride(
 ): Map<string, CardData> {
   const overrides: { cn: string; level: number }[] = [];
   const scan = (state: PlayerState, opp: PlayerState, myTurn: boolean) => {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (!top) continue;
       for (const eff of (effectsMap.get(top) ?? [])) {
@@ -8711,7 +8712,7 @@ export function applyContinuousBaseLevelOverride(
   // 🆕§5.3 `O-296`＝場レベル grant（`FieldGrant{kind:'baseLevel'}`＝「次のターンの間、対戦相手の場にあるシグニの
   //   基本レベルは１になる」`WX11-051-BURST`）＝**その state の場にいまいるシグニ**へ当てる（後から出たシグニにも効く）。
   for (const [state, opp] of [[ownerState, otherState], [otherState, ownerState]] as const) {
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {
       const top = stack?.at(-1);
       if (!top) continue;
       for (const grant of activeFieldGrantsForSigni(state, opp, top, cardMap)) {

@@ -1,4 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
+import { fieldSigniStacks } from './cheerZoneView';
 import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
 import { currentRng, mulberry32, setRng } from './rng';
@@ -448,7 +449,7 @@ function findEffectLeavePowerReductionSubstitute(
   //   ⚠この取り違えは同族の他の victim 参照（`applyEffectLeaveLrigAbilitySubstitute` の `baseNum`／
   //     `collectBanishSubstitutes` の `baseNum`）では既に base 化されている＝**ここだけ漏れていた**。
   const victimCard = cardMap.get(getCardNum(victimNum));
-  for (const stack of victimState.field.signi) {
+  for (const stack of fieldSigniStacks(victimState)) {
     const top = stack?.at(-1);
     if (!top || top === victimNum) continue; // 「他の」＝victim自身は除外
     for (const eff of declaredContinuousEffects(top, victimState, cardMap)) {
@@ -684,7 +685,7 @@ export function applyEffectLeaveReplaceBanishSubstitute(
   // バニッシュできない相手は置換しない（置換で耐性を踏み越えない）
   if (ctx.otherBanishProtectedNums?.has(victimNum)) return { ctx, replaced: false };
   if (hasBanishResist(victimNum, ctx.cardMap, state.keyword_grants)) return { ctx, replaced: false };
-  const declarer = state.field.signi.some(stack => {
+  const declarer = fieldSigniStacks(state).some(stack => {
     const top = stack?.at(-1);
     if (!top) return false;
     return declaredContinuousEffects(top, state, ctx.cardMap).some(eff => {
@@ -729,10 +730,10 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
 ): { ctx: ExecCtx; replaced: boolean } {
   if (!(ctx.currentPhase ?? '').startsWith('ATTACK')) return { ctx, replaced: false };
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!fieldSigniStacks(state).some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
   if (!hasNoAbility(victimNum, ctx.cardMap, state, ctx.effectsMap?.get(getCardNum(victimNum)))) return { ctx, replaced: false };
   const declarerState = ownerState(victimOwner === 'self' ? 'opponent' : 'self', ctx);
-  const declared = declarerState.field.signi.some(stack => {
+  const declared = fieldSigniStacks(declarerState).some(stack => {
     const top = stack?.at(-1);
     if (!top) return false;
     return declaredContinuousEffects(top, declarerState, ctx.cardMap).some(eff =>
@@ -1057,7 +1058,7 @@ export function applyEffectLeaveUnderCardsTrashSubstitute(
   const attackerState = ownerState('self', ctx);
   const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
   const holders = [
-    ...state.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...fieldSigniStacks(state).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
   ];
   let spec: NonNullable<import('../types/effects').StubAction['leaveUnderCardsTrash']> | undefined;
@@ -1117,7 +1118,7 @@ export function applyEffectLeaveSelfDeckBottomSubstitute(
 ): { ctx: ExecCtx; replaced: boolean } {
   if (victimOwner !== 'opponent') return { ctx, replaced: false };
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!fieldSigniStacks(state).some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
   const declared = declaredContinuousEffects(victimNum, state, ctx.cardMap).some(eff =>
     eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
     && (eff.action as import('../types/effects').StubAction).id === 'LEAVE_FIELD_TO_DECK_BOTTOM');
@@ -8692,7 +8693,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   // granted_effects へ CONTINUOUS 宣言を積む。これなら後から場に出た一致シグニも毎回評価しつつ、
   // collector が sourceNum を使って「他の」を厳密に除外できる。
   if (!a.target && a.subjectFilter?.excludeSelf && (a.subjectOwner ?? 'self') === 'self'
-      && ctx.sourceCardNum && ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) {
+      && ctx.sourceCardNum && fieldSigniStacks(ctx.ownerState).some(stack => stack?.at(-1) === ctx.sourceCardNum)) {
     const grantedEffect: CardEffect = {
       effectId: `${ctx.sourceCardNum}-GRANTED-PROTECTION`,
       effectType: 'CONTINUOUS', action: a, duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
@@ -12327,7 +12328,7 @@ function refreshPlayerIfDeckEmpty(
   cardMap: Map<string, import('../types').CardData>,
 ): { state: PlayerState; refreshed: boolean } {
   if (st.deck.length > 0 || st.trash.length === 0) return { state: st, refreshed: false };
-  const preventLifeToTrash = st.field.signi.some(stack => {
+  const preventLifeToTrash = fieldSigniStacks(st).some(stack => {
     const top = stack?.at(-1);
     return !!top && (cardMap.get(top)?.effects ?? []).some(e =>
       e.effectType === 'CONTINUOUS'

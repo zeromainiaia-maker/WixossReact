@@ -229,7 +229,7 @@ import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
-import { cheerCardOf, moveToCheerZone, CHEER_ZONE } from '../src/engine/cheerZone';
+import { cheerCardOf, moveToCheerZone, CHEER_ZONE, fieldSigniStacks as fieldSigniStacksG } from '../src/engine/cheerZone';
 import { applyUpPhaseToField as applyUpPhaseToFieldCheer } from '../src/screens/battle/upPhase';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
@@ -93356,6 +93356,25 @@ test('§5.3 O-538 段階2＝チアゾーンのシグニの【起】が提示さ�
   };
   const cpuIds = listCpuSigniActivated(cpuSigniActivatedInput(ctx, 'MAIN', true)).map(c => `${c.effect.effectId}@${c.zoneIndex}`);
   ok(cpuIds.includes(`${AKUDAMA}-E2@${CHEER_ZONE}`), `🔴CPU がチアゾーンの【起】を候補にしない: ${cpuIds.join(',')}`);
+}));
+
+test('§5.3 O-538 段階3＝チアゾーンのシグニの【常】が効く（「場のシグニ」の走査は fieldSigniStacks）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  // ① キングゲーム（WXEX2-54）【常】あなたのターンの間、対戦相手はすべての領域にあるシグニの【起】を使用できない
+  const owner = mkState({});
+  owner.field.cheer = 'WXEX2-54';
+  const victim = mkState({});
+  ok(calcContinuousBlockedActions(victim, owner, false, effectsMap, cm).forSelf.has('USE_ACT'), '🔴チアゾーンのキングゲームの【常】が相手の【起】を封じない');
+  const noCheer = { ...owner, field: { ...owner.field, cheer: null } };
+  ok(!calcContinuousBlockedActions(victim, noCheer, false, effectsMap, cm).forSelf.has('USE_ACT'), '対照＝チアゾーンが空なら封じない');
+  // ② サンドリヨン（WXEX2-77）【常】あなたのターンの間、トラッシュ10枚につき自身のパワー＋5000
+  const sd = mkState({ trash: 10 });
+  sd.field.cheer = 'WXEX2-77';
+  const pw = calcFieldPowers(sd, mkState({}), true, effectsMap, cm).get('WXEX2-77');
+  eq(pw, 10000, '🔴チアゾーンのサンドリヨンのパワーに【常】が効かない（5000＋5000）');
+  // ③ ゾーン番号を使う走査（正面・シグニゾーン）には含めない＝fieldSigniStacks は末尾に足すだけ
+  eq(fieldSigniStacksG(sd).length, 4, 'チアゾーンは4番目に足す');
+  eq(fieldSigniStacksG(noCheer), noCheer.field.signi, 'チアゾーンが空なら元の配列そのもの（挙動不変）');
 }));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {
