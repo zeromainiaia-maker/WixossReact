@@ -180,7 +180,7 @@ import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
-import { applyCpuMoveSim, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, cpuChargeNeedOf, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
@@ -263,14 +263,14 @@ import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spell
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
-import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableAssistLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { blockedByNoEmptySigniZone } from '../src/screens/battle/emptyZoneGate';
 import { applyActivateCostZero } from '../src/screens/battle/activateCostZero';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { payTrashActivateCost, emptyTrashActivateSelections } from '../src/screens/battle/trashActivateCost';
 import { activatedEnergyCostStr } from '../src/screens/battle/cpuActivate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
-import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
+import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, listCpuLrigActivated, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 import { facedownPeek } from '../src/screens/battle/facedownPeek';
 import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
 import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
@@ -50034,7 +50034,7 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
 // **母数の実測（2026-08-24）＝15サイト**（`BattleScreen.tsx` 14 ＋ `battle/trashActivateCost.ts` 1）。
 // ⚠**資料の数字は当てにしない**＝`energyPaySource.ts` の docstring は「モーダル17本」、別のコメントは13本、
 //   旧 PLAN は14本と食い違っていた（どれも支払いサイト数そのものではなかった）。
-test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
+test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（14サイト）', () => {
   // §5.3 `O-533`（2026-09-18）＝手札の【起】の支払いを `handActivateCost.ts` へ移設（サイト数は据え置き＝移動であって増減ではない）。
   // §5.7 `S-5c` 第2段（2026-09-18）＝`perform*` は `controller/` へ移設したので**まとめて**読む（サイト数は据え置き）。
   const controllerFiles = fs.readdirSync(join(root, 'src/screens/battle/controller'))
@@ -50053,7 +50053,8 @@ test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで ap
     for (const n of bound) if (!src.includes(`${n}.applyTo(`)) missing.push(`${f}:${n}`);
   }
   eq(missing.length, 0, `applyTo を呼んでいない支払いサイト（エナが減らない＝ただで撃てる）: ${missing.join(', ')}`);
-  eq(sites, 15, `支払いサイト数が変わった（現在 ${sites}）。増えたサイトも applyTo を呼んでいるか確認してから数を更新すること`);
+  // 2026-09-28＝15→14（アシストルリグ【起】の手書きの支払いを撤去し performLrigActivated へ寄せた＝較正）。
+  eq(sites, 14, `支払いサイト数が変わった（現在 ${sites}）。増えたサイトも applyTo を呼んでいるか確認してから数を更新すること`);
 });
 
 // トリップワイヤ②＝同じスタックを2つのコスト機構が index で触ると必ずズレる（BattleScreen の cutin 経路）
@@ -92973,6 +92974,54 @@ test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇
   const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
   ok(turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')") && turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')"),
     '🔴本番のアタックフェイズの窓にアシストグロウが無い');
+}));
+test('2026-09-28 アシストルリグの【起】＝センタールリグと同じ判定・同じ実行（人間のボタン／CPU の列挙・先読み）', () => withSavedCursor(() => {
+  // 🔑ユーザー指示「アシストルリグの【起】も整備」。live 4効果（`WXDi-P07-032`／`P07-038`／`P08-029`／`P10-025`）。
+  //   🔴旧＝判定は `BattleScreen.getAssistActions` の手書き filter（《ゲーム１回》を見ない・timing を見ずアタックフェイズでも出す）、
+  //   実行も手書き（《ゲーム１回》を記録しない）、CPU は一度も撃たなかった。
+  const BATTO = 'WXDi-P08-029';   // リル・抜刀 Lv2＝【起】《ゲーム１回》《赤》《無》《無》：対戦相手のシグニ１体をバニッシュ
+  const EFF = `${BATTO}-E2`;
+  const im = new InstanceMap<CardData>(cardMap) as Map<string, CardData>;
+  const red = findCard(c => isSigni(c) && c.Color === '赤');
+  const actor = (gameDone: string[] = []) => {
+    const st = mkState({ lrig: ['WX15-001#c'], assistL: ['WXDi-P08-027#a1', `${BATTO}#a2`] });
+    st.energy = [`${red}#e1`, `${red}#e2`, `${red}#e3`];
+    st.game_actions_done = gameDone;
+    return st;
+  };
+  const opp = mkState({ signi: [`${SIGNI_P3000}#o`, null, null] as never });
+  const gate = (st: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS') => listActivatableAssistLrigEffects({
+    my: st, op: opp, phase, effectsMap, cardMap: im, blockedSelf: new Set(),
+  }, 'l').map(e => e.effectId).join(',');
+  // ① 判定＝センターと同じ `canActivateLrigEffect`
+  eq(gate(actor(), 'MAIN'), EFF, '前提崩れ＝メインフェイズにアシストルリグの【起】が出ない');
+  eq(gate(actor(), 'ATTACK_ARTS'), '', '🔴使用タイミングがメインフェイズだけの【起】をアタックフェイズで出した（旧の手書き判定）');
+  eq(gate(actor([EFF]), 'MAIN'), '', '🔴《ゲーム１回》を使ったあとも出した（旧の手書き判定）');
+  eq(listActivatableAssistLrigEffects({ my: actor(), op: opp, phase: 'MAIN', effectsMap, cardMap: im, blockedSelf: new Set(['USE_LRIG_ACT']) }, 'l').length, 0,
+    '🔴「ルリグの【起】を使用できない」がアシストルリグに効かない');
+  // ② CPU の列挙＝ルリグ【起】の候補に、発生源つきで出る
+  const ctx: CpuMoveCtx = {
+    actor: actor(), opponent: opp, allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap: im, effectsMap,
+    lookahead: { cardMap: im, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] },
+    reserveFor: () => undefined,
+  };
+  const choice = listCpuLrigActivated(cpuLrigActivatedInput(ctx, 'MAIN')).find(c => c.effect.effectId === EFF);
+  ok(!!choice, '🔴CPU の候補にアシストルリグの【起】が無い');
+  eq(choice?.sourceCardNum, `${BATTO}#a2`, '🔴発生源がアシストルリグになっていない（センターの【起】として撃つ）');
+  ok(listCpuMoves(ctx, 'MAIN', { pendingSpell: false }).some(m => m.kind === 'lrigActivate' && m.choice.effect.effectId === EFF), '🔴探索の候補に無い');
+  // ③ 先読み＝バニッシュまで入る
+  const after = applyCpuMoveSim(ctx, { kind: 'lrigActivate', choice: choice!, pool: cpuLrigActivatedInput(ctx, 'MAIN').pool, phase: 'MAIN' });
+  ok(!!after, '🔴アシストルリグの【起】を先読みで解けない');
+  eq((after!.opp.field.signi[0] ?? []).length, 0, '🔴先読みでバニッシュが起きていない');
+  // ④ 配線＝人間も CPU も `performLrigActivated`（発生源を渡す）
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(battle.includes('listActivatableAssistLrigEffects({'), '🔴人間のボタンが共通の判定を通っていない');
+  ok(/await performLrigActivated\(effect, \{ costIndices, handDiscardIndices: discardIndices \}, \{[\s\S]{0,200}sourceCardNum: cardNum,/.test(battle),'🔴人間の実行が performLrigActivated（発生源つき）を通っていない');
+  ok(!battle.includes('const assistActPay = planEnergyPayment('), '🔴手書きの支払いが画面に残っている');
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(turn.includes('sourceCardNum: choice.sourceCardNum,'), '🔴CPU の実行が発生源を渡していない');
+  const perf = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigActivated.ts'), 'utf-8');
+  ok(perf.includes('const lrigTop = p.sourceCardNum ?? my.field.lrig.at(-1);'), '🔴実行関数が発生源を読んでいない（スタックの発生源がセンターになる）');
 }));
 test('2026-09-28 CPU のアシストグロウ＝アーツと同じ扱い（除去は塞がれていて対象がいるときだけ・探索が【出】まで解く）', () => withSavedCursor(() => {
   // 🔑ユーザー指示「アシストグロウはルリグと名のついているが実質アーツである。扱いをアーツと同じに」。

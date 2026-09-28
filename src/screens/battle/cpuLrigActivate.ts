@@ -6,7 +6,7 @@ import type { CpuPolicy } from './cpuPolicy';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
 import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
-  listActivatableInheritedLrigEffects, listActivatableLrigEffects,
+  listActivatableInheritedLrigEffects, listActivatableAssistLrigEffects, listActivatableLrigEffects,
 } from './lrigActivateGate';
 import { cpuUseWindowOf, planAllowsUseIn, type CpuDeckPlan } from './cpuDeckPlan';
 
@@ -126,6 +126,11 @@ export interface CpuLrigActivatedChoice {
   trashArtsNums: string[];
   /** 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外する index（`trashExile`）。 */
   trashExileIndices: Set<number>;
+  /**
+   * 🆕2026-09-28＝**アシストルリグの【起】**のときだけ、その instance（`performLrigActivated` の `sourceCardNum`）。
+   * ⚠省略＝センタールリグ（本来／付与／継承）。
+   */
+  sourceCardNum?: string;
 }
 
 /**
@@ -172,16 +177,24 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
   };
   // 🆕2026-09-26＝相手のアーツステップ（`isMyTurn:false`）でも撃つ＝付与の収集にもその値を渡す。
   const granted = collectGrantedLrigEffects(p.actor, p.opponent, p.isMyTurn ?? true, p.effectsMap, p.cardMap);
-  const usable = [
+  // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いたルリグの【起】は撃たない
+  //   （⚠**判定はその【起】を持つルリグの札**＝付与・継承の効果もセンタールリグの札の【起】として出る）。
+  const window = p.isMyTurn === false ? 'oppAttack' : cpuUseWindowOf(p.phase);
+  const allowed = (num: string) => planAllowsUseIn(p.plan, num, window, p.isMyTurn === false);
+  const centerLrig = p.actor.field.lrig.at(-1);
+  const usable: { effect: CardEffect; sourceCardNum?: string }[] = centerLrig && !allowed(centerLrig) ? [] : [
     ...listActivatableLrigEffects(gateInput),
     ...listActivatableGrantedLrigEffects(gateInput, granted),
     ...listActivatableInheritedLrigEffects(gateInput),
-  ];
-  // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いたルリグの【起】は撃たない
-  //   （⚠**判定はセンタールリグの札**＝付与・継承の効果もその札の【起】として出る）。
-  const centerLrig = p.actor.field.lrig.at(-1);
-  if (centerLrig && !planAllowsUseIn(p.plan, centerLrig, p.isMyTurn === false ? 'oppAttack' : cpuUseWindowOf(p.phase), p.isMyTurn === false)) return;
-  for (const effect of usable) {
+  ].map(effect => ({ effect }));
+  // 🆕2026-09-28＝**アシストルリグの【起】**（ユーザー指示「アシストルリグの【起】も整備」）＝判定は人間のボタンと同じ
+  //   `listActivatableAssistLrigEffects`（`canActivateLrigEffect`）・実行も同じ `performLrigActivated`（`sourceCardNum`）。
+  for (const side of ['l', 'r'] as const) {
+    const top = (side === 'l' ? p.actor.field.assist_lrig_l : p.actor.field.assist_lrig_r)?.at(-1);
+    if (!top || !allowed(top)) continue;
+    for (const effect of listActivatableAssistLrigEffects(gateInput, side)) usable.push({ effect, sourceCardNum: top });
+  }
+  for (const { effect, sourceCardNum } of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;
     const costIndices = selectEnergyIndicesForCost({
@@ -224,7 +237,7 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
       effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
     });
     if (!trashExileIndices) continue;
-    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones, trashArtsNums, trashExileIndices };
+    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones, trashArtsNums, trashExileIndices, ...(sourceCardNum ? { sourceCardNum } : {}) };
   }
 }
 

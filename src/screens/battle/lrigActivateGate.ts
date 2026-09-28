@@ -288,3 +288,22 @@ export function listActivatableLrigEffects(p: LrigActivateGateInput): CardEffect
   return collectCenterLrigActivatedEffects(p.my, p.effectsMap, p.phase)
     .filter(eff => canActivateLrigEffect(eff, p, lrigTop));
 }
+
+/**
+ * 🆕2026-09-28＝**アシストルリグの【起】**のうち、いま撃てるもの（ユーザー指示「アシストルリグの【起】も整備」）。
+ *
+ * 🔴旧＝判定が `BattleScreen.getAssistActions` の手書きの filter にあり、CPU は一度も撃たなかった。しかもその filter は
+ *   ①**《ゲーム１回》を見ていなかった**（live 3効果が何度でも撃てた）②**timing を見ずにアタックフェイズでも提示していた**
+ *   （4効果とも MAIN だけ）③コイン・エクシード等の支払い可否を見ていなかった。
+ * ⇒ **判定はセンタールリグと同じ `canActivateLrigEffect` 1本**（発生源＝そのアシストルリグ）。
+ * ⚠`down_self`（このルリグをダウン）は**センターの支払い**（`payLrigDownSelfCost`）なのでアシストでは提示しない（live 0）。
+ */
+export function listActivatableAssistLrigEffects(p: LrigActivateGateInput, side: 'l' | 'r'): CardEffect[] {
+  const top = (side === 'l' ? p.my.field.assist_lrig_l : p.my.field.assist_lrig_r)?.at(-1);
+  if (!top) return [];
+  return (p.effectsMap.get(top) ?? p.effectsMap.get(getCardNum(top)) ?? []).filter(eff =>
+    eff.effectType === 'ACTIVATED'
+    && !!eff.timing?.includes(p.phase)
+    && !eff.cost?.down_self
+    && canActivateLrigEffect(eff, p, top));
+}

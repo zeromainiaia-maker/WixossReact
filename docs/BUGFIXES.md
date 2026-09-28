@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-28（第488バッチ）アシストルリグの【起】＝センタールリグと同じ判定・同じ実行（人間のボタン／CPU）（ユーザー指示「アシストルリグの【起】も整備して」）
+
+`src/screens/` を触り機構を足したので §2.2 により実機まで（`node scripts/verifyBattleDrive.mjs assistLrigActivatedOncePerGame` PASS＝新設／`DECK=VERIFY_DECK_MECH node scripts/verifyFullMatch.mjs cpu` PASS）。`npm run gates` 全緑（golden 4421/4421）。
+
+- **真因**＝アシストルリグの【起】（live 4効果＝`WXDi-P07-032`／`P07-038`／`P08-029`／`P10-025`）は判定も実行も `BattleScreen` の中の手書きで、CPU からは呼べなかった（**CPU は一度も撃たなかった**）。しかも人間側の手書きは①**《ゲーム１回》を見ていなかった**（3効果が何度でも撃てた＝判定も記録も無し）②**timing を見ずアタックフェイズでも出していた**（4効果とも MAIN だけ）③コイン・エクシード等の支払い可否を見ていなかった。
+- **直し方**＝センタールリグの【起】の経路へ寄せた。
+  - 判定＝`lrigActivateGate.listActivatableAssistLrigEffects`（新設）＝**`canActivateLrigEffect` 1本**（発生源＝そのアシストルリグ・timing は効果の `timing` と照合・`down_self` はセンター用の支払いなので出さない＝live 0）。
+  - 実行＝`performLrigActivated` に `sourceCardNum`（省略＝センター）を足し、スタックの発生源・名前・【ビート】コストの効果元をそれで決める。人間の `executeAssistActivated` はこれを呼ぶだけの薄いラッパーにした（手書きの支払い・ウィルス除去を撤去）。
+  - CPU＝`iterCpuLrigActivated` にアシストルリグの【起】を足した（選択に `sourceCardNum`）。実行（`tryCpuLrigActivated`）・先読み（`applyCpuMoveSim` の `lrigActivate`）・作戦データの加点（`cpuPlanMoveStep`）・「使わない」の判定（その札で見る）も発生源を読む。**メインフェイズは探索が他の手と比べて選ぶ**（センタールリグの【起】と同じ）。
+- **影響**＝live 4効果。
+- **検証**＝golden「2026-09-28 アシストルリグの【起】＝センタールリグと同じ判定・同じ実行…」新設（メインで出る／アタックフェイズでは出ない／《ゲーム１回》の後は出ない／「ルリグの【起】を使用できない」が効く／CPU の候補に発生源つきで出る／探索の候補に出る／先読みでバニッシュまで入る／配線）。golden「§6.4 エナ支払い元」の支払いサイト数を 15→14 へ較正（手書きの支払いを撤去したぶん＝較正）。実機シナリオ `assistLrigActivatedOncePerGame` 新設＝ボタンからエナ3枚で撃って相手のシグニがバニッシュ／**反転確認**＝同じ拡大表示で1回目は「【起】エナ3」が出て、使ったあとは出ない（スクリーンショットで確認）。
+- ⚠**CPU の実撃ちは実機で踏んでいない**＝機構デッキ（`VERIFY_DECK_MECH`）にもユーザー作40デッキにも、【起】を持つアシストルリグが入っていない（golden で列挙・先読み・配線を固定）。⚠支払いモーダル（`AssistActivatedModal`）の「払えるか」はエナ・手札・ウィルスだけを見る（ほかのコストの4効果は無いので、提示ゲートで止まる）。
+
 ## 2026-09-28（第487バッチ）CPU のアシストグロウ＝アーツと同じ扱い（ユーザー指示「アシストグロウはルリグと名のついているが実質アーツである。扱いをアーツと同じにしてアシストルリグについて整備すること」）
 
 `src/screens/` を触ったので §2.2 により実機まで（`DECK=VERIFY_DECK_MECH node scripts/verifyFullMatch.mjs cpu` PASS＝ウムル＝ドローは使い、対象のいないハウリングは使わない）。`npm run gates` 全緑（golden 4420/4420）。

@@ -13727,6 +13727,84 @@ const scenarios = {
     },
   },
 
+  // 🆕2026-09-28＝**アシストルリグの【起】**（ユーザー指示「アシストルリグの【起】も整備」）。
+  //   判定は人間もCPUも `listActivatableAssistLrigEffects`（センターと同じ `canActivateLrigEffect`）・実行は `performLrigActivated`（`sourceCardNum`）。
+  //   `WXDi-P08-029-E2`＝【起】《ゲーム１回》《赤》《無》《無》：対戦相手のシグニ１体をバニッシュする。
+  //   観測点＝①ボタンからエナ3枚で撃てて相手のシグニが消える ②🔴**《ゲーム１回》なので2回目のボタンが出ない**（旧の手書き判定は見ていなかった）。
+  assistLrigActivatedOncePerGame: {
+    title: 'WXDi-P08-029-E2（アシストルリグの【起】＝センターと同じ判定・実行／《ゲーム１回》）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX15-001#1'],
+        'field.lrig_down': false,
+        'field.assist_lrig_l': ['WXDi-P08-029#1'],
+        'field.assist_lrig_r': [],
+        'field.assist_lrig_l_down': false,
+        'field.signi': [null, null, null],
+        'energy': ['WD02-013#e1', 'WD02-013#e2', 'WD02-013#e3'],
+        'actions_done': [],
+        'game_actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#g1'], null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始時 guest正面=${JSON.stringify(before?.guest?.fieldSigni)} energy=${before?.host?.energy}`);
+      await H.ensureMain();
+      const openAssist = async () => {
+        const img = page.getByAltText('リル・抜刀', { exact: false }).first();
+        if (await img.count()) { await img.click({ force: true }).catch(() => {}); return true; }
+        return false;
+      };
+      const actBtnVisible = async () => {
+        const b = page.getByRole('button', { name: /^【起】/ }).first();
+        return (await b.count()) > 0 && await b.isVisible().catch(() => false);
+      };
+      H.log('アシストクリック: ' + (await openAssist() ? 'OK' : '見つからず'));
+      let opened = false, fired = false, banished = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/assistLrigActivatedOncePerGame-${s}.png`, fullPage: true });
+        let did = null;
+        if (!opened && await actBtnVisible()) {
+          await page.getByRole('button', { name: /^【起】/ }).first().click().catch(() => {});
+          opened = true; did = 'btn:【起】';
+        }
+        if (!did && opened && !fired) {
+          const pick = page.locator('p', { hasText: 'エナゾーンから選択' }).locator('xpath=following-sibling::div[1]').locator('img');
+          const n = await pick.count();
+          if (n >= 3) {
+            for (let i = 0; i < 3; i++) await pick.nth(i).click({ force: true }).catch(() => {});
+            await page.waitForTimeout(300);
+            const fire = await H.clickBtn('発動', { exact: true });
+            if (fire) { did = fire; fired = true; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const front = st?.guest?.fieldSigni?.[0];
+        H.log(`  alop[${s}] -> ${did ?? 'なし'} | opened=${opened} fired=${fired} guest正面=${JSON.stringify(front)} energy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        if (fired && (!front || front.length === 0) && !st?.pendingEffect && !(st?.stackLen > 0)) { banished = true; break; }
+      }
+      if (!banished) {
+        const fin = await H.queryState();
+        return { pass: false, detail: `未完了（opened=${opened} fired=${fired} guest正面=${JSON.stringify(fin?.guest?.fieldSigni?.[0])} energy=${fin?.host?.energy}）` };
+      }
+      // ② 《ゲーム１回》＝2回目のボタンは出ない
+      await H.closeModals();
+      await page.waitForTimeout(600);
+      await openAssist();
+      await page.waitForTimeout(900);
+      const again = await actBtnVisible();
+      await page.screenshot({ path: `${SHOT}/assistLrigActivatedOncePerGame-again.png`, fullPage: true });
+      if (again) return { pass: false, detail: '🔴《ゲーム１回》の【起】を使ったあとも【起】ボタンが出る（旧の手書き判定と同じ穴）' };
+      return { pass: true, detail: 'アシストルリグの【起】をボタンから撃てた（エナ3枚・相手の正面のシグニがバニッシュ）／《ゲーム１回》で2回目のボタンは出ない' };
+    },
+  },
+
   // §7「残る実機検証項目」＝「(c) 併記型で両方の選択肢が同時に出る」（2026-08-05）。当時（続き～）は
   // 「liveで併記型が載っているのは現状0」で保留だったが、`WXDi-P08-007-E3`（【起】《ゲーム１回》「対戦相手が
   // 手札を１枚捨てるか《無》を支払わないかぎり…」を3回行う）が現在 costColors:['無'] と

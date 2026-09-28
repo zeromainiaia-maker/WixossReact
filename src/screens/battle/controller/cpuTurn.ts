@@ -373,7 +373,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const choice = preset ?? pickCpuLrigActivated(input);
     if (!choice) return false;
     if (!oppStep) d.observeChoice?.({ kind: 'lrigActivate', choice, pool, phase: gatePhase });
-    const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
+    // 🆕2026-09-28＝アシストルリグの【起】は発生源（`choice.sourceCardNum`）の名前で出す。
+    const lrigName = battleCardMap.get(choice.sourceCardNum ?? actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
     appendBattleLogs([`[CPU] ルリグの【起】を発動: ${lrigName}`]);
     // ⚠安全弁＝実行より先に「撃った」履歴を確定させる（シグニ【起】と同じ理由）。
     const actActor: PlayerState = {
@@ -397,6 +398,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
       energyPayPool: pool,
+      sourceCardNum: choice.sourceCardNum,
     });
     return true;
   };

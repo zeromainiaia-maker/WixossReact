@@ -161,7 +161,7 @@ import {planRiseSummon, type RiseSelection} from './battle/riseSummon';
 import {attackFieldTrashCost, canPayAttackFieldTrashCost, canPayLrigAttackFieldTrashCost} from './battle/attackFieldTrashCost';
 import {canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost} from './battle/signiAttackGate';
 import {listActivatableSigniEffects, listActivatableSeedEffects} from './battle/signiActivateGate';
-import {collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects} from './battle/lrigActivateGate';
+import {collectGrantedLrigEffects, listActivatableAssistLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects} from './battle/lrigActivateGate';
 import {type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, hasIgnoreLrigRestriction} from './battle/artsUseGate';
 import {checkKeyPieceUse, keyPieceCostOf} from './battle/keyPieceUseGate';
 import {checkSpellUse, isSpellUseBlockedFor} from './battle/spellUseGate';
@@ -2576,7 +2576,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!c) return true;
     return my.lrig_deck.filter(num => matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(num)), c)).length >= c.count;
   };
-  const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
 
   /**
    * スペル（手札／スペル・クラフト）を使用できないか（§6.4 O-18・続き513）。
@@ -3362,55 +3361,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ── アシストルリグ 起動効果 ──
   const executeAssistActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {
     if (loading) return;
-    setLoading(true);
     closeAssistActivated();
-    try {
-      const assistActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
-      const paidNums = assistActPay.paidNums;
-      const discardNums = [...discardIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
-      let paid: PlayerState = assistActPay.applyTo({
-        ...my,
-        hand: newHand,
-        trash: [...my.trash, ...paidNums, ...discardNums],
-        ...handDiscardHistoryRecord(my, discardNums),
-        actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
-          ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
-      });
-      // removeOppVirus: 相手の場のウィルスN個を取り除く
-      const removeVirusNAssist = effect.cost?.removeOppVirus ?? 0;
-      let newOpVirusStateAssist: typeof op | null = null;
-      if (removeVirusNAssist > 0) {
-        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
-        let removedV = 0;
-        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusNAssist; zi++) {
-          while (newOppVirus[zi] > 0 && removedV < removeVirusNAssist) { newOppVirus[zi]--; removedV++; }
-        }
-        if (removedV < removeVirusNAssist) return;
-        newOpVirusStateAssist = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
-        paid = { ...paid, opp_virus_removed_just: true };
-      }
-      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const entry: StackEntry = {
-        id: generateUUID(),
-        playerId: user.id,
-        cardNum,
-        effectId: effect.effectId,
-        label: `${cardName} の【起】効果`,
-        effect,
-      };
-      const turnPlayerId = bs.active_user_id ?? user.id;
-      const existingStack = bs?.effect_stack ?? null;
-      const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      const oppStateKeyAssist = isHost ? 'guest_state' : 'host_state';
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true,
-        opp: newOpVirusStateAssist ? { key: oppStateKeyAssist, state: newOpVirusStateAssist } : undefined,
-      }));
-    } finally {
-      setLoading(false);
-    }
+    // 🆕2026-09-28＝**センタールリグの【起】と同じ実行関数**（発生源だけ渡す）＝CPU も同じ関数を通る。
+    //   🔴旧＝ここに手書きの支払い（エナ・手札・ウィルス除去）があり、《ゲーム１回》の記録もコイン等の支払いも無かった。
+    await performLrigActivated(effect, { costIndices, handDiscardIndices: discardIndices }, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      energyPayPool: myEnergyPayPool,
+      sourceCardNum: cardNum,
+    });
   };
 
   // スペル使用の実行（人間・CPU 共通）。
@@ -5574,22 +5533,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
     }
 
-    // 起動効果（自ターンのみ）
-    if (isMyTurn && !loading) {
-      const effects = effectsMap.get(topNum) ?? [];
-      const activatable = effects.filter(e =>
-        e.effectType === 'ACTIVATED' &&
-        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
-        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
-        !e.costUnparsed &&
-        canPayExileLrigFromLrigDeck(e) &&
-        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
-        !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
-        !(my.blocked_actions?.includes(e.effectId)) &&
-        !isLrigActBlocked() &&
-        (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') &&
-        (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, phase, effectivePowers)),
-      );
+    // 起動効果＝🆕2026-09-28 判定はセンタールリグと同じ `canActivateLrigEffect`（`listActivatableAssistLrigEffects`）。
+    //   🔴旧＝手書きの filter で《ゲーム１回》も timing も見ていなかった（アタックフェイズでも MAIN の【起】を出していた）。
+    //   ⚠使用タイミングにアタックフェイズがある【起】は相手のアーツステップでも使える（2026-09-26 ルール）＝同じゲートに `ATTACK_ARTS` で渡す。
+    const assistActPhase = isMyTurn
+      ? (phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null)
+      : (phase === 'ATTACK_ARTS_OP' ? 'ATTACK_ARTS' : null);
+    if (assistActPhase && !loading) {
+      const activatable = listActivatableAssistLrigEffects({
+        my, op, phase: assistActPhase, effectsMap, cardMap: battleCardMap,
+        blockedSelf: contBlocked.forSelf, effectivePowers,
+      }, side);
       activatable.forEach(eff => {
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
         const costLabel = eff.cost

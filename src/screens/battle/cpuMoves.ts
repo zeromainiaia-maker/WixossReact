@@ -1200,7 +1200,8 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));
     }
     case 'lrigActivate': {
-      const src = actor.field.lrig.at(-1);
+      // 🆕2026-09-28＝アシストルリグの【起】は発生源がそのアシストルリグ（`sourceCardNum`）。
+      const src = move.choice.sourceCardNum ?? actor.field.lrig.at(-1);
       if (!src) return null;
       // 🆕§5.7 `S-21`＝ルリグの【起】は `zoneIndex: null`（`down_self` は**ルリグ自身**をダウン）。
       const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices, move.choice.fieldBanishZones, undefined, move.choice.trashArtsNums);
@@ -1265,7 +1266,7 @@ export function cpuPlanMoveStep(m: CpuMove, st: PlayerState): { num: string; use
     // 🆕2026-09-25＝**どの【起】か**（`effectId`）も返す＝コンボの手が効果を名指ししたときに別の【起】へ加点しない。
     case 'activate': case 'offFieldActivate': return { num: getCardNum(m.choice.cardNum), use: 'activate', effectId: m.choice.effect?.effectId };
     case 'lrigActivate': {
-      const top = st.field.lrig.at(-1);
+      const top = m.choice.sourceCardNum ?? st.field.lrig.at(-1);
       return top ? { num: getCardNum(top), use: 'activate', effectId: m.choice.effect?.effectId } : null;
     }
     case 'arts': return { num: m.choice.card.CardNum, use: 'arts' };

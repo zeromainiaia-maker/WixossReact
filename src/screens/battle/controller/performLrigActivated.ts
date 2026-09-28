@@ -58,6 +58,12 @@ export const performLrigActivated = async (
     actorKey: 'host_state' | 'guest_state';
     /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
     energyPayPool: EnergyPayEntry[];
+    /**
+     * 🆕2026-09-28＝**【起】の発生源**（省略時＝センタールリグ）。**アシストルリグの【起】**はその instance を渡す
+     * （ユーザー指示「アシストルリグの【起】も整備」＝人間と CPU が同じこの関数を通る）。
+     * ⚠`down_self`（このルリグをダウン）は**センター用の支払い**＝アシストの【起】では提示ゲートが止める。
+     */
+    sourceCardNum?: string;
   },
   ctx: PerformCtx,
 ) => {
@@ -262,7 +268,7 @@ export const performLrigActivated = async (
     //     **レベルの低い順で自動**（人間の選択UIはシグニ【起】側にしかない＝honest defer）。
     //   ⚠効果元はルリグなので `sourceCardNum` にセンタールリグを渡す（`selfEligible` の判定に使う）。
     if (beatSigniCostCount(effect.cost?.beat_signi) > 0) {
-      const beatPaidLg = payBeatSigniCost(paid, my.field.lrig.at(-1) ?? '', ctx.cardMap, effect.cost!.beat_signi!);
+      const beatPaidLg = payBeatSigniCost(paid, p.sourceCardNum ?? my.field.lrig.at(-1) ?? '', ctx.cardMap, effect.cost!.beat_signi!);
       if (!beatPaidLg.ok) { ctx.io.setLoading(false); return; }
       paid = beatPaidLg.state;
       if (beatPaidLg.log) ctx.io.appendLogs([beatPaidLg.log]);
@@ -372,7 +378,7 @@ export const performLrigActivated = async (
       paid = ftPaidLg.state;
       if (ftPaidLg.log) ctx.io.appendLogs([ftPaidLg.log]);
     }
-    const lrigTop = my.field.lrig.at(-1);
+    const lrigTop = p.sourceCardNum ?? my.field.lrig.at(-1);
     const cardName = ctx.cardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
     // ルリグ自身の【起】効果か、付与/継承された【起】効果かでラベルを分ける
     const isOwnLrigEffect = (ctx.effectsMap.get(lrigTop ?? '') ?? []).some(e => e.effectId === effect.effectId);
