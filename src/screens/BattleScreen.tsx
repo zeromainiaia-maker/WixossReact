@@ -385,7 +385,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     const remote = bs?.game_logs ?? [];
     if (remote.length > prevGameLogsLenRef.current) {
-      setBattleLogs(remote.slice(-200));
+      // 🆕2026-10-01＝0手目まで遡れるよう末尾200件への切り詰めを外した（ユーザー報告「ログが0手目まで見えない」）。
+      setBattleLogs(remote);
       prevGameLogsLenRef.current = remote.length;
     }
   }, [bs?.game_logs]);
@@ -405,7 +406,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         || bsRef.current?.pending_effect?.respondPlayerId === CPU_PLAYER_ID;
       if (canShowPrivateLog({ isCpuBattle: isCpuBattleRef.current, cpuIsActing })) {
         const ownLogs = own.map(action => ({ timestamp: now, user_id: user.id, action }));
-        setPrivateLogs(prev => [...prev, ...ownLogs].slice(-40));
+        setPrivateLogs(prev => [...prev, ...ownLogs]);
       }
     }
     if (shared.length === 0) return;
@@ -416,7 +417,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const newLogs = shared.map(action => ({ timestamp: now, user_id: user.id, action, ...(typeof moveNo === 'number' ? { move_no: moveNo } : {}) }));
     // ローカルに即時反映
     setBattleLogs(prev => {
-      const next = [...prev, ...newLogs].slice(-200);
+      const next = [...prev, ...newLogs];
       prevGameLogsLenRef.current = next.length;
       return next;
     });
@@ -5859,7 +5860,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           >
             {/* 🆕§5.1 `V-286`＝**自分だけに見える行（`privateLogs`）をここで合流**させる。
                 🔴DB 側（`battleLogs`）と混ぜて持たない＝Realtime 同期が配列ごと入れ替えるため。 */}
-            {/* 🆕**行頭の「何手目」**（2026-09-23）＝`battleLogs` は末尾200件なので、
+            {/* 🆕**行頭の「何手目」**（2026-09-23）＝`battleLogs` は全件（旧＝末尾200件）だが、
                 DB 側の総数から**通し番号の起点**を出す（⚠自分の書き込みが先行して
                 ローカルのほうが長いことがあるので `max` を取る）。`privateLogs` は DB に無い＝番号を振らない。 */}
             {(() => {
@@ -5868,7 +5869,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return [...battleLogs.map((l, i) => ({ l, own: false, no: logBase + i + 1 })),
                       ...privateLogs.map(l => ({ l, own: true, no: null as number | null }))]
               .sort((a, b) => (a.l.timestamp < b.l.timestamp ? -1 : a.l.timestamp > b.l.timestamp ? 1 : 0))
-              .reverse().slice(0, logExpanded ? 60 : 2).map(({ l: log, own, no }, i) => {
+              .reverse().slice(0, logExpanded ? undefined : 2).map(({ l: log, own, no }, i) => {
               // 🔴**視点の入れ替えは `logPerspective.ts` に1本化**（旧インラインは「自分」を入れ替え損ねていた）。
               const text = logTextFor(log, user.id);
               return (
