@@ -29,7 +29,7 @@ import {performCutinUse} from './battle/controller/performCutinUse';
 import {payUnderAnySigniTrash} from './battle/underAnySigniCost';
 import {buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry} from './battle/energyPaySource';
 import {logTextFor} from './battle/logPerspective';
-import {handCountLogLines} from './battle/handCountLog';
+import {handCountLogLines, lifeCountLogLines} from './battle/handCountLog';
 import {resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending} from './battle/rewind';
 import {RewindConsentDialog, RewindWaitDialog} from './battle/modals/RewindDialogs';
 
@@ -368,6 +368,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const prevEnergyRef = useRef<{ host: string[]; guest: string[] } | null>(null);
   /** 🆕手札枚数の前回観測（2026-09-23＝手札の増減をログに出す）。 */
   const prevHandCountRef = useRef<{ host: number; guest: number } | null>(null);
+  /** 🆕ライフクロス枚数の前回観測（2026-10-01＝ライフクロスの増減もログに出す）。 */
+  const prevLifeCountRef = useRef<{ host: number; guest: number } | null>(null);
   const prevPowersRef = useRef<Map<string, number> | null>(null);
   // Realtime で受け取った game_logs をローカル state に同期
   const prevGameLogsLenRef = useRef<number>(0);
@@ -500,16 +502,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const cur = { host: bs.host_state?.hand?.length ?? 0, guest: bs.guest_state?.hand?.length ?? 0 };
     const prev = prevHandCountRef.current;
     prevHandCountRef.current = cur;
+    // 🆕ライフクロスも同じ規約（ホストだけ・セットアップ中は数えない・戻した直後は書かない）で差分を書く。
+    const curLife = { host: bs.host_state?.life_cloth?.length ?? 0, guest: bs.guest_state?.life_cloth?.length ?? 0 };
+    const prevLife = prevLifeCountRef.current;
+    prevLifeCountRef.current = curLife;
     if (bs.global_phase !== 'PLAYING') return;
-    if (!prev || user.id !== bs.host_id) return;
+    if (!prev || !prevLife || user.id !== bs.host_id) return;
     // 🔴🆕**「手を戻した」ぶんの差は書かない**（2026-09-23 `V-287` の実機で実測）＝盤面が丸ごと
     //   過去へ跳ぶので、そのままだと `相手の手札 -1枚（6枚→5枚）` が**戻した直後に出て、
     //   誰かが札を捨てたように読める**。⚠下の `DONE` の後片付けで ref を消しているが、
     //   この hook のほうが**先に**走るので間に合わない＝ここでも見る（基準の取り直しは上で済んでいる）。
     if (bs.rewind_request?.status === 'DONE') return;
-    const lines = handCountLogLines({ self: prev.host, opp: prev.guest }, { self: cur.host, opp: cur.guest });
+    const lines = [
+      ...handCountLogLines({ self: prev.host, opp: prev.guest }, { self: cur.host, opp: cur.guest }),
+      ...lifeCountLogLines({ self: prevLife.host, opp: prevLife.guest }, { self: curLife.host, opp: curLife.guest }),
+    ];
     if (lines.length > 0) appendBattleLogs(lines);
-  }, [bs?.host_state?.hand?.length, bs?.guest_state?.hand?.length, bs?.global_phase, bs?.rewind_request?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bs?.host_state?.hand?.length, bs?.guest_state?.hand?.length, bs?.host_state?.life_cloth?.length, bs?.guest_state?.life_cloth?.length, bs?.global_phase, bs?.rewind_request?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     persist.fetchState()
@@ -2213,6 +2222,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     prevPhaseRef.current = null; prevTurnRef.current = null;
     prevEnergyRef.current = null; prevPowersRef.current = null;
     prevHandCountRef.current = null;
+    prevLifeCountRef.current = null;
     // ⚠**申請の後片付けは `by` に書かれた側だけ**（両者が消すと同じ書き込みが二重に飛ぶ）。
     if (rewindReq.by === user.id) void writeRewindRequest(null);
   }, [rewindReq?.status, rewindReq?.by, rewindReq?.at]); // eslint-disable-line react-hooks/exhaustive-deps

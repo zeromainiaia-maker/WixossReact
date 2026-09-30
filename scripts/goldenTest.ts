@@ -95,7 +95,7 @@ import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCo
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
 // 2026-09-23（ユーザー要望＋バグ報告 `5658e3f6`／`1f6f080a`）＝ログの視点・手札枚数・「何手目に戻る」。
 import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspective';
-import { handCountLogLines } from '../src/screens/battle/handCountLog';
+import { handCountLogLines, lifeCountLogLines } from '../src/screens/battle/handCountLog';
 import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
@@ -92688,6 +92688,19 @@ test('2026-09-23 手札枚数のログ：増減を前後の枚数つきで出す
   //   ⚠この hook は `DONE` の後片付けより**先に**走るので、ref を消すだけでは間に合わない。
   ok(watcher.includes("bs.rewind_request?.status === 'DONE'"),
     '🔴手を戻した直後の盤面の跳びが手札増減のログとして出る（V-287 実機で実測した粗）');
+}));
+
+test('2026-10-01 ライフクロス枚数のログ：増減を前後の枚数つきで出す（ユーザー要望）', () => withSavedCursor(() => {
+  const lines = (a: { self: number; opp: number }, b: { self: number; opp: number }) => lifeCountLogLines(a, b).join(' / ');
+  eq(lines({ self: 7, opp: 7 }, { self: 7, opp: 6 }), '相手のライフクロス -1枚（7枚→6枚）', 'クラッシュの行が出ていない');
+  eq(lines({ self: 3, opp: 5 }, { self: 4, opp: 5 }), 'あなたのライフクロス +1枚（3枚→4枚）', 'ライフ追加の行が出ていない');
+  eq(lines({ self: 3, opp: 5 }, { self: 3, opp: 5 }), '', '変化が無いのに行が出ている');
+  // 🔴配線＝手札と同じウォッチャー（ホスト限定・PLAYING 限定・戻した直後は書かない）を通ること。
+  const battle = battleScreenSource();
+  const watcher = battle.slice(battle.indexOf('const cur = { host: bs.host_state?.hand?.length'), battle.indexOf('lifeCountLogLines(') + 200);
+  ok(watcher.includes('lifeCountLogLines(') && watcher.includes('life_cloth?.length'), '🔴画面がライフクロス枚数を見ていない');
+  ok(watcher.includes('user.id !== bs.host_id') && watcher.includes("bs.rewind_request?.status === 'DONE'"), '🔴ライフのログが手札と同じ枷を通っていない');
+  ok(battle.includes('prevLifeCountRef.current = null;'), '🔴手を戻したときにライフの基準を取り直していない');
 }));
 
 test('2026-09-23 手を戻す：何手目→スナップショット番号の解決と同意の向き（ユーザー要望）', () => withSavedCursor(() => {

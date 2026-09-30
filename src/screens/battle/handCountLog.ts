@@ -21,11 +21,23 @@ export interface HandCounts {
 
 /** `prev` から `cur` への手札増減を説明する行（変化がなければ空）。 */
 export function handCountLogLines(prev: HandCounts, cur: HandCounts): string[] {
+  return zoneCountLogLines('手札', prev, cur);
+}
+
+/**
+ * 🆕**ライフクロスの枚数の増減**（2026-10-01 ユーザー要望＝「手札の増減のログみたいに、ライフクロスの増減も」）。
+ * 🔑クラッシュ・ライフ追加・ライフを手札へ等の経路を1つずつ書かず、手札と同じく**枚数の差分**で書く。
+ */
+export function lifeCountLogLines(prev: HandCounts, cur: HandCounts): string[] {
+  return zoneCountLogLines('ライフクロス', prev, cur);
+}
+
+function zoneCountLogLines(zone: string, prev: HandCounts, cur: HandCounts): string[] {
   const lines: string[] = [];
   const line = (who: string, from: number, to: number) => {
     const d = to - from;
     if (d === 0) return;
-    lines.push(`${who}の手札 ${d > 0 ? '+' : '-'}${Math.abs(d)}枚（${from}枚→${to}枚）`);
+    lines.push(`${who}の${zone} ${d > 0 ? '+' : '-'}${Math.abs(d)}枚（${from}枚→${to}枚）`);
   };
   line('あなた', prev.self, cur.self);
   line('相手', prev.opp, cur.opp);

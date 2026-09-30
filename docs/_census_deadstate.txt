@@ -15,7 +15,7 @@ PlayerState のキー: 382
     57 読 /  33 書  temp_power_mods
    202 読 /  25 書  lrig_trash
    101 読 /  18 書  blocked_actions
-   170 読 /  17 書  life_cloth
+   172 読 /  17 書  life_cloth
    308 読 /  17 書  actions_done
    131 読 /  17 書  keyword_grants
    113 読 /  14 書  coins
