@@ -2033,6 +2033,20 @@ export function banishRedirectAppliesFrom(
   });
 }
 
+/**
+ * 🆕**【常】BANISH_REDIRECT の持ち主候補**（2026-10-01・バグ報告 89430a18）＝場のシグニ（`zi` つき）＋**センタールリグ**（`zi:-1`）。
+ * 🔴旧＝4つの走査（効果経路／パワー0／バトル×2）が**場のシグニだけ**を見ており、ルリグの【常】
+ *   （`WX21-005` ナナシ　其ノ後「対戦相手の感染状態のシグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」）が
+ *   **どの経路でも一度も効いていなかった**。⚠`zi:-1` は `frontOnly`（正面限定）に決して当たらない＝ルリグに正面は無い。
+ */
+export function banishRedirectHolders(holder: PlayerState): { num: string; zi: number }[] {
+  const out: { num: string; zi: number }[] = [];
+  holder.field.signi.forEach((stack, zi) => { const n = stack?.at(-1); if (n) out.push({ num: n, zi }); });
+  const lrig = holder.field.lrig.at(-1);
+  if (lrig && !holder.lrig_abilities_disabled && !(holder.abilities_removed ?? []).includes(lrig)) out.push({ num: lrig, zi: -1 });
+  return out;
+}
+
 /** frontOnly の位置限定を、能力保持側 zi と除去前の被バニッシュ側 zoneIdx で評価する。 */
 export function banishRedirectFrontMatches(
   action: EffectAction,
@@ -2109,9 +2123,7 @@ export function fieldEffectBanishRedirectToTrash(
   effectivePowers?: Map<string, number>,
   effectSourceNum?: string,
 ): boolean {
-  for (const [zi, stack] of holder.field.signi.entries()) {
-    const n = stack?.at(-1);
-    if (!n) continue;
+  for (const { num: n, zi } of banishRedirectHolders(holder)) {
     for (const e of (cardMap.get(n)?.effects ?? [])) {
       if (e.effectType !== 'CONTINUOUS') continue;
       if (!banishRedirectAppliesFrom(e.action, n, null, banished, { excludeWhenPowerZero: true, effectSourceNum })) continue;

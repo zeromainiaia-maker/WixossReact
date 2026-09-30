@@ -1018,7 +1018,8 @@ export function attackingLrigPrintedEffects(
 ): CardEffect[] {
   if ((attackerState.abilities_removed ?? []).includes(attackingLrigNum)) return [];
   return effsOf(ctx, attackingLrigNum)
-    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
+    // 🔴`any_opp` は防御側の能力＝アタックしたルリグ自身では拾わない（シグニ側 `collectAttackerSelfTriggers` と同じ規約・2026-10-01）。
+    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG') && e.triggerScope !== 'any_opp');
 }
 
 /**
@@ -4810,6 +4811,10 @@ export function collectAttackerSelfTriggers(
   const crossOk = isCrossZoneActive(myState, attackerNum, ctx.cardMap);
   return (effsOf(ctx, attackerNum) ?? [])
     .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
+    // 🔴2026-10-01（バグ報告 c7242f30）＝**`any_opp`（「対戦相手のシグニがアタックしたとき」）はアタッカー自身では拾わない**。
+    //   旧＝この経路は `triggerScope` を見ておらず、`WD07-012` ヴィマナが**自分のアタックで自分の【自】を誘発**していた
+    //   （live 14効果が同型）。防御側としての誘発は別経路（「相手シグニアタック時」の収集）が担当する。
+    .filter(e => e.triggerScope !== 'any_opp')
     .filter(e => !e.triggerCondition?.attackedNotFront || sideAttack === true)
     .filter(e => !e.crossOnly || crossOk)
     .filter(e => !e.kizunaIcon || isKizunaActive(myState, attackerNum, ctx.cardMap))

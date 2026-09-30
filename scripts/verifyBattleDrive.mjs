@@ -61034,6 +61034,86 @@ scenarios.effectAnnounce = {
 };
 order.push('effectAnnounce');
 
+// ── 🆕2026-10-01（バグ報告 89430a18）＝**ルリグの【常】BANISH_REDIRECT がパワー0のバニッシュで効く**（WX21-005 ナナシ　其ノ後）──
+// 観測点＝相手の場に元のパワー0の `WX09-019`（エナ0枚ならパワー0）を置き、ルール処理でバニッシュさせる。
+//   ①感染状態 → **相手のトラッシュ**へ（エナへ行かない）  ②感染していない（反転）→ 従来どおり相手のエナへ
+const nanashiSpec = (infected) => ({
+  hostSet: { 'field.lrig': ['WX21-005#1'], 'actions_done': [] },
+  guestSet: { 'field.signi': [['WX09-019#g1'], null, null], 'field.signi_virus': [infected ? 1 : 0, 0, 0], 'energy': [] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 },
+});
+scenarios.nanashiP0Redirect = {
+  title: 'バグ報告 89430a18：ナナシ　其ノ後の【常】＝感染シグニがパワー0でバニッシュ→トラッシュ（非感染はエナ）',
+  spec: nanashiSpec(true),
+  async drive(page, H) {
+    const run = async (infected) => {
+      await injectScenario(page, nanashiSpec(infected));
+      await page.reload({ waitUntil: 'networkidle' });
+      for (let s = 0; s < 15; s++) {
+        await page.waitForTimeout(800);
+        const row = await H.queryRow?.().catch(() => null);
+        const st = await H.queryState();
+        const field = JSON.stringify(st?.guest?.fieldSigni ?? []);
+        if (!field.includes('WX09-019')) {
+          const log = ((st?.logTail ?? []).find(l => /アキナナはパワー0以下のためバニッシュ/.test(l))) ?? null;
+          return { log, row };
+        }
+      }
+      return { log: null, row: null };
+    };
+    const zoneOf = async () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const row = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=guest_state`, { headers: h })).json())?.[0];
+      const g = row.guest_state;
+      return { trash: g.trash.includes('WX09-019#g1'), energy: g.energy.includes('WX09-019#g1') };
+    }, { SUPA_URL, ANON });
+    const r1 = await run(true);
+    const z1 = await zoneOf();
+    await page.screenshot({ path: `${SHOT}/nanashi-01-infected.png`, fullPage: true });
+    H.log(`① 感染: log=${r1.log} zone=${JSON.stringify(z1)}`);
+    const r2 = await run(false);
+    const z2 = await zoneOf();
+    H.log(`② 非感染: log=${r2.log} zone=${JSON.stringify(z2)}`);
+    if (!r1.log) return { pass: false, detail: '🔴感染シグニがパワー0でバニッシュされなかった（盤面が作れていない）' };
+    if (!z1.trash || z1.energy) return { pass: false, detail: `🔴感染シグニがトラッシュへ行かない（${JSON.stringify(z1)}・log=${r1.log}）` };
+    if (!z2.energy || z2.trash) return { pass: false, detail: `🔴非感染シグニまでトラッシュへ行った（${JSON.stringify(z2)}・log=${r2.log}）` };
+    return { pass: true, detail: `①感染→トラッシュ「${r1.log}」 ②非感染→エナ「${r2.log}」` };
+  },
+};
+order.push('nanashiP0Redirect');
+
+// ── 🆕2026-10-01（バグ報告 c7242f30）＝**CPU のヴィマナが自分でアタックしても自分の【自】（相手シグニアタック時）を誘発しない**──
+// 観測点＝CPU の `WD07-012` がアタックする → ログに「ヴィマナ がアタック」はあり、「ヴィマナ の【自】効果（シグニアタック時）」は無い
+//   （正しい向き＝人間のアタックで誘発する側は既存 `wd07012` が見る）。
+scenarios.vimanaSelfAttack = {
+  title: 'バグ報告 c7242f30：CPU のヴィマナが自分のアタックで自分の【自】を誘発しない',
+  spec: {
+    hostSet: { 'field.signi': [null, null, null] },
+    guestSet: { 'field.signi': [['WD07-012#g1'], null, null], 'field.signi_down': [false, false, false], 'blocked_actions': [] },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.vimanaSelfAttack.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    let tail = [];
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      tail = (await H.queryState())?.logTail ?? [];
+      if (tail.some(l => /ヴィマナ がアタック/.test(l)) && tail.some(l => /ルリグアタックフェイズ|エンドフェイズ|ターン開始/.test(l))) break;
+    }
+    const attacked = tail.find(l => /ヴィマナ がアタック/.test(l));
+    const selfTrig = tail.find(l => /ヴィマナ の【自】効果（シグニアタック時）/.test(l));
+    H.log(`attack=${attacked} selfTrigger=${selfTrig ?? 'なし'}`);
+    if (!attacked) return { pass: false, detail: '🔴CPU のヴィマナがアタックしなかった（盤面が作れていない）' };
+    if (selfTrig) return { pass: false, detail: `🔴自分のアタックで自分の【自】を誘発した（${selfTrig}）` };
+    return { pass: true, detail: `「${attacked}」のあとに自分の【自】の誘発なし` };
+  },
+};
+order.push('vimanaSelfAttack');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

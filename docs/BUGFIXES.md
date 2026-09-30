@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01 バグ報告2件（c7242f30 ヴィマナの自己誘発／89430a18 ナナシの感染バニッシュ置換）
+
+`src/engine/` と `src/screens/` を触ったので実機まで＝新規 `vimanaSelfAttack`・`nanashiP0Redirect` ＋既存 `wd07012` PASS。`npm run gates` 全緑（golden 4437/4437）。
+
+- **c7242f30 真因**＝`collectAttackerSelfTriggers`（アタッカー自身の ON_ATTACK_SIGNI）が `triggerScope` を見ておらず、`any_opp`（「対戦相手のシグニがアタックしたとき」）を**自分のアタックで**拾っていた。報告ログで CPU の `WD07-012` が2回とも自己誘発（効果は「アタッカーが場にいない」で空振り）。**影響**＝live `any_opp` の ON_ATTACK_SIGNI **14効果**。同じ防御をルリグ側（印刷・コピーの ON_ATTACK_LRIG＝live に `any_opp` 0件）にも入れた。
+- **89430a18 真因**＝【常】`BANISH_REDIRECT` の持ち主を探す走査4か所（効果経路 `fieldEffectBanishRedirectToTrash`／パワー0 `ruleChecks`／バトル×2＋トリガー判定1）が**場のシグニだけ**を見ており、**ルリグの【常】が一度も効いていなかった**。報告ログではパワー0でバニッシュされた感染ヴィマナがエナへ。**影響**＝ルリグが持つ `BANISH_REDIRECT` は live に `WX21-005` の1枚。**直し方**＝持ち主候補 `banishRedirectHolders`（場のシグニ＋センタールリグ `zi:-1`・能力喪失中は除外）に1本化。
+- ⚠**調査中の偽陽性**＝「アプリのカード表に `effects` が無い＝効果経路の走査が死んでいる」と一度読んだが、確認スクリプトが CSV から直接カードを作っていただけ（アプリは `App.tsx` で載せている）。
+- 検証＝`npm run golden -- --only "バグ報告 c7242f30" --only "バグ報告 89430a18"`。反転確認＝golden（両方）・実機（`vimanaSelfAttack` が修正前ログと同じ行で FAIL）。
+
 ## 2026-10-01（続き2）相手の効果の告知の文面を「相手が《X》を使用」に統一（ユーザー要望）
 
 `src/screens/` を触ったので実機まで＝`verifyBattleDrive effectAnnounce` PASS。`npm run gates` 全緑（golden 4435/4435）。

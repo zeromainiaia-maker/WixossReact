@@ -183,7 +183,7 @@ export const performLrigAttack = async (p: {
       newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...grantedAttack.usedIds] };
     }
     const copiedAutoEffects = (isCenterAttack ? collectCopiedLrigAutoEffects(my, ctx.cardMap, ctx.effectsMap, op, true) : [])
-      .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
+      .filter(e => e.timing?.includes('ON_ATTACK_LRIG') && e.triggerScope !== 'any_opp');
     // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
     // ON_ATTACK_LRIG 付与能力（WXDi-P05-032 等）。lrig_granted_auto_effects（実行時付与）とは別ソース。
     // ⚠triggerScope:'any_opp'（「**対戦相手の**センタールリグがアタックしたとき」）は防御側の能力なので

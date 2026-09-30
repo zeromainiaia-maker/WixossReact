@@ -96,6 +96,7 @@ import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZoneP
 // 2026-09-23（ユーザー要望＋バグ報告 `5658e3f6`／`1f6f080a`）＝ログの視点・手札枚数・「何手目に戻る」。
 import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspective';
 import { handCountLogLines, lifeCountLogLines } from '../src/screens/battle/handCountLog';
+import { banishRedirectHolders } from '../src/engine/effectEngine';
 import { effectSourceInfo, effectWaitingLine, sourceCardCaption } from '../src/screens/battle/effectSourceInfo';
 import { opponentEffectAnnouncement } from '../src/screens/battle/effectAnnounce';
 import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
@@ -92764,6 +92765,46 @@ test('2026-10-01 相手の効果の告知（段4）：ログの文型ごとに�
     ok(src.includes(anchor), `🔴告知が拾うログの文言が消えた：${anchor}`);
   }
   ok(battleScreenSource().includes('opponentEffectAnnouncement(') && battleScreenSource().includes('<EffectAnnounceToast'), '🔴告知が画面に配線されていない');
+}));
+
+test('2026-10-01 バグ報告 c7242f30：「対戦相手のシグニがアタックしたとき」がアタッカー自身のアタックで誘発しない（WD07-012 ヴィマナ）', () => withSavedCursor(() => {
+  const ctx = { ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' };
+  const owner = mkState({ signi: ['WD07-012', null, null] });
+  const got = collectAttackerSelfTriggers(ctx, owner, mkState({}), 'WD07-012', HOST);
+  ok(!got.some(e => e.effectId === 'WD07-012-E1'), '🔴ヴィマナが自分のアタックで自分の【自】（相手シグニアタック時）を誘発している');
+  // 🔑アタッカー自身の誘発（triggerScope:self）は従来どおり拾う（締めすぎていない）。
+  ok(collectAttackerSelfTriggers(ctx, mkState({ signi: ['WX20-Re18', null, null], energy: 10 }), mkState({}), 'WX20-Re18', HOST)
+    .some(e => e.effectId === 'WX20-Re18-E2'), '自分自身のアタック時【自】まで落としている');
+  // ルリグ側も同じ規約（印刷・コピーの経路）。
+  const perf = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigAttack.ts'), 'utf8');
+  ok(perf.includes("e.timing?.includes('ON_ATTACK_LRIG') && e.triggerScope !== 'any_opp'"), '🔴コピーしたルリグの【自】で any_opp を拾っている');
+}));
+
+test('2026-10-01 バグ報告 89430a18：ルリグの【常】BANISH_REDIRECT が効く（WX21-005 ナナシ　其ノ後・感染シグニはトラッシュへ）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const NANASHI = 'WX21-005';
+  const V = SIGNI;
+  const holder = mkState({ lrig: [NANASHI] });
+  const victim = mkState({});
+  const attrs = (infected: boolean) => ({ frozen: false, hasCharm: false, infected, level: 3 });
+  const cmEff = new Map(cm);
+  const nan = cm.get(NANASHI)!;
+  cmEff.set(NANASHI, { ...nan, effects: effectsMap.get(NANASHI) } as unknown as CardData);
+  // ① 効果経路：感染ならトラッシュ・非感染ならエナ
+  const inf = banishDestination(victim, holder, V, { cardMap: cmEff, banished: attrs(true) }).state;
+  ok(inf.trash.includes(V) && !inf.energy.includes(V), '🔴感染シグニがトラッシュへ行かない（ルリグの【常】が見られていない）');
+  const clean = banishDestination(victim, holder, V, { cardMap: cmEff, banished: attrs(false) }).state;
+  ok(clean.energy.includes(V) && !clean.trash.includes(V), '非感染までトラッシュへ送っている');
+  // ② ルリグが能力を失っていれば効かない。
+  const off = banishDestination(victim, { ...holder, lrig_abilities_disabled: true } as PlayerState, V, { cardMap: cmEff, banished: attrs(true) }).state;
+  ok(off.energy.includes(V), '能力を失ったルリグの置換が効いている');
+  // ③ 持ち主候補にセンタールリグが入る（zi:-1＝正面限定には当たらない）。
+  ok(banishRedirectHolders(holder).some(h => h.num === NANASHI && h.zi === -1), '持ち主候補にセンタールリグが無い');
+  // 🔴配線＝パワー0・バトルの経路も同じ候補集合を使う（場のシグニだけの走査に戻ると golden が落ちる）。
+  const rule = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  const battle = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  ok(rule.includes('banishRedirectHolders(opState).some('), '🔴パワー0のバニッシュがルリグの置換を見ていない（報告の経路）');
+  eq((battle.match(/banishRedirectHolders\((myS|opS)\)\.some\(/g) ?? []).length, 3, '🔴バトルのバニッシュがルリグの置換を見ていない');
 }));
 
 test('2026-10-01 ライフクロス枚数のログ：増減を前後の枚数つきで出す（ユーザー要望）', () => withSavedCursor(() => {

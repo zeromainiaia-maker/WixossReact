@@ -1,4 +1,4 @@
-import { calcFieldPowers, calcContinuousSigniMutations, collectBanishEffectProtectedSigni, banishRedirectAppliesFrom, banishRedirectFrontMatches, checkActiveCondition } from '../../../engine/effectEngine';
+import { calcFieldPowers, calcContinuousSigniMutations, collectBanishEffectProtectedSigni, banishRedirectAppliesFrom, banishRedirectFrontMatches, banishRedirectHolders, checkActiveCondition } from '../../../engine/effectEngine';
 import { getCardNum, removeFromField, refreshPlayersIfDeckEmpty } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
 import { collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectBanishTriggers as pureCollectBanishTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectTrashTriggers as pureCollectTrashTriggers } from '../../../engine/triggerCollect';
@@ -239,8 +239,8 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
           opState.power0_banish_to_trash_opp_only === true ||
           // 単体選択×パワー0限定版（WX25-P3-104-E1）。通常のバトル／効果バニッシュ経路には配線しない。
           isSelectedPowerZeroBanishRedirect(opState, topNum) ||
-          opState.field.signi.some((s, zi) => {
-            const n = s?.at(-1);
+          banishRedirectHolders(opState).some(({ num: n, zi }) => {
+            // ルリグの【常】も持ち主候補（banishRedirectHolders・2026-10-01）
             // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない。
             // 被バニッシュ＝topNum（currentOwner の dieZoneP0）。target.filter で絞る（タスク12(xliv)(a)）。
             const base = parseInt(battleCardMap.get(topNum)?.Level ?? '', 10);

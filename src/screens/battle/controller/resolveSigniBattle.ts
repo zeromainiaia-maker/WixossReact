@@ -4,7 +4,7 @@
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {BattleStateRow, PlayerState, CardData, StackEntry} from '../../../types';
 import type {CardEffect} from '../../../types/effects';
-import {leaveToTrashWindowApplies, calcFieldPowers, checkActiveCondition, collectCrossStates, cardHasCrossIcon, collectFrozenBanishOverrides, collectRiseBanishSubstitutes, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, matchesStateFilter} from '../../../engine/effectEngine';
+import {leaveToTrashWindowApplies, calcFieldPowers, checkActiveCondition, collectCrossStates, cardHasCrossIcon, collectFrozenBanishOverrides, collectRiseBanishSubstitutes, banishRedirectAppliesFrom, banishRedirectFrontMatches, banishRedirectHolders, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, matchesStateFilter} from '../../../engine/effectEngine';
 import {removeFromField, getCardNum, evalUseCondition, matchesFilter} from '../../../engine/effectExecutor';
 import {SIGNI_BARRIER_CARD, countBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached} from '../../../engine/execUtils';
 import {initStack, pushToStack} from '../../../engine/effectStack';
@@ -796,8 +796,8 @@ export async function resolvePendingSigniBattleFor(
             isSelectedBattleBanishRedirect(myS, opTopCardNum) ||
             // bySource 付き（このシグニとの/による）＝そのシグニ自身がバトル当事者のときだけ（続き217）
             (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
-            myS.field.signi.some((s, zi) => {
-              const n = s?.at(-1);
+            banishRedirectHolders(myS).some(({ num: n, zi }) => {
+              // ルリグの【常】も持ち主候補（banishRedirectHolders・2026-10-01）
               // bySource（「このシグニとのバトルによって」等）付きは、バトル当事者＝myTopNum のときだけ適用
               // 被バニッシュシグニ＝opTopCardNum。target.filter（レベル/凍結/感染/チャーム）で絞る（タスク12(xliv)(a)）。
               return n && (effectsMap.get(n) ?? []).some(e =>
@@ -1122,8 +1122,8 @@ export async function resolvePendingSigniBattleFor(
             isSelectedBanishRedirect(opS, myTopNum) ||
             isSelectedBattleBanishRedirect(opS, myTopNum) ||
             (opS.banish_redirect_by_source_nums ?? []).includes(opTopCardNum) ||
-            opS.field.signi.some((s, zi) => {
-              const n = s?.at(-1);
+            banishRedirectHolders(opS).some(({ num: n, zi }) => {
+              // ルリグの【常】も持ち主候補（banishRedirectHolders・2026-10-01）
               return n && (effectsMap.get(n) ?? []).some(e =>
                 e.effectType === 'CONTINUOUS' &&
                 banishRedirectAppliesFrom(e.action, n, opTopCardNum, banishedMyAttrsOf(myTopNum)) &&
@@ -1585,8 +1585,8 @@ export async function resolvePendingSigniBattleFor(
         (banishedOpCardNum != null && isSelectedBanishRedirect(myS, banishedOpCardNum)) ||
         (banishedOpCardNum != null && isSelectedBattleBanishRedirect(myS, banishedOpCardNum)) ||
         (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
-        myS.field.signi.some((s, zi) => {
-          const n = s?.at(-1);
+        banishRedirectHolders(myS).some(({ num: n, zi }) => {
+          // ルリグの【常】も持ち主候補（banishRedirectHolders・2026-10-01）
           // 上の redirectBanish（実際の行き先判定）と同じ条件にする＝bySource 付きはバトル当事者のみ・
           // target.filter も同じ被バニッシュシグニ属性で評価する（トリガー発火可否を実際の行き先と一致させる）。
           return n && (effectsMap.get(n) ?? []).some(e =>
