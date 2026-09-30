@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（続き2）相手の効果の告知の文面を「相手が《X》を使用」に統一（ユーザー要望）
+
+`src/screens/` を触ったので実機まで＝`verifyBattleDrive effectAnnounce` PASS。`npm run gates` 全緑（golden 4435/4435）。
+
+- **直し方**＝`battle/effectAnnounce.ts` でログの書式ごとにカード名と種類を取り出して組み立て直す（規則表 `RULES`・上から順に当てる）。アーツ・スペル＝「相手が《X》を使用」／能力＝「相手が《X》の【自】を発動」／ライフバースト＝「相手が《X》のライフバーストを発動」。
+- **塞いだ取り違え2つ**＝名前なしの `[CPU] アーツを使用` を「《アーツ》」にしない／「〜は発動しない」「〜を使用できない」の説明文を開始と読まない。
+- 検証＝`npm run golden -- --only "相手の効果の告知"`（書式13通り＋出さない行6通り）。
+
 ## 2026-10-01（続き）相手の効果の告知（段4）／身代わりバニッシュ・ダメージ置換の選択肢に出所（段5）
 
 `src/screens/` と `src/engine/` を触ったので実機まで＝新規 `verifyBattleDrive effectAnnounce` ＋既存 `effectSourceHeader` PASS（スクショ `scratchpad-verify/effect-announce-02-toast.png`）。`npm run gates` 全緑（golden 4435/4435）。

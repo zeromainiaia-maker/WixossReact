@@ -61028,7 +61028,7 @@ scenarios.effectAnnounce = {
     H.log(`① append=${st1} toast=${opp}`);
     if (caption !== '《幻水　クリオネ》の効果') return { pass: false, detail: `🔴身代わりバニッシュの選択肢に出所が無い（${caption}）` };
     if (own) return { pass: false, detail: `🔴自分の行で告知が出た（${own}）` };
-    if (opp !== '相手：アーツを使用: 母性本能') return { pass: false, detail: `🔴CPU の効果開始で告知が出ない／文言が違う（append=${st1} toast=${opp}）` };
+    if (opp !== '相手が《母性本能》を使用') return { pass: false, detail: `🔴CPU の効果開始で告知が出ない／文言が違う（append=${st1} toast=${opp}）` };
     return { pass: true, detail: `③「${caption}」 ②自分の行は告知なし ①「${opp}」` };
   },
 };
