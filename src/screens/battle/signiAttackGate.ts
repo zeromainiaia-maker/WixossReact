@@ -1,4 +1,5 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
+import { cheerCardOf } from '../../engine/cheerZoneView';
 import type { CardEffect } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectForcedFrontAttackZones, resolveForcedSigniAttack, type ContinuousBlockResult } from '../../engine/effectEngine';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost } from './attackFieldTrashCost';
@@ -138,7 +139,12 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   // §6.4 O-10（続き507）＝「すでにダウン」を gate へ寄せた（従来は人間ボタン生成と CPU 候補フィルタに
   // インラインで写経されていた）。例外は【常】「このシグニはダウン状態でもアタックできる」だけ。
   const downZone = attacker.field.signi.findIndex(stack => stack?.at(-1) === attackerNum);
-  if (downZone >= 0 && (attacker.field.signi_down?.[downZone] ?? false)) {
+  // 🆕§5.3 `O-538` 段階4＝チアゾーンのシグニのダウンは `field.cheer_down`（シグニゾーンの配列には居ない）。
+  //   🔴見ないと**チアゾーンのシグニが何度でもアタックでき**、CPU は ATTACK_SIGNI で無限ループする。
+  const attackerIsDown = cheerCardOf(attacker) === attackerNum
+    ? !!attacker.field.cheer_down
+    : downZone >= 0 && (attacker.field.signi_down?.[downZone] ?? false);
+  if (attackerIsDown) {
     if (!declaresAttackWhileDown(attacker, defender, attackerNum, effectsMap, cardMap)) return 'ALREADY_DOWN';
     if ((attacker.attacked_signi_ids ?? []).filter(id => id === attackerNum).length >= MAX_ATTACKS_WHILE_DOWN) {
       return 'ALREADY_DOWN';

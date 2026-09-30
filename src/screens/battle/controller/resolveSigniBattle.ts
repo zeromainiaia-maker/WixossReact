@@ -1,6 +1,7 @@
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決（`resolvePendingSigniBattleFor`・1,588行）を
 //   `BattleScreen` から**逐語で移設**し、材料と I/O を `PerformCtx` で注入にした（人間・CPU 共用）。
 // ⚠可否の判定はここに書かない。⚠`loading` の確認は画面のラッパ。
+import { CHEER_ZONE, signiStackAt } from '../../../engine/cheerZone';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {BattleStateRow, PlayerState, CardData, StackEntry} from '../../../types';
 import type {CardEffect} from '../../../types/effects';
@@ -252,11 +253,13 @@ export async function resolvePendingSigniBattleFor(
     // ⚠`loading`（画面の操作ロック）の確認は画面側のラッパが行う。
     const { zoneIndex, targetOpZone } = myS.pending_signi_battle;
     const isSideAttack = targetOpZone !== undefined; // 【側面アタック】: 指定ゾーンを攻撃・ライフダメージなし
+    const isCheerAttack = zoneIndex === CHEER_ZONE;   // 🆕§5.3 `O-538` 段階4＝チアゾーンのシグニのアタック（常に指定ゾーン・正面なし）
     const opKey = myKey === 'host_state' ? 'guest_state' : 'host_state';
     const attackerIsHost = myKey === 'host_state';
     setLoading(true);
     try {
-      const myTopNum = (myS.field.signi[zoneIndex] ?? []).at(-1);
+      // 🆕§5.3 `O-538` 段階4＝チアゾーン（`CHEER_ZONE`）からのアタックも同じ解決（攻撃先は必ず `targetOpZone`）。
+      const myTopNum = (signiStackAt(myS, zoneIndex) ?? []).at(-1);
       if (!myTopNum) {
         await persist.commit(reduceBattle(bs, {
           type: 'WRITE_STATE', myKey, myState: { ...myS, pending_signi_battle: undefined },
@@ -459,7 +462,7 @@ export async function resolvePendingSigniBattleFor(
       //   【ランサー】【Sランサー】でバトル勝利後に割る形。それ以外は問い自体が出ない。
       // ⚠**CPU 防御側は従来どおり自動適用**（funnel の `decision` 未指定 policy）＝対話窓を出せないため。
       const lifeCrashDamagePossible = !cannotDealDamageToOpp && (effectivelyEmpty
-        ? (!isSideAttack || sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap))
+        ? (!isSideAttack || (!isCheerAttack && sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)))
         : (isSLancer || isLancer));
       if (lifeCrashDamagePossible && defenderId !== CPU_PLAYER_ID && opS.life_crash_replace_choice === undefined) {
         // 🔴**問い合わせ中の再入はここで止める**（F-3 と同じ）＝止めないと同じ `pending_*` を書き直し続け、
@@ -1189,11 +1192,11 @@ export async function resolvePendingSigniBattleFor(
           appendBattleLogs([`${myCardName}がバニッシュされた${banishMyToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishMyToExileCraft ? '（クラフト→ゲームから除外）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
         }
-      } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
+      } else if (isSideAttack && (isCheerAttack || !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap))) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
         // ⚠ WX16-021（このターン、＜英知＞は空ゾーンへの側面アタックを正面扱いにする）が有効なら
         //   この分岐を飛ばして下のライフアタックへ落とす＝**ボタン生成側と同じ関数で判定する**。
-        appendBattleLogs([`${myCardName}の側面アタック：対象のシグニゾーンにシグニがいないため何も起こらない`]);
+        appendBattleLogs([`${myCardName}の${isCheerAttack ? 'チアゾーンからのアタック' : '側面アタック'}：対象のシグニゾーンにシグニがいないため何も起こらない`]);
       } else if (cannotDealDamageToOpp) {
         // ─── 「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074-E1 の付与）───
         appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない`]);
@@ -1277,7 +1280,8 @@ export async function resolvePendingSigniBattleFor(
       // effectsMap at runtime. GRANT_KEYWORD stores the equivalent capability here.
       const hasGrantedMZA = (dynamicKeywords.my[myTopNum] ?? []).includes('正面以外追加アタック')
         || (newMyState.keyword_grants?.[myTopNum] ?? []).includes('正面以外追加アタック');
-      if (mzaEffect || hasGrantedMZA) {
+      // ⚠チアゾーンには正面が無い＝「正面以外／正面の隣にも追加アタック」はシグニゾーンからのアタックだけ。
+      if ((mzaEffect || hasGrantedMZA) && !isCheerAttack) {
         const myCardDataMZA = battleCardMap.get(myTopNum);
         const myTxtMZA = (myCardDataMZA?.EffectText ?? '') + ' ' + (myCardDataMZA?.BurstText ?? '');
         // 「アタックする」= 強制、「アタックできる」= 任意（デフォルト任意）
@@ -1323,7 +1327,7 @@ export async function resolvePendingSigniBattleFor(
       );
       const hasGrantedAZA = (dynamicKeywords.my[myTopNum] ?? []).includes('正面隣追加アタック')
         || (newMyState.keyword_grants?.[myTopNum] ?? []).includes('正面隣追加アタック');
-      if (azaEffect || hasGrantedAZA) {
+      if ((azaEffect || hasGrantedAZA) && !isCheerAttack) {
         const myPowerAZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
         const adjZones = [zoneIndex - 1, zoneIndex + 1].filter(zi => zi >= 0 && zi < 3);
         let bestAZAZi = -1;

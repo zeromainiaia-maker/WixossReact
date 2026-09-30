@@ -1,3 +1,4 @@
+import { CHEER_ZONE } from '../../engine/cheerZone';
 import type { PlayerState } from '../../types';
 
 export type AttackKind = 'signi' | 'lrig';
@@ -70,12 +71,14 @@ export function resolveNegateEscapeChoice(
   }
   const isLrigAttack = attacker.field.lrig.at(-1) === cardNum;
   const signiDown = [...(attacker.field.signi_down ?? [false, false, false])] as boolean[];
-  if (!isLrigAttack) signiDown[zoneIndex] = true;
+  // 🆕§5.3 `O-538` 段階4＝チアゾーンのシグニは `cheer_down`（`signi_down[3]` へ書くとシグニゾーンが4つに化ける）。
+  const isCheerAttack = zoneIndex === CHEER_ZONE;
+  if (!isLrigAttack && !isCheerAttack) signiDown[zoneIndex] = true;
   return {
     attacker: {
       ...nextAttacker,
       ...(isLrigAttack ? { lrig_has_attacked: true } : { attacked_signi_ids: [...(attacker.attacked_signi_ids ?? []), cardNum] }),
-      field: { ...attacker.field, ...(isLrigAttack ? { lrig_down: true } : { signi_down: signiDown }) },
+      field: { ...attacker.field, ...(isLrigAttack ? { lrig_down: true } : isCheerAttack ? { cheer_down: true } : { signi_down: signiDown }) },
     },
     defender,
     attackNegated: true,

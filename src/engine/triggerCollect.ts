@@ -14,6 +14,7 @@ import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { normalizeKeywordName, keywordDisplayLabel } from '../utils/keywords';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
+import { fieldSigniStacks } from './cheerZoneView';
 import { grantedStoreWatchers } from './grantedStore';
 
 export interface TargetedOrigin {
@@ -51,7 +52,7 @@ export function collectOppOwnedSpellUseTriggers(
   const usedSpell = ctx.cardMap.get(getCardNum(usedSpellNum));
   const sources = [
     casterState.field.lrig.at(-1),
-    ...casterState.field.signi.map(stack => stack?.at(-1)),
+    ...fieldSigniStacks(casterState).map(stack => stack?.at(-1)),
   ].filter((n): n is string => !!n);
   for (const srcNum of sources) {
     for (const eff of (ctx.effectsMap.get(getCardNum(srcNum)) ?? [])) {
@@ -165,7 +166,7 @@ export function collectSuppressedSigniTriggerNums(...states: PlayerState[]): Set
     const nums = [
       ...state.deck, ...state.lrig_deck, ...state.hand, ...state.life_cloth,
       ...state.trash, ...state.lrig_trash, ...state.energy, ...(state.excluded ?? []),
-      ...state.field.lrig, ...state.field.signi.flatMap(stack => stack ?? []),
+      ...state.field.lrig, ...fieldSigniStacks(state).flatMap(stack => stack ?? []),
       ...(state.field.assist_lrig_l ?? []), ...(state.field.assist_lrig_r ?? []),
       ...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? []),
       ...(state.field.key_piece ? [state.field.key_piece] : []), ...(state.field.key_piece_extra ?? []),
@@ -816,7 +817,7 @@ function ownsCardAnyZone(state: PlayerState, cardNum: string): boolean {
   if (hit(state.hand) || hit(state.trash) || hit(state.energy) || hit(state.lrig_trash)) return true;
   if (hit(state.field.lrig) || hit(state.field.assist_lrig_l) || hit(state.field.assist_lrig_r)) return true;
   if (hit([state.field.key_piece, ...(state.field.key_piece_extra ?? []), state.field.check])) return true;
-  return state.field.signi.some(stack => hit(stack ?? undefined));
+  return fieldSigniStacks(state).some(stack => hit(stack ?? undefined));
 }
 
 export function collectTargetedTriggers(
@@ -980,7 +981,7 @@ export function collectAllyLrigAttackTriggers(
   const usedIds: string[] = [];
   const limitOk = mkLimitOk(attackerState.actions_done, usedIds);
   const sources = [
-    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...fieldSigniStacks(attackerState).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
     ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
     ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
   ].filter(n => n !== attackingLrigNum);
@@ -1047,7 +1048,7 @@ export function collectLrigGrowTriggers(
     const watcherIsTurn = ctx.activeUserId === watcherId;
     const limitOk = mkLimitOk(watcherState.actions_done, watcherId === ctx.hostId ? usedHostIds : usedGuestIds);
     const watcherCardNums: string[] = [];
-    for (const stack of watcherState.field.signi) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
+    for (const stack of fieldSigniStacks(watcherState)) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
     watcherCardNums.push(...activeKeyAbilitySources(watcherState));
     const lrigTop = watcherState.field.lrig?.at(-1);
     if (lrigTop) watcherCardNums.push(lrigTop);
@@ -2064,7 +2065,7 @@ export function collectLeaveFieldTriggers(
   // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
   const lrigTop = ownerStateAfter.field.lrig.at(-1);
   const watcherNums = [
-    ...ownerStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
+    ...fieldSigniStacks(ownerStateAfter).flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
     ...(lrigTop ? [lrigTop] : []),
   ];
   for (const topNum of watcherNums) {
@@ -2122,7 +2123,7 @@ export function collectLeaveFieldTriggers(
   const oppLimitOk = mkLimitOk(oppStateAfter.actions_done, leftIsHost ? usedGuestIds : usedHostIds);
   const oppLrigTop = oppStateAfter.field.lrig.at(-1);
   const oppWatcherNums = [
-    ...oppStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
+    ...fieldSigniStacks(oppStateAfter).flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
     ...(oppLrigTop ? [oppLrigTop] : []),
   ];
   for (const topNum of oppWatcherNums) {
@@ -2211,7 +2212,7 @@ function mkLimitOk(actionsDone: string[] | undefined, used: string[]) {
 /** 自分の場のシグニ（各ゾーン top）＋ルリグ top を発動元候補として返す。 */
 function ownFieldSources(state: PlayerState): string[] {
   return [
-    ...state.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...fieldSigniStacks(state).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
   ];
 }
@@ -2250,7 +2251,7 @@ export function collectDrawTriggers(
         if (!(srcCard.CardClass ?? '').includes(eff.triggerCondition.drawBySourceStory)) continue;
         // 🆕§5.3 `O-479`（2026-09-16）＝原文「**あなたの場にある**＜X＞のシグニの効果で」＝原因のシグニが引いた側の場に居ること。
         //   旧は種類とクラスしか見ず、手札やトラッシュから使われた効果・相手の場のシグニの効果でも発火した。
-        if (!drawerState.field.signi.some(st => !!st?.length && getCardNum(st.at(-1)!) === getCardNum(srcNum!))) continue;
+        if (!fieldSigniStacks(drawerState).some(st => !!st?.length && getCardNum(st.at(-1)!) === getCardNum(srcNum!))) continue;
       }
       // outsideDrawPhase: ドローフェイズの通常ドローでは発火しない（効果ドローのみ・WXDi-D09-P19 等）。
       if (eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw) continue;
@@ -2618,7 +2619,7 @@ export function collectAttackEndTriggers(
    * ⚠**明示 opt-in（`triggerScope:'any_ally'|'any'`）だけを通す**＝既定 `'self'` の既存効果を巻き込まない。
    */
   const watcherSourcesOf = (): string[] => [
-    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...fieldSigniStacks(attackerState).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
     ...(attackerState.field.lrig.at(-1) ? [attackerState.field.lrig.at(-1)!] : []),
     ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
     ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
@@ -2631,7 +2632,7 @@ export function collectAttackEndTriggers(
     //   「あなたのルリグかシグニがアタックによって〜したとき、そのアタック終了時」（`WX25-CP1-012-E1`）は
     //   ルリグが watcher なので**永久に発火しなかった**。
     for (const sourceNum of watcherSourcesOf()) {
-      const isSigniW = attackerState.field.signi.some(s => s?.at(-1) === sourceNum);
+      const isSigniW = fieldSigniStacks(attackerState).some(s => s?.at(-1) === sourceNum);
       if (isSigniW && (ownSigniAutoBlocked || removed.has(sourceNum))) continue;
       for (const eff of effsOf(ctx, sourceNum)) {
         const scope = eff.triggerScope ?? 'self';
@@ -2671,7 +2672,7 @@ export function collectAttackEndTriggers(
   // watcher≠アタッカー。ルリグアタックであることを明示する既存条件、または既存 scope のみを許可する。
   const watcherSources = watcherSourcesOf();
   for (const sourceNum of watcherSources) {
-    const isSigni = attackerState.field.signi.some(s => s?.at(-1) === sourceNum);
+    const isSigni = fieldSigniStacks(attackerState).some(s => s?.at(-1) === sourceNum);
     if (isSigni && (ownSigniAutoBlocked || removed.has(sourceNum))) continue;
     for (const eff of effsOf(ctx, sourceNum)) {
       const scope = eff.triggerScope ?? 'self';
@@ -2719,7 +2720,7 @@ export function collectAbilityActivatedTriggers(
     };
     return walk(act.activeCondition) || walk(act.condition);
   })();
-  const fromFieldSigni = activated.ownerState.field.signi.some(s => s?.at(-1) === activated.cardNum);
+  const fromFieldSigni = fieldSigniStacks(activated.ownerState).some(s => s?.at(-1) === activated.cardNum);
   const isWatcherTurn = watcherId === ctx.activeUserId;
   const limitOk = mkLimitOk(watcherState.actions_done, usedOncePerTurnIds);
   const removed = collectContinuousAbilitiesRemovedSigni(watcherState, otherState, isWatcherTurn, ctx.effectsMap, ctx.cardMap, '自');
@@ -3705,7 +3706,7 @@ export function collectLifeClothAddedTriggers(
       ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
-      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      const isSigni = fieldSigniStacks(watcherState).some(s => s?.at(-1) === topNum);
       if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
       for (const eff of effsOf(ctx, topNum)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LIFE_CLOTH_ADDED')) continue;
@@ -3831,7 +3832,7 @@ export function collectLifeClothMovedTriggers(
       ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
-      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      const isSigni = fieldSigniStacks(watcherState).some(s => s?.at(-1) === topNum);
       if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
       for (const eff of effsOf(ctx, topNum)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LIFE_CLOTH_MOVED')) continue;
@@ -3890,7 +3891,7 @@ export function collectOppEnergyAddedTriggers(
       ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
-      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      const isSigni = fieldSigniStacks(watcherState).some(s => s?.at(-1) === topNum);
       if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
       for (const eff of effsOf(ctx, topNum)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_ENERGY_ADDED')) continue;
@@ -3946,8 +3947,9 @@ export function collectSelfEventTriggers(
     : false;
   const isOwnerTurnForSelfTrigger = ownerId === ctx.activeUserId;
   const myAbilitiesRemovedSelf = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForSelfTrigger, ctx.effectsMap, ctx.cardMap, '自');
-  for (let zi = 0; zi < myState.field.signi.length; zi++) {
-    const topNum = myState.field.signi[zi]?.at(-1);
+  const zoneStacks = fieldSigniStacks(myState); // 🆕§5.3 `O-538` 段階4＝チアゾーンも【自】の発生源（添字3）
+  for (let zi = 0; zi < zoneStacks.length; zi++) {
+    const topNum = zoneStacks[zi]?.at(-1);
     if (!topNum) continue;
     if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
     if (myAbilitiesRemovedSelf.has(topNum)) continue;
@@ -4163,7 +4165,7 @@ export function collectLrigAttackGuardedTriggers(
     st.field.assist_lrig_l?.at(-1),
     st.field.assist_lrig_r?.at(-1),
     ...activeKeyAbilitySources(st),
-    ...st.field.signi.map(stack => stack?.at(-1)),
+    ...fieldSigniStacks(st).map(stack => stack?.at(-1)),
   ].filter((n): n is string => !!n);
   const scan = (
     st: PlayerState, otherSt: PlayerState, ownerId: string,
@@ -4206,8 +4208,9 @@ export function collectZoneMovedTriggers(
   const otherUsedIds: string[] = [];
   const scan = (fieldState: PlayerState, ownerId: string, usedIds: string[], accept: (scope: string) => boolean) => {
     if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
-    for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
-      const topNum = fieldState.field.signi[zi]?.at(-1);
+    const zoneStacks = fieldSigniStacks(fieldState); // 🆕§5.3 `O-538` 段階4＝チアゾーンも【自】の発生源（添字3）
+    for (let zi = 0; zi < zoneStacks.length; zi++) {
+      const topNum = zoneStacks[zi]?.at(-1);
       if (!topNum) continue;
       for (const eff of effsOf(ctx, topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ZONE_MOVED')) continue;
@@ -4250,8 +4253,9 @@ export function collectDriveBecameTriggers(
   const otherUsedIds: string[] = [];
   const scan = (fieldState: PlayerState, ownerId: string, usedIds: string[], accept: (scope: string) => boolean) => {
     if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
-    for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
-      const topNum = fieldState.field.signi[zi]?.at(-1);
+    const zoneStacks = fieldSigniStacks(fieldState); // 🆕§5.3 `O-538` 段階4＝チアゾーンも【自】の発生源（添字3）
+    for (let zi = 0; zi < zoneStacks.length; zi++) {
+      const topNum = zoneStacks[zi]?.at(-1);
       if (!topNum) continue;
       for (const eff of effsOf(ctx, topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BECOMES_DRIVE')) continue;
@@ -4313,8 +4317,9 @@ export function collectBeatBecameTriggers(
     pushEntry(becameNum, eff);
   }
   // 2. オーナーの場のシグニ（any_ally/any scope）
-  for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
-    const topNum = ownerState.field.signi[zi]?.at(-1);
+  const zoneStacks = fieldSigniStacks(ownerState); // 🆕§5.3 `O-538` 段階4＝チアゾーンも【自】の発生源（添字3）
+  for (let zi = 0; zi < zoneStacks.length; zi++) {
+    const topNum = zoneStacks[zi]?.at(-1);
     if (!topNum || topNum === becameNum) continue;
     for (const eff of effsOf(ctx, topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
@@ -4346,7 +4351,7 @@ export function collectOppLifeCrashedTriggers(
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
   const limitOk = mkLimitOk(crasherState.actions_done, usedLimitIds);
-  const sources = [...crasherState.field.signi.map(s => s?.at(-1)), crasherState.field.lrig.at(-1),
+  const sources = [...fieldSigniStacks(crasherState).map(s => s?.at(-1)), crasherState.field.lrig.at(-1),
     crasherState.field.assist_lrig_l?.at(-1), crasherState.field.assist_lrig_r?.at(-1),
     ...activeKeyAbilitySources(crasherState)]
     .filter((n): n is string => !!n);
@@ -4415,7 +4420,7 @@ export function collectPlayerDamagedTriggers(
   const limitOk = mkLimitOk(watcherState.actions_done, usedLimitIds);
   entries.push(...collectGenericDelayedTriggers(ctx, watcherId, watcherState, 'ON_PLAYER_DAMAGED'));
   const sources = [
-    ...watcherState.field.signi.map(s => s?.at(-1)),
+    ...fieldSigniStacks(watcherState).map(s => s?.at(-1)),
     watcherState.field.lrig.at(-1),
     watcherState.field.assist_lrig_l?.at(-1),
     watcherState.field.assist_lrig_r?.at(-1),
@@ -4519,7 +4524,7 @@ export function collectHandDiscardTriggers(
   // ON_HAND_DISCARDED: discarder の自フィールド。'any' は常時、それ以外は discarder のターンのみ。
   const myIsTurn = ctx.activeUserId === discarderId;
   const myBlocked = !!myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
-  for (const stack of myState.field.signi) {
+  for (const stack of fieldSigniStacks(myState)) {
     const topNum = stack?.at(-1);
     if (!topNum) continue;
     for (const eff of (effsOf(ctx, topNum) ?? [])) {
@@ -4577,7 +4582,7 @@ export function collectHandDiscardTriggers(
     const oppBlocked = !!opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
     const oppSources: Array<{ num: string | undefined; isLrig: boolean }> = [
       { num: opState.field.lrig.at(-1), isLrig: true },
-      ...opState.field.signi.map(s => ({ num: s?.at(-1), isLrig: false })),
+      ...fieldSigniStacks(opState).map(s => ({ num: s?.at(-1), isLrig: false })),
     ];
     for (const { num: topNum, isLrig } of oppSources) {
       if (!topNum) continue;
@@ -4726,7 +4731,7 @@ export function collectArtsUseTriggers(
   const usedIds: string[] = [];
   const sources = [
     casterState.field.lrig.at(-1),
-    ...casterState.field.signi.map(s => s?.at(-1)),
+    ...fieldSigniStacks(casterState).map(s => s?.at(-1)),
   ].filter((n): n is string => !!n);
   for (const srcNum of sources) {
     for (const eff of (effsOf(ctx, srcNum) ?? [])) {
@@ -4947,7 +4952,7 @@ export function collectFieldTriggers(
   // 自分のフィールド：'any_ally' または 'any' トリガー。ON_PLAY ではルリグも監視対象。
   const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   const allyWatchers: { topNum: string; isLrig: boolean; fromTrash?: boolean }[] = [];
-  for (const stack of myState.field.signi) {
+  for (const stack of fieldSigniStacks(myState)) {
     if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
   }
   // センタールリグも any_ally/any watcher に含める（ON_PLAY 限定だと ON_ATTACK_SIGNI/ON_BANISH/ON_BLOOM の
@@ -5340,7 +5345,7 @@ export function collectTurnTriggers(
   const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap, '自');
   const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, ctx.effectsMap, ctx.cardMap, '自');
   // 自分のフィールドシグニ（self）
-  for (const stack of myState.field.signi) {
+  for (const stack of fieldSigniStacks(myState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     if (ownAutoBlockedTurn) continue;
@@ -5379,7 +5384,7 @@ export function collectTurnTriggers(
   // キーワードトークン効果（GRANT_KEYWORD で付与されたキーワードが ON_TURN_END 等を持つ場合）
   const KEYWORD_TOKEN_MAP: Record<string, string> = { 'みこみこ親衛隊': 'WX25-P3-TK03' };
   const myGrantsKT = myState.keyword_grants ?? {};
-  for (const stack of myState.field.signi) {
+  for (const stack of fieldSigniStacks(myState)) {
     if (!stack?.length) continue;
     const topNumKT = stack[stack.length - 1];
     if (ownAutoBlockedTurn) continue;
@@ -5448,7 +5453,7 @@ export function collectTurnTriggers(
   // 🆕§5.3 `O-313`（2026-09-12）＝`triggerCondition.anyTurn`（原文「**各**ターン終了時」）は
   //   `scope:'self'` のままここでも拾う。🔴無いと「各ターン」の**半分（相手のターン境界）が恒久 no-op**
   //   ＝live 13効果すべてがその状態だった（`triggerScope` を `'any'` にしても自分側の loop が落とすので直せない）。
-  for (const stack of opState.field.signi) {
+  for (const stack of fieldSigniStacks(opState)) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     if (opAbilitiesRemovedTurn.has(topNum)) continue;
@@ -5547,7 +5552,7 @@ export function collectTurnTriggers(
 
   // FUTURE SESSION③: 次のAPSにプリオケシグニへアタック時トラッシュ能力を付与（フラグ検出）
   if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_prioke_attack_trash_grant) {
-    const priokeSignis = myState.field.signi.flatMap(s => {
+    const priokeSignis = fieldSigniStacks(myState).flatMap(s => {
       const top = s?.at(-1);
       return (top && (ctx.cardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
     });

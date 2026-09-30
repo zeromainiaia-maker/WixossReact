@@ -1,3 +1,6 @@
+import { canSigniAttack } from '../signiAttackGate';
+import { CHEER_ZONE, cheerCardOf } from '../../../engine/cheerZone';
+import { pickCheerAttackTarget } from '../cheerAttack';
 import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase, BattleStateRow} from '../../../types';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {CardEffect, TriggerOriginZone} from '../../../types/effects';
@@ -1465,6 +1468,32 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         attackerKey: 'guest_state',
       });
       return; // 次のuseEffectトリガーで残りのシグニをアタック
+    }
+
+    // 🆕§5.3 `O-538` 段階4＝**チアゾーンのシグニのアタック**（相手のシグニゾーンを1つ選ぶ・正面なし）。
+    //   🔑**損が無いので常に撃つ**（規則上アタッカーはバトルで落ちず、ライフも割らない＝アタック時の【自】が得になるだけ）。
+    //   ⚠シグニゾーンのアタック（探索・価値表）が済んでから＝`listCpuMoves` の列挙には入れていない（探索の外の手）。
+    //   ⚠撃ったら `cheer_down` が立つので gate（`ALREADY_DOWN`）が次の周回で弾く＝無限ループしない。
+    const cheerNum = cheerCardOf(cpuSt);
+    if (cheerNum && canSigniAttack({
+      attacker: cpuSt, defender: huSt, attackerNum: cheerNum,
+      effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
+    })) {
+      const cheerTarget = pickCheerAttackTarget({
+        defender: huSt,
+        attackerPower: effectivePowerOf(cheerNum, cpuAttackPowers, battleCardMap),
+        defenderPower: n => effectivePowerOf(n, cpuDefenderPowers, battleCardMap),
+      });
+      appendBattleLogs([`[CPU] ${battleCardMap.get(cheerNum)?.CardName ?? cheerNum} がアタック（チアゾーンから）`]);
+      await performSigniAttack(CHEER_ZONE, {
+        attacker: cpuSt,
+        defender: huSt,
+        attackerId: CPU_PLAYER_ID,
+        defenderId: bs.host_id,
+        attackerKey: 'guest_state',
+        targetOpZone: cheerTarget,
+      });
+      return;
     }
 
     // 全シグニアタック完了 → ATTACK_LRIGへ

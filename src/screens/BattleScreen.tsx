@@ -93,6 +93,7 @@ import {EndConfirmModal} from './battle/modals/EndConfirmModal';
 import {FinishedPopup} from './battle/modals/FinishedPopup';
 import {SystemOverlays} from './battle/modals/SystemOverlays';
 import {EffectAnnounceToast} from './battle/modals/EffectAnnounceToast';
+import {cheerAttackTargets} from './battle/cheerAttack';
 import {opponentEffectAnnouncement} from './battle/effectAnnounce';
 import {useGrowModal} from './battle/hooks/useGrowModal';
 import {useArtsModal} from './battle/hooks/useArtsModal';
@@ -3977,7 +3978,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSigniSideAttack = async (zoneIndex: number, targetOpZone: number) => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
     if (op.field.check) return;
-    const cardNum = my.field.signi[zoneIndex]?.at(-1);
+    // 🆕§5.3 `O-538` 段階4＝チアゾーン（`CHEER_ZONE`）からのアタックもここを通る。
+    const cardNum = signiStackAt(my, zoneIndex)?.at(-1);
     const fieldTrashCount = cardNum ? attackFieldTrashCost(my, cardNum) : 0;
     if (cardNum && fieldTrashCount > 0) {
       if (!canPayAttackFieldTrashCost(my, cardNum, battleCardMap)) return;
@@ -5221,7 +5223,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     if (bs.turn_phase === 'ATTACK_SIGNI') {
-      if (isCheer) return [];   // チアゾーンのアタックは段階4（`O-538`）
       if (!stack || stack.length === 0) return []; // シグニなし
       // ⚠「すでにダウン」は **gate（`ALREADY_DOWN`）** が見る（§6.4 O-10）＝ここに写経すると
       //   【常】「このシグニはダウン状態でもアタックできる」の例外が人間側にだけ効かない。
@@ -5252,6 +5253,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(handTaxAtkCost > 0 ? [`手札${handTaxAtkCost}枚捨て`] : []),
       ];
       const atkLabel = atkCosts.length > 0 ? `アタック（${atkCosts.join('・')}）` : 'アタック';
+      // 🆕§5.3 `O-538` 段階4＝**チアゾーンのシグニは相手のシグニゾーンを1つ選んでアタック**（正面が無い・空きゾーンは何も起きない）。
+      //   攻撃先の列挙は CPU と同じ `cheerAttackTargets`。実行は【側面アタック】と同じ「指定ゾーン」の経路。
+      if (isCheer) {
+        return cheerAttackTargets(op, battleCardMap).map(t => ({
+          label: atkCosts.length > 0 ? `${t.label}（${atkCosts.join('・')}）` : t.label,
+          color: C.danger,
+          onClick: () => handleSigniSideAttack(CHEER_ZONE, t.zone),
+        }));
+      }
       const actions: CardAction[] = [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
       // 【側面アタック】（G077等）: 正面の1つ隣の相手シグニゾーンにアタックできる。
       // 攻撃先は正面か側面を「選ぶ」（同時攻撃ではない）。空ゾーンは何も起きないため占有ゾーンのみ提示。

@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第496バッチ）§5.3 `O-538` 段階4＝チアゾーンのシグニのアタック＋【自】の発生源
+
+`src/screens/` と `src/engine/` を触ったので実機まで＝新規 `cheerZoneAttack`（人間：Ｓｃでククリを選んでアタック→バニッシュ・相手の手札-1・ライフ据え置き・ダウン・再アタック不可／CPU：チアゾーンからアタックしフェイズが進む）PASS＋既存 `cheerZonePlace`・`cheerZoneActivate`・`wd07012`・`vimanaSelfAttack`・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4438/4438）。
+
+- **同じ形の在庫（先に全数で洗った）**＝①`triggerCollect.ts` の `field.signi` 52か所を仕分け＝**ゾーン番号を使わない走査 31か所**（`map/flatMap/some` 21・`for…of` 6・`for (let zi…)` 4＝`zi` は凍結の読み取りだけ）を `fieldSigniStacks` へ／`findIndex`・`[2 - zi]` の17か所（ドライブ・正面・ダウン状態で出た・トラップ／ゲート等のゾーン状態）は**含めない**（ルール上チアゾーンは当たらない）②アタックの経路でゾーン番号を読む箇所＝ゲートのダウン判定・宣言（盤面・ダウン・正面・トラップ）・解決（盤面・空きゾーンのダメージ特例・追加アタック2種）・無効化の受け入れ（`signi_down[3]` へ書いていた）・人間のボタン／実行関数・CPU。
+- **直し方**＝チアゾーンのアタックは `performSigniAttack(CHEER_ZONE, { targetOpZone })`＝【側面アタック】と同じ「指定ゾーン・空きなら何も起きない」経路に乗せ、**正面が無い**ことだけ分岐（トラップ・「正面のシグニがアタックしたとき」・アタッカー正面への移動・空きゾーンをダメージにする特例・正面以外／隣への追加アタックを起こさない）。攻撃先の列挙と CPU の選択は純関数 `battle/cheerAttack.ts`。CPU はシグニゾーンのアタックの後に1回（損が無いので常に撃つ）。
+- ⚠**未解決の観測**＝実機の初回だけ、ハーネスの `logTail` にバトルの2行（「vs」「バニッシュ」）が2回ずつ出た。その後4回は1回ずつで再現せず、DB の `game_logs` とカードの位置（複製なし）も正常。解決が同じ盤面から2回走った可能性があるので、再発したら追う。
+- 検証＝`npm run golden -- --only "O-538"`（段階1〜4）。反転確認＝ゲートのチアゾーン対応を外すと FAIL／`collectFieldTriggers` の発生源を `field.signi` に戻すと FAIL。
+
 ## 2026-10-01 バグ報告2件（c7242f30 ヴィマナの自己誘発／89430a18 ナナシの感染バニッシュ置換）
 
 `src/engine/` と `src/screens/` を触ったので実機まで＝新規 `vimanaSelfAttack`・`nanashiP0Redirect` ＋既存 `wd07012` PASS。`npm run gates` 全緑（golden 4437/4437）。

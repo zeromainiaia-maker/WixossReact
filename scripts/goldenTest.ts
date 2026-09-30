@@ -8,6 +8,7 @@
  * 使い方: npx tsx scripts/goldenTest.ts   （npm run golden）
  * テストの足し方: test('名前', () => { ... assert ... }) を追加するだけ。
  */
+import { cheerAttackTargets, pickCheerAttackTarget } from '../src/screens/battle/cheerAttack';
 import fs from 'fs';
 import { join, sep } from 'path';
 import { execFileSync } from 'child_process';
@@ -93505,6 +93506,49 @@ test('§5.3 O-538 段階3＝チアゾーンのシグニの【常】が効く（�
   // ③ ゾーン番号を使う走査（正面・シグニゾーン）には含めない＝fieldSigniStacks は末尾に足すだけ
   eq(fieldSigniStacksG(sd).length, 4, 'チアゾーンは4番目に足す');
   eq(fieldSigniStacksG(noCheer), noCheer.field.signi, 'チアゾーンが空なら元の配列そのもの（挙動不変）');
+}));
+
+test('§5.3 O-538 段階4＝チアゾーンのシグニのアタック（相手のシグニゾーンを選ぶ・ダウン）と【自】の発生源', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const SC = 'WXEX2-65';   // 羅原　Ｓｃ【自】このシグニがアタックしたとき、対戦相手は手札を１枚捨てる（チアガールになれる）
+  // ① アタック可否：チアゾーンのシグニは**アップならアタックでき、ダウンならできない**（`cheer_down`）。
+  //   🔴旧＝ゲートがシグニゾーンの配列しか見ず、チアゾーンのシグニは「ダウンしていない」扱い＝何度でもアタックできた。
+  const up = mkState({}); up.field.cheer = SC; up.field.cheer_down = false;
+  const down = mkState({}); down.field.cheer = SC; down.field.cheer_down = true;
+  const gate = (s: PlayerState) => signiAttackBlockReason({ attacker: s, defender: mkState({}), attackerNum: SC, effectsMap, cardMap: cm, turnPhase: 'ATTACK_SIGNI' });
+  eq(gate(up), null, 'チアゾーンのアップ状態のシグニがアタックできない');
+  eq(gate(down), 'ALREADY_DOWN', '🔴チアゾーンのダウン状態のシグニがアタックできる（CPU は無限ループする）');
+  // ② アタック先の列挙：相手のシグニゾーン3つ（空きも選べる・ルリグへの直接アタックは無い）。
+  const def = mkState({ signi: ['WD01-013', null, 'WX04-080'] });
+  const tg = cheerAttackTargets(def, cm);
+  eq(tg.map(t => t.zone).join(','), '0,1,2', '相手のシグニゾーン3つ');
+  ok(tg[1].signi === null && tg[1].label.includes('空きゾーン（何も起きない）'), '空きゾーンを選べることがボタンに出ていない');
+  ok(tg[0].label.startsWith('アタック→《'), 'シグニのいるゾーンのボタン');
+  // ③ CPU の攻撃先：倒せる中で一番強い → なければ空き → なければ一番弱い。
+  const pw: Record<string, number> = { A: 3000, B: 8000, C: 12000 };
+  const st = (a: (string | null)[]) => mkState({ signi: a });
+  eq(pickCheerAttackTarget({ defender: st(['A', 'B', 'C']), attackerPower: 10000, defenderPower: n => pw[n] }), 1, '倒せる中で一番強い（B）');
+  eq(pickCheerAttackTarget({ defender: st(['C', null, 'C']), attackerPower: 10000, defenderPower: n => pw[n] }), 1, '倒せないなら空きゾーン');
+  eq(pickCheerAttackTarget({ defender: st(['C', 'B', 'C']), attackerPower: 1000, defenderPower: n => pw[n] }), 1, '空きも無ければ一番弱い');
+  // ④ 無効化を受け入れたとき：`cheer_down` が立ち、シグニゾーンの配列は3つのまま。
+  const acc = resolveNegateEscapeChoice(up, mkState({}), 'accept', SC, CHEER_ZONE);
+  ok(acc.attacker.field.cheer_down === true, '🔴無効化を受け入れてもチアゾーンのシグニがダウンしない');
+  eq((acc.attacker.field.signi_down ?? []).length, 3, '🔴signi_down[3] に書いてシグニゾーンが4つに化けた');
+  // ⑤ 【自】の発生源：チアゾーンの《アダマスフィア》（あなたの赤のシグニがアタックしたとき）が、シグニゾーンの赤のシグニのアタックで誘発する。
+  const RED = findCard(c => c.Type === 'シグニ' && c.Color === '赤' && !(effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'AUTO'));
+  const watcher = mkState({ signi: [RED, null, null] }); watcher.field.cheer = 'WX01-029';
+  const tctx = { hostId: 'H', guestId: 'G', activeUserId: 'H', turnPhase: 'ATTACK_SIGNI' as const, effectsMap, cardMap: cm, genId: () => 'x' };
+  ok(collectFieldTriggers(tctx, 'ON_ATTACK_SIGNI', RED, watcher, mkState({}), 'H').entries.some(e => e.effectId === 'WX01-029-E1'),
+    '🔴チアゾーンのシグニの【自】（あなたの赤のシグニがアタックしたとき）が誘発しない');
+  // 🔴配線＝アタック宣言／バトル解決／人間のボタン／CPU がチアゾーンを通す。
+  const perf = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniAttack.ts'), 'utf8');
+  const res = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  const cpu = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(perf.includes('signiStackAt(my, zoneIndex)') && perf.includes('cheer_down: true'), '🔴アタック宣言がチアゾーンを読まない／ダウンさせない');
+  ok(perf.includes('isCheerAttack ? null : collectNaturalTrapTrigger'), '🔴正面の無いチアゾーンのアタックでトラップが誘発する');
+  ok(res.includes('signiStackAt(myS, zoneIndex)') && res.includes('!isCheerAttack && sideAttackEmptyZoneDealsDamage'), '🔴バトル解決がチアゾーンを読まない／空きゾーンでダメージを与える');
+  ok(battleScreenSource().includes('cheerAttackTargets(op, battleCardMap)'), '🔴チアゾーンのシグニにアタックのボタンが出ない');
+  ok(cpu.includes('pickCheerAttackTarget(') && cpu.includes('performSigniAttack(CHEER_ZONE'), '🔴CPU がチアゾーンのシグニでアタックしない');
 }));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

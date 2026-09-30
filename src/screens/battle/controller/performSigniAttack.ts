@@ -1,4 +1,5 @@
 import {collectOppSigniAttackResponses} from '../attackResponse';
+import { CHEER_ZONE, signiStackAt } from '../../../engine/cheerZone';
 import {collectNaturalTrapTrigger} from '../../../engine/naturalTrap';
 import {calcFieldPowers, checkActiveCondition, collectGrantedFromLayer} from '../../../engine/effectEngine';
 import {getCardNum} from '../../../engine/effectExecutor';
@@ -99,7 +100,11 @@ export const performSigniAttack = async (zoneIndex: number, p: {
   const attackerIsHost = p.attackerKey === 'host_state';
   ctx.io.setLoading(true);
   try {
-    const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
+    // 🆕§5.3 `O-538` 段階4＝`CHEER_ZONE` はチアゾーンのシグニのアタック＝**相手のシグニゾーンを1つ選んで**行う
+    //   （正面が無い＝`targetOpZone` 必須・シグニがいなければ何も起きずライフもクラッシュしない＝【側面アタック】と同じ扱い）。
+    const isCheerAttack = zoneIndex === CHEER_ZONE;
+    if (isCheerAttack && p.targetOpZone === undefined) return;
+    const myTopNum = (signiStackAt(my, zoneIndex) ?? []).at(-1);
     if (!myTopNum) return;
     // GATE: アタック可否は signiAttackGate に一本化（人間ボタン／CPU候補フィルタと同じ関数）。
     // ⚠ここで弾かれるシグニは CPU 候補フィルタ側でも同じ理由で除外されている必要がある
@@ -173,7 +178,7 @@ export const performSigniAttack = async (zoneIndex: number, p: {
 
     // 自分のシグニをダウン
     const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
-    newSigniDown[zoneIndex] = true;
+    if (!isCheerAttack) newSigniDown[zoneIndex] = true;
     const newAttackedIds = [...(my.attacked_signi_ids ?? []), myTopNum];
     // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要な場合、エナを消費
     // ⚠ここは**選択のない自動支払い**（末尾から削る近似）なので §6.4 のエナ支払い元 funnel は通さない
@@ -187,7 +192,11 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     }) ?? 0;
     const signiAtkCostSA = (my.signi_attack_cost ?? 0) + banCostSA;
     const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
-    const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
+    const newMyState: PlayerState = {
+      ...my,
+      field: { ...my.field, signi_down: newSigniDown, ...(isCheerAttack ? { cheer_down: true } : {}) },
+      attacked_signi_ids: newAttackedIds, energy: newEnergySA,
+    };
     const newOpState = op;
 
     // NEGATE_NTH_ATTACK: 防御側の共有カウンタがシグニを対象にする場合
@@ -274,7 +283,8 @@ export const performSigniAttack = async (zoneIndex: number, p: {
       : newOpState;
 
     // ON_ATTACK_SIGNIトリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
-    const opFrontZoneIdx = p.targetOpZone ?? (2 - zoneIndex); // 側面アタックは攻撃先＝指定ゾーン
+    // ⚠チアゾーンには**正面が無い**＝「このシグニの正面のシグニがアタックしたとき」も「アタッカーの正面へ移動」も起きない（-1）。
+    const opFrontZoneIdx = isCheerAttack ? -1 : (p.targetOpZone ?? (2 - zoneIndex)); // 側面アタックは攻撃先＝指定ゾーン
     const opAtkedEntries: StackEntry[] = [];
     const opPlayerId = defenderId;
     newOpState.field.signi.forEach((opSigniStack, ozi) => {
@@ -310,7 +320,7 @@ export const performSigniAttack = async (zoneIndex: number, p: {
             label: `${ctx.cardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（相手シグニアタック時）`,
             effect: oe,
           } satisfies StackEntry);
-        } else if (oeAct.id === 'MOVE_TO_ATTACKER_FRONT') {
+        } else if (oeAct.id === 'MOVE_TO_ATTACKER_FRONT' && opFrontZoneIdx >= 0) {
           opAtkedEntries.push({
             id: generateUUID(),
             playerId: opPlayerId,
@@ -332,7 +342,8 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     // 【トラップ】のルール上の誘発（2026-09-25・バグ報告 b16e1b03）＝正面のシグニがアタックし、
     //   トラップと同じゾーンにシグニがいなければ表向きにしてもよい（`engine/naturalTrap.ts`）。
     //   🔴旧はこの収集が無く、設置したトラップはアタックで一度も発動しなかった。
-    const naturalTrap = collectNaturalTrapTrigger(newOpState, zoneIndex);
+    // ⚠トラップの誘発は「正面のシグニがアタックした」＝チアゾーン（正面が無い）からのアタックでは起きない。
+    const naturalTrap = isCheerAttack ? null : collectNaturalTrapTrigger(newOpState, zoneIndex);
     if (naturalTrap) {
       opAtkedEntries.push({
         id: generateUUID(),

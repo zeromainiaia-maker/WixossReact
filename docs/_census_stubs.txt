@@ -79,7 +79,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\data\sourceTextPayloads.ts:28 / src\data\sourceTextPayloads.ts:60 / src\engine\effectEngine.ts:8647
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
-        消費: src\screens\battle\signiAttackGate.ts:111
+        消費: src\screens\battle\signiAttackGate.ts:112
      1件   1枚  CANNOT_DEAL_DAMAGE_TO_OPPONENT
         カード: WX25-CP1-074
         消費: src\screens\battle\signiDamageGate.ts:20
@@ -121,7 +121,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  NO_BATTLE_DEFENDER
         カード: WX25-P1-TK6
-        消費: src\screens\battle\controller\resolveSigniBattle.ts:447
+        消費: src\screens\battle\controller\resolveSigniBattle.ts:450
      1件   1枚  OPP_ENERGY_COLOR_CONDITION_TRASH
         カード: WXK09-037
         消費: src\engine\effectEngine.ts:4934
@@ -130,7 +130,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\effectEngine.ts:5868
      1件   1枚  POWER_CAP
         カード: WX22-022
-        消費: src\engine\effectEngine.ts:3316 / src\screens\battle\signiAttackGate.ts:23 / src\screens\battle\signiAttackGate.ts:162
+        消費: src\engine\effectEngine.ts:3316 / src\screens\battle\signiAttackGate.ts:24 / src\screens\battle\signiAttackGate.ts:168
      1件   1枚  PREVENT_ATTACK_NEGATION_BY_OPP
         カード: WX25-P3-057
         消費: src\engine\effectEngine.ts:5103

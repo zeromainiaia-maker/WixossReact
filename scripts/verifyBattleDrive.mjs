@@ -61114,6 +61114,99 @@ scenarios.vimanaSelfAttack = {
 };
 order.push('vimanaSelfAttack');
 
+// ── 🆕§5.3 `O-538` 段階4（2026-10-01）＝**チアゾーンのシグニのアタック**──
+// 観測点＝①人間：チアゾーンの羅原　Ｓｃ（`WXEX2-65`・P7000・【自】アタックしたとき対戦相手は手札を1枚捨てる）で
+//   相手のゾーン0（小剣　ククリ P3000）を選んでアタック → ククリがバニッシュ／相手の手札 -1（【自】）／相手のライフは減らない／Ｓｃがダウン
+//   ②ダウンしたＳｃにはアタックのボタンが出ない（反転）
+//   ③CPU：チアゾーンのＳｃでアタックし、フェイズが止まらずに進む（無限ループしない）
+scenarios.cheerZoneAttack = {
+  title: 'O-538 段階4：チアゾーンのシグニが相手のシグニゾーンを選んでアタックし、アタック時【自】が発動する（人間・CPU）',
+  spec: {
+    hostSet: {
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.cheer': 'WXEX2-65#1', 'field.cheer_down': false, 'actions_done': [], 'attacked_signi_ids': [],
+    },
+    guestSet: { 'field.signi': [['WD01-013#g1'], null, null], 'field.signi_down': [false, false, false], 'hand': ['WD01-013#g2', 'WD01-013#g3'] },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.cheerZoneAttack.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    const st0 = await H.queryState();
+    const life0 = st0?.guest?.life, hand0 = st0?.guest?.hand;
+    let clicked = null;
+    // ⚠チアゾーンを押すとゾーンの一覧が開く＝ボタンはその中のカード（`zone-card-0`）を押して出る（`cheerZoneActivate` と同じ手順）。
+    let opened = false;
+    for (let s = 0; s < 12 && !clicked; s++) {
+      if (!opened) { opened = !!(await H.clickTestId('my-cheer-zone')); await page.waitForTimeout(600); continue; }
+      const b = page.getByText(/^アタック→《小剣　ククリ》/).first();   // ⚠カードのアクションは <button> ではない＝文言で探す
+      if (await b.count() && await b.isVisible().catch(() => false)) { clicked = await b.textContent(); await b.click().catch(() => {}); break; }
+      await H.clickTestId('zone-card-0');
+      await page.waitForTimeout(600);
+    }
+    await page.screenshot({ path: `${SHOT}/cheerZoneAttack-01-clicked.png`, fullPage: true });
+    if (!clicked) return { pass: false, detail: '🔴チアゾーンのシグニにアタックのボタン（相手のゾーンを選ぶ）が出ない' };
+    let st = null;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      await H.stdStep?.().catch?.(() => {});
+      st = await H.queryState();
+      const field = JSON.stringify(st?.guest?.fieldSigni ?? []);
+      if (!field.includes('WD01-013#g1') && (st?.guest?.hand ?? 99) < hand0 && !st?.stackLen && !st?.pendingEffect) break;
+    }
+    const tail = st?.logTail ?? [];
+    H.log(`① guestField=${JSON.stringify(st?.guest?.fieldSigni)} hand ${hand0}→${st?.guest?.hand} life ${life0}→${st?.guest?.life} logs=${JSON.stringify(tail.slice(-6))}`);
+    const cheerDown = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const row = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h })).json())?.[0];
+      const gAll = JSON.stringify(row.guest_state ?? {});
+      const logs = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=game_logs`, { headers: h })).json())?.[0]?.game_logs ?? [];
+      return { down: row.host_state.field.cheer_down, signiDownLen: (row.host_state.field.signi_down ?? []).length,
+        kukuriG1Copies: (gAll.match(/WD01-013#g1/g) ?? []).length, logs: logs.slice(-12).map(l => `${l.user_id.slice(0, 4)}:${l.action}`) };
+    }, { SUPA_URL, ANON });
+    H.log(`   cheer_down=${JSON.stringify(cheerDown)}`);
+    // ② 反転＝ダウンしたらもうボタンが出ない
+    await page.keyboard.press('Escape').catch(() => {});
+    await H.clickTestId('my-cheer-zone');
+    await page.waitForTimeout(700);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(700);
+    const again = await page.getByText(/^アタック→/).count();
+    await page.screenshot({ path: `${SHOT}/cheerZoneAttack-02-after.png`, fullPage: true });
+    if (JSON.stringify(st?.guest?.fieldSigni ?? []).includes('WD01-013#g1')) return { pass: false, detail: '🔴アタック先のククリがバニッシュされない（バトルが起きていない）' };
+    if (!((st?.guest?.hand ?? 99) < hand0)) return { pass: false, detail: `🔴Ｓｃのアタック時【自】（相手の手札を1枚捨てる）が発動しない（${hand0}→${st?.guest?.hand}）` };
+    if (st?.guest?.life !== life0) return { pass: false, detail: `🔴チアゾーンのアタックで相手のライフが減った（${life0}→${st?.guest?.life}）` };
+    if (!cheerDown.down || cheerDown.signiDownLen !== 3) return { pass: false, detail: `🔴アタック後にチアゾーンのシグニがダウンしない／signi_down が壊れた（${JSON.stringify(cheerDown)}）` };
+    if (again > 0) return { pass: false, detail: '🔴ダウンしたチアゾーンのシグニにまたアタックのボタンが出る' };
+    // ③ CPU
+    await injectScenario(page, {
+      hostSet: { 'field.signi': [['WD01-013#1'], null, null], 'field.signi_down': [false, false, false], 'hand': ['WD01-013#2', 'WD01-013#3'] },
+      guestSet: { 'field.signi': [null, null, null], 'field.cheer': 'WXEX2-65#g1', 'field.cheer_down': false, 'actions_done': [], 'attacked_signi_ids': [] },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    let cpuLog = null, moved = false;
+    for (let s = 0; s < 25; s++) {
+      await page.waitForTimeout(800);
+      await H.stdStep?.().catch?.(() => {});
+      const t = (await H.queryState())?.logTail ?? [];
+      cpuLog = cpuLog ?? t.find(l => /羅原　Ｓｃ がアタック（チアゾーンから）/.test(l)) ?? null;
+      moved = t.some(l => /ルリグアタックフェイズ|エンドフェイズ|ターン開始/.test(l));
+      if (cpuLog && moved) break;
+    }
+    await page.screenshot({ path: `${SHOT}/cheerZoneAttack-03-cpu.png`, fullPage: true });
+    H.log(`③ cpuLog=${cpuLog} moved=${moved}`);
+    if (!cpuLog) return { pass: false, detail: '🔴CPU がチアゾーンのシグニでアタックしない' };
+    if (!moved) return { pass: false, detail: '🔴CPU のチアゾーンのアタック後にフェイズが進まない（無限ループの疑い）' };
+    return { pass: true, detail: `①「${clicked}」でククリをバニッシュ・相手の手札 ${hand0}→${st.guest.hand}・ライフ ${life0} のまま・Ｓｃはダウン ②再アタックのボタンなし ③「${cpuLog}」→フェイズが進んだ` };
+  },
+};
+order.push('cheerZoneAttack');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。
