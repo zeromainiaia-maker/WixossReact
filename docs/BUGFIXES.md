@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（続き）相手の効果の告知（段4）／身代わりバニッシュ・ダメージ置換の選択肢に出所（段5）
+
+`src/screens/` と `src/engine/` を触ったので実機まで＝新規 `verifyBattleDrive effectAnnounce` ＋既存 `effectSourceHeader` PASS（スクショ `scratchpad-verify/effect-announce-02-toast.png`）。`npm run gates` 全緑（golden 4435/4435）。
+
+- **段4（告知）**＝相手の効果が始まると画面上部に「相手：アーツを使用: 母性本能」を4秒出す（最大3行・操作は透過・選択ダイアログより上）。🔑**ログの行から判定**（`battle/effectAnnounce.ts`）＝開始ログは経路ごとに書式が違うので、告知を経路ごとに書き足さず全経路が書くログを見る。判定は視点入れ替え後の文面（CPU の行はホストが書くため書き手 id では決められない）。
+- **段5（確認画面）**＝身代わりバニッシュは選択肢の `sourceNum`、ダメージ置換は**宣言に `sourceCardNum` が無かった**ので engine の宣言3か所（`LIFE_CRASH_REPLACE`／`REPLACE_NEXT_DAMAGE_WITH_MILL`／付与）と付与ストア合成で記録し、`LifeCrashReplaceOptionState` まで運んだ（表示だけ・照合には使わない）。
+- **対象外**＝アタック無効化回避（`NegateEscapeModal`）＝無効化した側のカードを状態に持っていない。
+- 検証＝`npm run golden -- --only "2026-10-01"`。反転確認＝engine の `sourceCardNum` 記録を外すと段5が FAIL／実機で自分の行では告知が出ないこと。
+- ⚠**告知はログの文言が契約**＝golden が拾う文型（`アーツを使用: ` 等）がソースに残っていることを検査する。
+
 ## 2026-10-01 効果の選択肢に「どのカードの・どの能力か・誰が選ぶのか」を出す（ユーザー要望・WD20-008）
 
 `src/screens/` を触ったので実機まで＝新規 `verifyBattleDrive effectSourceHeader` PASS（スクショ `scratchpad-verify/effect-source-01-opp-choose.png`）。`npm run gates` 全緑。

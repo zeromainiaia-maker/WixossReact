@@ -135,7 +135,7 @@ WXDi-P15-067-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッ�
 WXDi-P15-075-E1	base/both	選択肢なし・差分: 相S対象0: パワー-2000
 WXDi-P15-084-E1	base/both	選択肢なし・差分: 自S源: 状態[なし]→[ダウン]
 WXDi-P16-078-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自エナ ; 自S源: 状態[なし]→[ダウン] ; 自状態 energy_placed_this_turn: なし → ["WD01-009:effect"]
-WXDi-CP01-023-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1] ; 自状態 life_crash_replacements: なし → [{"kind":"mill","count":5,"damageSource":"signi","byAttack":true,"optional":true}]
+WXDi-CP01-023-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1] ; 自状態 life_crash_replacements: なし → [{"kind":"mill","count":5,"sourceCardNum":"自S源","damageSource":"signi","byAttack":true,"optional":true}]
 WXDi-CP01-040-E1	base/both	選択肢なし・差分: 自S源: 状態[なし]→[ダウン]
 WXDi-CP01-042-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
 WXDi-CP02-073-E2	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自S源: 状態[なし]→[ダウン]
@@ -157,7 +157,7 @@ WX24-P2-078-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 �
 WX24-P2-093-E1	base/both	選択肢なし・差分: 自トラッシュ対象: 自トラッシュ → 自エナ ; 自S源: 状態[なし]→[ダウン]
 WX24-P3-005-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x2] ; 自状態 lrig_limit_mod_until_own_energy_phase_end: なし → 1
 WX24-P3-022-E2	base/both	選択肢なし・差分: 自状態 allzone_burst_grant_until_opp_turn: なし → {"type":"STUB","id":"GRANT_ALL_ZONE_LIFEBURST","burstAction":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":…
-WX24-P3-043-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"payOptions":[{"assistLrigDown":{"count":2,"minLevel":1}}],"optional":true}]
+WX24-P3-043-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"sourceCardNum":"自S源","payOptions":[{"assistLrigDown":{"count":2,"minLevel":1}}],"optional":true}]
 WX24-P3-053-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自手札対象: 状態[なし]→[ダウン]
 WX24-P3-053-E2	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自デッキ[12] ; 相手札1: 相手札 → 相トラッシュ ; 相手札2: 相手札 → 相トラッシュ
 WX24-P3-077-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自S源: 状態[なし]→[ダウン]
@@ -171,7 +171,7 @@ WX25-P1-002-E1	base/both	選択肢なし・差分: 相状態 abilities_removed: 
 WX25-P1-004-E1	base/both	選択肢なし・差分: 自状態 life_crash_counters: なし → [{"remaining":1,"perTrigger":1,"sourceType":"lrig"}]
 WX25-P1-006-E1	base/both	選択肢なし・差分: 相S対象0: 状態[なし]→[ダウン]
 WX25-P1-008-E1	base/both	選択肢なし・差分: 自状態 prevent_next_damage_reservations: なし → [{"count":1,"damageSource":"lrig"}]
-WX25-P1-010-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"mill","count":3,"once":true,"damageSource":"signi"}]
+WX25-P1-010-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"mill","count":3,"once":true,"sourceCardNum":"自S源","damageSource":"signi"}]
 WX25-P1-014-E2	base/both	選択肢なし・差分: 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"WX25-P1-014-sub-E1","duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DAMAGE_REPLACE_BY_COST","damageReplaceByCost":{"options":[{"handDiscard":1},{"…
 WX25-P1-022-E2	base/both	選択肢なし・差分: 自状態 trash_spells_usable_this_turn: なし → [{"cardNum":"自トラッシュ対象","from":"self"}]
 WX25-P1-053-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上対象: 自デッキ[0] → 自シグニ0(上) ; 自デッキ上対象: 状態[なし]→[ダウン]
@@ -186,7 +186,7 @@ WX25-P1-103-E1	base/both	選択肢なし・差分: 自デッキの並びが変�
 WX25-P1-104-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX25-P1-104:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX25-P1-110-E1	base/both	選択肢なし・差分: 自トラッシュ対象: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-042:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自トラッシュ対象"]
 WX25-P2-002-E1	base/both	選択肢なし・差分: 相状態 abilities_removed: なし → ["相S対象0","相S対象1","相S丙"]
-WX25-P2-006-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"payOptions":[{"handDiscard":1}],"damageSource":"signi","byAttack":true,"optional":true}]
+WX25-P2-006-E1	base/both	選択肢なし・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"sourceCardNum":"自S源","payOptions":[{"handDiscard":1}],"damageSource":"signi","byAttack":true,"optional":true}]
 WX25-P2-007-E1	base/both	選択肢なし・差分: 自状態 game_energy_phase_charge: なし → 1 ; 自状態 game_guard_alt_energy_and_guard_card: なし → {"energyCount":1,"guardCardCount":1}
 WX25-P2-008-E1	base/both	選択肢なし・差分: 自状態 prevent_damage_windows: なし → [{"scope":"ALL","expires":"MY_TURN_END","sourcePowerGte":12000}]
 WX25-P2-010-E1	base/both	選択肢なし・差分: 相S対象0: パワー-5000 ; 相S乙: パワー-5000
@@ -314,7 +314,7 @@ WX24-P4-005-E1	base/decline	失敗ログ「任意アクションをスキップ�
 WX24-P4-048-E2	base/both	失敗ログ「任意コストの対象なし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）」・差分: 自トラッシュ対象: 自トラッシュ → 自デッキ[12]
 WX25-P1-061-E2	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 WX25-P2-002-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相状態 abilities_removed: なし → ["相S対象0","相S対象1","相S丙"]
-WX25-P2-006-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"payOptions":[{"handDiscard":1}],"damageSource":"signi","byAttack":true,"optional":true}]
+WX25-P2-006-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自状態 life_crash_replacements: なし → [{"kind":"pay_cost","count":1,"sourceCardNum":"自S源","payOptions":[{"handDiscard":1}],"damageSource":"signi","byAttack":true,"optional":true}]
 WX25-P2-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自状態 prevent_damage_windows: なし → [{"scope":"ALL","expires":"MY_TURN_END","sourcePowerGte":12000}]
 WX25-P2-010-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相S対象0: パワー-5000 ; 相S乙: パワー-5000
 WX25-P3-001-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自デッキの並びが変わった（残り11枚） ; WX24-P1-TK2A#1: (不在) → 自フリー ; 自デッキ上1: 自デッキ[0] → 自手札

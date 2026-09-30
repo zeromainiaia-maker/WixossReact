@@ -61,6 +61,8 @@ function grantedPayCostReplacements(state: PlayerState): LifeCrashReplacement[] 
       out.push({
         kind: 'pay_cost', count: 1, optional: true, payOptions: spec.options,
         ...(spec.loseAbility ? { loseGrantedEffectId: effect.effectId } : {}),
+        // 表示用＝付与ストアの effectId はカード番号＋`-E<n>`（例 `WX24-P3-043-E1`）。
+        ...(/^(.+?)-E\d/.test(effect.effectId) ? { sourceCardNum: effect.effectId.replace(/-E\d.*$/, '') } : {}),
       });
     }
   }
@@ -234,10 +236,10 @@ export function lifeCrashReplaceAskOptions(
     if (!e.repl.optional) continue;
     if (e.repl.kind === 'pay_cost') {
       for (const payIndex of e.payIndices) {
-        out.push({ index: e.index, payIndex, label: lifeCrashReplaceOptionLabel(e.repl, payIndex) });
+        out.push({ index: e.index, payIndex, label: lifeCrashReplaceOptionLabel(e.repl, payIndex), ...(e.repl.sourceCardNum ? { sourceCardNum: e.repl.sourceCardNum } : {}) });
       }
     } else {
-      out.push({ index: e.index, label: lifeCrashReplaceOptionLabel(e.repl) });
+      out.push({ index: e.index, label: lifeCrashReplaceOptionLabel(e.repl), ...(e.repl.sourceCardNum ? { sourceCardNum: e.repl.sourceCardNum } : {}) });
     }
   }
   return out;

@@ -96,7 +96,8 @@ import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZoneP
 // 2026-09-23（ユーザー要望＋バグ報告 `5658e3f6`／`1f6f080a`）＝ログの視点・手札枚数・「何手目に戻る」。
 import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspective';
 import { handCountLogLines, lifeCountLogLines } from '../src/screens/battle/handCountLog';
-import { effectSourceInfo, effectWaitingLine } from '../src/screens/battle/effectSourceInfo';
+import { effectSourceInfo, effectWaitingLine, sourceCardCaption } from '../src/screens/battle/effectSourceInfo';
+import { opponentEffectAnnouncement } from '../src/screens/battle/effectAnnounce';
 import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
@@ -92711,6 +92712,51 @@ test('2026-10-01 効果の選択肢の出所：どのカードの・どの能力
   ok((modal.match(/\{sourceHeader\(/g) ?? []).length >= 14, '🔴見出しを通していない分岐がある');
   const overlays = fs.readFileSync(join(root, 'src/screens/battle/modals/SystemOverlays.tsx'), 'utf8');
   ok(overlays.includes('effectWaitingLine('), '🔴相手が選んでいる間の帯が無い');
+}));
+
+test('2026-10-01 効果の出所（段5）：身代わりバニッシュ・ダメージ置換の選択肢にカード名を添える', () => withSavedCursor(() => {
+  eq(sourceCardCaption('WD20-008#3', cardMap), '《母性本能》の効果', 'インスタンス ID から引けない');
+  eq(sourceCardCaption(undefined, cardMap), null, '出所が無いのに文言を出している');
+  // 🔴engine が宣言に**出所カードを載せる**こと（載せないと画面は何も出せない）。
+  const a = manualEffect('WX24-P3-043', 'WX24-P3-043-E1').action as EffectAction;
+  const declared = run(a, { ...mkCtx({}, {}), sourceCardNum: 'WX24-P3-043#1' });
+  eq(declared.ownerState.life_crash_replacements?.[0]?.sourceCardNum, 'WX24-P3-043#1', '🔴ダメージ置換の宣言に出所カードが無い');
+  // 問い（被害側の選択肢）まで運ばれる。
+  const st: PlayerState = { ...mkState({ life: 2 }), life_crash_replacements: [{ kind: 'mill', count: 3, optional: true, sourceCardNum: 'WD20-008' }] };
+  eq(lifeCrashReplaceAskOptions(st, { damageSource: 'signi' })[0]?.sourceCardNum, 'WD20-008', '🔴選択肢に出所カードが運ばれていない');
+  const banish = fs.readFileSync(join(root, 'src/screens/battle/modals/BanishSubstituteModal.tsx'), 'utf8');
+  const crash = fs.readFileSync(join(root, 'src/screens/battle/modals/LifeCrashReplaceModal.tsx'), 'utf8');
+  ok(banish.includes('sourceCardCaption(opt.sourceNum') && crash.includes('sourceCardCaption(opt.sourceCardNum'), '🔴確認画面が出所を添えていない');
+}));
+
+test('2026-10-01 相手の効果の告知（段4）：ログの文型ごとに相手の効果の開始だけを拾う', () => withSavedCursor(() => {
+  const me = 'u1', opp = 'u2';
+  const ann = (user_id: string, action: string) => opponentEffectAnnouncement({ user_id, action }, me);
+  // PvP：相手が書いた行（相手の画面では「自分」＝こちらでは「相手」に入れ替わる）。
+  eq(ann(opp, '[自分] 母性本能 の【自】効果'), '相手：母性本能 の【自】効果', 'スタック解決の行');
+  eq(ann(opp, '母性本能 を使用（コストを支払う）'), '相手：母性本能 を使用（コストを支払う）', '相手のアーツ使用の行');
+  eq(ann(opp, 'サーバント O の【出】効果'), '相手：サーバント O の【出】効果', '相手の【出】の行');
+  // CPU 戦：CPU の行はホスト（＝自分）が書く。
+  eq(ann(me, '[CPU] アーツを使用: 母性本能'), '相手：アーツを使用: 母性本能', 'CPU のアーツ');
+  eq(ann(me, '[CPU] スペルを発動: X'), '相手：スペルを発動: X', 'CPU のスペル');
+  eq(ann(me, '[CPU] 【起】を発動: X'), '相手：【起】を発動: X', 'CPU の【起】');
+  eq(ann(me, '[CPU] ライフクロスをオープン: X（ライフバースト発動）'), '相手：ライフクロスをオープン: X（ライフバースト発動）', 'CPU のライフバースト');
+  eq(ann(me, '[相手] X の【自】効果'), '相手：X の【自】効果', 'CPU のスタック解決（ホストが「相手」と書く）');
+  // 出さない行。
+  eq(ann(me, '[自分] X の【起】効果'), null, '🔴自分の効果まで告知している');
+  eq(ann(me, 'X を使用（コストを支払う）'), null, '🔴自分の操作まで告知している');
+  eq(ann(opp, '[相手] X の【自】効果'), null, '🔴相手が解決した「こちらの」効果を相手の効果として告知している');
+  eq(ann(me, '[CPU] ライフクロスをオープン: X（ライフバーストなし）'), null, 'バーストなしは効果が始まっていない');
+  eq(ann(opp, '対戦相手はこのターン、アーツを使用できない'), null, '🔴「使用できない」の説明文を使用と誤読している');
+  eq(ann(opp, '[自分] メインフェイズ'), null, 'フェイズ行を告知している');
+  // 🔴ログの文言が契約＝告知が拾う文型がソースに残っていること（文言を変えると黙って告知が消える）。
+  const src = [battleScreenSource(),
+    ...['cpuTurn.ts', 'controller/stackResolve.ts'].filter(f => fs.existsSync(join(root, 'src/screens/battle', f)))
+      .map(f => fs.readFileSync(join(root, 'src/screens/battle', f), 'utf8'))].join('\n');
+  for (const anchor of ['アーツを使用: ', 'スペルを発動: ', '【起】を発動: ', '（ライフバースト発動）', '[${who}] ${entry.label}']) {
+    ok(src.includes(anchor), `🔴告知が拾うログの文言が消えた：${anchor}`);
+  }
+  ok(battleScreenSource().includes('opponentEffectAnnouncement(') && battleScreenSource().includes('<EffectAnnounceToast'), '🔴告知が画面に配線されていない');
 }));
 
 test('2026-10-01 ライフクロス枚数のログ：増減を前後の枚数つきで出す（ユーザー要望）', () => withSavedCursor(() => {

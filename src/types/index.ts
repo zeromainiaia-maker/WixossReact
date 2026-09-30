@@ -1918,6 +1918,8 @@ export interface LifeCrashReplaceOptionState {
   payIndex?: number;
   /** 対話UI／ログ用の一行説明（この置換を選ぶと何が起きるか）。 */
   label: string;
+  /** 🆕2026-10-01＝置換を宣言したカード（表示だけ・照合には使わない）。 */
+  sourceCardNum?: string;
 }
 
 /** ライフクラッシュ置換1件ぶんの宣言（`PlayerState.life_crash_replacements`）。 */
@@ -1989,6 +1991,8 @@ export interface LifeCrashReplacement {
   byAttack?: boolean;
   /** 「**次に**」＝1回限り。未指定＝そのターン中は何度でも成立する（【常】付与型）。 */
   once?: boolean;
+  /** 🆕2026-10-01＝宣言したカード（表示だけ＝被害側への問いに「どのカードの効果か」を出す）。 */
+  sourceCardNum?: string;
   /** 原文「〜してもよい」。⚠現状は自動適用の近似（funnel のコメント参照）。 */
   optional?: boolean;
 }

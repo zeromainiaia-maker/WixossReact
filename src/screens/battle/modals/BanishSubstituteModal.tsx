@@ -2,6 +2,7 @@
 import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
 import type { BattleModalCtx } from './types';
+import { sourceCardCaption } from '../effectSourceInfo';
 
 interface BanishSubstituteModalProps {
   ctx: BattleModalCtx;
@@ -49,11 +50,14 @@ export function BanishSubstituteModal(p: BanishSubstituteModalProps) {
                           : opt.costType === 'discardSpell'
                             ? `手札からスペル${opt.amount}枚を捨てて回避`
                             : `《${nameOf(opt.sourceNum)}》の下からスペル${opt.amount}枚をトラッシュして回避`;
+                    // 🆕2026-10-01＝どのカードの効果で身代われるのかを添える（効果の選択肢の出所表示）。
+                    const caption = sourceCardCaption(opt.sourceNum, battleCardMap);
                     return (
                       <button key={i} onClick={() => handleBanishSubstituteChoice(i)} disabled={loading}
                         style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',
                           color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer' }}>
                         {label}
+                        {caption && <span data-testid="option-source-caption" style={{ display: 'block', fontSize: 11, fontWeight: 'normal', opacity: 0.85, marginTop: 2 }}>{caption}</span>}
                       </button>
                     );
                   })}

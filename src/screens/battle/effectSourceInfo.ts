@@ -61,3 +61,13 @@ export function effectWaitingLine(pe: PendingSource, viewerId: string, cardMap: 
   const owner = pe.sourcePlayerId === viewerId ? 'あなたの' : '相手の';
   return `${who}が${owner}《${card?.CardName ?? getCardNum(pe.sourceCardNum)}》の効果で選択中…`;
 }
+
+/**
+ * 選択肢1つぶんの出所（例「《ガードアイコン》の効果」）。身代わりバニッシュ・ダメージ置換のように
+ * **選択肢ごとに別のカードから来る**確認画面で、ボタンに添える。カードが引けなければ null。
+ */
+export function sourceCardCaption(cardNum: string | undefined, cardMap: Map<string, CardData>): string | null {
+  if (!cardNum) return null;
+  const card = cardMap.get(getCardNum(cardNum));
+  return card ? `《${card.CardName}》の効果` : null;
+}

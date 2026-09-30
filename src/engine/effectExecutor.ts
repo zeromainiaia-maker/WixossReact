@@ -11391,6 +11391,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
             act.type === 'LIFE_CRASH_REPLACE')
           .map((act): import('../types').LifeCrashReplacement => ({
             kind: act.replaceKind, count: act.count,
+            ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}),
             ...(act.damageSource ? { damageSource: act.damageSource } : {}),
             ...(act.byAttack ? { byAttack: true } : {}),
             ...(act.once ? { once: true } : {}),
@@ -12209,6 +12210,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       const rdm = action as import('../types/effects').ReplaceNextDamageWithMillAction;
       const decl: import('../types').LifeCrashReplacement = {
         kind: 'mill', count: rdm.millCount, once: true,
+        ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}),
         ...(rdm.damageSource ? { damageSource: rdm.damageSource } : {}),
       };
       const newOwner = {
@@ -12224,6 +12226,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       const lcr = action as import('../types/effects').LifeCrashReplaceAction;
       const declared: import('../types').LifeCrashReplacement = {
         kind: lcr.replaceKind, count: lcr.count,
+        ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}),
         // 🆕`pay_cost`（§5.3 `O-202`）＝支払い方を宣言と一緒に運ぶ。
         // ⚠**空配列では積まない**＝`payOptions` の無い `pay_cost` は funnel が「タダで置換」してしまう。
         ...(lcr.replaceKind === 'pay_cost' ? { payOptions: lcr.payOptions ?? [] } : {}),

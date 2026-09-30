@@ -60979,6 +60979,61 @@ scenarios.effectSourceHeader = {
 };
 order.push('effectSourceHeader');
 
+// ── 🆕2026-10-01（続き）＝**相手の効果の告知**（段4）と**身代わりバニッシュの選択肢の出所**（段5）──
+// 観測点＝① CPU の効果開始の行（`[CPU] アーツを使用: 母性本能`）を実際のログ追記 RPC で流す → 告知の帯に「相手：アーツを使用: 母性本能」
+//   ② 自分の行（`[自分] … の【起】効果`）では告知が出ない（反転）
+//   ③ 身代わりバニッシュの選択肢に「《…》の効果」が添えられる
+scenarios.effectAnnounce = {
+  title: '相手の効果の告知（ログ由来）／身代わりバニッシュの選択肢の出所',
+  spec: {
+    hostSet: {
+      'field.signi': [['WD03-009#1'], ['WX04-080#1'], null],
+      'pending_banish_substitute': { victimNum: 'WD03-009#1', options: [{ kind: 'sacrifice', sourceNum: 'WX04-080#1', sacrificeNum: 'WX04-080#1' }] },
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const appendLog = (action) => page.evaluate(async ({ SUPA_URL, ANON, action }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const r = await fetch(`${SUPA_URL}/rest/v1/rpc/append_battle_logs`, { method: 'POST', headers: h,
+        body: JSON.stringify({ p_room_id: roomId, p_logs: [{ timestamp: new Date().toISOString(), user_id: sess.user.id, action }] }) });
+      return r.status;
+    }, { SUPA_URL, ANON, action });
+    const readToast = async (ticks) => {
+      for (let s = 0; s < ticks; s++) {
+        await page.waitForTimeout(250);
+        const t = await page.getByTestId('effect-announce-toast').first().textContent({ timeout: 100 }).catch(() => null);
+        if (t) return t;
+      }
+      return null;
+    };
+    await injectScenario(page, scenarios.effectAnnounce.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    // ③ 身代わりバニッシュの選択肢の出所
+    const caption = await page.getByTestId('option-source-caption').first().textContent({ timeout: 5000 }).catch(() => null);
+    await page.screenshot({ path: `${SHOT}/effect-announce-01-banish-substitute.png`, fullPage: true });
+    H.log(`③ caption=${caption}`);
+    // ② 自分の行では出ない（反転）
+    const st2 = await appendLog('[自分] サーバント O の【起】効果');
+    const own = await readToast(12);
+    H.log(`② append=${st2} toast=${own}`);
+    // ① CPU の行では出る
+    const st1 = await appendLog('[CPU] アーツを使用: 母性本能');
+    const opp = await readToast(20);
+    await page.screenshot({ path: `${SHOT}/effect-announce-02-toast.png`, fullPage: true });
+    H.log(`① append=${st1} toast=${opp}`);
+    if (caption !== '《幻水　クリオネ》の効果') return { pass: false, detail: `🔴身代わりバニッシュの選択肢に出所が無い（${caption}）` };
+    if (own) return { pass: false, detail: `🔴自分の行で告知が出た（${own}）` };
+    if (opp !== '相手：アーツを使用: 母性本能') return { pass: false, detail: `🔴CPU の効果開始で告知が出ない／文言が違う（append=${st1} toast=${opp}）` };
+    return { pass: true, detail: `③「${caption}」 ②自分の行は告知なし ①「${opp}」` };
+  },
+};
+order.push('effectAnnounce');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

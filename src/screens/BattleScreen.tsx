@@ -92,6 +92,8 @@ import {SpellCutinOverlays} from './battle/modals/SpellCutinOverlays';
 import {EndConfirmModal} from './battle/modals/EndConfirmModal';
 import {FinishedPopup} from './battle/modals/FinishedPopup';
 import {SystemOverlays} from './battle/modals/SystemOverlays';
+import {EffectAnnounceToast} from './battle/modals/EffectAnnounceToast';
+import {opponentEffectAnnouncement} from './battle/effectAnnounce';
 import {useGrowModal} from './battle/hooks/useGrowModal';
 import {useArtsModal} from './battle/hooks/useArtsModal';
 import {useSpellCast} from './battle/hooks/useSpellCast';
@@ -392,6 +394,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       prevGameLogsLenRef.current = remote.length;
     }
   }, [bs?.game_logs]);
+
+  // 🆕**相手の効果が始まったことの告知**（2026-10-01 ユーザー要望）。判定は `battle/effectAnnounce.ts`。
+  //   ログの増分だけを見る（初回の読み込み・手を戻したときの入れ替えでは出さない）。
+  const [effectAnnounce, setEffectAnnounce] = useState<string[]>([]);
+  const announceSeenRef = useRef<number | null>(null);
+  const announceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    const seen = announceSeenRef.current;
+    announceSeenRef.current = battleLogs.length;
+    if (seen === null || battleLogs.length <= seen) return;
+    const lines = battleLogs.slice(seen)
+      .map(l => opponentEffectAnnouncement(l, user.id))
+      .filter((t): t is string => t !== null);
+    if (lines.length === 0) return;
+    setEffectAnnounce(prev => [...prev, ...lines].slice(-3));
+    if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    announceTimerRef.current = setTimeout(() => setEffectAnnounce([]), 4000);
+  }, [battleLogs, user]);
+  useEffect(() => () => { if (announceTimerRef.current) clearTimeout(announceTimerRef.current); }, []);
 
   const appendBattleLogs = useCallback((entries: string[], opts?: { defer?: boolean }) => {
     if (entries.length === 0 || !user) return;
@@ -5945,6 +5967,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* ===== 観戦表示＋長押し拡大＋終了ボタン ===== */}
       <SystemOverlays ctx={modalCtx} expandedPickImgUrl={expandedPickImgUrl} setShowEndConfirm={setShowEndConfirm} />
+      <EffectAnnounceToast lines={effectAnnounce} />
 
     </div>
   );

@@ -23,7 +23,7 @@ export function SystemOverlays(p: SystemOverlaysProps) {
        bs.pending_effect.interaction.type !== 'LOOK_AND_REORDER' &&
        createPortal(
         <div data-testid="effect-waiting-banner"
-          style={{ position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 3998,
+          style={{ position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 4700,
             maxWidth: 'calc(100vw - 32px)', padding: '6px 12px', borderRadius: 8, pointerEvents: 'none',
             backgroundColor: 'rgba(0,0,0,0.82)', border: C.borderUI, color: C.textSub, fontSize: 12,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
