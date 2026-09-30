@@ -10,6 +10,7 @@ import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effec
 import { declareNameCandidates } from '../declareNameCandidates';
 import { choiceLabelFromText } from '../choiceLabels';
 import type { BattleModalCtx } from './types';
+import { EffectSourceHeader } from './EffectSourceHeader';
 import type { EffectAction } from '../../../types/effects';
 
 const DEFAULT_SEARCH_THEN_ACTION: EffectAction = { type: 'ADD_TO_HAND', owner: 'self' };
@@ -62,6 +63,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
         const pe = bs.pending_effect!;
         const inter = pe.interaction;
         const srcCard = battleCardMap.get(pe.sourceCardNum);
+        // 🆕2026-10-01＝**見出しは全部これを通す**（どのカードの・どの能力か・誰が選ぶのか）。直書きに戻すと golden が落ちる。
+        const sourceHeader = (title?: string) => (
+          <EffectSourceHeader pe={pe} viewerId={user.id} cardMap={battleCardMap} onExpand={setExpandedPickImgUrl} title={title} />
+        );
 
         // REVEAL_CARDS：閲覧専用モーダル（「対戦相手の手札を見て」等の情報公開）
         if (inter.type === 'REVEAL_CARDS') {
@@ -73,9 +78,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '16px', width: 'min(94vw, 460px)', maxHeight: '82vh',
                   display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {inter.title ?? `${srcCard?.CardName ?? pe.sourceCardNum}の効果`}
-                </p>
+                {sourceHeader(inter.title)}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
                   {inter.cards.length === 0
                     ? <p style={{ color: C.textFaint, fontSize: 12 }}>カードがありません</p>
@@ -333,9 +336,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: C.textSub, fontSize: 12, margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <p style={{ color: C.text, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center',
                   padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
                   {label}
@@ -487,9 +488,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '16px', width: 'min(94vw, 460px)', maxHeight: '82vh',
                   display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>カード名１つを宣言してください</p>
                 <input
                   data-testid="declare-name-search"
@@ -544,9 +543,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                       padding: '20px 16px', width: 'min(92vw, 380px)',
                       display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                      {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                    </p>
+                    {sourceHeader()}
                     <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>追加コストを選択してください</p>
                     {costOptions.map(opt => (
                       <button key={opt.id}
@@ -609,9 +606,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                     padding: '16px', width: 'min(94vw, 380px)', maxHeight: '80vh',
                     display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                  </p>
+                  {sourceHeader()}
                   <p style={{ color: C.text, fontSize: 12, margin: 0, textAlign: 'center' }}>
                     コスト: {costColors.map(formatCostSlot).join('')} を支払いますか？
                   </p>
@@ -699,9 +694,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                     padding: '20px 16px', width: 'min(92vw, 380px)',
                     display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                  </p>
+                  {sourceHeader()}
                   <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                     {inter.upTo ? `${maxRep}個まで選択` : `${maxRep}個選択`}（{totalRep}/{maxRep}）<br />
                     <span style={{ color: C.textDim, fontSize: 11 }}>同じ選択肢を複数回選べます</span>
@@ -769,9 +762,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                     padding: '20px 16px', width: 'min(92vw, 380px)',
                     display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                  </p>
+                  {sourceHeader()}
                   <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                     {inter.upTo ? `${maxSel}個まで選択` : `${maxSel}個選択`}（{selectedMultiChoiceIds.size}/{maxSel}）
                   </p>
@@ -821,15 +812,13 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(92vw, 360px)',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {inter.leaveSubstituteAsk ? '場離れの置換' : `${srcCard?.CardName ?? pe.sourceCardNum}の効果`}
-                </p>
+                {sourceHeader(inter.leaveSubstituteAsk ? '場離れの置換' : undefined)}
                 {/* §6.4 離場置換の可否は**被害側＝この画面の viewer** に問う。相手のカード名を出して
                     「効果を選択してください」と書くと、誰が何を決めているのか分からない。 */}
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                   {inter.leaveSubstituteAsk
                     ? `${srcCard?.CardName ?? pe.sourceCardNum}の効果であなたのシグニが場を離れます。代わりの処理を選べます。`
-                    : '効果を選択してください'}
+                    : '選択してください'}
                 </p>
                 {inter.options.map(opt => (
                   <button key={opt.id}
@@ -898,9 +887,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 400px)',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                   {isSplit
                     ? `好きな枚数を「上」（デッキトップ）に、残りを「下」（デッキ下）に置いてください ／ 上:${topCount}枚`
@@ -1002,9 +989,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 380px)',
                   display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <img src={placeCard?.ImgURL} alt={placeCard?.CardName}
                     style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6 }}
@@ -1161,6 +1146,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                 <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: 16,
                   width: 'min(95vw, 440px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {sourceHeader()}
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
                     {sourceCardRS?.CardName ?? inter.swapSourceNum}と入れ替える{ownerLabelRS}シグニを選択
                   </p>
@@ -1203,9 +1189,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 420px)', maxHeight: '85vh', overflowY: 'auto',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
                   {/* 🆕§5.3 `O-59`＝`mode:'traps'` は【トラップ】の並べ替え（`WX17-062-E1`）。
                       文言を分けないと「シグニを配置し直す」と嘘の案内になる。 */}
@@ -1290,9 +1274,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 380px)',
                   display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <img src={placeCardSSZ?.ImgURL} alt={placeCardSSZ?.CardName}
                     style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6 }}
@@ -1342,9 +1324,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 380px)',
                   display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
-                </p>
+                {sourceHeader()}
                 <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
                   {tgtLabel}【ウィルス】を置くシグニゾーンを選択してください
                   {inter.remainingZones > 1 ? `（残り${inter.remainingZones}ゾーン）` : ''}

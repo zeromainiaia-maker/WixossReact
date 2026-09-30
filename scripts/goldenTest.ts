@@ -96,6 +96,7 @@ import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZoneP
 // 2026-09-23（ユーザー要望＋バグ報告 `5658e3f6`／`1f6f080a`）＝ログの視点・手札枚数・「何手目に戻る」。
 import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspective';
 import { handCountLogLines, lifeCountLogLines } from '../src/screens/battle/handCountLog';
+import { effectSourceInfo, effectWaitingLine } from '../src/screens/battle/effectSourceInfo';
 import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
@@ -92688,6 +92689,28 @@ test('2026-09-23 手札枚数のログ：増減を前後の枚数つきで出す
   //   ⚠この hook は `DONE` の後片付けより**先に**走るので、ref を消すだけでは間に合わない。
   ok(watcher.includes("bs.rewind_request?.status === 'DONE'"),
     '🔴手を戻した直後の盤面の跳びが手札増減のログとして出る（V-287 実機で実測した粗）');
+}));
+
+test('2026-10-01 効果の選択肢の出所：どのカードの・どの能力か・誰が選ぶのか（ユーザー要望・WD20-008）', () => withSavedCursor(() => {
+  const pe = { sourcePlayerId: 'host', respondPlayerId: 'guest', sourceCardNum: 'WD20-008', effectId: 'WD20-008-E1' };
+  // ① 相手の効果で自分が選ぶ（報告の形）＝持ち主・種別・カード名・「あなたが選びます」。
+  const g = effectSourceInfo(pe, 'guest', cardMap);
+  eq(g.heading, '相手のアーツ《母性本能》の効果', '見出しに持ち主・種別・カード名が出ていない');
+  eq(g.respondNote, '相手の効果で、あなたが選びます', '誰が選ぶのかが出ていない');
+  ok(g.abilityText.includes('各プレイヤーは自分のデッキの上からカードを３枚までエナゾーンに置く'), `能力の文面が出ていない：${g.abilityText}`);
+  // ② 効果の持ち主から見ると「あなたの」＋相手が選んでいる。
+  const h = effectSourceInfo(pe, 'host', cardMap);
+  eq(h.heading, 'あなたのアーツ《母性本能》の効果', '自分の効果が「あなたの」になっていない');
+  eq(h.respondNote, 'あなたの効果で、相手が選んでいます', '');
+  // ③ 自分の効果を自分で選ぶ＝一文は出さない。インスタンス ID（#N）でも引ける。
+  eq(effectSourceInfo({ ...pe, sourceCardNum: 'WD20-008#2', respondPlayerId: undefined }, 'host', cardMap).respondNote, null, '自分で選ぶのに一文が出ている');
+  eq(effectWaitingLine(pe, 'host', cardMap), '相手があなたの《母性本能》の効果で選択中…', '待機の帯の文言');
+  // 🔴配線＝**見出しの直書きが0**（全部 EffectSourceHeader を通す）＋待機の帯が在る。
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/EffectInteractionModal.tsx'), 'utf8');
+  ok(!/\{srcCard\?\.CardName \?\? pe\.sourceCardNum\}の効果\s*</.test(modal), '🔴効果の選択肢の見出しが直書きに戻っている＝出所が出ない');
+  ok((modal.match(/\{sourceHeader\(/g) ?? []).length >= 14, '🔴見出しを通していない分岐がある');
+  const overlays = fs.readFileSync(join(root, 'src/screens/battle/modals/SystemOverlays.tsx'), 'utf8');
+  ok(overlays.includes('effectWaitingLine('), '🔴相手が選んでいる間の帯が無い');
 }));
 
 test('2026-10-01 ライフクロス枚数のログ：増減を前後の枚数つきで出す（ユーザー要望）', () => withSavedCursor(() => {

@@ -60927,6 +60927,58 @@ scenarios.v267CpuInteractionPolicy = {
 };
 order.push('v267CpuInteractionPolicy');
 
+// ── 🆕2026-10-01＝**効果の選択肢に「どのカードの・どの能力か・誰が選ぶのか」を出す**（ユーザー要望・WD20-008）──
+// 観測点＝①CPU の《母性本能》の選択肢が人間に来る → 見出し「相手のアーツ《母性本能》の効果」・一文「相手の効果で、あなたが選びます」・能力の文面
+//   ②人間の効果の選択肢を CPU が選んでいる間 → 待機の帯「相手があなたの《…》の効果で選択中…」
+scenarios.effectSourceHeader = {
+  title: '効果の選択肢の出所表示：相手の効果で自分が選ぶ（WD20-008）／相手が選択中の帯',
+  spec: {
+    guestSet: { 'field.lrig': ['WD20-001#g1'], 'actions_done': [] },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.effectSourceHeader.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    const hostId = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      return JSON.parse(localStorage.getItem(key))?.user?.id;
+    });
+    const choose = { type: 'CHOOSE', count: 1, options: [0, 1, 2, 3].map(n => ({
+      id: `opponent-${n}`, label: `${n}枚置く`, available: true,
+      action: n === 0 ? { type: 'SEQUENCE', steps: [] } : { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: n },
+    })) };
+    // ① 相手（CPU）の効果で人間が選ぶ
+    await H.repatchTop({ pending_effect: { sourcePlayerId: CPU_PLAYER_ID, respondPlayerId: hostId, sourceCardNum: 'WD20-008', effectId: 'WD20-008-E1', interaction: choose } });
+    let heading = null, note = null, text = null;
+    for (let s = 0; s < 15 && !heading; s++) {
+      await page.waitForTimeout(700);
+      heading = await page.getByTestId('effect-source-heading').first().textContent({ timeout: 300 }).catch(() => null);
+    }
+    note = await page.getByTestId('effect-source-note').first().textContent({ timeout: 500 }).catch(() => null);
+    text = await page.getByTestId('effect-source-text').first().textContent({ timeout: 500 }).catch(() => null);
+    await page.screenshot({ path: `${SHOT}/effect-source-01-opp-choose.png`, fullPage: true });
+    H.log(`① heading=${heading} note=${note} text=${text?.slice(0, 60)}`);
+    if (heading !== '相手のアーツ《母性本能》の効果') return { pass: false, detail: `🔴見出しが違う（${heading}）` };
+    if (note !== '相手の効果で、あなたが選びます') return { pass: false, detail: `🔴誰が選ぶかの一文が違う（${note}）` };
+    if (!text || !text.includes('３枚までエナゾーンに置く')) return { pass: false, detail: `🔴能力の文面が出ていない（${text}）` };
+    // ② 人間の効果を CPU が選んでいる間の帯（CPU はすぐ応答するので出ている間に拾う）
+    await H.repatchTop({ pending_effect: { sourcePlayerId: hostId, respondPlayerId: CPU_PLAYER_ID, sourceCardNum: 'WD20-008', effectId: 'WD20-008-E1',
+      interaction: { ...choose, options: choose.options.map(o => ({ ...o, id: o.id.replace('opponent', 'self') })) } } });
+    let banner = null;
+    for (let s = 0; s < 40 && !banner; s++) {
+      await page.waitForTimeout(100);
+      banner = await page.getByTestId('effect-waiting-banner').first().textContent({ timeout: 100 }).catch(() => null);
+    }
+    await page.screenshot({ path: `${SHOT}/effect-source-02-waiting.png`, fullPage: true });
+    H.log(`② banner=${banner}`);
+    await H.repatchTop({ pending_effect: null });
+    if (banner !== '相手があなたの《母性本能》の効果で選択中…') return { pass: false, detail: `🔴待機の帯が出ない／文言が違う（${banner}）` };
+    return { pass: true, detail: `①「${heading}」「${note}」能力文あり ②「${banner}」` };
+  },
+};
+order.push('effectSourceHeader');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

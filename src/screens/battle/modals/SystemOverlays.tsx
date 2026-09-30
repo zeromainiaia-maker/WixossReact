@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
 import type { BattleModalCtx } from './types';
+import { effectWaitingLine } from '../effectSourceInfo';
 
 interface SystemOverlaysProps {
   ctx: BattleModalCtx;
@@ -15,6 +16,21 @@ export function SystemOverlays(p: SystemOverlaysProps) {
   const { expandedPickImgUrl, setShowEndConfirm } = p;
   return (
     <>
+      {/* 🆕2026-10-01＝**相手が効果の選択肢を選んでいる間の帯**（画面は塞がない）。
+          旧＝並べ替え（LOOK_AND_REORDER・下の専用表示）以外は何も出ず、相手が何を処理中か分からなかった。 */}
+      {bs.pending_effect &&
+       (bs.pending_effect.respondPlayerId ?? bs.pending_effect.sourcePlayerId) !== user.id &&
+       bs.pending_effect.interaction.type !== 'LOOK_AND_REORDER' &&
+       createPortal(
+        <div data-testid="effect-waiting-banner"
+          style={{ position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 3998,
+            maxWidth: 'calc(100vw - 32px)', padding: '6px 12px', borderRadius: 8, pointerEvents: 'none',
+            backgroundColor: 'rgba(0,0,0,0.82)', border: C.borderUI, color: C.textSub, fontSize: 12,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {effectWaitingLine(bs.pending_effect, user.id, battleCardMap)}
+        </div>,
+        document.body,
+      )}
       {/* ===== 相手のLOOK_AND_REORDER 観戦表示（公開する=両者表示 / 見る=待機のみ） ===== */}
       {bs.pending_effect &&
        (bs.pending_effect.respondPlayerId ?? bs.pending_effect.sourcePlayerId) !== user.id &&

@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01 効果の選択肢に「どのカードの・どの能力か・誰が選ぶのか」を出す（ユーザー要望・WD20-008）
+
+`src/screens/` を触ったので実機まで＝新規 `verifyBattleDrive effectSourceHeader` PASS（スクショ `scratchpad-verify/effect-source-01-opp-choose.png`）。`npm run gates` 全緑。
+
+- **真因（1行）**＝`EffectInteractionModal` の見出しが全14分岐で「〇〇の効果」の直書き＝①自分の札か相手の札か ②どの能力か ③なぜ自分が選ぶのか、が出ていなかった（相手の《母性本能》でこちらに「0枚置く…」だけが出る）。さらに相手が選んでいる間は並べ替え以外なにも表示されなかった。
+- **影響**＝効果の選択肢すべて（自分の効果も含む）。相手に選ばせる効果は live 174枚。
+- **直し方**＝判定は純関数 `battle/effectSourceInfo.ts`（持ち主・種別・カード名・`abilityBlockTextOf` で発動中の能力だけ・選ぶ人の一文）、描画は `modals/EffectSourceHeader.tsx` に1本化し14分岐を置換。相手が選択中の帯を `SystemOverlays.tsx` に追加（`effectWaitingLine`）。
+- **残り**＝`EffectInteractionModal` の外の効果起因モーダル（身代わりバニッシュ・ダメージ置換 等）は未適用。発動時の告知（段4）も未着手。
+- 検証＝`npm run golden -- --only "効果の選択肢の出所"`。反転確認＝見出しを直書きに戻すと FAIL（実測）。
+
 ## 2026-09-29（第495バッチ）§5.3 `O-538` 段階3＝チアゾーンのシグニの【常】
 
 `src/screens/` を触ったので実機まで＝既存 `cheerZonePlace`・`cheerZoneActivate`・`verifyFullMatch cpu` PASS（【常】そのものは engine＝golden で確認）。`npm run gates` 全緑（golden 4431/4431）。
