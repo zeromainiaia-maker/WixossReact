@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
 import { LB_MAX, MAIN_MAX } from '../../utils/deckBuildLimits';
@@ -39,7 +40,7 @@ import type { BoardWeights, CpuPolicy } from './cpuPolicy';
 
 /** 公開ゾーンのカード＝**相手のエナ・トラッシュ・場のシグニ**（メインデッキ由来のものだけ）。 */
 function publicMainDeckCards(opp: PlayerState, cardMap: Map<string, CardData>): CardData[] {
-  const ids = [...opp.energy, ...opp.trash, ...opp.field.signi.flatMap(z => z ?? [])];
+  const ids = [...opp.energy, ...opp.trash, ...fieldSigniStacks(opp).flatMap(z => z ?? [])];
   const out: CardData[] = [];
   for (const id of ids) {
     const num = getCardNum(id);

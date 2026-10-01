@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from './cheerZoneView';
 import type { CardData, PlayerState } from '../types';
 
 /**
@@ -26,7 +27,7 @@ const baseNum = (id: string): string => {
 
 /** 規則が見る領域の instance 一覧。'field'＝シグニゾーンの全カード（下に重なった札を含む）。 */
 export function nameRuleScopeCards(state: PlayerState, zones: NameIdentityRule['zones']): string[] {
-  const field = state.field.signi.flatMap(stack => stack ?? []);
+  const field = fieldSigniStacks(state).flatMap(stack => stack ?? []);
   if (zones === 'field') return field;
   return [
     ...field,

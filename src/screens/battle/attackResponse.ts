@@ -6,6 +6,7 @@
 // （Opusタスク12(cx)）。フェイズを増やす代わりに、**アタック宣言→バトル解決の間**（`pending_signi_battle` が
 // 立っている区間）に守備側のスタックへ「支払って発動するか」の CHOOSE を積む＝`ON_OPP_SIGNI_ATTACK_DIRECT`
 // （WX04-004-E2）と同じ作法に揃える。UI 部品も新しい窓も要らない。
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { PlayerState, CardData } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { wrapOptionalOnPlay } from '../../engine/triggerCollect';
@@ -43,7 +44,7 @@ export function collectOppSigniAttackResponses(
     ...(defender.field.lrig.at(-1) ? [defender.field.lrig.at(-1)!] : []),
     ...(defender.field.assist_lrig_l?.at(-1) ? [defender.field.assist_lrig_l.at(-1)!] : []),
     ...(defender.field.assist_lrig_r?.at(-1) ? [defender.field.assist_lrig_r.at(-1)!] : []),
-    ...defender.field.signi.flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
+    ...fieldSigniStacks(defender).flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
   ];
   const out: Array<{ cardNum: string; effect: CardEffect }> = [];
   for (const cardNum of sources) {

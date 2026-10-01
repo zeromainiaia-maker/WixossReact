@@ -1400,7 +1400,7 @@ export async function resolvePendingSigniBattleFor(
               const heavenCards = heavenZoneNums.map(n => battleCardMap.get(getCardNum(n)));
               const lrigTopH = stateAfterDown.field.lrig.at(-1);
               const watcherNumsH = [
-                ...stateAfterDown.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+                ...fieldSigniStacks(stateAfterDown).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
                 ...(lrigTopH ? [lrigTopH] : []),
               ];
               for (const watcherNum of watcherNumsH) {

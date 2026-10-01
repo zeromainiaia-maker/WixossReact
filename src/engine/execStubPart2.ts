@@ -317,7 +317,7 @@ export function execStubPart2(
     // 対象シグニが未選択なら SELECT_TARGET で相手シグニを選ぶ（レベル奇数/偶数でフィルタ）
     if (!ctx.lastProcessedCards?.length) {
       const parityPMAL = specPMAL.targetParity;
-      const oppCandsPMAL = ctx.otherState.field.signi.flatMap(s => {
+      const oppCandsPMAL = fieldSigniStacks(ctx.otherState).flatMap(s => {
         const top = s?.at(-1);
         if (!top) return [];
         if (parityPMAL) {
@@ -1763,7 +1763,7 @@ export function execStubPart2(
   //   読み手は `effectiveIdentityOverrides`（`battleCardMap`／augmented effectsMap／パワー基準値の共通 funnel）。
   if (stub.id === 'SELF_SIGNI_SERVANT_ZERO_THIS_TURN') {
     const SERVANT_ZERO_NUM_TT = 'WXDi-P07-TK01-A';
-    const onField = new Set(ctx.ownerState.field.signi.flatMap(z => z ?? []));
+    const onField = new Set(fieldSigniStacks(ctx.ownerState).flatMap(z => z ?? []));
     const targetsTT = (ctx.lastProcessedCards ?? []).filter(cn => onField.has(cn));
     if (targetsTT.length === 0) return done(addLog(ctx, '対象なし（場に出したシグニがいない）'));
     const overridesTT = { ...(ctx.ownerState.card_identity_overrides_this_turn ?? {}) };

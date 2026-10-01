@@ -61371,6 +61371,49 @@ scenarios.cheerAcce = {
 };
 order.push('cheerAcce');
 
+// ── 🆕§5.3 `O-541`（2026-10-01）＝**チアゾーンのシグニをエナチャージできる**（公式ルール）──
+// 観測点＝エナフェイズにチアゾーンの羅原　Ｓｃ を開いて「エナチャージ」→ Ｓｃがエナへ・チアゾーンが空く
+scenarios.cheerEnergyCharge = {
+  title: 'O-541：チアゾーンのシグニをエナチャージできる',
+  spec: {
+    hostSet: { 'field.signi': [null, null, null], 'field.cheer': 'WXEX2-65#1', 'field.cheer_down': false, 'actions_done': [], 'blocked_actions': [] },
+    guestSet: { 'field.signi': [null, null, null] },
+    top: { active: 'host', turn_phase: 'ENERGY', turn_count: 3 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.cheerEnergyCharge.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    let opened = false, clicked = null;
+    for (let s = 0; s < 12 && !clicked; s++) {
+      if (!opened) { opened = !!(await H.clickTestId('my-cheer-zone')); await page.waitForTimeout(600); continue; }
+      const b = page.getByText(/^エナチャージ$/).first();
+      if (await b.count() && await b.isVisible().catch(() => false)) { clicked = 'エナチャージ'; await b.click().catch(() => {}); break; }
+      await H.clickTestId('zone-card-0');
+      await page.waitForTimeout(600);
+    }
+    if (!clicked) return { pass: false, detail: '🔴チアゾーンのシグニに「エナチャージ」のボタンが出ない' };
+    let row = null;
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(800);
+      row = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key));
+        const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+        const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+        const r = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h })).json())?.[0];
+        return { cheer: r.host_state.field.cheer ?? null, inEnergy: r.host_state.energy.includes('WXEX2-65#1') };
+      }, { SUPA_URL, ANON });
+      if (row.inEnergy) break;
+    }
+    await page.screenshot({ path: `${SHOT}/cheerEnergyCharge-01.png`, fullPage: true });
+    H.log(`row=${JSON.stringify(row)}`);
+    if (row.cheer || !row.inEnergy) return { pass: false, detail: `🔴チアゾーンのシグニがエナへ行かない（${JSON.stringify(row)}）` };
+    return { pass: true, detail: 'チアゾーンのＳｃをエナチャージ→エナへ・チアゾーンが空いた' };
+  },
+};
+order.push('cheerEnergyCharge');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import { coinLedger } from '../../../engine/coinAbilityNegation';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
@@ -410,7 +411,7 @@ export const performLrigActivated = async (
       const myTurnEC = p.actorId === ctx.bs.active_user_id;
       const exceedUsedIds: string[] = [];
       const ecSources: string[] = [
-        ...paid.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+        ...fieldSigniStacks(paid).flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
         ...(paid.field.lrig.at(-1) ? [paid.field.lrig.at(-1)!] : []),
       ];
       for (const topEC of ecSources) {

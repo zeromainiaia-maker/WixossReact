@@ -1,3 +1,5 @@
+import { CHEER_ZONE, cheerCardOf } from '../../../engine/cheerZone';
+import { removeFromField } from '../../../engine/execUtils';
 import type { CardData, PlayerState } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import { collectOppEnergyColorRestriction } from '../../../engine/effectEngine';
@@ -52,6 +54,13 @@ export function performEnergyCharge(
       const id = actor.hand[source.handIndex];
       if (!id) return null;
       return { charged: id, base: { ...actor, hand: actor.hand.filter((_, i) => i !== source.handIndex) } };
+    }
+    // 🆕§5.3 `O-541`（2026-10-01）＝**チアゾーンのシグニもエナチャージできる**（公式ルール）。取り除くのは `removeFromField`
+    //   （付いていた【チャーム】【アクセ】はトラッシュ＝`R-41`）。
+    if (source.zone === CHEER_ZONE) {
+      const cheer = cheerCardOf(actor);
+      if (!cheer) return null;
+      return { charged: cheer, base: removeFromField(cheer, actor) };
     }
     const stack = actor.field.signi[source.zone];
     if (!stack || stack.length === 0) return null;

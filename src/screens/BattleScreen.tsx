@@ -5139,7 +5139,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const isCheer = rawZoneIdx === CHEER_ZONE;
 
     if (bs.turn_phase === 'ENERGY') {
-      if (isCheer) return [];   // チアゾーンからのエナチャージは段階5（`O-538`）
       const used    = my.actions_done?.includes('ENERGY') ?? false;
       const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
       if (used || blocked) return [];

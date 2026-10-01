@@ -1345,7 +1345,7 @@ export function execStubPart1(
     if (stub.declareNamePool === 'opp_public_signi') {
       const oppDCN = ctx.otherState;
       const namesPoolDCN = [...new Set(
-        [...oppDCN.field.signi.flatMap(s => s ?? []), ...oppDCN.energy, ...oppDCN.trash]
+        [...fieldSigniStacks(oppDCN).flatMap(s => s ?? []), ...oppDCN.energy, ...oppDCN.trash]
           .map(cn => ctx.cardMap.get(getCardNum(cn)))
           .filter(c => (c?.Type ?? '').startsWith('シグニ'))
           .map(c => c!.CardName)
@@ -1373,7 +1373,7 @@ export function execStubPart1(
       const cardsDCN = zonesDCN.flatMap(zone => {
         if (zone === 'deck') return ctx.ownerState.deck;
         if (zone === 'hand') return ctx.ownerState.hand;
-        return ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+        return fieldSigniStacks(ctx.ownerState).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
       });
       const namesPoolDCN = [...new Set(
         cardsDCN
@@ -1633,7 +1633,7 @@ export function execStubPart1(
     const modeW7 = typeof stub.value === 'string' ? stub.value : '';
     const scopeW7: TargetScope = modeW7 === 'cant_attack' ? 'opp_field' : 'self_field';
     const stateW7 = scopeW7 === 'self_field' ? ctx.ownerState : ctx.otherState;
-    const candsW7 = stateW7.field.signi.flatMap(s => (s?.length ? [s[s.length - 1]] : []));
+    const candsW7 = fieldSigniStacks(stateW7).flatMap(s => (s?.length ? [s[s.length - 1]] : []));
     if (candsW7.length === 0) return done(addLog(ctx, '対象シグニなし'));
     const contW7: StubAction = { type: 'STUB', id: 'INTERNAL_WD007_APPLY', value: modeW7 };
     return selectOrInteract(candsW7, 1, false, scopeW7, contW7 as EffectAction, undefined, ctx);
@@ -1686,7 +1686,7 @@ export function execStubPart1(
   // INTERNAL_GCA_SELECT: 表記パワーより現在パワーが高いあなたの＜電機＞シグニ１体を対象に選ぶ
   if (stub.id === 'INTERNAL_GCA_SELECT') {
     const modeGCA = typeof stub.value === 'string' ? stub.value : '';
-    const candsGCA = ctx.ownerState.field.signi.flatMap(s => {
+    const candsGCA = fieldSigniStacks(ctx.ownerState).flatMap(s => {
       if (!s?.length) return [];
       const cn = s[s.length - 1];
       const card = ctx.cardMap.get(cn);
@@ -3281,7 +3281,7 @@ export function execStubPart1(
       levelSumPMBCL += parseInt(c.Level ?? '0') || 0;
     }
     const deltaPMBCL = levelSumPMBCL * specPMBCL.deltaPerLevel;
-    const targetCandsPMBCL = ctx.otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    const targetCandsPMBCL = fieldSigniStacks(ctx.otherState).flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
     if (targetCandsPMBCL.length === 0) return done(addLog(ctx, '相手シグニなし'));
     const noopPMBCL: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contPMBCL: StubAction = { type: 'STUB', id: 'INTERNAL_CMCLG_APPLY_POWER_MOD', value: deltaPMBCL };

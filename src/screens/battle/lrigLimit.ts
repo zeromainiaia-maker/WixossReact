@@ -52,7 +52,7 @@ export function computeEffectiveLrigLimit(
   const continuousDelta = collectLrigColorAndLimitMods(
     state, cardMap, effectsMap, otherState, isOwnerTurn,
   ).limitDelta;
-  const fieldTopNums = new Set(state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
+  const fieldTopNums = new Set(fieldSigniStacks(state).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
   const sourceBoundDelta = Object.entries(
     state.lrig_limit_mod_until_own_energy_phase_end_by_source ?? {},
   ).reduce((sum, [sourceNum, delta]) => sum + (fieldTopNums.has(sourceNum) ? delta : 0), 0);

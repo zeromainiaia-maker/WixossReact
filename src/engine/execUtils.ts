@@ -348,7 +348,7 @@ export function zoneCardsOf(
     ? (ownerSt.last_appearance_cost_cards ?? [])
     : fromZone.zone === 'field'
     ? [
-        ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+        ...fieldSigniStacks(state).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
         ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
       ]
     // `lrig_field`＝センター＋左右アシストの現在の最上面。`field` は歴史的に
@@ -359,7 +359,7 @@ export function zoneCardsOf(
     //   §5.3 `O-60` 第50バッチ＝原文「あなたのシグニゾーンにあるカード１枚につき」。
     //   ⚠`field` と取り違えない（あちらは最上面＋センタールリグ）。
     : fromZone.zone === 'signi_zone_all'
-    ? state.field.signi.flatMap(stack => stack ?? [])
+    ? fieldSigniStacks(state).flatMap(stack => stack ?? [])
     : fromZone.zone === 'hand' ? state.hand
     : fromZone.zone === 'energy' ? state.energy
     : fromZone.zone === 'trash' ? state.trash

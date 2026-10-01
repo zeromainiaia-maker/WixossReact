@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { checkActiveCondition } from '../../engine/effectEngine';
@@ -109,7 +110,7 @@ function shieldCandidates(
 /** 【常】の宣言元になりうる自分の場のカード（シグニ／センタールリグ／アシスト／キー）。 */
 function shieldSources(state: PlayerState): string[] {
   return [
-    ...state.field.signi.flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
+    ...fieldSigniStacks(state).flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
     ...(state.field.assist_lrig_l?.at(-1) ? [state.field.assist_lrig_l.at(-1)!] : []),
     ...(state.field.assist_lrig_r?.at(-1) ? [state.field.assist_lrig_r.at(-1)!] : []),

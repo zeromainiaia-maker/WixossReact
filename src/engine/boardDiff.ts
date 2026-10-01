@@ -6,7 +6,7 @@
  * いずれも (before, after) のみに依存し effectsMap/cardMap/React state を参照しない＝golden で直接検証できる。
  * 収集側（どのカードが反応するか）は triggerCollect.ts、本モジュールは「イベントの発生検出」を担う。
  */
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, cheerCardOf } from './cheerZoneView';
 import type { PlayerState } from '../types';
 import type { TriggerOriginZone } from '../types/effects';
 import { acceCardsAt, allAcceCards } from '../utils/acce';
@@ -300,8 +300,13 @@ export function detectLeftFieldSigniToTrash(before: PlayerState, after: PlayerSt
 }
 
 export function detectLeftFieldSigni(before: PlayerState, after: PlayerState): { cardNum: string; under: string[]; zoneIdx: number }[] {
-  const afterFieldCards = new Set(after.field.signi.flatMap(z => z ?? []));
+  // 🆕§5.3 `O-541`（2026-10-01）＝**チアゾーンも「場」**。🔴旧＝①シグニがチアガールになる（チアゾーンへ移る）だけで
+  //   「場を離れた」と検出し、②チアゾーンのシグニが手札・トラッシュ等へ行っても検出しなかった（実測）。
+  const afterFieldCards = new Set(fieldSigniStacks(after).flatMap(z => z ?? []));
   const result: { cardNum: string; under: string[]; zoneIdx: number }[] = [];
+  const beforeCheer = cheerCardOf(before);
+  // ⚠ゾーン番号は 3（チアゾーン）＝「正面にあった」の解決（`2 - zi`）には当たらない（チアゾーンに正面は無い）。
+  if (beforeCheer && !afterFieldCards.has(beforeCheer)) result.push({ cardNum: beforeCheer, under: [], zoneIdx: 3 });
   for (let i = 0; i < 3; i++) {
     const beforeStack = before.field.signi[i] ?? [];
     const beforeTop = beforeStack.at(-1);

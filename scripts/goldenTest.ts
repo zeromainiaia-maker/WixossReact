@@ -9,6 +9,7 @@
  * テストの足し方: test('名前', () => { ... assert ... }) を追加するだけ。
  */
 import { cheerAttackTargets, pickCheerAttackTarget } from '../src/screens/battle/cheerAttack';
+import { performEnergyCharge } from '../src/screens/battle/controller/performEnergyCharge';
 import fs from 'fs';
 import { join, sep } from 'path';
 import { execFileSync } from 'child_process';
@@ -93656,6 +93657,28 @@ test('§5.3 O-540 チアゾーンのシグニに【チャーム】【アクセ�
   const bsrc = battleScreenSource();
   ok(bsrc.includes('const acceHostZoneIdx = fieldSigniStacks(state).findIndex') && bsrc.includes('const hostZoneAcce = fieldSigniStacks(state).findIndex'),
     '🔴付け先がチアゾーンだとアクセしたときの【自】が誘発しない');
+}));
+
+test('§5.3 O-541 チアゾーンも「場」＝場を離れたかの検出・エナチャージ・場の札を数える', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const SC = 'WXEX2-65#1';
+  // ① 場を離れたかの検出：チアガールになる（チアゾーンへ移る）だけでは「離れた」ではない。
+  const onZone = mkState({ signi: [SC, null, null] });
+  const toCheer = moveToCheerZone(onZone, SC)!;
+  eq(detectLeftFieldSigni(onZone, toCheer).length, 0, '🔴チアガールになっただけで「場を離れた」と検出している（「場を離れたとき」が誤って誘発する）');
+  //   チアゾーンから手札へ＝「離れた」（ゾーン番号は 3）。
+  const gone: PlayerState = { ...toCheer, hand: [...toCheer.hand, SC], field: { ...toCheer.field, cheer: null } };
+  eq(JSON.stringify(detectLeftFieldSigni(toCheer, gone).map(x => [x.cardNum, x.zoneIdx])), JSON.stringify([[SC, 3]]),
+    '🔴チアゾーンのシグニが場を離れても検出しない（「場を離れたとき」が誘発しない）');
+  // ② エナチャージ：チアゾーンのシグニもエナへ置ける（付いていた【チャーム】はトラッシュ）。
+  const ch: PlayerState = { ...toCheer, field: { ...toCheer.field, signi_charms: [null, null, null, SIGNI] } };
+  const en = performEnergyCharge(ch, mkState({}), { from: 'field', zone: CHEER_ZONE }, cm, effectsMap);
+  ok(en.charged === SC && en.state.energy.includes(SC) && !en.state.field.cheer, '🔴チアゾーンのシグニをエナチャージできない');
+  ok(en.state.trash.includes(SIGNI), 'エナチャージで離れたチアゾーンのシグニの【チャーム】がトラッシュへ行かない');
+  ok(!battleScreenSource().includes('チアゾーンからのエナチャージは段階5'), '🔴人間のエナチャージのボタンがチアゾーンに出ない');
+  // ③ 場の札を数える（`countFromZone` の zone:'field'）にチアゾーンも入る。
+  eq(countFromZone({ zone: 'field', owner: 'self', filter: { cardType: 'シグニ' } } as never, toCheer, mkState({}), cm), 1,
+    '🔴「場のシグニ1体につき」がチアゾーンのシグニを数えない');
 }));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

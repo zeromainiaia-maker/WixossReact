@@ -765,7 +765,7 @@ export function execStubPart3(
   }
   // SELECT_OPP_SIGNI_FOR_BOTTOM_MILL: 対戦相手のシグニ1体を対象とし、デッキの下から4枚をトラッシュに置く（この方法でレベルの異なるシグニ4枚が置かれた場合、それをバニッシュする）
   if (stub.id === 'SELECT_OPP_SIGNI_FOR_BOTTOM_MILL') {
-    const candidates = ctx.otherState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+    const candidates = fieldSigniStacks(ctx.otherState).flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
     if (candidates.length === 0) return done(addLog(ctx, '対象にできる対戦相手のシグニがない'));
     return needsInteraction(addLog(ctx, '対戦相手のシグニ1体を対象とする'), {
       type: 'SELECT_TARGET', candidates, count: 1, optional: false, targetScope: 'opp_field',
@@ -2067,7 +2067,7 @@ export function execStubPart3(
     const filterCESBL = stub.selectTarget?.filter;
     if (!filterCESBL) return done(addLog(ctx, '[CHANGE_EICHI_SIGNI_BASE_LEVEL: 対象条件なし（未指定）]'));
     const classNameCESBL = Array.isArray(filterCESBL.story) ? filterCESBL.story.join('か') : (filterCESBL.story ?? 'シグニ');
-    const eichiCandsCESBL = ctx.ownerState.field.signi.flatMap(s => {
+    const eichiCandsCESBL = fieldSigniStacks(ctx.ownerState).flatMap(s => {
       const top = s?.at(-1);
       if (!top || top === ctx.sourceCardNum) return [];
       return matchesFilter(ctx.cardMap.get(getCardNum(top)), filterCESBL) ? [top] : [];
@@ -2114,7 +2114,7 @@ export function execStubPart3(
       });
     }
     // 実行可能な「他の自シグニ」だけを選択候補にする。
-    const otherSigniTOSEA = ctx.ownerState.field.signi.flatMap(s => {
+    const otherSigniTOSEA = fieldSigniStacks(ctx.ownerState).flatMap(s => {
       const top = s?.at(-1);
       if (!top || top === ctx.sourceCardNum) return [];
       const card = ctx.cardMap.get(top);
@@ -3087,7 +3087,7 @@ export function execStubPart3(
   // INTERNAL_BANISH_OPP_POWER_GTE: 相手のパワーN以上のシグニ1体をバニッシュ
   if (stub.id === 'INTERNAL_BANISH_OPP_POWER_GTE') {
     const minPwr = typeof stub.value === 'number' ? stub.value : 0;
-    const candsBOPG = ctx.otherState.field.signi.flatMap((s, zi) => {
+    const candsBOPG = fieldSigniStacks(ctx.otherState).flatMap((s, zi) => {
       const top = s?.at(-1);
       if (!top) return [];
       const ep = ctx.effectivePowers;
@@ -5282,7 +5282,7 @@ export function execStubPart3(
     if (redEPLC > 0) {
       // 赤：相手シグニ2体まで選択→パワー合計12000以下ならバニッシュ
       // 赤2体以上の場合は1回目の選択のみ実施（2回目以降は相手シグニが残っていれば近似）
-      const oppSigsEPLC = othEPLC.field.signi.flatMap(z => z?.at(-1) ? [z.at(-1)!] : []);
+      const oppSigsEPLC = fieldSigniStacks(othEPLC).flatMap(z => z?.at(-1) ? [z.at(-1)!] : []);
       const loggedCtxEPLC = logsEPLC.length > 0
         ? addLog(afterCtxEPLC, logsEPLC.join(' / '))
         : afterCtxEPLC;
@@ -5335,7 +5335,7 @@ export function execStubPart3(
     const targetIAPAT = (ctx.lastProcessedCards ?? [])[0];
     if (!targetIAPAT) {
       // 対象未選択 → プリオケシグニを SELECT_TARGET で選択させる
-      const priokeCands = ctx.ownerState.field.signi.flatMap(s => {
+      const priokeCands = fieldSigniStacks(ctx.ownerState).flatMap(s => {
         const top = s?.at(-1);
         return (top && (ctx.cardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
       });

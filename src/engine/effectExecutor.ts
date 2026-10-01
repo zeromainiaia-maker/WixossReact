@@ -1993,7 +1993,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants;
     // 'any' の場合は相手側の候補にだけバニッシュ耐性を効かせる（自分の場のシグニには相手の耐性は無関係）
-    const oppSide = new Set(ctx.otherState.field.signi.flatMap(st => st?.at(-1) ? [st.at(-1)!] : []));
+    const oppSide = new Set(fieldSigniStacks(ctx.otherState).flatMap(st => st?.at(-1) ? [st.at(-1)!] : []));
     cands = cands.filter(n => (tgt.owner === 'any' && !oppSide.has(n)) || !hasBanishResist(n, ctx.cardMap, grants));
   }
   const scope: TargetScope = banishScope;
@@ -9290,7 +9290,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   // §5.3 `O-153`: ただし原文が「この方法／この効果で**場に出た**シグニ」と行き先を名指しする形は
   //   `lastProcessedFrom:'field'` で**場に出た分だけ**へ絞る。⚠行き先は継続へ持ち回さず
   //   「公開札のうち、いま自分の場に居るもの」で判定する（手札行きは場に居ないので自然に落ちる）。
-  const fieldNow = new Set(state.field.signi.flatMap(z => z ?? []));
+  const fieldNow = new Set(fieldSigniStacks(state).flatMap(z => z ?? []));
   cur = { ...cur, lastProcessedCards: a.lastProcessedFrom === 'field' ? completedPicks.filter(n => fieldNow.has(n)) : completedPicks };
   const stillInDeck = revealed.filter(n => state.deck.includes(n));
   const reservedTop = topReserved.filter(n => stillInDeck.includes(n));
