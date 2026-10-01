@@ -93551,6 +93551,53 @@ test('§5.3 O-538 段階4＝チアゾーンのシグニのアタック（相手�
   ok(cpu.includes('pickCheerAttackTarget(') && cpu.includes('performSigniAttack(CHEER_ZONE'), '🔴CPU がチアゾーンのシグニでアタックしない');
 }));
 
+test('§5.3 O-538 段階5＝チアゾーンのシグニは「場のシグニ」の対象・数に入る／ダウン・凍結できる／リミットは消費せずレベル超過でトラッシュ', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const SC = 'WXEX2-65';   // 羅原　Ｓｃ（チアガールになれる・P7000）
+  // ① 対象の候補：チアゾーンのシグニも「場のシグニ」に入る（ルール＝チアゾーンは「場」に含まれる）。
+  const opp = mkState({}); opp.field.cheer = SC;
+  ok(fieldCandidates(opp, { cardType: 'シグニ' }, cm).includes(SC), '🔴チアゾーンのシグニが「場のシグニ」の候補に入らない');
+  //   ゾーンの状態で絞る語彙はチアゾーンに当たらない（中央のゾーン・感染＝ウィルスはゾーンに置くもの）。
+  ok(!fieldCandidates(opp, { cardType: 'シグニ', centerZoneOnly: true }, cm).includes(SC), 'チアゾーンを「中央のシグニゾーン」として扱っている');
+  ok(!fieldCandidates(opp, { cardType: 'シグニ', infected: true }, cm).includes(SC), 'チアゾーンのシグニを感染状態として扱っている');
+  //   ダウン状態は `cheer_down` を読む。
+  opp.field.cheer_down = true;
+  ok(fieldCandidates(opp, { cardType: 'シグニ', isDown: true }, cm).includes(SC), '🔴ダウン状態のチアゾーンのシグニが「ダウン状態のシグニ」に入らない');
+  ok(!fieldCandidates(opp, { cardType: 'シグニ', isUp: true }, cm).includes(SC), 'ダウン状態なのにアップ状態として候補に入る');
+  opp.field.cheer_down = false;
+  // ② 実行：バニッシュ（候補がチアゾーンだけ）→ チアゾーンが空き、エナへ。
+  const ban = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction,
+    { ...mkCtx({}, {}), otherState: opp });
+  ok(!ban.otherState.field.cheer && ban.otherState.energy.includes(SC), `🔴チアゾーンのシグニをバニッシュしても何も起きない（cheer=${ban.otherState.field.cheer}）`);
+  //   「すべてのシグニ」もチアゾーンを含む。
+  const all = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } } } as EffectAction,
+    { ...mkCtx({}, {}), otherState: opp });
+  ok(!all.otherState.field.cheer, '🔴「対戦相手のすべてのシグニ」でチアゾーンのシグニが残る');
+  // ③ ダウン・凍結：チアゾーンのシグニに書ける（`cheer_down`／`cheer_frozen`）。凍結中はアップフェイズでアップしない。
+  const dn = run({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction,
+    { ...mkCtx({}, {}), otherState: opp });
+  ok(dn.otherState.field.cheer_down === true, '🔴チアゾーンのシグニをダウンできない');
+  const fz = run({ type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction,
+    { ...mkCtx({}, {}), otherState: { ...dn.otherState } });
+  ok(fz.otherState.field.cheer_frozen === true, '🔴チアゾーンのシグニを凍結できない');
+  const up = applyUpPhaseToFieldCheer(fz.otherState.field);
+  ok(up.cheer_down === true && up.cheer_frozen === false, '🔴凍結中のチアゾーンのシグニがアップフェイズでアップした／凍結が解けない');
+  // ④ 数・条件：「場に〜がいる場合」「場のシグニの数」にチアゾーンも数える。
+  const own = mkState({}); own.field.cheer = SC;
+  ok(evalCondition({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: 'Ｓｃ' } } as Condition, { ...mkCtx({}, {}), ownerState: own }),
+    '🔴「場に〜がいる場合」がチアゾーンのシグニを数えない');
+  // ⑤ リミット：チアゾーンは消費しない（合計に入らない）／レベルが変動してセンタールリグを超えたらトラッシュ（添字＝CHEER_ZONE）。
+  const lrigL2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2' && c.Limit !== '-' && !!c.Limit);
+  const dyn = (energy: number) => { const s = mkState({ lrig: [lrigL2], energy }); s.field.cheer = 'WX20-Re18'; return s; };
+  const p0 = planLimitExcess({ owner: dyn(0), opponent: mkState({ lrig: [] }), cardMap, effectsMap, isOwnerTurn: true });
+  eq(p0.total, 0, '🔴チアゾーンのシグニがリミットを消費している');
+  eq(p0.levelOverZones.length, 0, 'レベル以内なのに落としている');
+  const p15 = planLimitExcess({ owner: dyn(15), opponent: mkState({ lrig: [] }), cardMap, effectsMap, isOwnerTurn: true });
+  eq(JSON.stringify(p15.levelOverZones), JSON.stringify([CHEER_ZONE]), '🔴チアゾーンのシグニのレベルがルリグを超えたのに落とさない');
+  const trashed = applyLimitExcessTrash(dyn(15), p15.levelOverZones, cardMap, effectsMap);
+  ok(!trashed.state.field.cheer && trashed.state.trash.includes('WX20-Re18'), '🔴チアゾーンのレベル超過がトラッシュへ行かない');
+}));
+
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {
   const src = battleScreenSource();
   ok(!/getMyFreeZoneActions[\s\S]{0,300}label: '(手札に戻す|トラッシュへ)'/.test(src), '🔴フリーゾーンの手動操作が残っている');

@@ -14,7 +14,7 @@ import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { normalizeKeywordName, keywordDisplayLabel } from '../utils/keywords';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, isZoneFrozen } from './cheerZoneView';
 import { grantedStoreWatchers } from './grantedStore';
 
 export interface TargetedOrigin {
@@ -3951,7 +3951,7 @@ export function collectSelfEventTriggers(
   for (let zi = 0; zi < zoneStacks.length; zi++) {
     const topNum = zoneStacks[zi]?.at(-1);
     if (!topNum) continue;
-    if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
+    if (frozenLosesAbilities && (isZoneFrozen(myState, zi))) continue;
     if (myAbilitiesRemovedSelf.has(topNum)) continue;
     for (const eff of effsOf(ctx, topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
@@ -5050,7 +5050,7 @@ export function collectFieldTriggers(
       if (oppAutoBlocked) continue;
       if (frozenLosesAbilitiesOnMyLrig) {
         const zi2 = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
-        if (zi2 >= 0 && (opState.field.signi_frozen?.[zi2] ?? false)) continue;
+        if (zi2 >= 0 && (isZoneFrozen(opState, zi2))) continue;
       }
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;

@@ -388,6 +388,7 @@ export interface PlayerState {
     free_zone?:    string[];          // フリーゾーン（バリアトークン等を置く汎用ゾーン）
     cheer?:        string | null;     // 🆕チアゾーンのシグニ（§5.3 `O-538`・1体まで。「場」だがシグニゾーンではない＝`engine/cheerZone.ts`）
     cheer_down?:   boolean;           // チアゾーンのシグニのダウン状態
+    cheer_frozen?: boolean;           // 🆕チアゾーンのシグニの凍結状態（§5.3 `O-538` 段階5＝凍結はゾーンではなくシグニの状態）
     beat_zone?:    string[];          // ビートゾーン（ターン終了時にトラッシュへ、UIはフリーゾーンと共有）
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み

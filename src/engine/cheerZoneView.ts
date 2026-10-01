@@ -23,3 +23,42 @@ export function fieldSigniStacks(state: PlayerState): (string[] | null)[] {
   const cheer = cheerCardOf(state);
   return cheer ? [...state.field.signi, [cheer]] : state.field.signi;
 }
+
+/**
+ * 🆕§5.3 `O-538` 段階5＝**カード番号のシグニのダウン状態**（シグニゾーン／チアゾーン）。場にいなければ `null`。
+ * 🔑ダウン・アップの効果は「`findIndex` でゾーン番号を探して `signi_down[zi]` を書く」形だった＝チアゾーンは -1 で黙って何も起きない。
+ */
+export function signiDownOf(state: PlayerState, cardNum: string): boolean | null {
+  const zi = state.field.signi.findIndex(st => st?.at(-1) === cardNum);
+  if (zi >= 0) return state.field.signi_down?.[zi] ?? false;
+  if (cheerCardOf(state) === cardNum) return !!state.field.cheer_down;
+  return null;
+}
+
+/** カード番号のシグニのダウン状態を書き換えた state（場にいなければ `null`）。 */
+export function withSigniDown(state: PlayerState, cardNum: string, down: boolean): PlayerState | null {
+  const zi = state.field.signi.findIndex(st => st?.at(-1) === cardNum);
+  if (zi >= 0) {
+    const next = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
+    next[zi] = down;
+    return { ...state, field: { ...state.field, signi_down: next } };
+  }
+  if (cheerCardOf(state) === cardNum) return { ...state, field: { ...state.field, cheer_down: down } };
+  return null;
+}
+
+/**
+ * 🆕§5.3 `O-538` 段階5＝**ゾーン番号の凍結状態**（0〜2＝シグニゾーン／3＝チアゾーン）。
+ * 🔑凍結は**ゾーンではなくシグニの状態**（チアゾーンで不可なのはウィルス・トラップ等「ゾーンに置くもの」）＝`cheer_frozen` を読む。
+ *   `fieldSigniStacks` で回す走査はチアゾーンを添字3で渡すので、`signi_frozen?.[zi]` を直接読むとチアゾーンだけ常に「凍結なし」になる。
+ */
+export function isZoneFrozen(state: PlayerState, zoneIndex: number): boolean {
+  if (zoneIndex === 3) return !!state.field.cheer_frozen;
+  return state.field.signi_frozen?.[zoneIndex] ?? false;
+}
+
+/** 🆕§5.3 `O-538` 段階5＝**ゾーン番号のダウン状態**（0〜2＝シグニゾーン／3＝チアゾーン）。`isZoneFrozen` と同じ規約。 */
+export function isZoneDownView(state: PlayerState, zoneIndex: number): boolean {
+  if (zoneIndex === 3) return !!state.field.cheer_down;
+  return state.field.signi_down?.[zoneIndex] ?? false;
+}

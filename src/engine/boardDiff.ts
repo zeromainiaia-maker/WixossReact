@@ -6,6 +6,7 @@
  * いずれも (before, after) のみに依存し effectsMap/cardMap/React state を参照しない＝golden で直接検証できる。
  * 収集側（どのカードが反応するか）は triggerCollect.ts、本モジュールは「イベントの発生検出」を担う。
  */
+import { fieldSigniStacks } from './cheerZoneView';
 import type { PlayerState } from '../types';
 import type { TriggerOriginZone } from '../types/effects';
 import { acceCardsAt, allAcceCards } from '../utils/acce';
@@ -43,7 +44,7 @@ export function detectPlacedSigni(before: PlayerState, after: PlayerState): stri
   const replayedBefore = (before.signi_replayed_this_turn ?? []).length;
   for (const cn of (after.signi_replayed_this_turn ?? []).slice(replayedBefore)) {
     // ⚠出し直したあとに更に場を離れているなら「場に出た」扱いにしない（同一解決内の後続ステップ）。
-    if (!result.includes(cn) && after.field.signi.some(stack => stack?.at(-1) === cn)) result.push(cn);
+    if (!result.includes(cn) && fieldSigniStacks(after).some(stack => stack?.at(-1) === cn)) result.push(cn);
   }
   return result;
 }

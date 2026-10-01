@@ -61207,6 +61207,69 @@ scenarios.cheerZoneAttack = {
 };
 order.push('cheerZoneAttack');
 
+// ── 🆕§5.3 `O-538` 段階5（2026-10-01）＝**チアゾーンのシグニは「場のシグニ」の対象に入る**──
+// 観測点＝相手のチアゾーンに《極剣　ゴッドイーター》（P15000）を凍結状態で置く
+//   ①盤面：相手のチアゾーンの枠に「凍結」とパワー「15,000」が出る
+//   ②人間が緑アーツ《森羅万象》（WX09-005＝対戦相手のパワー15000以上のすべてのシグニをバニッシュ）を使う
+//     → チアゾーンのゴッドイーターがエナへ（旧＝チアゾーンは候補に入らず何も起きなかった）
+scenarios.cheerZoneTargeted = {
+  title: 'O-538 段階5：チアゾーンのシグニが「すべてのシグニ」のバニッシュに含まれる／凍結・パワーの表示',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'], 'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'lrig_deck': ['WX09-005#1'], 'energy': ['WD04-009#1'], 'hand': [], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.cheer': 'WX01-053#g1', 'field.cheer_down': false, 'field.cheer_frozen': true },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.cheerZoneTargeted.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    const zone = page.getByTestId('op-cheer-zone').first();
+    const frozenAttr = await zone.getAttribute('data-cheer-frozen').catch(() => null);
+    const power = await page.getByTestId('op-cheer-power').first().textContent({ timeout: 2000 }).catch(() => null);
+    await page.screenshot({ path: `${SHOT}/cheerZoneTargeted-01-board.png`, fullPage: true });
+    H.log(`① frozen=${frozenAttr} power=${power}`);
+    await H.ensureMain();
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    let st = null;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      let did = null;
+      const a0 = page.getByTestId('artscost-energy-0').first();
+      if (await a0.count() && await a0.isVisible().catch(() => false)) {
+        await a0.click().catch(() => {});
+        await page.waitForTimeout(200);
+        const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+        if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['使用']);
+      if (!did) did = await H.stdStep(['発動', '確定', '決定', 'OK', 'はい']);
+      if (!did) did = await H.clickTestId('zone-card-0');
+      st = await H.queryState();
+      const cheerNow = await zone.getAttribute('data-cheer').catch(() => null);
+      H.log(`  [${s}] -> ${did ?? 'なし'} | cheer=${cheerNow} log=${JSON.stringify((st?.logTail ?? []).slice(-2))}`);
+      if (cheerNow === '') break;
+    }
+    await page.screenshot({ path: `${SHOT}/cheerZoneTargeted-02-after.png`, fullPage: true });
+    const row = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const r = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=guest_state`, { headers: h })).json())?.[0];
+      return { cheer: r.guest_state.field.cheer ?? null, inEnergy: r.guest_state.energy.includes('WX01-053#g1') };
+    }, { SUPA_URL, ANON });
+    H.log(`② ${JSON.stringify(row)}`);
+    if (frozenAttr !== '1') return { pass: false, detail: '🔴相手のチアゾーンの凍結が盤面に出ない' };
+    if (!power || !/15,?000/.test(power)) return { pass: false, detail: `🔴相手のチアゾーンのパワーが出ない（${power}）` };
+    if (row.cheer || !row.inEnergy) return { pass: false, detail: `🔴森羅万象でチアゾーンのゴッドイーターがバニッシュされない（${JSON.stringify(row)}）` };
+    return { pass: true, detail: `①凍結表示・パワー「${power}」 ②森羅万象でチアゾーンのゴッドイーターがエナへ` };
+  },
+};
+order.push('cheerZoneTargeted');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

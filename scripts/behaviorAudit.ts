@@ -60,11 +60,12 @@ const JSON_OUT = argVal('--json-out');
 // 🆕R6-0 ②（2026-09-16）＝盤面の変種。汎用盤面は失敗経路（場が満杯・手札0・デッキ切れ）を踏まないので、
 //   再現率セットの見逃しの大半がそこだった（`round6/TYPE_LEDGER.md`）。
 //   base＝汎用／full＝両者シグニ3体・エナ10／empty＝両者 手札0・デッキ1・トラッシュ0・エナ0（効果元自身は残す）。
-type Variant = 'base' | 'full' | 'empty' | 'nofield';
+type Variant = 'base' | 'full' | 'empty' | 'nofield' | 'cheer';
 const VARIANTS = ((argVal('--variants') ?? 'base,full,empty,nofield').split(',').map(v => v.trim()).filter(Boolean)) as Variant[];
 const VARIANT_LABEL: Record<Variant, string> = {
   base: '基本（汎用盤面）', full: '満杯（両者シグニ3体・エナ10）', empty: '枯渇（両者 手札0・デッキ1・トラッシュ0・エナ0）',
   nofield: '自分の場が空（自分のシグニ0体・効果元自身は残す／相手の場はそのまま）',
+  cheer: '対象がチアゾーン（対象のシグニをチアゾーンへ移し、その側の他のシグニゾーンを空にする）',
 };
 // CHOOSE の既定は「断る」寄り（skip/しない を優先）。accept では利用可能な非 skip 肢を選ぶ。
 let CHOICE_MODE: 'decline' | 'accept' = 'decline';
@@ -361,6 +362,21 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
   }
 
   // ── 変種（効果対応の配置を済ませた後で盤面を削る／埋める）──
+  // 🆕§5.3 `O-538` 段階5（2026-10-01）＝`cheer`：**最初の「場のシグニ」対象をチアゾーンへ移し、その側の他のシグニゾーンを空にする**
+  //   （効果元は残す）＝対象の候補がチアゾーンのシグニしか無い盤面。`base` と比べて「対象に何も起きない」型を数える計器
+  //   （`node scripts/censusCheerTargets.mjs`）。ルール＝チアゾーンは「場」に含まれる＝「場のシグニ」を対象にする効果で選べる。
+  if (variant === 'cheer') {
+    for (const [side, st] of [['自', ownerState], ['相', otherState]] as const) {
+      const zi = st.field.signi.findIndex(z => !!z?.at(-1) && (labels.get(z.at(-1)!) ?? '').startsWith(`${side}S対象`));
+      if (zi < 0) continue;
+      const tgt = st.field.signi[zi]!.at(-1)!;
+      st.field.cheer = tgt;
+      st.field.cheer_down = !!st.field.signi_down?.[zi];
+      st.field.cheer_frozen = !!st.field.signi_frozen?.[zi];
+      st.field.signi = st.field.signi.map(z => (z && z.includes(sourceNum) ? z : null));
+      break;   // 1体だけ（チアゾーンは1体まで）
+    }
+  }
   for (const [side, st] of [['自', ownerState], ['相', otherState]] as const) {
     if (variant === 'full') {
       st.field.signi = st.field.signi.map((z, i) => (z && z.length ? z : [take(`${side}S満${i}`)]));
@@ -466,6 +482,10 @@ function snapshot(ctx: ExecCtx): Snapshot {
     (s.field.key_piece_extra ?? []).forEach(id => put(id, `${side}キー`));
     (s.field.free_zone ?? []).forEach(id => put(id, `${side}フリー`));
     put(s.field.cheer, `${side}チア`);
+    if (s.field.cheer) {
+      const cf = [s.field.cheer_frozen ? '凍結' : '', s.field.cheer_down ? 'ダウン' : ''].filter(Boolean).join(',');
+      if (cf) flags.set(s.field.cheer, cf);
+    }
     (s.field.beat_zone ?? []).forEach(id => put(id, `${side}ビート`));
     (s.field.signi_traps ?? []).forEach((id, z) => put(id, `${side}トラップ${z}`));
     (s.field.signi_soul ?? []).forEach((id, z) => put(id, `${side}ソウル${z}`));
@@ -702,6 +722,8 @@ function describeBoard(ctx: ExecCtx, labels: Map<string, string>): string[] {
       const fl = [s.field.signi_frozen?.[z] && '凍結', s.field.signi_down?.[z] ? 'ダウン' : 'アップ', s.field.signi_virus?.[z] && 'ウィルス', s.field.signi_charms?.[z] && 'チャーム有', s.field.signi_acce?.[z] && 'アクセ有'].filter(Boolean).join(',');
       out.push(`${side}シグニゾーン${z}: ${desc(stack.at(-1)!)} [${fl}]${stack.length > 1 ? ` 下: ${stack.slice(0, -1).map(desc).join(', ')}` : ''}`);
     });
+    // 🆕§5.3 `O-538`＝チアゾーン（「場」に含まれる・シグニゾーンではない）。空なら出さない。
+    if (s.field.cheer) out.push(`${side}チアゾーン: ${desc(s.field.cheer)} [${s.field.cheer_down ? 'ダウン' : 'アップ'}]`);
     out.push(`${side}ルリグ: ${s.field.lrig.map(desc).join(', ') || '空'}`);
     out.push(`${side}手札(${s.hand.length}): ${s.hand.map(desc).join(', ')}`);
     out.push(`${side}デッキ(${s.deck.length}・上から): ${s.deck.slice(0, 5).map(desc).join(', ')}${s.deck.length > 5 ? ' …' : ''}`);

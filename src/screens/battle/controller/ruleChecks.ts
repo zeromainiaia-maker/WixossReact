@@ -1,3 +1,4 @@
+import { isZoneFrozen } from '../../../engine/cheerZoneView';
 import { calcFieldPowers, calcContinuousSigniMutations, collectBanishEffectProtectedSigni, banishRedirectAppliesFrom, banishRedirectFrontMatches, banishRedirectHolders, checkActiveCondition } from '../../../engine/effectEngine';
 import { getCardNum, removeFromField, refreshPlayersIfDeckEmpty } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
@@ -248,7 +249,7 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
               zoneIdx: dieZoneP0 >= 0 ? dieZoneP0 : undefined,
               level: isNaN(base) ? undefined
                 : base + (currentOwner.temp_level_mods ?? []).filter(m => m.cardNum === topNum).reduce((sum, m) => sum + m.delta, 0),
-              frozen: (currentOwner.field.signi_frozen?.[dieZoneP0] ?? false),
+              frozen: (isZoneFrozen(currentOwner, dieZoneP0)),
               hasCharm: (currentOwner.field.signi_charms?.[dieZoneP0] ?? null) !== null,
               infected: (currentOwner.field.signi_virus?.[dieZoneP0] ?? 0) > 0,
             };

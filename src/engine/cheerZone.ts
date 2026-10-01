@@ -23,8 +23,9 @@ export function moveToCheerZone(state: PlayerState, cardNum: string): PlayerStat
   const zi = state.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
   if (zi < 0) return null;
   const wasDown = state.field.signi_down?.[zi] ?? false;
+  const wasFrozen = state.field.signi_frozen?.[zi] ?? false;   // 段階5＝凍結もシグニの状態として引き継ぐ
   const removed = removeFromField(cardNum, state);
-  return { ...removed, field: { ...removed.field, cheer: cardNum, cheer_down: wasDown } };
+  return { ...removed, field: { ...removed.field, cheer: cardNum, cheer_down: wasDown, cheer_frozen: wasFrozen } };
 }
 
 /**

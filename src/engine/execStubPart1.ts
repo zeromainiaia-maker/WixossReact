@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from './cheerZoneView';
 import type { Owner, PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { keywordDisplayLabel } from '../utils/keywords';
 import { parseCardEffects } from '../data/effectParser';
@@ -374,7 +375,7 @@ export function execStubPart1(
     if (selectFilter?.levelMatchesUnderSourceSigni) {
       const { levelMatchesUnderSourceSigni: _under, ...rest } = selectFilter;
       const host = ctx.sourceCardNum
-        ? ctx.ownerState.field.signi.find(stack => stack?.includes(ctx.sourceCardNum!))
+        ? fieldSigniStacks(ctx.ownerState).find(stack => stack?.includes(ctx.sourceCardNum!))
         : undefined;
       const levels = [...new Set((host?.slice(0, -1) ?? [])
         .map(cn => ctx.cardMap.get(getCardNum(cn)))
@@ -2682,7 +2683,7 @@ export function execStubPart1(
     const specDINC = stub.discardIfNoSigni;
     if (!specDINC) return done(addLog(ctx, '[DISCARD_IF_NO_CLASS_SIGNI: 条件なし（未指定）]'));
     // フィールドに自分以外の該当シグニがあるかチェック
-    const hasOtherClassSigni = ctx.ownerState.field.signi.some(stack => {
+    const hasOtherClassSigni = fieldSigniStacks(ctx.ownerState).some(stack => {
       const top = stack?.at(-1);
       if (!top || top === ctx.sourceCardNum) return false;
       return matchesFilter(ctx.cardMap.get(getCardNum(top)), specDINC.filter);
@@ -2750,7 +2751,7 @@ export function execStubPart1(
   // 自シグニをデッキトップに置く
   if (stub.id === 'SELF_TO_DECK_TOP') {
     const srcSTD = ctx.sourceCardNum;
-    if (!srcSTD || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcSTD)) {
+    if (!srcSTD || !fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === srcSTD)) {
       return done(addLog(ctx, 'SELF_TO_DECK_TOP: フィールドにいない'));
     }
     const removedSTD = removeFromField(srcSTD, ctx.ownerState);
@@ -2827,7 +2828,7 @@ export function execStubPart1(
   // UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）
   if (stub.id === 'UNKNOWN_NESTED') {
     const srcUN = ctx.sourceCardNum;
-    if (!srcUN || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcUN)) {
+    if (!srcUN || !fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === srcUN)) {
       const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
       return done(addLog({ ...ctx, ownerState: newOwner }, 'UNKNOWN_NESTED: フィールドにソースなし'));
     }

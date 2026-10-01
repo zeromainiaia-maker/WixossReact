@@ -2,7 +2,7 @@
 //   `BattleScreen` から**逐語で移設**し、材料と I/O を `PerformCtx` で注入にした（人間・CPU 共用）。
 // ⚠可否の判定はここに書かない。⚠`loading` の確認は画面のラッパ。
 import { CHEER_ZONE, signiStackAt } from '../../../engine/cheerZone';
-import { fieldSigniStacks } from '../../../engine/cheerZoneView';
+import { fieldSigniStacks, isZoneFrozen } from '../../../engine/cheerZoneView';
 import type {BattleStateRow, PlayerState, CardData, StackEntry} from '../../../types';
 import type {CardEffect} from '../../../types/effects';
 import {leaveToTrashWindowApplies, calcFieldPowers, checkActiveCondition, collectCrossStates, cardHasCrossIcon, collectFrozenBanishOverrides, collectRiseBanishSubstitutes, banishRedirectAppliesFrom, banishRedirectFrontMatches, banishRedirectHolders, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, matchesStateFilter} from '../../../engine/effectEngine';
@@ -353,7 +353,7 @@ export async function resolvePendingSigniBattleFor(
         return {
           zoneIdx: zi,
           level,
-          frozen: (opS.field.signi_frozen?.[zi] ?? false),
+          frozen: (isZoneFrozen(opS, zi)),
           hasCharm: (opS.field.signi_charms?.[zi] ?? null) !== null,
           infected: (opS.field.signi_virus?.[zi] ?? 0) > 0,
         };
@@ -369,7 +369,7 @@ export async function resolvePendingSigniBattleFor(
         return {
           zoneIdx: zi,
           level,
-          frozen: (myS.field.signi_frozen?.[zi] ?? false),
+          frozen: (isZoneFrozen(myS, zi)),
           hasCharm: (myS.field.signi_charms?.[zi] ?? null) !== null,
           infected: (myS.field.signi_virus?.[zi] ?? 0) > 0,
         };
@@ -1110,7 +1110,7 @@ export async function resolvePendingSigniBattleFor(
           const newMyFrozenAB = [...(newMyState.field.signi_frozen ?? [false, false, false])];
           const newMyCharmsAB = [...(newMyState.field.signi_charms ?? [null, null, null])];
           const newMyAcceAB   = cloneAcceSlots(newMyState.field);
-          const wasMyFrozen = myS.field.signi_frozen?.[zoneIndex] ?? false;
+          const wasMyFrozen = isZoneFrozen(myS, zoneIndex);
           newMyDownAB[zoneIndex] = false;
           newMyFrozenAB[zoneIndex] = false;
           const myExtraTrashAB: string[] = [];

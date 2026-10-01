@@ -1,3 +1,4 @@
+import { CHEER_ZONE, cheerCardOf } from '../../engine/cheerZone';
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { applyTimedBaseLevelOverrides, calcSigniLevels } from '../../engine/effectEngine';
@@ -110,6 +111,18 @@ export function planLimitExcess(p: {
     //   印字レベルのまま超過している盤面は**配置制限**の領分（`planLimitExcess` の 🔑）。
     .filter(([zi, lv]) => lv > centerLevel && (centerLowered || lv > (printedLevels.get(zi) ?? lv)))
     .map(([zi]) => zi);
+  // 🆕§5.3 `O-538` 段階5＝**チアゾーンのシグニもルリグのレベルに合わなくなったらトラッシュ**（ルール処理・同じ「変動」条件）。
+  //   ⚠**リミットは消費しない**＝`levels`（合計）・`candidateZones` には入れない。添字は `CHEER_ZONE`。
+  const cheerTop = cheerCardOf(owner);
+  if (cheerTop) {
+    const cheerCard = leveledMap.get(cheerTop) ?? leveledMap.get(baseNum(cheerTop));
+    if (!declaredSigniOverride(owner, cheerCard?.CardName).levelZero) {
+      const printedCheer = printedLevelOf(cheerTop);
+      const printedCheerLv = Number.isFinite(printedCheer) ? printedCheer : 0;
+      const cheerLv = signiLevels.get(cheerTop) ?? printedCheerLv;
+      if (cheerLv > centerLevel && (centerLowered || cheerLv > printedCheerLv)) levelOverZones.push(CHEER_ZONE);
+    }
+  }
   const total = [...levels.values()].reduce((sum, lv) => sum + lv, 0);
   const excess = Number.isFinite(limit) ? Math.max(0, total - limit) : 0;
   return {
@@ -155,6 +168,19 @@ export function applyLimitExcessTrash(
   const signi = [...state.field.signi] as (string[] | null)[];
   const trashedTops: string[] = [];
   for (const zi of zones) {
+    // 🆕§5.3 `O-538` 段階5＝チアゾーン（`CHEER_ZONE`）＝1枚だけ・ゾーンに付くものは無い（後始末は不要）。
+    if (zi === CHEER_ZONE) {
+      const top = cheerCardOf(state);
+      if (!top) continue;
+      trashedTops.push(top);
+      const resonaDest = resonaLeaveDestination(top, cardMap, effectsMap);
+      if (resonaDest === 'lrig_deck') lrigDeck = [...lrigDeck, top];
+      else if (resonaDest === 'lrig_trash') lrigTrash = [...lrigTrash, top];
+      else if (resonaDest === 'exile') excluded = [...excluded, top];
+      else trash = [...trash, top];
+      field = { ...field, cheer: null, cheer_down: false, cheer_frozen: false };
+      continue;
+    }
     const stack = state.field.signi[zi] ?? [];
     if (stack.length === 0) continue;
     const top = stack[stack.length - 1];

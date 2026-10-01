@@ -1,5 +1,5 @@
 import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, isZoneFrozen, isZoneDownView } from './cheerZoneView';
 import { effectiveIdentityOverrides } from './nameIdentityRules';
 import type {
   CardEffect,
@@ -212,7 +212,8 @@ export function checkActiveCondition(
         else matched++;
       };
       for (const state of states) {
-        state.field.signi.forEach((stack, zi) => {
+        // 🆕§5.3 `O-538` 段階5＝「場に〜がいる」はチアゾーンも数える（添字3）。
+        fieldSigniStacks(state).forEach((stack, zi) => {
           const top = stack?.at(-1);
           if (!top) return;
           if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return;
@@ -222,7 +223,8 @@ export function checkActiveCondition(
           // 🆕§5.3 `O-308`②＝`adjacentToSelf`（「このシグニの左か右に」）。`evalCondition` 側と同じ式＝効果元が同じ側の場に居なければ不成立。
           if (cond.filter?.adjacentToSelf) {
             const srcZiAdj = sourceCardNum ? state.field.signi.findIndex(z => z?.at(-1) === sourceCardNum) : -1;
-            if (srcZiAdj < 0 || Math.abs(zi - srcZiAdj) !== 1) return;
+            // ⚠チアゾーン（添字3）は隣接しない＝ゾーン2との差が1でも「左か右」ではない。
+            if (srcZiAdj < 0 || zi === 3 || Math.abs(zi - srcZiAdj) !== 1) return;
           }
           record(top, c);
         });
@@ -301,7 +303,7 @@ export function checkActiveCondition(
     // `Condition` 側（evalConditionForContinuous:998／execUtils:1672）と**同じ式**＝各スタック頂点が
     // 全て filter 一致・空盤面 false（1体以上必須＝軍勢が居ないのに空振りで効かない）。
     case 'ALL_FIELD_SIGNI_MATCH': {
-      const tops = (cond.owner === 'self' ? ownerState : otherState).field.signi
+      const tops = fieldSigniStacks(cond.owner === 'self' ? ownerState : otherState)   // 🆕§5.3 `O-538` 段階5＝チアゾーンも「場」
         .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
         .filter((n): n is string => n !== null);
       return tops.length > 0 && tops.every(top => matchesFilter(cardMap.get(top), cond.filter));
@@ -328,7 +330,7 @@ export function checkActiveCondition(
     case 'FIELD_SIGNI_POWER_COUNT': {
       // 場のシグニのうち実効パワーが minPower 以上のものの数を operator/value で判定
       const state = cond.owner === 'self' ? ownerState : otherState;
-      const cnt = state.field.signi.reduce((n, stack) => {
+      const cnt = fieldSigniStacks(state).reduce((n, stack) => {
         const top = stack?.at(-1);
         if (!top) return n;
         const pw = effectivePowers?.get(top) ?? parseInt(cardMap.get(top)?.Power ?? '0', 10);
@@ -634,7 +636,7 @@ export function checkActiveCondition(
       const stack = cond.subject === 'lrig'
         ? [ownerState.field.lrig, ownerState.field.assist_lrig_l, ownerState.field.assist_lrig_r]
             .find(z => z?.at(-1) === sourceCardNum)
-        : ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
+        : fieldSigniStacks(ownerState).find(s => s?.at(-1) === sourceCardNum);
       if (!stack || stack.length <= 1) return false;
       const under = stack.slice(0, -1);
       const matched = !cond.filter ? under : under.filter(cn => {
@@ -1218,11 +1220,11 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     if (filter.infected !== v) return false;
   }
   if (filter.isDown !== undefined) {
-    const v = state.field.signi_down?.[zoneIdx] ?? false;
+    const v = isZoneDownView(state, zoneIdx);   // 🆕§5.3 `O-538` 段階5＝添字3はチアゾーンのダウン
     if (filter.isDown !== v) return false;
   }
   if (filter.isFrozen !== undefined) {
-    const v = state.field.signi_frozen?.[zoneIdx] ?? false;
+    const v = isZoneFrozen(state, zoneIdx);
     if (filter.isFrozen !== v) return false;
   }
   if (filter.isAwakened !== undefined) {
@@ -1236,7 +1238,7 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     if (filter.isPuppet !== v) return false;
   }
   if (filter.isUp !== undefined) {
-    const v = !(state.field.signi_down?.[zoneIdx] ?? false);
+    const v = !isZoneDownView(state, zoneIdx);
     if (filter.isUp !== v) return false;
   }
   if (filter.isDrive !== undefined) {
@@ -1424,13 +1426,13 @@ export function calcContinuousSigniMutations(
         const tgtState = target.owner === 'opponent' ? otherState : ownerState;
         const targetIsHost = target.owner === 'opponent' ? !ownerIsHost : ownerIsHost;
         const candidates: string[] = [];
-        for (let zi = 0; zi < tgtState.field.signi.length; zi++) {
-          const stack = tgtState.field.signi[zi];
+        for (let zi = 0; zi < fieldSigniStacks(tgtState).length; zi++) {
+          const stack = fieldSigniStacks(tgtState)[zi];
           if (!stack?.length) continue;
           const num = stack[stack.length - 1];
           if (!matchesFilter(cardMap.get(num), target.filter)) continue;
           if (!matchesStateFilter(tgtState, zi, target.filter)) continue;
-          if (act.type === 'FREEZE' && (tgtState.field.signi_frozen?.[zi] ?? false)) continue;
+          if (act.type === 'FREEZE' && (isZoneFrozen(tgtState, zi))) continue;
           if (act.type === 'DOWN'   && (tgtState.field.signi_down?.[zi] ?? false)) continue;
           candidates.push(num);
         }
@@ -1581,7 +1583,7 @@ export function evalConditionForContinuous(
     case 'FIELD_LRIGS_SHARE_COLOR':
       return fieldLrigsShareColor(st(cond.owner), cond.minCount, cardMap);
     case 'FIELD_COUNT': {
-      const count = st(cond.owner).field.signi.filter(s => s && s.length > 0).length;
+      const count = fieldSigniStacks(st(cond.owner)).filter(s => s && s.length > 0).length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
     }
     case 'HAND_COUNT': {
@@ -1632,7 +1634,7 @@ export function evalConditionForContinuous(
       const matchedNums: string[] = [];
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
       for (const hcifState of hcifStates) {
-        hcifState.field.signi.forEach((stack, zi) => {
+        fieldSigniStacks(hcifState).forEach((stack, zi) => {   // 🆕§5.3 `O-538` 段階5＝チアゾーンも「場」
           if (!stack?.length) return false;
           const top = stack[stack.length - 1];
           if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
@@ -1640,7 +1642,7 @@ export function evalConditionForContinuous(
           // 🆕§5.3 `O-308`②＝`adjacentToSelf`（他の2評価器と同じ式）。
           if (cond.filter?.adjacentToSelf) {
             const srcZiAdj = sourceCardNum ? hcifState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum) : -1;
-            if (srcZiAdj < 0 || Math.abs(zi - srcZiAdj) !== 1) return false;
+            if (srcZiAdj < 0 || zi === 3 || Math.abs(zi - srcZiAdj) !== 1) return false;   // チアゾーンは隣接しない
           }
           matchedNums.push(top);
         });
@@ -1681,7 +1683,7 @@ export function evalConditionForContinuous(
     }
     case 'ALL_FIELD_SIGNI_MATCH': {
       // 「場のすべてのシグニが＜C＞/《X》」＝各スタック頂点が全て filter 一致（1体以上必須）。CONT ゲート用（execUtils と同実装）。
-      const afTops = st(cond.owner).field.signi
+      const afTops = fieldSigniStacks(st(cond.owner))
         .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
         .filter((n): n is string => n !== null);
       return afTops.length > 0 && afTops.every(top => matchesFilter(cardMap.get(top), cond.filter));
@@ -1737,7 +1739,7 @@ export function evalConditionForContinuous(
     }
     case 'FIELD_CLASS_COUNT': {
       // 場のシグニのうち CardClass が story を含むものの数（execUtils.evalCondition と同実装）
-      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+      const cnt = fieldSigniStacks(st(cond.owner)).reduce((n, stack) => {
         const top = stack?.at(-1);
         if (!top) return n;
         return cardMap.get(top)?.CardClass?.includes(cond.story) ? n + 1 : n;
@@ -1747,7 +1749,7 @@ export function evalConditionForContinuous(
     case 'FIELD_SIGNI_POWER_COUNT': {
       // 場のシグニのうちパワーが minPower 以上のものの数。CONTINUOUS 評価では effectivePowers を持たないため
       // ベースパワー（cardMap の Power）で近似する（出撃制限ゲート用途では十分な保守的近似）。
-      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+      const cnt = fieldSigniStacks(st(cond.owner)).reduce((n, stack) => {
         const top = stack?.at(-1);
         if (!top) return n;
         const pw = parseInt(cardMap.get(top)?.Power ?? '0', 10) || 0;
@@ -2041,7 +2043,7 @@ export function banishRedirectAppliesFrom(
  */
 export function banishRedirectHolders(holder: PlayerState): { num: string; zi: number }[] {
   const out: { num: string; zi: number }[] = [];
-  holder.field.signi.forEach((stack, zi) => { const n = stack?.at(-1); if (n) out.push({ num: n, zi }); });
+  fieldSigniStacks(holder).forEach((stack, zi) => { const n = stack?.at(-1); if (n) out.push({ num: n, zi }); });
   const lrig = holder.field.lrig.at(-1);
   if (lrig && !holder.lrig_abilities_disabled && !(holder.abilities_removed ?? []).includes(lrig)) out.push({ num: lrig, zi: -1 });
   return out;
@@ -2094,7 +2096,7 @@ export function computeBanishedAttrs(
   return {
     zoneIdx: zi,
     level,
-    frozen: (state.field.signi_frozen?.[zi] ?? false),
+    frozen: (isZoneFrozen(state, zi)),
     hasCharm: (state.field.signi_charms?.[zi] ?? null) !== null,
     infected: (state.field.signi_virus?.[zi] ?? 0) > 0,
   };
@@ -2322,8 +2324,8 @@ export function calcFieldPowers(
     //   ⚠`matchesFilter` は `excludeSelf` を見ないので、宣言元を渡して明示的に外す
     //   （`WX22-Re04-E2`①「あなたの**他の**＜英知＞のシグニのパワーは…減少しない」）。
     const addMatching = (state: PlayerState, set: Set<string>, filter?: TargetFilter, only?: string, exclude?: string) => {
-      for (let zi = 0; zi < state.field.signi.length; zi++) {
-        const top = state.field.signi[zi]?.at(-1);
+      for (let zi = 0; zi < fieldSigniStacks(state).length; zi++) {
+        const top = fieldSigniStacks(state)[zi]?.at(-1);
         if (!top || (only && top !== only)) continue;
         if (exclude && top === exclude) continue;
         if (!matchesStateFilter(state, zi, filter)) continue;
@@ -2576,7 +2578,7 @@ export function calcFieldPowers(
       // FROZEN_LOSES_ABILITIES: 凍結中の自シグニのCONTINUOUS効果をスキップ
       if (frozenLosesAbilities) {
         const zi = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);
-        if (zi >= 0 && (ownerState.field.signi_frozen?.[zi] ?? false)) continue;
+        if (zi >= 0 && (isZoneFrozen(ownerState, zi))) continue;
       }
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
@@ -2637,8 +2639,8 @@ export function calcFieldPowers(
             }
           } else {
             if (s.target.owner === 'self' || s.target.owner === 'any') {
-              for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
-                const stack = ownerState.field.signi[zi];
+              for (let zi = 0; zi < fieldSigniStacks(ownerState).length; zi++) {
+                const stack = fieldSigniStacks(ownerState)[zi];
                 if (!stack || stack.length === 0) continue;
                 const num = stack[stack.length - 1];
                 if (!powers.has(num)) continue;
@@ -2648,8 +2650,8 @@ export function calcFieldPowers(
               }
             }
             if (s.target.owner === 'opponent' || s.target.owner === 'any') {
-              for (let zi = 0; zi < otherState.field.signi.length; zi++) {
-                const stack = otherState.field.signi[zi];
+              for (let zi = 0; zi < fieldSigniStacks(otherState).length; zi++) {
+                const stack = fieldSigniStacks(otherState)[zi];
                 if (!stack || stack.length === 0) continue;
                 const num = stack[stack.length - 1];
                 if (!powers.has(num)) continue;
@@ -2788,7 +2790,7 @@ export function calcFieldPowers(
         // POWER_MODIFY_PER_STACK: このカードのスタック枚数に比例したパワー増減
         const perStackMods = extractPowerModifiesPerStack(effect.action);
         for (const mod of perStackMods) {
-          const stack = ownerState.field.signi.find(s => s?.at(-1) === topNum);
+          const stack = fieldSigniStacks(ownerState).find(s => s?.at(-1) === topNum);
           const stackBelow = stack ? stack.length - 1 : 0;
           if (stackBelow <= 0) continue;
           const stackDelta = mod.deltaPerCard * stackBelow;
@@ -6796,7 +6798,7 @@ export function collectEffectImmuneSigni(
           const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
           // カード属性（matchesFilter）に加えゾーン状態（isDown/isDrive 等）も honor する（WXK04-002 血晶武装シグニ保護）。
           // excludeSelf（「あなたの他のレゾナ」WX13-005A）は付与元シグニ自身を除外する。
-          subjState.field.signi.forEach((s2, zi2) => {
+          fieldSigniStacks(subjState).forEach((s2, zi2) => {
             const top2 = s2?.at(-1);
             if (!top2) return;
             if (gp.subjectFilter?.excludeSelf && top2 === sourceNum) return;
@@ -7099,14 +7101,14 @@ export function collectContinuousAbilitiesRemovedSigni(
   for (const cn of state.abilities_removed ?? []) removed.add(cn);
   // 場／ゾーンレベルの能力喪失（§6.4 O-16）。instanceId ではなく**ゾーン**に紐づくので、
   // このゾーンに後から出たシグニも毎回ここで拾われる（＝「新たに得られない」の忠実表現）。
-  for (let zi = 0; zi < state.field.signi.length; zi++) {
-    const top = state.field.signi[zi]?.at(-1);
+  for (let zi = 0; zi < fieldSigniStacks(state).length; zi++) {
+    const top = fieldSigniStacks(state)[zi]?.at(-1);
     if (top && fieldGrantRemovesAbilities(state, otherState, top, cardMap)) removed.add(top);
   }
 
   // 自フィールドの CONTINUOUS REMOVE_ABILITIES(owner:'self') — 自分自身が能力を失う
-  for (let zi = 0; zi < state.field.signi.length; zi++) {
-    const stack = state.field.signi[zi];
+  for (let zi = 0; zi < fieldSigniStacks(state).length; zi++) {
+    const stack = fieldSigniStacks(state)[zi];
     if (!stack?.length) continue;
     const sourceNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
@@ -7122,8 +7124,8 @@ export function collectContinuousAbilitiesRemovedSigni(
   }
 
   // 相手フィールドの CONTINUOUS REMOVE_ABILITIES(owner:'opponent') — 対面シグニが能力を失う
-  for (let zi = 0; zi < otherState.field.signi.length; zi++) {
-    const stack = otherState.field.signi[zi];
+  for (let zi = 0; zi < fieldSigniStacks(otherState).length; zi++) {
+    const stack = fieldSigniStacks(otherState)[zi];
     if (!stack?.length) continue;
     const sourceNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
@@ -8215,8 +8217,8 @@ export function collectFieldSigniExtraColors(
 ): Map<string, string[]> {
   const result = new Map<string, string[]>();
 
-  for (let zi = 0; zi < state.field.signi.length; zi++) {
-    const stack = state.field.signi[zi];
+  for (let zi = 0; zi < fieldSigniStacks(state).length; zi++) {
+    const stack = fieldSigniStacks(state)[zi];
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     const extraColors: string[] = [];

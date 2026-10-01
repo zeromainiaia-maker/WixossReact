@@ -1,5 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, cheerCardOf, isZoneFrozen } from './cheerZoneView';
 import { privateLine, isInPublicZone } from './hiddenInfo';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
 import { enforceResonaZoneRule, resonaLeaveDestination } from './resonaZone';
@@ -889,7 +889,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       !spec.handToUnderSelf!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handToUnderSelf!.filter));
     if (matching.length < spec.handToUnderSelf.count) return false;
     if (!hasValidConstrainedSelection(matching, spec.handToUnderSelf.count, spec.handToUnderSelf.selectionConstraint, ctx.cardMap)) return false;
-    if (!ctx.sourceCardNum || !ctx.ownerState.field.signi.some(stack => stack?.includes(ctx.sourceCardNum!))) return false;
+    if (!ctx.sourceCardNum || !fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(ctx.sourceCardNum!))) return false;
   }
   if (spec.underAnySigniTrash) {
     // fromThis＝「このシグニの下から」＝効果元スタックの下だけを数える（全シグニで数えると
@@ -898,7 +898,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const uFil = spec.underAnySigniTrash.filter;
     const uMatch = (cn: string) => !uFil || matchesFilter(ctx.cardMap.get(getCardNum(cn)), uFil);
     const underCount = spec.underAnySigniTrash.fromThis
-      ? ((ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch).length)
+      ? ((fieldSigniStacks(ctx.ownerState).find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch).length)
       : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).length;
     // 「N枚まで」は0枚も合法＝在庫不足で pay 選択肢を閉じない。固定N枚だけ従来の不足判定を保つ。
     if (!spec.underAnySigniTrash.upTo && underCount < spec.underAnySigniTrash.count) return false;
@@ -908,7 +908,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const uConst = spec.underAnySigniTrash.selectionConstraint;
     if (uConst?.distinct && !spec.underAnySigniTrash.upTo) {
       const pool = spec.underAnySigniTrash.fromThis
-        ? ((ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch))
+        ? ((fieldSigniStacks(ctx.ownerState).find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch))
         : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).map(c => c.cardNum);
       const keyOf = (cn: string): string => {
         const card = ctx.cardMap.get(getCardNum(cn));
@@ -985,7 +985,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   }
   if (spec.triggeringSigniTrash) {
     const triggerNum = ctx.triggeringCardNum;
-    if (!triggerNum || !ctx.ownerState.field.signi.some(stack => stack?.at(-1) === triggerNum)) return false;
+    if (!triggerNum || !fieldSigniStacks(ctx.ownerState).some(stack => stack?.at(-1) === triggerNum)) return false;
   }
   if (spec.lrigDown) {
     if (!payLrigDownCost(ctx.ownerState, spec.lrigDown, ctx.cardMap)) return false;
@@ -998,7 +998,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.selfToEnergy || spec.selfTrash) {
     // 場を離れることが対価＝効果元シグニが場に居ないと払えない（アタック後に既に落ちている等）。
     if (!ctx.sourceCardNum) return false;
-    if (!ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) return false;
+    if (!fieldSigniStacks(ctx.ownerState).some(stack => stack?.at(-1) === ctx.sourceCardNum)) return false;
   }
   if (spec.selfEnergyToDeckBottom) {
     // ⚠**エナゾーンに居ることが条件**（場ではない）＝上の selfToEnergy 系と成立条件が逆。
@@ -2199,7 +2199,7 @@ export function fieldCandidatesByOwner(
 // owner:'any' で選ばれた1枚が「どちらの場のシグニか」を判定する。どちらにも無ければ opponent 扱い
 // （従来の素通し挙動と同じ側へ倒す＝呼び出し側の zoneIdx 探索が空振りして no-op になる）。
 export function sideOfFieldCard(cardNum: string, ctx: ExecCtx): Owner {
-  return ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent';
+  return fieldSigniStacks(ctx.ownerState).some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent';
 }
 
 export function fieldCandidates(
@@ -2210,9 +2210,14 @@ export function fieldCandidates(
   allColorSigniNums?: Set<string>,
   fieldSigniExtraColors?: Map<string, string[]>,
 ): string[] {
-  const baseCands = state.field.signi.flatMap((stack, zoneIdx) => {
+  // 🆕§5.3 `O-538` 段階5（2026-10-01）＝**チアゾーンのシグニも「場のシグニ」の候補**（ルール＝チアゾーンは「場」に含まれる）。
+  //   `fieldSigniStacks` はチアゾーンを添字3で末尾に足す＝ゾーンに付く状態（感染・チャーム・アクセ・ソウル…）は添字3に無い＝「無し」、
+  //   中央／左右・ゲートのゾーン限定には当たらない（どれもルールどおり）。ダウン状態だけは `cheer_down` を読む（下）。
+  const cheerNum = cheerCardOf(state);
+  const baseCands = fieldSigniStacks(state).flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const cardNum = stack[stack.length - 1];
+    const zoneDown = zoneIdx === 3 && cardNum === cheerNum ? !!state.field.cheer_down : (state.field.signi_down?.[zoneIdx] ?? false);
     // 「能力を持たない」＝場では **abilities_removed（効果で能力を失った）も含む**（§5d パターンA）。
     // matchesFilter は card 単体しか見られないので、state を持つここで hasNoAbility に委ねて判定し、
     // 下の matchesFilter へは noAbilities を**外した filter** を渡す（二重判定で食い違わせない）。
@@ -2263,15 +2268,13 @@ export function fieldCandidates(
       if (filter.hasAttachedOrUnder !== attachedOrUnder) return [];
     }
     if (filter?.isDown !== undefined) {
-      const isDown = state.field.signi_down?.[zoneIdx] ?? false;
-      if (filter.isDown !== isDown) return [];
+      if (filter.isDown !== zoneDown) return [];
     }
     if (filter?.isUp !== undefined) {
-      const isDown = state.field.signi_down?.[zoneIdx] ?? false;
-      if (filter.isUp !== !isDown) return [];
+      if (filter.isUp !== !zoneDown) return [];
     }
     if (filter?.isFrozen !== undefined) {
-      const isFrozen = state.field.signi_frozen?.[zoneIdx] ?? false;
+      const isFrozen = isZoneFrozen(state, zoneIdx);
       if (filter.isFrozen !== isFrozen) return [];
     }
     if (filter?.isPuppet !== undefined) {
@@ -2750,7 +2753,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'FIELD_COUNT': {
       const fieldStates = cond.owner === 'any' ? [s, o] : [st(cond.owner)];
       const filter = { ...(cond.cardType ? { cardType: cond.cardType } : {}), ...(cond.filter ?? {}) };
-      const count = fieldStates.reduce((total, fst) => total + fst.field.signi.reduce((n, stack, zoneIdx) => {
+      const count = fieldStates.reduce((total, fst) => total + fieldSigniStacks(fst).reduce((n, stack, zoneIdx) => {
         const top = stack?.at(-1);
         if (!top) return n;
         if (filter.isDown !== undefined && (fst.field.signi_down?.[zoneIdx] ?? false) !== filter.isDown) return n;
@@ -3007,7 +3010,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // 一致したカード番号を集めてから数える（従来は件数だけ数えて distinctNames を黙って無視していた＝
       // 同名3体でも成立する過剰効果になっていた）。effectEngine の CONTINUOUS 収集と同じく CardName で寄せ、
       // CardData が引けない場合はカード番号にフォールバックする。
-      const matchedNums = fieldStates.flatMap(fst => fst.field.signi.filter((stack, zoneIdx) => {
+      // 🆕§5.3 `O-538` 段階5＝「場に〜がいる」はチアゾーンも数える（添字3）。
+      const matchedNums = fieldStates.flatMap(fst => fieldSigniStacks(fst).filter((stack, zoneIdx) => {
           if (!stack || stack.length === 0) return false;
           const top = stack[stack.length - 1];
           if (cond.excludeSelf && srcNum && top === srcNum) return false;
@@ -3020,7 +3024,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           // 🆕`adjacentToSelf`＝「このシグニの左か右に」（`WXDi-P11-060-E1/E2`）。効果元が同じ側の場に居なければ不成立（fail-closed）。
           if (cond.filter?.adjacentToSelf) {
             const srcZiAdj = srcNum ? fst.field.signi.findIndex(z => z?.at(-1) === srcNum) : -1;
-            if (srcZiAdj < 0 || Math.abs(zoneIdx - srcZiAdj) !== 1) return false;
+            if (srcZiAdj < 0 || zoneIdx === 3 || Math.abs(zoneIdx - srcZiAdj) !== 1) return false;   // チアゾーンは隣接しない
           }
           // 「場にパワーN以上のシグニ」＝印字値ではなく CONTINUOUS/一時修整込みの実効パワーで判定する。
           return matchesFilter(ctx.cardMap.get(top), hcifFilter, ctx.effectivePowers?.get(top));
@@ -3078,7 +3082,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         .filter((n): n is { cardNum: string; zoneIdx: number } => n !== null);
       if (tops.length === 0) return false;
       return tops.every(({ cardNum, zoneIdx }) => {
-        if (cond.filter.isFrozen !== undefined && cond.filter.isFrozen !== (fst2.field.signi_frozen?.[zoneIdx] ?? false)) return false;
+        if (cond.filter.isFrozen !== undefined && cond.filter.isFrozen !== (isZoneFrozen(fst2, zoneIdx))) return false;
         if (cond.filter.isAwakened !== undefined && cond.filter.isAwakened !== (fst2.awakened_signi ?? []).includes(cardNum)) return false;
         if (cond.filter.isPuppet !== undefined && cond.filter.isPuppet !== (fst2.field.puppet_signi ?? []).includes(cardNum)) return false;
         return matchesFilter(ctx.cardMap.get(cardNum), cond.filter);
@@ -3409,7 +3413,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const stack = cond.subject === 'lrig'
         ? [ctx.ownerState.field.lrig, ctx.ownerState.field.assist_lrig_l, ctx.ownerState.field.assist_lrig_r]
             .find(z => z?.at(-1) === src)
-        : ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
+        : fieldSigniStacks(ctx.ownerState).find(s => s?.at(-1) === src);
       // minCount は「下にカードがN枚以上ある場合」（省略=1）。filter 併用時は filter 一致だけを数える。
       const unders = (stack ?? []).slice(0, -1).filter(cn => {
         if (!cond.filter) return true;
@@ -3469,7 +3473,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(cnt, cond.operator, cond.value);
     }
     case 'FIELD_CLASS_COUNT': {
-      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+      const cnt = fieldSigniStacks(st(cond.owner)).reduce((n, stack) => {
         const top = stack?.at(-1);
         if (!top) return n;
         return ctx.cardMap.get(top)?.CardClass?.includes(cond.story) ? n + 1 : n;
@@ -3655,7 +3659,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return lpColors.some(c => lrigColorSC.includes(c));
     }
     case 'FIELD_SIGNI_POWER_COUNT': {
-      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+      const cnt = fieldSigniStacks(st(cond.owner)).reduce((n, stack) => {
         const top = stack?.at(-1);
         if (!top) return n;
         const pw = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0', 10);
@@ -4068,7 +4072,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // count 省略＝現在場にいる全シグニ。指定時は従来どおりの体数条件。
       // filter 指定時は「〈filter〉のシグニが count 体以上あり、その全員に共通する色が無い」（§6.4 O-11）。
       // ⚠シグニゾーンは3つなので「＜X＞が3体」は実質「ちょうど3体」＝両解釈は一致する。
-      const nccAll = st(cond.owner).field.signi
+      const nccAll = fieldSigniStacks(st(cond.owner))
         .map(stack => stack?.at(-1))
         .filter((n): n is string => !!n);
       const nccSigni = cond.filter
@@ -4261,7 +4265,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_armor:  newArmor  as boolean[],
       ...(newFacedown ? { signi_facedown_attached: newFacedown } : {}),
       // 🆕§5.3 `O-538`＝チアゾーンのシグニも「場」＝場を離れる処理はここを通る。
-      ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false } : {}),
+      ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false, cheer_frozen: false } : {}),
     },
   };
 }
@@ -4273,7 +4277,7 @@ export function resolvePendingExiles(state: PlayerState, forceTurnEnd = false): 
   let next = state;
   const remaining: string[] = [];
   for (const num of pending) {
-    const onField = next.field.signi.some(stack => stack?.includes(num));
+    const onField = fieldSigniStacks(next).some(stack => stack?.includes(num));
     if (onField && !forceTurnEnd) { remaining.push(num); continue; }
     if (onField) {
       next = removeFromField(num, next);
@@ -4372,7 +4376,7 @@ export function selectOrInteract(
     filteredCands = candidates.filter(n => {
       // both_field: 相手フィールドにあるシグニのみシャドウ判定（自分のシグニは常に選択可）
       // opp_field_energy: エナゾーンの札はシャドウの対象外（場にいないので対象に取れる）
-      if ((scope === 'both_field' || scope === 'opp_field_energy') && !ctx.otherState.field.signi.some(s => s?.at(-1) === n)) return true;
+      if ((scope === 'both_field' || scope === 'opp_field_energy') && !fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === n)) return true;
       if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.keyword_grants_until_opp_turn)) return false;
       // シャドウ（スコープなし＝無条件、スコープ付き＝発生源カードの属性で判定。activeCondition無しのもの）
       const scopes = getShadowScopes(

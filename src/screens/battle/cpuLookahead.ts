@@ -1,3 +1,4 @@
+import { isZoneFrozen } from '../../engine/cheerZoneView';
 import type { CardData, PendingInteractionDef, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import {
@@ -250,13 +251,13 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
    */
   const attackLanes = (me: PlayerState, them: PlayerState) =>
     [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined
-      && !me.field.signi_down?.[zi] && !me.field.signi_frozen?.[zi]).length;
+      && !me.field.signi_down?.[zi] && !isZoneFrozen(me, zi)).length;
   const attackerOpenLanes = (ctx.isCpuTurn ?? true) ? attackLanes(cpu, opp) : -attackLanes(opp, cpu);
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
     + attackerOpenLanes * W.turnDamage
     + (wonLanes(cpu, opp) - wonLanes(opp, cpu)) * W.laneWin
-    + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
+    + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && isZoneFrozen(opp, zi)).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
     + (cpu.hand.length - opp.hand.length) * W.hand
     + (cpu.energy.length - opp.energy.length) * W.energy

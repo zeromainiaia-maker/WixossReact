@@ -1,5 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, signiDownOf, withSigniDown, isZoneFrozen } from './cheerZoneView';
 import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
 import { currentRng, mulberry32, setRng } from './rng';
@@ -475,7 +475,7 @@ export function applyEffectLeavePowerReductionSubstitute(
 ): { ctx: ExecCtx; replaced: boolean } {
   if (victimOwner !== 'opponent') return { ctx, replaced: false };
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!fieldSigniStacks(state).some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
   const sub = findEffectLeavePowerReductionSubstitute(victimNum, state, ctx.cardMap);
   if (!sub) return { ctx, replaced: false };
   const mods = [...(state.temp_power_mods ?? []), { cardNum: sub.protectorNum, delta: -sub.reduction }];
@@ -679,7 +679,7 @@ export function applyEffectLeaveReplaceBanishSubstitute(
 ): { ctx: ExecCtx; replaced: boolean } {
   if (victimOwner !== 'opponent') return { ctx, replaced: false };
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!fieldSigniStacks(state).some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
   const victim = ctx.cardMap.get(getCardNum(victimNum));
   if (!victim) return { ctx, replaced: false };
   // バニッシュできない相手は置換しない（置換で耐性を踏み越えない）
@@ -782,7 +782,7 @@ export function collectEffectBanishSubstituteChoices(
 ): BanishSubstituteOption[] {
   if (victimOwner !== 'opponent') return [];
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return [];
+  if (!fieldSigniStacks(state).some(stack => stack?.at(-1) === victimNum)) return [];
   const attackerState = ownerState('self', ctx);
   // `collectBanishSubstitutes` の isOwnerTurn は**victim オーナー視点**。ctx.isOwnerTurn は効果主視点なので反転する。
   // 未設定なら false＝「victim オーナーのターンではない」に倒す（バトル経路の呼び出しも常に false。
@@ -1301,7 +1301,7 @@ export function applyEffectLeaveFrozenToTrashSubstitute(
   const state = ownerState(victimOwner, ctx);
   const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
   if (zone < 0) return { ctx, replaced: false };
-  if (state.field.signi_frozen?.[zone] !== true) return { ctx, replaced: false };
+  if (isZoneFrozen(state, zone) !== true) return { ctx, replaced: false };
   const declarer = ownerState('self', ctx);
   const { frozenLeaveToTrash } = collectFrozenBanishOverrides(
     declarer, state, ctx.isOwnerTurn ?? true, ctx.cardMap, ctx.effectsMap ?? new Map(), '', ctx.effectivePowers);
@@ -1655,7 +1655,7 @@ export function applyEffectLeaveSubstitutes(
  * このヘルパを使わないこと）。
  */
 function isOnFieldTop(num: string, owner: Owner, ctx: ExecCtx): boolean {
-  return ownerState(owner, ctx).field.signi.some(st => st?.at(-1) === num);
+  return fieldSigniStacks(ownerState(owner, ctx)).some(st => st?.at(-1) === num);   // 🆕§5.3 `O-538` 段階5＝チアゾーンも「場」
 }
 
 /**
@@ -1711,7 +1711,7 @@ export function leaveSubstituteAskQueue(
   // ⚠任意置換は `victimOwner === 'opponent'`（＝効果主から見た相手側）でしか成立しないので、
   //   自分の効果で自分のシグニを動かす経路はここで落ちる＝問い自体が出ない。
   const queue = cardNums.filter(n =>
-    ctx.otherState.field.signi.some(st => st?.at(-1) === n)
+    fieldSigniStacks(ctx.otherState).some(st => st?.at(-1) === n)
     && leaveSubstituteAskOptions(n, 'opponent', ctx, { isBanish }).length > 0);
   return { queue, isBanish };
 }
@@ -1913,7 +1913,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
     const srcName = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum)?.CardName : undefined;
     if (srcName !== '羅石　オリハルティア') {
-      const hasOrihaltia = ctx.ownerState.field.signi.some(stack => {
+      const hasOrihaltia = fieldSigniStacks(ctx.ownerState).some(stack => {
         const top = stack?.at(-1);
         return !!top && ctx.cardMap.get(top)?.CardName === '羅石　オリハルティア';
       });
@@ -2143,8 +2143,8 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') {
     const moved = cands.filter(num =>
-      ctx.ownerState.field.signi.some(stack => stack?.at(-1) === num)
-      || ctx.otherState.field.signi.some(stack => stack?.at(-1) === num));
+      fieldSigniStacks(ctx.ownerState).some(stack => stack?.at(-1) === num)
+      || fieldSigniStacks(ctx.otherState).some(stack => stack?.at(-1) === num));
     // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
     //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
     { const ask = leaveSubstituteAskQueue('BOUNCE', moved, ctx);
@@ -2470,7 +2470,7 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
   // thisCardOnly:「このシグニのレベルを＋X」＝効果元シグニ自身へ選択UIなしで適用（WX16-070・execPowerModify と同型・続き137）
   if (a.target.filter?.thisCardOnly) {
     const selfNum = ctx.sourceCardNum;
-    if (!selfNum || !state.field.signi.some(s => s?.at(-1) === selfNum)) {
+    if (!selfNum || !fieldSigniStacks(state).some(s => s?.at(-1) === selfNum)) {
       return done({ ...addLog(ctx, 'レベル修正の対象がない'), lastProcessedCards: [] });
     }
     const mods = [...(state.temp_level_mods ?? []), { cardNum: selfNum, delta: a.delta }];
@@ -2676,7 +2676,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   }
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニのパワーを±X」。WX25-CP1-075 等の付与能力で使用）
   if (a.target.filter?.thisCardOnly) {
-    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+    cands = (ctx.sourceCardNum && fieldSigniStacks(state).some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
   }
   // frontOfSelf: effect source SIGNI's opposing zone (2 - source zone).
@@ -2731,7 +2731,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const cardNum of selected) {
       const own: Owner = isAny
-        ? (cur.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        ? (fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
         : tgtOwner;
       const s = ownerState(own, cur);
       const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType, srcCardNum: cur.sourceCardNum, ...powerModExtra }];
@@ -3587,7 +3587,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   // （自分のライフを自分で削る効果は「クラッシュした」主体としては数えない）。
   // ⚠アタックによるクラッシュは BattleScreen の攻撃解決側で同じキーへ加算する（経路が別なので両方に要る）。
   if (a.owner === 'opponent' && crashed.length > 0 && ctx.sourceCardNum
-      && afterCtx.ownerState.field.signi.some(st => st?.at(-1) === ctx.sourceCardNum)) {
+      && fieldSigniStacks(afterCtx.ownerState).some(st => st?.at(-1) === ctx.sourceCardNum)) {
     const prevMap = afterCtx.ownerState.life_crashed_by_signi_this_turn ?? {};
     afterCtx = {
       ...afterCtx,
@@ -3800,7 +3800,7 @@ function resolveDynamicFilter(
   if (result.levelMatchesUnderSourceSigni) {
     const { levelMatchesUnderSourceSigni: _under, ...rest } = result;
     const host = sourceCardNum
-      ? ownerSt.field.signi.find(stack => stack?.includes(sourceCardNum))
+      ? fieldSigniStacks(ownerSt).find(stack => stack?.includes(sourceCardNum))
       : undefined;
     const levels = [...new Set((host?.slice(0, -1) ?? [])
       .map(cn => cardMap.get(getCardNum(cn)))
@@ -4347,7 +4347,7 @@ function resolveDynamicFilter(
   }
   if (result.colorMatchesUnderCards) {
     const { colorMatchesUnderCards: _cu, ...rest } = result;
-    const stack = ownerSt.field.signi.find(s => s?.includes(sourceCardNum ?? ''));
+    const stack = fieldSigniStacks(ownerSt).find(s => s?.includes(sourceCardNum ?? ''));
     const sourceIndex = stack?.indexOf(sourceCardNum ?? '') ?? -1;
     const refs = sourceIndex > 0 ? stack!.slice(0, sourceIndex) : [];
     const cols = [...new Set(refs.flatMap(n => cardMap.get(getCardNum(n))?.Color?.match(/[白赤青緑黒]/g) ?? []))];
@@ -4404,7 +4404,7 @@ function resolveDynamicFilter(
   if (result.levelLteUnderSelfCount) {
     const { levelLteUnderSelfCount: _under, ...rest } = result;
     const stack = sourceCardNum
-      ? ownerSt.field.signi.find(s => {
+      ? fieldSigniStacks(ownerSt).find(s => {
           const top = s?.at(-1);
           return top === sourceCardNum || (!!top && getCardNum(top) === getCardNum(sourceCardNum));
         })
@@ -5046,7 +5046,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
       const moved: string[] = [];
       for (const n of selected) {
         const fromState = ownerState(target.owner, cur);
-        if (!fromState.field.signi.some(stack => stack?.at(-1) === n)) continue;
+        if (!fieldSigniStacks(fromState).some(stack => stack?.at(-1) === n)) continue;
         cur = setOwnerState(target.owner, removeFromField(n, fromState), cur);
         const lifeState = ownerState(a.owner, cur);
         cur = setOwnerState(a.owner, { ...lifeState, life_cloth: [...lifeState.life_cloth, n] }, cur);
@@ -5144,6 +5144,10 @@ function applyFreezeToFieldCard(a: FreezeAction, cardNum: string, own: Owner, ct
   } else if (state.field.assist_lrig_r?.at(-1) === cardNum) {
     fieldPatch.assist_lrig_r_frozen = true;
     if (a.down) fieldPatch.assist_lrig_r_down = true;
+  } else if (state.field.cheer === cardNum) {
+    // 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニも凍結できる（凍結はシグニの状態＝`cheer_frozen`）。
+    fieldPatch.cheer_frozen = true;
+    if (a.down) fieldPatch.cheer_down = true;
   } else {
     const zoneIdx = state.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
     if (zoneIdx < 0) return ctx;
@@ -5230,8 +5234,8 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   if (a.target.owner === 'any' && a.target.filter?.isTriggerSource) {
     const trigNum = ctx.triggeringCardNum;
     const side: Owner | null = !trigNum ? null
-      : ctx.ownerState.field.signi.some(s => s?.at(-1) === trigNum) ? 'self'
-      : ctx.otherState.field.signi.some(s => s?.at(-1) === trigNum) ? 'opponent' : null;
+      : fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === trigNum) ? 'self'
+      : fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === trigNum) ? 'opponent' : null;
     if (!side) return done(ctx);
     return execFreeze({ ...a, target: { ...a.target, owner: side } }, ctx);
   }
@@ -5468,12 +5472,10 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
       const s = ownerState(own, cur);
-      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
-      if (zoneIdx < 0) continue;
-      const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
-      newDown[zoneIdx] = true;
-      cur = addLog(setOwnerState(own,
-        { ...s, field: { ...s.field, signi_down: newDown } }, cur),
+      // 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニもダウンできる（`withSigniDown`）。
+      const downed = withSigniDown(s, num, true);
+      if (!downed) continue;
+      cur = addLog(setOwnerState(own, downed, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}をダウン`);
     }
     return cur;
@@ -5585,14 +5587,14 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner === 'any' ? 'self' : a.target.owner, ctx);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
-    const selfNum = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+    const selfNum = (ctx.sourceCardNum && fieldSigniStacks(state).some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
     return done(applyUp(selfNum, ctx));
   }
   // targetsTriggerSource: 「それ」= トリガー元シグニ（ダウン状態で場に出たそのシグニ）を無選択でアップ（G144）
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
-    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+    if (autoNum && fieldSigniStacks(state).some(s => s?.at(-1) === autoNum)) {
       return done(applyUp([autoNum], ctx));
     }
     return done(ctx);
@@ -5601,7 +5603,7 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   // any_ally 等・能力ホスト＝topNumBB とアタッカーが別カードになりうるため sourceCardNum は使えない。WX17-032）
   if (a.targetsBattleAttacker) {
     const autoNum = ctx.battleAttackerCardNum;
-    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+    if (autoNum && fieldSigniStacks(state).some(s => s?.at(-1) === autoNum)) {
       return done(applyUp([autoNum], ctx));
     }
     return done(ctx);
@@ -5611,14 +5613,12 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
       const s = ownerState(own, cur);
-      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
-      if (zoneIdx < 0) continue;
-      const wasDown = (s.field.signi_down ?? [])[zoneIdx] === true; // 効果でダウン→アップした記録（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
-      const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
-      newDown[zoneIdx] = false;
+      // 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニもアップできる（`withSigniDown`）。
+      const wasDown = signiDownOf(s, num) === true; // 効果でダウン→アップした記録（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
+      const upped = withSigniDown(s, num, false);
+      if (!upped) continue;
       cur = addLog(setOwnerState(own,
-        { ...s, field: { ...s.field, signi_down: newDown },
-          ...(wasDown ? { upped_from_down_this_turn: [...(s.upped_from_down_this_turn ?? []), num] } : {}) }, cur),
+        { ...upped, ...(wasDown ? { upped_from_down_this_turn: [...(s.upped_from_down_this_turn ?? []), num] } : {}) }, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}をアップ`);
     }
     return cur;
@@ -5733,7 +5733,7 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
     };
     // 前段ステップで対象確定済み（lastProcessedCards）＝選択解決後の再入含む。そのまま付与する。
     if (ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0) {
-      return applyAttackBlock(ctx.lastProcessedCards.filter(cn => tgtState.field.signi.some(s => s?.at(-1) === cn)), ctx);
+      return applyAttackBlock(ctx.lastProcessedCards.filter(cn => fieldSigniStacks(tgtState).some(s => s?.at(-1) === cn)), ctx);
     }
     // filter（thisCardOnly=効果元自身のみ / excludeSelf）を適用して候補を絞る（続き103＝従来は count/filter を無視し全ブロック）。
     let blkFilter = a.target.filter;
@@ -5914,8 +5914,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     let cur = ctx;
     for (const cn of ctx.lastProcessedCards ?? []) {
       let owner: Owner | null = null;
-      if (cur.ownerState.field.signi.some(s => s?.at(-1) === cn)) owner = 'self';
-      else if (cur.otherState.field.signi.some(s => s?.at(-1) === cn)) owner = 'opponent';
+      if (fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === cn)) owner = 'self';
+      else if (fieldSigniStacks(cur.otherState).some(s => s?.at(-1) === cn)) owner = 'opponent';
       if (!owner) continue;
       const s = ownerState(owner, cur);
       if (isKeywordAbilityRemoved(cn, a.keyword, s.keyword_abilities_removed)) continue;
@@ -5933,8 +5933,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (!autoNum) return done(ctx);
     let owner: Owner | null = null;
-    if (ctx.ownerState.field.signi.some(s => s?.at(-1) === autoNum)) owner = 'self';
-    else if (ctx.otherState.field.signi.some(s => s?.at(-1) === autoNum)) owner = 'opponent';
+    if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === autoNum)) owner = 'self';
+    else if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === autoNum)) owner = 'opponent';
     if (!owner) return done(ctx);
     const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
     const s = ownerState(owner, ctx);
@@ -6109,8 +6109,8 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     const src = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
     if (!src) return done(addLog(ctx, '付与対象（トリガー元シグニ）が特定できないため何もしない'));
-    const owner: Owner | null = ctx.ownerState.field.signi.some(s => s?.at(-1) === src) ? 'self'
-      : ctx.otherState.field.signi.some(s => s?.at(-1) === src) ? 'opponent' : null;
+    const owner: Owner | null = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === src) ? 'self'
+      : fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === src) ? 'opponent' : null;
     if (!owner) return done(addLog(ctx, '付与対象（トリガー元シグニ）が場にいないため何もしない'));
     const s = ownerState(owner, ctx);
     const granted = { ...(s[key] ?? {}) };
@@ -6124,8 +6124,8 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     let cur = ctx;
     for (const cn of ctx.lastProcessedCards ?? []) {
       let owner: Owner | null = null;
-      if (cur.ownerState.field.signi.some(s => s?.at(-1) === cn)) owner = 'self';
-      else if (cur.otherState.field.signi.some(s => s?.at(-1) === cn)) owner = 'opponent';
+      if (fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === cn)) owner = 'self';
+      else if (fieldSigniStacks(cur.otherState).some(s => s?.at(-1) === cn)) owner = 'opponent';
       if (!owner) continue;
       const s = ownerState(owner, cur);
       const granted = { ...(s[key] ?? {}) };
@@ -6161,7 +6161,7 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   if (tgt.filter?.thisCardOnly) {
     const src = ctx.sourceCardNum;
     const inSelfZone = !!src && (
-      state.field.signi.some(s => s?.at(-1) === src) ||
+      fieldSigniStacks(state).some(s => s?.at(-1) === src) ||
       state.field.lrig.at(-1) === src ||
       state.field.assist_lrig_l?.at(-1) === src ||
       state.field.assist_lrig_r?.at(-1) === src
@@ -6845,7 +6845,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const declaredStoreTOSOC = (cur.storedTargetCards ?? []).length > 0 && JSON.stringify(conditional).includes('"targetsStored":true')
             ? (cur.storedTargetCards ?? []) : null;
           const targetAvailableTOSOC = declaredStoreTOSOC
-            ? declaredStoreTOSOC.some(n => cur.otherState.field.signi.some(st => st?.at(-1) === n))
+            ? declaredStoreTOSOC.some(n => fieldSigniStacks(cur.otherState).some(st => st?.at(-1) === n))
             : declaredTargetTOSOC?.type === 'LRIG'
             ? cur.otherState.field.lrig.length > 0
             : declaredTargetTOSOC?.type === 'TRASH_CARD'
@@ -6973,7 +6973,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         //   （旧: line 1738 が self-trash を誤って OPTIONAL_TRASH_ENERGY_CLASS へ流し、エナを探す no-op になっていた）
         if (stub.id === 'OPTIONAL_TRASH_SELF') {
           const selfNumOTS = cur.sourceCardNum;
-          const onFieldOTS = !!selfNumOTS && cur.ownerState.field.signi.some(s => s?.at(-1) === selfNumOTS);
+          const onFieldOTS = !!selfNumOTS && fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === selfNumOTS);
           if (!onFieldOTS) {
             if (cont) return executeAction(cont, cur);
             return done(addLog(cur, 'このシグニが場にない（OPTIONAL_TRASH_SELF）'));
@@ -7176,7 +7176,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
                 target: { type: 'SIGNI', owner: 'opponent', count: stub.opponentSigniTrash, filter: { cardType: 'シグニ' } },
                 opponentSelects: true,
               } as EffectAction),
-              available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniTrash,
+              available: fieldSigniStacks(cur.otherState).filter(s => s && s.length > 0).length >= stub.opponentSigniTrash,
             }] : []),
             ...(stub.opponentSigniToDeckTop !== undefined && stub.opponentSigniToDeckTop > 0 ? [{
               id: 'signiToDeckTop',
@@ -7188,7 +7188,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
                 position: 'top',
                 opponentSelects: true,
               } as EffectAction),
-              available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniToDeckTop,
+              available: fieldSigniStacks(cur.otherState).filter(s => s && s.length > 0).length >= stub.opponentSigniToDeckTop,
             }] : []),
             // 「エナゾーンのカードと手札を合計N枚デッキの一番上に置く」枝（タスク12(lxi) 第11波・`WXK06-067-E1`）。
             // ⚠**ゾーンを跨ぐ単一プール**＝「手札からN枚」「エナからN枚」の2枝に割ると内訳の自由度を失う
@@ -8749,7 +8749,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   // 🆕「そのシグニ」（`ON_RISE` の上に置かれた【ライズ】シグニ等）も同じ経路で解決する。
   if (a.targetsTriggerSource) {
     const trigger = ctx.triggeringCardNum;
-    const onField = trigger && ownerState(tsOwner, ctx).field.signi.some(stack => stack?.at(-1) === trigger);
+    const onField = trigger && fieldSigniStacks(ownerState(tsOwner, ctx)).some(stack => stack?.at(-1) === trigger);
     return done(trigger && onField ? applyProtection([trigger], ctx) : ctx);
   }
   if (!tgt) return done(ctx);
@@ -8862,10 +8862,10 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   // 対象シグニのゾーンを探す。thisCardOnly=効果元シグニ自身（「このシグニの【チャーム】にする」）
   let toCands: string[];
   if (a.to.filter?.thisCardOnly) {
-    toCands = (ctx.sourceCardNum && toState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    toCands = (ctx.sourceCardNum && fieldSigniStacks(toState).some(s => s?.at(-1) === ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
   } else if (a.to.filter?.isTriggerSource) {
     // 「そのシグニの【チャーム】にする」＝場に出たトリガー元シグニ（WXEX2-76/WX08-006/WXK10-048）
-    toCands = (ctx.triggeringCardNum && toState.field.signi.some(s => s?.at(-1) === ctx.triggeringCardNum)) ? [ctx.triggeringCardNum] : [];
+    toCands = (ctx.triggeringCardNum && fieldSigniStacks(toState).some(s => s?.at(-1) === ctx.triggeringCardNum)) ? [ctx.triggeringCardNum] : [];
   } else {
     toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   }
@@ -8992,7 +8992,7 @@ function execAttachFacedownFromHand(a: AttachFacedownFromHandAction, ctx: ExecCt
     return done(addLog(ctx, '裏向きで付けられる手札がない'));
   }
   const hostCands = a.to.filter?.thisCardOnly
-    ? (ctx.sourceCardNum && toState.field.signi.some(st => st?.at(-1) === ctx.sourceCardNum) ? [ctx.sourceCardNum] : [])
+    ? (ctx.sourceCardNum && fieldSigniStacks(toState).some(st => st?.at(-1) === ctx.sourceCardNum) ? [ctx.sourceCardNum] : [])
     : fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   if (hostCands.length === 0) return done(addLog(ctx, '裏向きで付ける対象のシグニがいない'));
   const pickHostAct: AttachFacedownFromHandAction = { ...a, _hostPending: true };
@@ -9777,7 +9777,7 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
     // 🆕**ゾーン状態フィルタ（`hasUnderCards` 等）は `matchesFilter` を素通りする**ので zoneIdx で別評価する
     //   （2026-08-31 §5.2・`WXDi-P15-051-E1`「**下にカードがある**あなたのシグニ1体につき」）。
     //   ⚠ルリグ側には zoneIdx が無い＝ゾーン状態キーは当たらない（シグニ専用の語彙）。
-    const signi = s.field.signi.flatMap((stack, zi) => stack?.at(-1)
+    const signi = fieldSigniStacks(s).flatMap((stack, zi) => stack?.at(-1)
       ? [{ cn: stack.at(-1)!, zi }] : []);
     const lrigs = countsLrig
       ? lrigZoneTops(s.field).flatMap(n => n ? [{ cn: n, zi: -1 }] : []) : [];
@@ -9950,7 +9950,7 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
 
 function execAwakenSigni(a: import('../types/effects').AwakenSigniAction, ctx: ExecCtx): ExecResult {
   const targets = a.targetsLastProcessed ? (ctx.lastProcessedCards ?? []) : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
-  const fieldTargets = targets.filter(n => ctx.ownerState.field.signi.some(s => s?.at(-1) === n));
+  const fieldTargets = targets.filter(n => fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === n));
   if (fieldTargets.length === 0) return done(ctx);
   const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
   for (const n of fieldTargets) if (!awakened.includes(n)) awakened.push(n);
@@ -9961,8 +9961,8 @@ function execAwakenSigni(a: import('../types/effects').AwakenSigniAction, ctx: E
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
   const countState = ownerState(a.countOwner, ctx);
   let fieldCount = 0;
-  for (let zi = 0; zi < countState.field.signi.length; zi++) {
-    const stack = countState.field.signi[zi];
+  for (let zi = 0; zi < fieldSigniStacks(countState).length; zi++) {
+    const stack = fieldSigniStacks(countState)[zi];
     if (!stack || stack.length === 0) continue;
     const card = ctx.cardMap.get(stack[stack.length - 1]);
     // カード属性フィルタ（クラス/色/レベル等）に加えて、盤面ステート（凍結/ダウン等）も評価する
@@ -10004,8 +10004,8 @@ function execEnergyChargePerLrigLevel(a: import('../types/effects').EnergyCharge
 function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx: ExecCtx): ExecResult {
   const countState = ownerState(a.countOwner, ctx);
   let fieldCount = 0;
-  for (let zi = 0; zi < countState.field.signi.length; zi++) {
-    const stack = countState.field.signi[zi];
+  for (let zi = 0; zi < fieldSigniStacks(countState).length; zi++) {
+    const stack = fieldSigniStacks(countState)[zi];
     if (!stack || stack.length === 0) continue;
     const top = stack[stack.length - 1];
     // excludeSelf（「他の」）: 効果元シグニ自身はカウントから除外
@@ -10314,7 +10314,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     const onRequestedField = autoNum && (a.target.type === 'LRIG'
       ? lrigZoneTops(state.field).includes(autoNum)
-      : state.field.signi.some(s => s?.at(-1) === autoNum));
+      : fieldSigniStacks(state).some(s => s?.at(-1) === autoNum));
     if (autoNum && onRequestedField) {
       const newS = applyAbilitiesRemoval(a, state, [autoNum], nextOwnTurnEndSpan(ctx));
       const nameRA = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
@@ -10343,7 +10343,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   if (resolvedFilter?.thisCardOnly) {
     const { thisCardOnly: _t, ...rest } = resolvedFilter;
     resolvedFilter = rest;
-    thisCardRestrict = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+    thisCardRestrict = (ctx.sourceCardNum && fieldSigniStacks(state).some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
   }
   const signiCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
@@ -10415,7 +10415,7 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
 
 function execEnergyChargeByFieldCount(a: import('../types/effects').EnergyChargeByFieldCountAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
-  const fieldCount = state.field.signi.filter(s => s && s.length > 0).length;
+  const fieldCount = fieldSigniStacks(state).filter(s => s && s.length > 0).length;
   const chargeCount = fieldCount + (a.bonus ?? 0);
   if (chargeCount <= 0) return done(ctx);
   const took = state.deck.slice(0, chargeCount);
@@ -10452,9 +10452,9 @@ function execPowerModifyBySource(a: import('../types/effects').PowerModifyBySour
   let base: number;
   if (a.basis === 'level') {
     base = parseInt(ctx.cardMap.get(getCardNum(src))?.Level ?? '0', 10);
-    const srcState = ctx.ownerState.field.signi.some(stack => stack?.at(-1) === src)
+    const srcState = fieldSigniStacks(ctx.ownerState).some(stack => stack?.at(-1) === src)
       ? ctx.ownerState
-      : ctx.otherState.field.signi.some(stack => stack?.at(-1) === src) ? ctx.otherState : undefined;
+      : fieldSigniStacks(ctx.otherState).some(stack => stack?.at(-1) === src) ? ctx.otherState : undefined;
     if (srcState) base = Math.max(0, base + (srcState.temp_level_mods ?? [])
       .filter(mod => mod.cardNum === src).reduce((sum, mod) => sum + mod.delta, 0));
   } else {
@@ -12276,7 +12276,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'INTERNAL_OPP_FIELD_OR_ENERGY_TO_HAND') {
         const cnOFE = ctx.lastProcessedCards?.[0];
         if (!cnOFE) return done(ctx);
-        if (ctx.otherState.field.signi.some(st => st?.at(-1) === cnOFE)) {
+        if (fieldSigniStacks(ctx.otherState).some(st => st?.at(-1) === cnOFE)) {
           return applyDirectAction({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction, cnOFE, ctx);
         }
         if (ctx.otherState.energy.includes(cnOFE)) {
@@ -12539,7 +12539,7 @@ export function resumeSelectTarget(
       && pending.thenAction.type === 'BANISH'
       && (pending.thenAction as BanishAction).selfTrashCost
       && (!cur.sourceCardNum
-        || !cur.ownerState.field.signi.some(s => s?.at(-1) === cur.sourceCardNum))) {
+        || !fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === cur.sourceCardNum))) {
     const skipped = { ...cur, lastProcessedCards: [] };
     const cont = pending.continuation ? stripDidItConditional(pending.continuation) : undefined;
     return cont ? executeAction(cont, skipped) : done(skipped);
@@ -12601,7 +12601,7 @@ export function resumeSelectTarget(
       && pending.thenAction.type === 'BANISH'
       && (pending.thenAction as BanishAction).selfTrashCost
       && cur.sourceCardNum
-      && cur.ownerState.field.signi.some(s => s?.at(-1) === cur.sourceCardNum)) {
+      && fieldSigniStacks(cur.ownerState).some(s => s?.at(-1) === cur.sourceCardNum)) {
     const selfNum = cur.sourceCardNum;
     const removed = removeFromField(selfNum, cur.ownerState);
     cur = addLog({
@@ -13747,7 +13747,7 @@ function directActionTargetsOther(action: EffectAction, cardNum: string, ctx: Ex
   if (!inDeck) return false;
   //   ⚠同じ番号が対象になりうる領域にも居るなら手当てしない（素のカード番号で組む盤面＝golden で番号が衝突する）。
   const elsewhere = (st: PlayerState) => st.energy.includes(cardNum) || st.hand.includes(cardNum) || st.trash.includes(cardNum)
-    || st.field.signi.some(z => z?.includes(cardNum)) || st.field.lrig.includes(cardNum)
+    || fieldSigniStacks(st).some(z => z?.includes(cardNum)) || st.field.lrig.includes(cardNum)
     || (st.field.assist_lrig_l ?? []).includes(cardNum) || (st.field.assist_lrig_r ?? []).includes(cardNum);
   if (elsewhere(ctx.ownerState) || elsewhere(ctx.otherState)) return false;
   if (tgt.filter?.thisCardOnly) return true;
@@ -13799,7 +13799,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           `${cardNum}の${power0Only ? 'パワー0以下による' : battleOnly ? 'バトルによる' : ''}バニッシュ先をこのターン、トラッシュへ変更`),
           lastProcessedCards: [cardNum] });
       }
-      if (!br.bySource || !ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) return done(ctx);
+      if (!br.bySource || !fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) return done(ctx);
       const prev = ctx.ownerState.banish_redirect_by_source_nums ?? [];
       const newOwner = { ...ctx.ownerState,
         banish_redirect_by_source_nums: prev.includes(cardNum) ? prev : [...prev, cardNum] };
@@ -13809,8 +13809,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'BANISH': {
       // cardNumが opponent.field にあるか自分のフィールドにあるかを検索
       let found: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
-      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
       // 🆕**「このシグニが次にバニッシュされる場合、バニッシュされない」**（2026-09-01 続き760・`WX15-010-E1`）＝
       //   `BATTLE_BANISH_PREVENT_LOSE_ABILITY` は名前どおり**バトルバニッシュ経路だけ**が読んでおり、
@@ -13842,8 +13842,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
-      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
       if (sub.replaced) return done(sub.ctx);
@@ -13858,8 +13858,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'SEND_TO_ENERGY': {
       // エナ送り（バニッシュではない）: 場から除去して対象オーナーのエナゾーンへ
       let found: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
-      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
       if (sub.replaced) return done(sub.ctx);
@@ -13877,7 +13877,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         // フィールドのシグニをトラッシュ
         const owner = tgt.owner as Owner;
         const s = ownerState(owner, ctx);
-        if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
+        if (fieldSigniStacks(s).some(stack => stack?.at(-1) === cardNum)) {
           const sub = applyEffectLeaveSubstitutes(cardNum, owner, ctx);
           if (sub.replaced) return done(sub.ctx);
           const c = sub.ctx;      // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
@@ -14053,7 +14053,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // 場のシグニ除外: どちらかの場にあれば removeFromField で消去
       for (const o of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(o, ctx);
-        if (s.field.signi.some(st => st?.includes(cardNum))) {
+        if (fieldSigniStacks(s).some(st => st?.includes(cardNum))) {
           const sub = applyEffectLeaveSubstitutes(cardNum, o, ctx);
           if (sub.replaced) return done(sub.ctx);
           const c = sub.ctx;      // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
@@ -14145,7 +14145,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'LEVEL_MODIFY': {
       const lmAction = action as import('../types/effects').LevelModifyAction;
       const tgtOwner: Owner = lmAction.target.owner === 'any'
-        ? (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        ? (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
         : lmAction.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
       const mods = [...(s.temp_level_mods ?? []), { cardNum, delta: lmAction.delta }];
@@ -14162,7 +14162,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         : resolveNum(pmAction.delta);
       // owner:'any' は選ばれたカードの所属フィールドを判定して該当プレイヤーへ適用
       const tgtOwner: Owner = pmAction.target.owner === 'any'
-        ? (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        ? (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
         : pmAction.target.owner as Owner;
       const powerModKey = pmAction.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
       const s = ownerState(tgtOwner, ctx);
@@ -14493,7 +14493,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const srcBefore = ownerState(fieldAcce.sourceOwner, ctx);
       const srcZone = srcBefore.field.signi.findIndex(s => s?.at(-1) === acceCardNum);
       const previousAcce = srcZone >= 0 ? (srcBefore.field.signi_acce?.[srcZone]?.[0] ?? null) : null;
-      if (!srcBefore.field.signi.some(s => s?.at(-1) === acceCardNum)) {
+      if (!fieldSigniStacks(srcBefore).some(s => s?.at(-1) === acceCardNum)) {
         return done(addLog(ctx, 'FIELD_SIGNI_TO_ACCE: アクセ元が場にない'));
       }
       // 場離れの共通経路を通す。下敷き・チャーム・既存アクセ・ソウルのルール処理、
@@ -14671,11 +14671,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           { ...downS, field: { ...downS.field, lrig_down: true } }, ctx),
         `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をダウン`));
       }
-      const zoneIdx = downS.field.signi.findIndex(st => st?.at(-1) === cardNum);
-      if (zoneIdx < 0) return done(ctx);
-      const newDown = [...(downS.field.signi_down ?? [false, false, false])] as boolean[];
-      newDown[zoneIdx] = true;
-      return done(addLog(setOwnerState(downOwner, { ...downS, field: { ...downS.field, signi_down: newDown } }, ctx),
+      // 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニもダウンできる（`withSigniDown`）。
+      const downedDA = withSigniDown(downS, cardNum, true);
+      if (!downedDA) return done(ctx);
+      return done(addLog(setOwnerState(downOwner, downedDA, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をダウン`));
     }
     case 'UP': {
@@ -14687,11 +14686,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (upA.target.filter?.thisCardOnly) return execUp(upA, ctx);
       const upOwner: Owner = upA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : upA.target.owner as Owner;
       const upS = ownerState(upOwner, ctx);
-      const zoneIdx = upS.field.signi.findIndex(st => st?.at(-1) === cardNum);
-      if (zoneIdx < 0) return done(ctx);
-      const newDown = [...(upS.field.signi_down ?? [false, false, false])] as boolean[];
-      newDown[zoneIdx] = false;
-      return done(addLog(setOwnerState(upOwner, { ...upS, field: { ...upS.field, signi_down: newDown } }, ctx),
+      // 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニもアップできる（`withSigniDown`）。
+      const uppedDA = withSigniDown(upS, cardNum, false);
+      if (!uppedDA) return done(ctx);
+      return done(addLog(setOwnerState(upOwner, uppedDA, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をアップ`));
     }
     case 'FREEZE': {
@@ -14702,8 +14700,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'GRANT_KEYWORD': {
       const gkA = action as GrantKeywordAction;
       let gkOwner: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'self';
-      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'opponent';
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) gkOwner = 'self';
+      else if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum)) gkOwner = 'opponent';
       else if (ctx.ownerState.field.lrig.at(-1) === cardNum) gkOwner = 'self';
       else if (ctx.otherState.field.lrig.at(-1) === cardNum) gkOwner = 'opponent';
       if (!gkOwner) return done(ctx);
@@ -14727,8 +14725,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const geEff = geA.effect;
       if (!geEff) return done(ctx); // rawText 未展開（PARTIAL 温存）＝no-op
       let geOwner: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'self';
-      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'opponent';
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum)) geOwner = 'self';
+      else if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum)) geOwner = 'opponent';
       if (!geOwner) return done(ctx);
       const geS = ownerState(geOwner, ctx);
       const geKey = geA.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
@@ -14799,9 +14797,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // SELECT_TARGET 解決後: 選ばれた1枚の能力を失わせる（abilities_removed に追加）。
       // ⚠キー（§6.4 O-17）もここを通る＝**キー枠を見ないと持ち主が決まらず `done(ctx)` で無言の空振り**になる。
       let raOwner: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.ownerState.field).includes(cardNum)
+      if (fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.ownerState.field).includes(cardNum)
         || keySlotCardNums(ctx.ownerState).includes(cardNum)) raOwner = 'self';
-      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.otherState.field).includes(cardNum)
+      else if (fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.otherState.field).includes(cardNum)
         || keySlotCardNums(ctx.otherState).includes(cardNum)) raOwner = 'opponent';
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
@@ -14826,7 +14824,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const fieldOwner = atlA.target?.owner === 'opponent' || atlA.target?.owner === 'self'
           ? atlA.target.owner : atlOwner;
         const fieldS = ownerState(fieldOwner, ctx);
-        if (!fieldS.field.signi.some(stack => stack?.at(-1) === cardNum)) return done(ctx);
+        if (!fieldSigniStacks(fieldS).some(stack => stack?.at(-1) === cardNum)) return done(ctx);
         let cur = setOwnerState(fieldOwner, removeFromField(cardNum, fieldS), ctx);
         const lifeS = ownerState(atlOwner, cur);
         cur = setOwnerState(atlOwner, { ...lifeS, life_cloth: [...lifeS.life_cloth, cardNum] }, cur);
@@ -14878,7 +14876,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ecS.hand.includes(cardNum)) ecNew = { ...ecNew, hand: ecNew.hand.filter(x => x !== cardNum) };
       else if (ecS.trash.includes(cardNum)) ecNew = { ...ecNew, trash: ecNew.trash.filter(x => x !== cardNum) };
       else if (ecS.deck.includes(cardNum)) ecNew = { ...ecNew, deck: ecNew.deck.filter(x => x !== cardNum) };
-      else if (ecS.field.signi.some(st => st?.at(-1) === cardNum)) ecNew = removeFromField(cardNum, ecNew);
+      else if (fieldSigniStacks(ecS).some(st => st?.at(-1) === cardNum)) ecNew = removeFromField(cardNum, ecNew);
       else return done(ctx);
       const ecAction = action as EnergyChargeAction;
       const chargedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level || '', 10);
@@ -14912,7 +14910,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (tdS.energy.includes(cardNum) && oppZoneMoveBlocked('energy', tdOwner, ctx, 'deck')) return done(addLog(ctx, 'エナ保護により効果なし'));
       if (tdS.trash.includes(cardNum) && oppZoneMoveBlocked('trash', tdOwner, ctx, 'deck')) return done(addLog(ctx, 'トラッシュ保護により効果なし'));
       let tdNew = { ...tdS };
-      if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
+      if (fieldSigniStacks(tdS).some(st => st?.at(-1) === cardNum)) {
         const sub = applyEffectLeaveSubstitutes(cardNum, tdOwner, ctx);
         if (sub.replaced) return done(sub.ctx);
         tdCtx = sub.ctx;          // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
@@ -14953,7 +14951,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const psValue = powerSetValue(psA, ctx);
       if (psValue === null) return done(addLog(ctx, '基本パワー変更：参照する数字が未宣言のため何もしない'));
       const psOwner: Owner = psA.target.owner === 'any'
-        ? (ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
+        ? (fieldSigniStacks(ctx.ownerState).some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
         : psA.target.owner as Owner;
       const psS = ownerState(psOwner, ctx);
       const psBase = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '0') || 0;
@@ -14973,7 +14971,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // case が無いと default→execStoryChange 再実行で同一 SELECT_TARGET 再発行＝無限ループになる。
       const scA = action as StoryChangeAction;
       const scOwner: Owner = scA.target.owner === 'any'
-        ? (ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
+        ? (fieldSigniStacks(ctx.ownerState).some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
         : scA.target.owner as Owner;
       const scS = ownerState(scOwner, ctx);
       const scOverrides = { ...(scS.story_overrides ?? {}), [cardNum]: scA.newStory };

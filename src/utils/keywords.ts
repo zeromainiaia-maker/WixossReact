@@ -1,3 +1,4 @@
+import { isZoneFrozen } from '../engine/cheerZoneView';
 import type { CardData, PlayerState } from '../types';
 
 /**
@@ -132,7 +133,7 @@ export function hasApplicableAssassin(
     const matches = opponentState.field.signi.some((stack, zoneIdx) => {
       const cardNum = stack?.at(-1);
       if (!cardNum) return false;
-      if (scope.isFrozen && !(opponentState.field.signi_frozen?.[zoneIdx] ?? false)) return false;
+      if (scope.isFrozen && !(isZoneFrozen(opponentState, zoneIdx))) return false;
       const power = effectivePowers?.get(cardNum) ?? parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Power ?? '', 10);
       if (scope.powerLte !== undefined && (!Number.isFinite(power) || power > scope.powerLte)) return false;
       if (scope.powerGte !== undefined && (!Number.isFinite(power) || power < scope.powerGte)) return false;

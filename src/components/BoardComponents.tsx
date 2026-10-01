@@ -1,3 +1,4 @@
+import { isZoneFrozen } from '../engine/cheerZoneView';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardData, PlayerState } from '../types';
@@ -1086,6 +1087,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   // 🆕§5.3 `O-538`＝チアゾーン（`field.cheer`）も同じ枠に出す（先頭＝画像はチアゾーンのカード）
   const cheerNum = state.field.cheer ?? null;
   const cheerDown = !!cheerNum && !!state.field.cheer_down;
+  const cheerFrozen = !!cheerNum && !!state.field.cheer_frozen;   // 🆕§5.3 `O-538` 段階5
   // フリーゾーンとビートゾーンを合算して表示
   const allFreeCards = [...(cheerNum ? [cheerNum] : []), ...freeZoneCards, ...beatZoneCards];
   const hasBeat = beatZoneCards.length > 0;
@@ -1096,6 +1098,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       data-testid={`${isMe ? 'my' : 'op'}-cheer-zone`}
       data-cheer={cheerNum ?? ''}
       data-cheer-down={cheerDown ? '1' : '0'}
+      data-cheer-frozen={cheerFrozen ? '1' : '0'}
       onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: allFreeCards, isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
@@ -1118,6 +1121,16 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             )}
             {(cheerNum || freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール'))) && (
               <div style={{ fontSize: 8, color: '#aaddff', fontWeight: 'bold', marginBottom: 2 }}>CHEER</div>
+            )}
+            {cheerFrozen && (
+              <div style={{ fontSize: 8, color: '#9fe8ff', fontWeight: 'bold', marginBottom: 2 }}>凍結</div>
+            )}
+            {/* 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニの実効パワー（【常】・一時修正込み＝段階3で計算される）。 */}
+            {cheerNum && effectivePowers?.get(cheerNum) !== undefined && (
+              <div data-testid={`${isMe ? 'my' : 'op'}-cheer-power`}
+                style={{ fontSize: 9, color: '#fff', fontWeight: 'bold', marginBottom: 2, textShadow: '0 0 3px #000' }}>
+                {effectivePowers.get(cheerNum)!.toLocaleString()}
+              </div>
             )}
             <div style={{
               backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: '1px 5px',
@@ -1142,7 +1155,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             label={`シグニ${rawIdx + 1}`}
             actions={getSigniZoneActions ? getSigniZoneActions(rawIdx) : undefined}
             isDown={state.field.signi_down?.[rawIdx] ?? false}
-            isFrozen={state.field.signi_frozen?.[rawIdx] ?? false}
+            isFrozen={isZoneFrozen(state, rawIdx)}
             isArmored={state.field.signi_armor?.[rawIdx] ?? false}
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}

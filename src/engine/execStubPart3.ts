@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from './cheerZoneView';
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -183,11 +184,11 @@ export function execStubPart3(
     }
     // lastProcessedCards に対象シグニがある場合（SEQUENCE内のターゲット選択後）
     const targetFromContext = (ctx.lastProcessedCards ?? []).find(cn =>
-      ctx.otherState.field.signi.some(s => s?.at(-1) === cn) ||
-      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn)
+      fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cn) ||
+      fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cn)
     );
     if (targetFromContext) {
-      const inOwnCC2 = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetFromContext);
+      const inOwnCC2 = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === targetFromContext);
       if (inOwnCC2) {
         const ovCC2 = { ...(ctx.ownerState.card_class_overrides ?? {}), [targetFromContext]: newClass };
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: ovCC2 } },
@@ -215,7 +216,7 @@ export function execStubPart3(
     const newClassIACC = typeof stub.value === 'string' ? stub.value : '';
     if (!targetCnIACC || !newClassIACC) return done(addLog(ctx, 'クラス変更適用失敗'));
     // 自分・相手どちらのフィールドかを判断
-    const inOwnIACC = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetCnIACC);
+    const inOwnIACC = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === targetCnIACC);
     if (inOwnIACC) {
       const overridesIACC = { ...(ctx.ownerState.card_class_overrides ?? {}), [targetCnIACC]: newClassIACC };
       return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: overridesIACC } },
@@ -263,7 +264,7 @@ export function execStubPart3(
   // SIGNI_LOSE_COLOR: 対戦相手のシグニ1体が色を失う（ターン終了時まで）
   if (stub.id === 'SIGNI_LOSE_COLOR') {
     const targetSLC = (ctx.lastProcessedCards ?? []).find(cn =>
-      ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
+      fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cn),
     );
     if (targetSLC) {
       const oppOverridesSLC = { ...(ctx.otherState.signi_color_overrides ?? {}), [targetSLC]: '無' };
@@ -459,7 +460,7 @@ export function execStubPart3(
   // CENTER_LRIG_RIDES_ON_SIGNI: センタールリグが選択した1体の乗機シグニに乗る（乗り換え可）
   if (stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {
     const selectedCLR = (ctx.lastProcessedCards ?? []).find(cn =>
-      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
+      fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cn));
     if (selectedCLR) {
       const newlyDriveCLR = (ctx.ownerState.lrig_riding_signi ?? []).includes(selectedCLR) ? [] : [selectedCLR];
       const newOwnerCLR = { ...ctx.ownerState, lrig_riding_signi: [selectedCLR],
@@ -1067,7 +1068,7 @@ export function execStubPart3(
   // DRIVE_SIGNI_PREVENT_DOWN: ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与
   if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN') {
     const targetDSPD = (ctx.lastProcessedCards ?? []).find(cn =>
-      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn),
+      fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cn),
     );
     if (targetDSPD) {
       const grantsDSPD = { ...(ctx.ownerState.keyword_grants ?? {}) };
@@ -2156,7 +2157,7 @@ export function execStubPart3(
   if (stub.id === 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH') {
     const srcSDWT = ctx.sourceCardNum;
     if (!srcSDWT) return done(addLog(ctx, 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: ソースなし'));
-    const inFieldSDWT = ctx.ownerState.field.signi.some(s => s?.includes(srcSDWT));
+    const inFieldSDWT = fieldSigniStacks(ctx.ownerState).some(s => s?.includes(srcSDWT));
     if (!inFieldSDWT) return done(addLog(ctx, 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: フィールドにシグニなし'));
     const noopSDWT: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
     return needsInteraction(addLog(ctx, `${ctx.cardMap.get(srcSDWT)?.CardName ?? srcSDWT}をトラッシュ→ダメージ無効しますか？`), {
@@ -3531,7 +3532,7 @@ export function execStubPart3(
       {
         id: 'kiy2', label: '②対戦相手のシグニ1体（パワー4000以下）をバニッシュ',
         action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 4000 } }, upToCount: false } } as EffectAction,
-        available: ctx.otherState.field.signi.some(s => s && s.length > 0),
+        available: fieldSigniStacks(ctx.otherState).some(s => s && s.length > 0),
       },
       {
         id: 'kiy3', label: '③カードを2枚引き、手札を2枚捨てる',
@@ -3730,7 +3731,7 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_BOUNCE_TO_DECK') {
     const cnIBTD = ctx.lastProcessedCards?.[0];
     if (!cnIBTD) return done(addLog(ctx, '対象なし'));
-    const inOwnIBTD = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnIBTD);
+    const inOwnIBTD = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cnIBTD);
     const ownerIBTD: Owner = inOwnIBTD ? 'self' : 'opponent';
     const sIBTD = ownerState(ownerIBTD, ctx);
     const removedIBTD = removeFromField(cnIBTD, sIBTD);
@@ -3755,7 +3756,7 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_LEAVE_TO_TRASH') {
     const cnILT = ctx.lastProcessedCards?.[0];
     if (!cnILT) return done(addLog(ctx, '対象なし'));
-    const inOwnILT = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnILT);
+    const inOwnILT = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cnILT);
     const ownerILT: Owner = inOwnILT ? 'self' : 'opponent';
     const sILT = ownerState(ownerILT, ctx);
     const removedILT = removeFromField(cnILT, sILT);
@@ -3767,7 +3768,7 @@ export function execStubPart3(
   if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
     const srcTSAOTE = ctx.sourceCardNum;
     let ctxTSAOTE = ctx;
-    if (srcTSAOTE && ctx.ownerState.field.signi.some(s => s?.at(-1) === srcTSAOTE)) {
+    if (srcTSAOTE && fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === srcTSAOTE)) {
       const removedTSAOTE = removeFromField(srcTSAOTE, ctx.ownerState);
       const newOwnerTSAOTE: PlayerState = { ...removedTSAOTE, energy: [...removedTSAOTE.energy, srcTSAOTE] };
       ctxTSAOTE = { ...ctxTSAOTE, ownerState: newOwnerTSAOTE };
@@ -3848,7 +3849,7 @@ export function execStubPart3(
     const atkZoneRTP = sRTP.pending_signi_battle?.zoneIndex;
     const stillOnField = atkZoneRTP != null
       ? sRTP.field.signi[atkZoneRTP]?.at(-1) === srcRTP
-      : (srcRTP != null && sRTP.field.signi.some(z => z?.at(-1) === srcRTP));
+      : (srcRTP != null && fieldSigniStacks(sRTP).some(z => z?.at(-1) === srcRTP));
     if (stillOnField) {
       return done(addLog(ctx, 'このシグニを手札に戻さなかったため不発（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI）'));
     }
@@ -3986,7 +3987,7 @@ export function execStubPart3(
       if (candsSRAll.length < 2) return done(addLog(ctx, '配置替え不可（シグニ1体以下）'));
       // 1体ずつ選択して移動先を決める（任意）
       const selectedSRAll = (ctx.lastProcessedCards ?? []).find(cn =>
-        ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
+        fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cn));
       if (!selectedSRAll) {
         const noopSRAll: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
         const contSRAll: StubAction = { ...stub };
@@ -4012,7 +4013,7 @@ export function execStubPart3(
     const topsOf = (st: PlayerState): string[] =>
       st.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
     const ownerOfSR = (cn: string): PlayerState =>
-      ctx.otherState.field.signi.some(s => s?.at(-1) === cn) ? ctx.otherState : ctx.ownerState;
+      fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cn) ? ctx.otherState : ctx.ownerState;
     const selectedSR = (ctx.lastProcessedCards ?? []).find(cn =>
       (isAnySR ? [...topsOf(ctx.ownerState), ...topsOf(ctx.otherState)] : topsOf(targetStateSR)).includes(cn),
     );
@@ -4134,7 +4135,7 @@ export function execStubPart3(
     const srcLevelPMPOL = srcCardPMPOL ? (parseInt(srcCardPMPOL.Level ?? '0') || 0) : 0;
     const deltaPMPOL = -2000 * srcLevelPMPOL;
     const targetPMPOL = (ctx.lastProcessedCards ?? []).find(cn =>
-      ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
+      fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === cn),
     );
     if (targetPMPOL) {
       const newMods = [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetPMPOL, delta: deltaPMPOL }];
@@ -4156,8 +4157,8 @@ export function execStubPart3(
     const targetNA = ctx.lastProcessedCards?.[0];
     if (targetNA) {
       // 対象がいずれかのフィールドに存在するか確認
-      const inOwnNA = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetNA);
-      const inOppNA = ctx.otherState.field.signi.some(s => s?.at(-1) === targetNA);
+      const inOwnNA = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === targetNA);
+      const inOppNA = fieldSigniStacks(ctx.otherState).some(s => s?.at(-1) === targetNA);
       if (inOwnNA) {
         const newOwnerNA: PlayerState = { ...ctx.ownerState, abilities_removed: [...(ctx.ownerState.abilities_removed ?? []), targetNA] };
         return done(addLog({ ...ctx, ownerState: newOwnerNA }, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}の能力を無効化`));
@@ -4184,7 +4185,7 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_NEGATE_ABILITY') {
     const cnINA = ctx.lastProcessedCards?.[0];
     if (!cnINA) return done(addLog(ctx, '対象なし'));
-    const inOwnINA = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnINA);
+    const inOwnINA = fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === cnINA);
     if (inOwnINA) {
       const newOwnerINA: PlayerState = { ...ctx.ownerState, abilities_removed: [...(ctx.ownerState.abilities_removed ?? []), cnINA] };
       return done(addLog({ ...ctx, ownerState: newOwnerINA }, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}の能力を無効化`));
@@ -4812,7 +4813,7 @@ export function execStubPart3(
       const cls = ctx.ownerState.card_class_overrides?.[cn] ?? ctx.cardMap.get(cn)?.CardClass ?? '';
       if (cls.includes('原子')) cands.push(cn);
     }
-    if (cands.length < 2 && selfNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === selfNum)) {
+    if (cands.length < 2 && selfNum && fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === selfNum)) {
       const removed = removeFromField(selfNum, ctx.ownerState);
       const newOwner = { ...removed, trash: [...removed.trash, selfNum] };
       return done(addLog({ ...ctx, ownerState: newOwner },
@@ -4832,7 +4833,7 @@ export function execStubPart3(
     let st = ctx.ownerState;
     const names: string[] = [];
     for (const cn of targets) {
-      if (st.field.signi.some(s => s?.at(-1) === cn)) {
+      if (fieldSigniStacks(st).some(s => s?.at(-1) === cn)) {
         const removed = removeFromField(cn, st);
         st = { ...removed, trash: [...removed.trash, cn] };
         names.push(ctx.cardMap.get(cn)?.CardName ?? cn);
@@ -4843,7 +4844,7 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_STUTO_TRASH_SELF') {
     const selfNum = ctx.sourceCardNum;
     if (!selfNum) return done(addLog(ctx, 'INTERNAL_STUTO_TRASH_SELF: 発動元不明'));
-    if (!ctx.ownerState.field.signi.some(s => s?.at(-1) === selfNum)) {
+    if (!fieldSigniStacks(ctx.ownerState).some(s => s?.at(-1) === selfNum)) {
       return done(addLog(ctx, 'INTERNAL_STUTO_TRASH_SELF: このシグニはフィールドにない'));
     }
     const removed = removeFromField(selfNum, ctx.ownerState);
@@ -4885,7 +4886,7 @@ export function execStubPart3(
     if (count < 3) {
       return done(addLog(ctx, `手札捨て${count}枚（3枚未満のため不発）`));
     }
-    const oppCands = ctx.otherState.field.signi.filter(s => s?.at(-1)).map(s => s!.at(-1)!);
+    const oppCands = fieldSigniStacks(ctx.otherState).filter(s => s?.at(-1)).map(s => s!.at(-1)!);
     if (oppCands.length === 0) {
       return done(addLog(ctx, `手札${count}枚捨て済み → 相手シグニなし`));
     }
@@ -5109,7 +5110,7 @@ export function execStubPart3(
   if (stub.id === 'TRASH_UNDER_SPELLS_POWER_MINUS') {
     const selfNum = ctx.sourceCardNum;
     if (!selfNum) return done(addLog(ctx, 'TRASH_UNDER_SPELLS_POWER_MINUS: 発動元不明'));
-    const zoneStack = ctx.ownerState.field.signi.find(s => s?.at(-1) === selfNum);
+    const zoneStack = fieldSigniStacks(ctx.ownerState).find(s => s?.at(-1) === selfNum);
     if (!zoneStack || zoneStack.length <= 1) {
       return done(addLog(ctx, `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}: 下にスペルなし`));
     }
@@ -5148,7 +5149,7 @@ export function execStubPart3(
     };
     if (trashCount === 0) return done(addLog({ ...ctx, ownerState: newOwner }, 'スペルをトラッシュしなかった'));
     const spellNames = selectedSpells.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('/');
-    const oppCands = ctx.otherState.field.signi.filter(s => s?.at(-1)).map(s => s!.at(-1)!);
+    const oppCands = fieldSigniStacks(ctx.otherState).filter(s => s?.at(-1)).map(s => s!.at(-1)!);
     if (oppCands.length === 0) {
       return done(addLog({ ...ctx, ownerState: newOwner }, `${spellNames}をトラッシュ（相手シグニなし）`));
     }
@@ -5460,7 +5461,7 @@ export function execStubPart3(
       if (idx < 0) return [cards, false];
       return [[...cards.slice(0, idx), ...cards.slice(idx + 1)], true];
     };
-    const foundOnFieldESAU = ctx.ownerState.field.signi.some(stack => stack?.includes(srcESAU))
+    const foundOnFieldESAU = fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(srcESAU))
       || ctx.ownerState.field.lrig.includes(srcESAU);
     let removedESAU = foundOnFieldESAU ? removeFromField(srcESAU, ctx.ownerState) : ctx.ownerState;
     let foundESAU = foundOnFieldESAU;
@@ -5502,7 +5503,7 @@ export function execStubPart3(
   // MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
   if (stub.id === 'MARK_SELF_DELAYED_EXILE') {
     const src = ctx.sourceCardNum;
-    if (!src || !ctx.ownerState.field.signi.some(stack => stack?.includes(src))) {
+    if (!src || !fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(src))) {
       return done(addLog(ctx, '遅延除外マーク対象なし'));
     }
     return done(addLog({ ...ctx, ownerState: {
@@ -5517,7 +5518,7 @@ export function execStubPart3(
   // 表示: この方法で場に出したカードが場を離れる場合、代わりにゲームから除外する
   if (stub.id === 'MARK_PLACED_DELAYED_EXILE') {
     const placedMPDE = (ctx.lastProcessedCards ?? [])
-      .filter(n => ctx.ownerState.field.signi.some(stack => stack?.includes(n)));
+      .filter(n => fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(n)));
     if (placedMPDE.length === 0) return done(addLog(ctx, '遅延除外マーク対象なし（場に出たカードがない）'));
     return done(addLog({ ...ctx, ownerState: {
       ...ctx.ownerState,

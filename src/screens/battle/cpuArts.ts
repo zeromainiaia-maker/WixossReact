@@ -1,3 +1,4 @@
+import { isZoneFrozen } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect, EffectAction } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
@@ -141,7 +142,7 @@ export function hasIncomingThreat(actor: PlayerState, attacker: PlayerState): bo
     const top = attacker.field.signi[zi]?.at(-1);
     if (!top) continue;
     if (attacker.field.signi_down?.[zi]) continue;   // ダウン状態はアタックできない
-    if (attacker.field.signi_frozen?.[zi]) continue; // 凍結もアタックできない
+    if (isZoneFrozen(attacker, zi)) continue; // 凍結もアタックできない
     // 盤面は左右反転する＝engine 共通規約の facing は **2 - zi**。
     const facing = actor.field.signi[2 - zi];
     if (!facing || facing.length === 0) return true;
@@ -198,7 +199,7 @@ export function hasBlockedAttacker(actor: PlayerState, defender: PlayerState): b
     const top = actor.field.signi[zi]?.at(-1);
     if (!top) continue;
     if (actor.field.signi_down?.[zi]) continue;   // ダウン状態はアタックできない
-    if (actor.field.signi_frozen?.[zi]) continue; // 凍結もアタックできない
+    if (isZoneFrozen(actor, zi)) continue; // 凍結もアタックできない
     const facing = defender.field.signi[2 - zi];
     if (facing && facing.length > 0) return true;
   }
