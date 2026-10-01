@@ -1438,6 +1438,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // パワー0以下シグニの自動バニッシュ
+  // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
   useEffect(() => {
     if (!bs || !user) return;
     if (bs.global_phase !== 'PLAYING') return;
@@ -1446,12 +1447,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.active_user_id !== user.id) return;
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🆕**保留になっていたリフレッシュの受け皿**（2026-09-18・公式ルール）。
   //   通常のリフレッシュは効果1つの解決直後（`applyRefreshOnDone`＝誘発した効果より先）とドローフェイズで行う。
   //   ここは「デッキ0枚でもトラッシュが空で保留→あとからトラッシュにカードが置かれた」等、その2か所を通らなかった残り。
   //   ⚠CPU 戦は人間のクライアントが CPU 側も処理する（PvP はターンプレイヤーのクライアントだけ）。
+  // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
   useEffect(() => {
     if (!bs || !user) return;
     if (bs.global_phase !== 'PLAYING') return;
@@ -1461,12 +1463,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.active_user_id !== user.id && !isCpuBattle) return;
     checkDeferredRefreshRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🆕§5.6 `C-9` `R-28`＝**ターンプレイヤーのこのターン2回目のリフレッシュ → ターンを終了**（ルール処理）。
   //   🔴規則が効果スタックの解決経路1本にしか無かったので、盤面が動くたび見る funnel を受け皿にする
   //     （スペル解決・選択の再開・ドローフェイズからのリフレッシュも通る）。
   //   ⚠`turn_phase === 'UP'` を除く理由は `refreshTurnEnd.ts` に書いた（台帳が前ターンの値のまま）。
+  // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
   useEffect(() => {
     if (!bs || !user) return;
     if (bs.global_phase !== 'PLAYING') return;
@@ -1476,11 +1479,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.active_user_id !== user.id) return;
     checkRefreshTurnEndRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🆕§5.3 `O-532`＝**レベル超過／リミット超過のルール処理**（RULES.md `R-44`/`R-48`）。
   //   ⚠**自分の盤面は A（レベル超過＝選択の余地なし）だけ自動**＝B/C は `LimitExcessModal` が持ち主に問う。
   //   ⚠**CPU の盤面は問えない**ので A も B/C も自動（`pickLimitExcessZone`）。
+  // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
   useEffect(() => {
     if (!bs || !user) return;
     if (bs.global_phase !== 'PLAYING') return;
@@ -1488,9 +1492,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return;
     checkLimitExcessRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果：WX16-045 等）
+  // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
   useEffect(() => {
     if (!bs || !user) return;
     if (bs.global_phase !== 'PLAYING') return;
@@ -1499,7 +1504,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.active_user_id !== user.id) return;
     checkContMutationsRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_ATTACK_SIGNI処理完了後のバトル解決（pending_signi_battleが設定されスタックが空になったとき）
   useEffect(() => {

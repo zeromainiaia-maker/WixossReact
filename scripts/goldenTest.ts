@@ -93896,6 +93896,21 @@ test('2026-10-01 前面に戻ったら取り直す＝合図の判定と、対戦
   ok(!/location\.reload\(\)/.test(fs.readFileSync(join(root, 'src/utils/resumeSync.ts'), 'utf-8')), '強制リロードはしない（ユーザー判断）');
 });
 
+// ── 2026-10-01 バグ報告 131184e7「CPU がリミットをオーバーしている」 ──
+// 🔴CPU がアーツ（バイオ・ハザード）で Lv4 を出し、場が Lv4×3＝12 ＞ リミット11 のまま残った。
+//   リミット超過のルール処理は「盤面が変わったとき」に走る effect だが、**処理中（`loading`）なら何もせず抜け、
+//   依存配列に `loading` が無い**＝処理中に盤面が変わり、その後盤面が動かない局面（人間のアーツステップ待ち）で
+//   **二度と見直されなかった**。⇒ 盤面を見て必要なら処理するだけのルール処理 5 本は、処理中フラグが下りたときにも見直す。
+test('2026-10-01 報告 131184e7＝ルール処理（リミット超過ほか5本）は処理中フラグが下りたときにも見直す', () => {
+  const src = battleScreenSource();
+  for (const name of ['checkPowerZeroBanishRef', 'checkDeferredRefreshRef', 'checkRefreshTurnEndRef', 'checkLimitExcessRef', 'checkContMutationsRef']) {
+    const i = src.indexOf(name + '.current?.()');
+    ok(i >= 0, name + ' の呼び出しが無い');
+    const deps = src.slice(i, i + 600).match(/\}, \[([^\]]*)\]\);/);
+    ok(!!deps && /\bloading\b/.test(deps[1]), `🔴${name} の effect が処理中フラグ（loading）の変化で走らない＝処理中に盤面が変わると見逃す`);
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
