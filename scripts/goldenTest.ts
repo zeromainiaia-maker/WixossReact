@@ -287,6 +287,7 @@ import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { cardCsvRelPaths, cardCsvPaths, variantsCsvPath, cardDataIndex, packOf, CARD_DATA_DIR } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 import { shouldGoToStartOnSignIn } from '../src/utils/authNav';
 import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
+import { isResumeEvent } from '../src/utils/resumeSync';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93872,6 +93873,22 @@ test('2026-10-01 デッキ編成の検索＝カード効果で絞り込む（部
     '🔴検索結果が先頭200件で打ち切られている（ページ送りが無い）');
   ok(/const resetSearchFilters = \(\) => \{\s*setSearch\(''\); setEffectSearch\(''\); setFilterType\(''\); setFilterColor\(''\); setFilterLevel\(''\); setFilterClass\(''\);/.test(src)
     && src.includes('data-testid="search-reset"'), '🔴絞込リセットがすべての条件を戻していない');
+});
+
+// ── 2026-10-01 ユーザー要望：アプリが前面に戻ったら最新の盤面を取り直す（強制リロードはしない） ──
+test('2026-10-01 前面に戻ったら取り直す＝合図の判定と、対戦・マッチング画面の配線', () => {
+  ok(isResumeEvent({ type: 'visibilitychange', visibilityState: 'visible' }), '前面に戻った');
+  ok(!isResumeEvent({ type: 'visibilitychange', visibilityState: 'hidden' }), '反転: 裏へ回ったときは取り直さない');
+  ok(isResumeEvent({ type: 'pageshow', persisted: true }), 'キャッシュから復元された');
+  ok(!isResumeEvent({ type: 'pageshow', persisted: false }), '反転: 通常の読み込み（起動時の取得に任せる）');
+  ok(isResumeEvent({ type: 'online' }), '通信が戻った');
+  const bsSrc = battleScreenSource();
+  ok(/useOnResume\(\(\) => \{\s*persist\.fetchState\(\)/.test(bsSrc), '🔴対戦画面が前面に戻ったときに盤面を取り直していない');
+  ok(bsSrc.includes('battle-' + '$' + '{roomId}-' + '$' + '{resumeTick}') && bsSrc.includes('}, [roomId, resumeTick]);'),
+    '🔴対戦画面が前面に戻ったときに購読を張り直していない');
+  const mm = fs.readFileSync(join(root, 'src/screens/MatchmakingScreen.tsx'), 'utf-8');
+  ok(mm.includes('useOnResume(') && mm.includes('room-' + '$' + '{room.id}-' + '$' + '{resumeTick}'), '🔴マッチング画面（入室待ち）が前面に戻ったときに取り直していない');
+  ok(!/location\.reload\(\)/.test(fs.readFileSync(join(root, 'src/utils/resumeSync.ts'), 'utf-8')), '強制リロードはしない（ユーザー判断）');
 });
 
 if (listMode) {

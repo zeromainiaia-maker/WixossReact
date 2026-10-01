@@ -62593,6 +62593,67 @@ scenarios.v291ChooseOrderAndLabels = {
 };
 order.push('v291ChooseOrderAndLabels');
 
+// ── 🆕§5.1 `V-292`（2026-10-01）＝**アプリが前面に戻ったら最新の盤面を取り直す**（ユーザー要望・`utils/resumeSync.ts`） ──
+// 🔴iPhone はホーム画面へ出るとページを止める＝裏にいる間のリアルタイム通知を取りこぼし、戻っても古い盤面のままだった。
+// 再現＝ブラウザを**オフライン**にして通知を確実に取りこぼさせ（タブも hidden にする）、その間に **Node 側から** DB の
+//   `turn_count` を書き換える → オンラインへ戻して visible にする。
+// 観測点＝**戻ってから 2.5 秒以内**に画面のターン表示が DB の値になる（＝リアルタイムの再接続を待たずに取り直した）。
+//   反転＝オフライン中（hidden のまま）は古い表示のまま＝通知を本当に取りこぼしていること。
+scenarios.v292ResumeRefetch = {
+  title: 'V-292 アプリが前面に戻ったら DB から盤面を取り直す（裏にいる間の更新を取りこぼさない）',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.cheer': null, 'field.check': null, 'hand': [], 'actions_done': [] },
+    guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.cheer': null, 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const shown = async () => (await page.getByTestId('turn-count').first().innerText().catch(() => '?')).trim();
+    const t0 = await shown();
+    if (t0 !== 'T2') return { pass: false, detail: `前提崩れ＝ターン表示が T2 でない（${t0}）` };
+    const auth = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const r = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
+      return { token, roomId: (await r.json())?.[0]?.id };
+    }, { SUPA_URL, ANON });
+    const patch = turn => fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${auth.roomId}`, {
+      method: 'PATCH', headers: { apikey: ANON, Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ turn_count: turn }),
+    });
+    const flip = state => page.evaluate(st => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => st });
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => st === 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+    let refetches = 0;
+    const onReq = req => { if (/\/rest\/v1\/battle_states/.test(req.url()) && req.method() === 'GET') refetches++; };
+    try {
+      await flip('hidden');
+      await page.context().setOffline(true);
+      await page.waitForTimeout(500);
+      await patch(7);                           // 裏にいる間に「相手が動いた」
+      await page.waitForTimeout(1500);
+      const whileAway = await shown();
+      page.on('request', onReq);
+      await page.context().setOffline(false);
+      await flip('visible');
+      let back = await shown();
+      for (let i = 0; i < 10 && back !== 'T7'; i++) { await page.waitForTimeout(250); back = await shown(); }
+      H.log(`  v292 裏の間=${whileAway} 戻って=${back} 取り直し GET=${refetches}`);
+      if (whileAway !== 'T2') return { pass: false, detail: `前提崩れ＝オフライン中なのに表示が変わった（${whileAway}）＝取りこぼしを再現できていない` };
+      const ok = back === 'T7' && refetches > 0;
+      return { pass: ok, detail: `${ok ? '' : '🔴'}裏の間は ${whileAway} のまま → 前面に戻って 2.5 秒以内に ${back}（DB は T7）・取り直し ${refetches} 回` };
+    } finally {
+      page.off('request', onReq);
+      await page.context().setOffline(false);
+      await flip('visible');
+      await patch(2);
+    }
+  },
+};
+order.push('v292ResumeRefetch');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：

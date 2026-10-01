@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
+import { useOnResume } from '../utils/resumeSync';
 import { CHEER_ZONE, cheerCardOf, signiStackAt, fieldSigniStacks } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
@@ -566,9 +567,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       .then(({ data }) => {
         if (data) setMyDeckData(data as unknown as NonNullable<typeof myDeckData>);
       });
+  }, [roomId, myDeckId]);
 
+  // 🆕2026-10-01（ユーザー要望）＝**アプリが前面に戻ったら DB から盤面を取り直し、リアルタイムの購読を張り直す**
+  //   （`utils/resumeSync.ts`）。iPhone はホーム画面へ出るとページを止める＝裏にいる間の通知を取りこぼし、
+  //   戻っても次の更新が来るまで古い盤面のままだった。⚠強制リロードはしない（ほかの画面の状態を消さない）。
+  const [resumeTick, setResumeTick] = useState(0);
+  useOnResume(() => {
+    persist.fetchState().then(({ data }) => { if (data) setBs(data as BattleStateRow); });
+    setResumeTick(t => t + 1);
+  });
+
+  useEffect(() => {
+    // ⚠張り直しのたびに**別の名前**で作る＝同じ名前だと外した直後の古いチャンネルと取り違えうる。
     const channel = supabase
-      .channel(`battle-${roomId}`)
+      .channel(`battle-${roomId}-${resumeTick}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'battle_states', filter: `room_id=eq.${roomId}`,
       }, (payload) => { setBs(payload.new as BattleStateRow); })
@@ -586,7 +599,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, [roomId, myDeckId]);
+  }, [roomId, resumeTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!bs) return;
@@ -5783,7 +5796,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flexShrink: 0, backgroundColor: C.bgBar, borderBottom: C.borderBar,
         padding: '6px 12px', display: 'flex', gap: 8, alignItems: 'center',
       }}>
-        <span style={{ color: C.textMuted, fontWeight: 'bold', fontSize: 13 }}>T{bs.turn_count}</span>
+        <span data-testid="turn-count" style={{ color: C.textMuted, fontWeight: 'bold', fontSize: 13 }}>T{bs.turn_count}</span>
         <span style={{ color: isMyTurn ? C.accent : C.textDim, fontSize: 12, fontWeight: 'bold' }}>
           {PHASE_LABEL[bs.turn_phase] ?? bs.turn_phase}
         </span>

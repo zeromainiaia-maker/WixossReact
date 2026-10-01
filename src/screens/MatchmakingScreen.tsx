@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useOnResume } from '../utils/resumeSync';
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
@@ -75,10 +76,24 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // 🆕2026-10-01＝前面に戻ったら部屋を取り直し、購読を張り直す（`utils/resumeSync.ts`）。
+  //   🔴相手の入室待ちの間に裏へ回ると、入室（status → PLAYING）の通知を取りこぼして**待ち画面のまま進まなかった**。
+  const [resumeTick, setResumeTick] = useState(0);
+  useOnResume(() => {
+    if (!room) return;
+    supabase.from('rooms').select('*').eq('id', room.id).single().then(({ data }) => {
+      if (!data) return;
+      const fresh = data as Room;
+      setRoom(fresh);
+      if (fresh.status === 'PLAYING') onBattleStart(room.id, selectedDeckId, fresh.host_art_overrides);
+    });
+    setResumeTick(t => t + 1);
+  });
+
   useEffect(() => {
     if (!room) return;
     const channel = supabase
-      .channel(`room-${room.id}`)
+      .channel(`room-${room.id}-${resumeTick}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}`,
       }, (payload) => {
@@ -88,7 +103,7 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [room?.id]);
+  }, [room?.id, resumeTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
   const handleCpuBattle = async () => {
