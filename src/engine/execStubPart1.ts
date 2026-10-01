@@ -478,7 +478,7 @@ export function execStubPart1(
       const blockedPFSP = deployLimitBlockReason({
         placingState: ctx.ownerState, opponentState: ctx.otherState,
         cardNum: pickPFSP, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
-        contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
+        contCountCap: ctx.deployCountCapSelf, lrigLimit: ctx.lrigLimitSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
         placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
       placementSourceCardNum: ctx.sourceCardNum,
       });
@@ -636,7 +636,7 @@ export function execStubPart1(
     const deployBlocked = fetched ? deployLimitBlockReason({
       placingState: ctx.ownerState, opponentState: ctx.otherState,
       cardNum: fetched, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
-      contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
+      contCountCap: ctx.deployCountCapSelf, lrigLimit: ctx.lrigLimitSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
       fieldCountAdjust: 1,
       placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
       placementSourceCardNum: ctx.sourceCardNum,
@@ -2972,7 +2972,7 @@ export function execStubPart1(
     if (zonePM < 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, `空きシグニゾーンなし（${logCardLabel(ctx, milledPM)}を場に出せない）`));
     const blockedPM = deployLimitBlockReason({
       placingState: ctx.ownerState, opponentState: ctx.otherState,
-      cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf,
+      cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf, lrigLimit: ctx.lrigLimitSelf,
       placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
       placementSourceCardNum: ctx.sourceCardNum,
     });

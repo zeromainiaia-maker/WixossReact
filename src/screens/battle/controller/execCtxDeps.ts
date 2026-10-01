@@ -1,4 +1,5 @@
 import { deployCountCap } from '../../../engine/deployLimit';
+import { computeEffectiveLrigLimit } from '../lrigLimit';
 import type { ExecCtx } from '../../../engine/effectExecutor';
 import { collectLifeCrashPreventions } from '../../../engine/lifeCrashGate';
 import { collectGrantedFromUnderSigni } from '../../../engine/effectEngine';
@@ -55,6 +56,10 @@ export function makeFillDeployCaps(p: {
       cardMap: battleCardMap, effectsMap,
       isPlacingOwnerTurn: c.isOwnerTurn === undefined ? undefined : !c.isOwnerTurn,
     });
+    // 🆕2026-10-01 報告 131184e7＝**リミット**（効果で場に出すときの `LIMIT_OVER`。`effectsMap` が ctx に無い経路の受け皿）。
+    c.lrigLimitSelf = computeEffectiveLrigLimit(c.ownerState, c.otherState, battleCardMap, effectsMap, c.isOwnerTurn ?? false);
+    c.lrigLimitOpponent = computeEffectiveLrigLimit(c.otherState, c.ownerState, battleCardMap, effectsMap,
+      c.isOwnerTurn === undefined ? false : !c.isOwnerTurn);
     c.lifeCrashPreventionsSelf = collectLifeCrashPreventions(
       c.ownerState, c.otherState, c.isOwnerTurn ?? false, battleCardMap, effectsMap);
     c.lifeCrashPreventionsOpponent = collectLifeCrashPreventions(

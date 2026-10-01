@@ -1392,7 +1392,7 @@ function mkPlaceLevelGate(over) {
           + ` pEff=${st?.pendingEffect ?? '-'} picked=${picked} confirm=${JSON.stringify(confirmState)}`);
         if (over) {
           if (placed) return { pass: false, detail: `🔴ルリグ Lv2 の場に Lv3 のシグニが場に出た（hField=${JSON.stringify(st?.host?.fieldSigni)}）` };
-          if (sawTarget && picked && confirmState && !confirmState.enabled && /レベルを超え/.test(confirmState.text)) {
+          if (sawTarget && picked && confirmState && !confirmState.enabled && /を超えています/.test(confirmState.text)) {
             // 後始末＝選択を外してモーダルを閉じる（§4.4-1）。
             await pick0.click().catch(() => {});
             await page.waitForTimeout(400);
@@ -1406,7 +1406,7 @@ function mkPlaceLevelGate(over) {
           }
         } else {
           if (placed) return { pass: true, detail: `ルリグ Lv3 の場に Lv3 のシグニを出せた（hField=${JSON.stringify(st?.host?.fieldSigni)}）` };
-          if (confirmState && !confirmState.enabled && /レベルを超え/.test(confirmState.text)) {
+          if (confirmState && !confirmState.enabled && /を超えています/.test(confirmState.text)) {
             return { pass: false, detail: `🔴レベル以下（Lv3 ≦ Lv3）なのに決定が押せない＝過剰なゲート（ボタン="${confirmState.text}"）` };
           }
         }
@@ -62653,6 +62653,31 @@ scenarios.v292ResumeRefetch = {
   },
 };
 order.push('v292ResumeRefetch');
+
+// ── 🆕§5.1 `V-293`（2026-10-01）＝**効果で場に出すときもリミットを超えるシグニは出せない**（バグ報告 131184e7・ユーザー指摘） ──
+// `placeLevelTrashOver`（V-281＝レベル超過）と同じ手順で、**レベルは足りているがリミットを超える**盤面にする。
+//   ルリグ＝`WD05-002`（阿鼻の閻魔　ウリス＝Lv3・**リミット8**）。トラッシュの `WX02-069`（Lv3）が【起】で自分を場に出す。
+//   `over`＝場に Lv3＋Lv3（6）→ 出すと 9 ＞ 8＝**出せない**（候補に「出せない」・決定が押せない）。
+//   対照＝場に Lv3＋Lv2（5）→ 出すと 8＝**ちょうどリミット**＝出せる（境界）。
+// 🔑実機の ExecCtx には effectsMap が無い＝`makeFillDeployCaps`（`lrigLimitSelf`）の配線まで通っていることの確認。
+function mkPlaceLimitTrashAct(over) {
+  const base = mkPlaceLevelTrashAct(over);
+  return {
+    ...base,
+    title: `配置リミット制限（R-48）＝トラッシュから場に出す【起】で${over ? 'Lv3＋Lv3 の場に Lv3 は出ない（9＞8）' : 'Lv3＋Lv2 の場になら Lv3 が出る（8＝8）'}`,
+    spec: {
+      ...base.spec,
+      hostSet: {
+        ...base.spec.hostSet,
+        'field.lrig': ['WD05-002#r1'],
+        'field.signi': [['WD05-011#f1'], [over ? 'WD05-011#f2' : 'WD05-012#f2'], null],
+      },
+    },
+  };
+}
+scenarios.v293PlaceLimitTrashOver = mkPlaceLimitTrashAct(true);
+scenarios.v293PlaceLimitTrashWithin = mkPlaceLimitTrashAct(false);
+order.push('v293PlaceLimitTrashOver', 'v293PlaceLimitTrashWithin');
 
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──

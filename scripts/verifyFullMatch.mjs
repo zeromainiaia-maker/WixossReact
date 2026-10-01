@@ -214,7 +214,7 @@ function makeSeat(page, name) {
         //   🔑これは「正規表現／セレクタが黙って何にも当たらない」型＝**当たった回数を必ず確かめる**
         //     （CLAUDE.md の `census:deadstate` の罠と同型）。
         const wrapText = ((await pick0.locator('xpath=..').textContent().catch(() => '')) ?? '');
-        const levelOver = wrapText.includes('Lv超過');
+        const levelOver = wrapText.includes('出せない') || wrapText.includes('Lv超過');   // 2026-10-01＝表示を「出せない」へ（リミット超過も同じ印）
         // 🆕🔴**封印された手は押し直さない**＝`modalStep` だけ `blocked` を受け取っていなかったので、
         //   「3回押しても盤面が動かない＝封印」の仕組みが**この経路にだけ効かず**、
         //   `pick-0` を押し続けて「決定(0/N)／選ばない」へ一生たどり着けなかった。

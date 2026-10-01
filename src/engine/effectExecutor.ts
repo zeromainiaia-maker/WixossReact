@@ -4684,6 +4684,7 @@ function deployLimitBlockedFor(
     cardMap: ctx.cardMap,
     effectsMap: ctx.effectsMap,
     contCountCap: placingIsSelf ? ctx.deployCountCapSelf : ctx.deployCountCapOpponent,
+    lrigLimit: placingIsSelf ? ctx.lrigLimitSelf : ctx.lrigLimitOpponent,
     isPlacingOwnerTurn: ctx.isOwnerTurn === undefined
       ? undefined
       : (placingIsSelf ? ctx.isOwnerTurn : !ctx.isOwnerTurn),

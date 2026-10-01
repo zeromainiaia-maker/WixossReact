@@ -25,6 +25,7 @@ import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
 import { countEnergyPlacedThisTurn } from './energyPlacement';
 import { signiPlaceableByLevel } from './placeLevelGate';
+import { signiPlaceableByLimit } from './placeLimitGate';
 import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -142,6 +143,9 @@ export interface ExecCtx {
   //   AUTO フラグ版（`PlayerState.signi_deploy_count_limit`）は state に載るのでこの経路は不要。
   deployCountCapSelf?: number;      // ownerState が場に出すときの上限
   deployCountCapOpponent?: number;  // otherState が場に出すときの上限
+  // 🆕2026-10-01 報告 131184e7＝**リミット**も同じ理由で事前計算して渡す（`placeLimitGate` の `LIMIT_OVER`）。
+  lrigLimitSelf?: number;           // ownerState のリミット
+  lrigLimitOpponent?: number;       // otherState のリミット
   // LIFE_CRASH_PREVENTION（§5.3 O-66）＝「ライフクロスは〜クラッシュされない／N枚までしか
   // クラッシュされない」の宣言を、**クラッシュされる側ごとに**事前計算して渡す。
   // ⚠**上の `deployCountCap*` と同じ理由でここへ置く**＝`ctx.effectsMap` は BattleScreen の一部経路でしか
@@ -1572,7 +1576,12 @@ function unplaceableCardsFor(pending: PendingInteractionDef, ctx: ExecCtx): stri
   const owner = (pending.thenAction as { owner?: string }).owner;
   const placing = owner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const cands = pending.type === 'SELECT_TARGET' ? pending.candidates : pending.visibleCards;
-  return cands.filter(n => !signiPlaceableByLevel(n, placing, ctx.cardMap));
+  // 🆕2026-10-01 報告 131184e7＝**リミットを超えるシグニも「出せない」**（配置ゲートの `LIMIT_OVER` と同じ判定）。
+  const opponent = owner === 'opponent' ? ctx.ownerState : ctx.otherState;
+  const placingTurn = ctx.isOwnerTurn === undefined ? undefined : (owner === 'opponent' ? !ctx.isOwnerTurn : ctx.isOwnerTurn);
+  const placingLimit = owner === 'opponent' ? ctx.lrigLimitOpponent : ctx.lrigLimitSelf;
+  return cands.filter(n => !signiPlaceableByLevel(n, placing, ctx.cardMap)
+    || !signiPlaceableByLimit({ cardId: n, placing, opponent, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap, isPlacingOwnerTurn: placingTurn, limit: placingLimit }));
 }
 
 export function needsInteraction(ctx: ExecCtx, pendingIn: PendingInteractionDef): ExecResult {

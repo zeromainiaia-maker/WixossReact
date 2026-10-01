@@ -148,19 +148,19 @@ miss = 各ソース行について、その行の門から来る live カード�
   effectEngine.ts:7458 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
   execStubPart1.ts:1423 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4890 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
-  execUtils.ts:549 <fn:countFromZone> sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)
-  execUtils.ts:1634 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
-  execUtils.ts:1636 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
-  execUtils.ts:1638 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
-  execUtils.ts:1640 <fn:matchesFilter> if (filter.noRecollectIcon && (card.EffectText?.includes('《リコレクトアイコン》'))) return false;
-  execUtils.ts:1642 <fn:matchesFilter> if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
-  execUtils.ts:1665 <fn:matchesFilter> if (filter.hasTeam && !/【チーム[自常起出]】/.test(card.EffectText ?? '')) return false;
-  execUtils.ts:1692 <fn:matchesFilter> const noAb = (card.effects?.length ?? 0) === 0 && blankTxt(card.EffectText) && blankTxt(card.BurstText);
-  execUtils.ts:1709 <fn:matchesFilter> const txt = card.EffectText ?? '';
-  execUtils.ts:1743 <fn:matchesFilter> const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
-  execUtils.ts:1752 <fn:matchesFilter> const txt = card.EffectText ?? '';
-  execUtils.ts:1882 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
-  execUtils.ts:3122 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:4596 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
-  execUtils.ts:4943 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  execUtils.ts:553 <fn:countFromZone> sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)
+  execUtils.ts:1643 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
+  execUtils.ts:1645 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
+  execUtils.ts:1647 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
+  execUtils.ts:1649 <fn:matchesFilter> if (filter.noRecollectIcon && (card.EffectText?.includes('《リコレクトアイコン》'))) return false;
+  execUtils.ts:1651 <fn:matchesFilter> if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
+  execUtils.ts:1674 <fn:matchesFilter> if (filter.hasTeam && !/【チーム[自常起出]】/.test(card.EffectText ?? '')) return false;
+  execUtils.ts:1701 <fn:matchesFilter> const noAb = (card.effects?.length ?? 0) === 0 && blankTxt(card.EffectText) && blankTxt(card.BurstText);
+  execUtils.ts:1718 <fn:matchesFilter> const txt = card.EffectText ?? '';
+  execUtils.ts:1752 <fn:matchesFilter> const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
+  execUtils.ts:1761 <fn:matchesFilter> const txt = card.EffectText ?? '';
+  execUtils.ts:1891 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
+  execUtils.ts:3131 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
+  execUtils.ts:4605 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
+  execUtils.ts:4952 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
   triggerCollect.ts:1924 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

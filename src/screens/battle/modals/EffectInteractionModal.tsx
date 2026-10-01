@@ -430,7 +430,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                           </span>
                         )}
                         {levelOver && (
-                          <span style={{ fontSize: 9, color: C.danger, lineHeight: 1 }}>Lv超過</span>
+                          <span style={{ fontSize: 9, color: C.danger, lineHeight: 1 }}>出せない</span>
                         )}
                       </div>
                     );
@@ -465,7 +465,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !canConfirm) ? 'default' : 'pointer' }}>
                     {selectedLevelBlocked
-                      ? 'ルリグのレベルを超えています'
+                      ? 'ルリグのレベルかリミットを超えています'   // 🆕2026-10-01 報告 131184e7＝リミット超過も「出せない」
                       : inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined
                         ? `決定 (合計${selectedPowerSum}/${inter.totalPowerMax})`
                         : `決定 (${effectSelectedNums.length}/${maxPick})`}

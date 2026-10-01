@@ -3,6 +3,7 @@ import { fieldSigniStacks } from './cheerZoneView';
 import type { CardEffect } from '../types/effects';
 import { collectDeployCountLimit } from './effectEngine';
 import { signiPlaceableByLevel } from './placeLevelGate';
+import { signiPlaceableByLimit } from './placeLimitGate';
 
 /**
  * 配置制限（「シグニをN体までしか場に出すことができない」「パワーN以上のシグニを新たに場に出せない」）の
@@ -26,7 +27,8 @@ export type DeployBlockReason =
   | 'ALL_BAN'      // 「このターン、あなたは他のシグニを場に出せない」＝絞り込みキー無しの ban（同上）
   | 'ONLY_BY_NAMED_EFFECT' // 「《X》の効果以外によっては／によってしか新たに場に出せない」（SELF_PLAY_RESTRICT.exceptSourceCardNames）
   | 'ZONE_LEVEL_RESTRICT' // 「対戦相手は中央のシグニゾーンにレベルN以上のシグニを新たに配置できない」（STUB.zonePlacementRestrict）
-  | 'LEVEL_OVER';  // 🆕**シグニのレベル > センタールリグのレベル**（`R-48`①・`O-534`）＝ルールの配置制限
+  | 'LEVEL_OVER'   // 🆕**シグニのレベル > センタールリグのレベル**（`R-48`①・`O-534`）＝ルールの配置制限
+  | 'LIMIT_OVER';  // 🆕**場のレベル合計＋このシグニ > リミット**（`R-48`・2026-10-01 報告 131184e7）＝効果で出す場合も出せない
 
 /**
  * その配置が「どうやって場に出されるか」。`signi_deploy_bans.bySource` の判定だけに使う。
@@ -58,6 +60,8 @@ export interface DeployLimitInput {
   cardMap: Map<string, CardData>;
   /** CONTINUOUS 版（`WX07-006` レゾナ等）の走査に要る。無い場合は**フラグ版だけ**で判定する。 */
   effectsMap?: Map<string, CardEffect[]>;
+  /** 🆕事前計算した配置側のリミット（`ExecCtx.lrigLimitSelf/Opponent`）。`effectsMap` が無い経路の `LIMIT_OVER` 判定に使う。 */
+  lrigLimit?: number;
   /** 事前計算済みの CONTINUOUS 版 cap。`effectsMap` を渡せない経路（ExecCtx）はこちらを使う。 */
   contCountCap?: number;
   /** 配置する側のターンか（CONTINUOUS 側の `activeCondition` 評価に使う）。不明なら相手ターン扱いにしない。 */
@@ -192,6 +196,13 @@ export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason |
   //     トークン生成のどれも**既にこの funnel を通っている**＝1か所足すだけで「選択が起きない経路」も CPU も塞がる。
   //   ⚠**fail-open**（センタールリグが読めない／シグニでない札は通す）は `placeLevelGate` 側の規約。
   if (!signiPlaceableByLevel(p.cardNum, p.placingState, p.cardMap)) return 'LEVEL_OVER';
+  // 🆕🔴**配置リミット制限**（`R-48`・2026-10-01 バグ報告 131184e7＝ユーザー指摘「リミットを超える場合は場に出すときに選択できないはず」）。
+  //   ⚠**効果で出すときだけ**＝通常の召喚（手札・レゾナ）は UI／CPU が独自にリミットを数えている（レゾナは場から払う分を差し引く）。
+  //   ⚠ライズ（既存スタックへの上乗せ）は数が増えない＝ここでは見ない。
+  if (p.placementSource !== 'normal_summon' && !p.onExistingStack && !signiPlaceableByLimit({
+    cardId: p.cardNum, placing: p.placingState, opponent: p.opponentState, cardMap: p.cardMap,
+    effectsMap: p.effectsMap, isPlacingOwnerTurn: p.isPlacingOwnerTurn, limit: p.lrigLimit,
+  })) return 'LIMIT_OVER';
   // 出撃元の効果を名前で限定する自身出撃制限（`O-74`/`O-79`）。ライズ（上乗せ）も「場に出す」なので対象にする。
   if (blockedByOnlyByNamedEffect(p)) return 'ONLY_BY_NAMED_EFFECT';
   // ゾーン＋レベル指定の配置禁止（`O-94`②）。`zoneIndex` を渡した呼び出し元だけが受ける。
@@ -224,5 +235,6 @@ export function deployLimitLogMessage(reason: DeployBlockReason, cardLabel: stri
   if (reason === 'ONLY_BY_NAMED_EFFECT') return `特定のカードの効果によってしか場に出せないため${cardLabel}を場に出せない`;
   if (reason === 'ZONE_LEVEL_RESTRICT') return `そのシグニゾーンにはそのレベルのシグニを配置できないため${cardLabel}を場に出せない`;
   if (reason === 'LEVEL_OVER') return `センタールリグのレベルを超えるため${cardLabel}を場に出せない`;
+  if (reason === 'LIMIT_OVER') return `リミットを超えるため${cardLabel}を場に出せない`;
   return `配置パワー制限のため${cardLabel}を場に出せない`;
 }

@@ -288,6 +288,7 @@ import { cardCsvRelPaths, cardCsvPaths, variantsCsvPath, cardDataIndex, packOf, 
 import { shouldGoToStartOnSignIn } from '../src/utils/authNav';
 import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 import { isResumeEvent } from '../src/utils/resumeSync';
+import { signiPlaceableByLimit } from '../src/engine/placeLimitGate';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93910,6 +93911,42 @@ test('2026-10-01 報告 131184e7＝ルール処理（リミット超過ほか5�
     ok(!!deps && /\bloading\b/.test(deps[1]), `🔴${name} の effect が処理中フラグ（loading）の変化で走らない＝処理中に盤面が変わると見逃す`);
   }
 });
+
+// ── 2026-10-01 報告 131184e7（ユーザー指摘「そもそもリミットを超える場合は場に出すときに選択できないはず」） ──
+// 🔴効果の「場に出す」はレベル（`placeLevelGate`）しか見ておらず、リミットを超えるシグニを選べて場に出せていた。
+//   ⇒ 配置ゲートに `LIMIT_OVER`・対象選択の「出せない」印にもリミットを足した。
+//   ⚠**実機の ExecCtx には effectsMap がほとんど無い**＝事前計算した `lrigLimitSelf`（`makeFillDeployCaps`）の経路で検査する。
+test('2026-10-01 報告 131184e7＝効果で場に出すときもリミットを超えるシグニは出せない（選べない）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const LRIG = 'WD22-007-G';          // 成就の駄姫　グズ子（Lv4・リミット11）
+  const LV4 = 'WD22-029-G';           // 死之遊　†マージャン†（黒・Lv4）
+  const LV3 = 'WX15-064';             // 羅菌　キョウギュ（黒・Lv3）
+  const st = mkState({ lrig: [LRIG], signi: [LV4, LV4, null], trash: 0 });
+  // 純関数（事前計算リミットの経路）
+  eq(signiPlaceableByLimit({ cardId: LV4 + '#x', placing: st, opponent: mkState({}), cardMap: cm, effectsMap: undefined, limit: 11 }), false,
+    '🔴Lv4＋Lv4 の場に Lv4 を出すと 12 ＞ 11 なのに出せる');
+  eq(signiPlaceableByLimit({ cardId: LV3 + '#x', placing: st, opponent: mkState({}), cardMap: cm, effectsMap: undefined, limit: 11 }), true,
+    '反転: Lv3 なら 11 ≦ 11 ＝ちょうどリミットまでは出せる');
+  eq(signiPlaceableByLimit({ cardId: LV4, placing: st, opponent: mkState({}), cardMap: cm, effectsMap: undefined }), true,
+    'リミットが分からない経路は通す（fail-open＝ソフトロックを作らない）');
+  // 配置ゲート
+  const gate = (card: string, source: 'other_effect' | 'normal_summon') => deployLimitBlockReason({
+    placingState: st, opponentState: mkState({}), cardNum: card, cardMap: cm, lrigLimit: 11, placementSource: source });
+  eq(gate(LV4, 'other_effect'), 'LIMIT_OVER', '🔴効果の配置ゲートがリミット超過を止めない');
+  eq(gate(LV3, 'other_effect'), null, '反転: リミット内なら出せる');
+  eq(gate(LV4, 'normal_summon'), null, '通常召喚は UI／CPU が独自に数える（レゾナの払い分を差し引く）＝ここでは止めない');
+  // 報告の局面＝《バイオ・ハザード》（トラッシュの黒のシグニを場に出す）＝Lv4 にだけ「出せない」印
+  const eff = effectsMap.get('WX15-026')!.find(x => x.effectId === 'WX15-026-E1')!;
+  const ctx = mkCtx({ lrig: [LRIG], signi: [LV4, LV4, null], trash: 0 }, {}, 'WX15-026');
+  ctx.ownerState.trash = [LV4, LV3];   // ⚠素のカード番号（golden のカード表は `#` 付きの ID を引けない）
+  ctx.lrigLimitSelf = 11;
+  ctx.lrigLimitOpponent = 11;
+  const r = executeEffect(eff, ctx);
+  ok(!r.done, '対象選択が出ない');
+  const pend = (r as { pending: { unplaceableCards?: string[] } }).pending;
+  ok((pend.unplaceableCards ?? []).includes(LV4), '🔴リミットを超える Lv4 に「出せない」印が付かない（選べて場に出せてしまう）');
+  ok(!(pend.unplaceableCards ?? []).includes(LV3), '反転: リミット内の Lv3 には印を付けない');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
