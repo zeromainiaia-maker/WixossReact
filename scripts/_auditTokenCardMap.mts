@@ -8,10 +8,11 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
+import { tokenCsvPath } from './cardDataFiles.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tk = Papa.parse<Record<string, string>>(
-  readFileSync(join(root, 'public/data/CardData_TK.csv'), 'utf-8').replace(/^﻿/, ''),
+  readFileSync(tokenCsvPath(), 'utf-8').replace(/^﻿/, ''),
   { header: true, skipEmptyLines: true },
 ).data;
 

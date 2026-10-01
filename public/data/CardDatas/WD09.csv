@@ -1,0 +1,13 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WD09-002,悠久の使者　サシェ・モティエ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-002.jpg,ルリグ,サシェ,白,3,《白》×２,-,8,-,-,-,-,0,-,-,0,-,-
+WD09-003,悠久の使者　サシェ・カルティエ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-003.jpg,ルリグ,サシェ,白,2,《白》×１,-,5,-,-,-,-,0,-,-,0,-,-
+WD09-004,悠久の使者　サシェ・クロワス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-004.jpg,ルリグ,サシェ,白,1,《白》×０,-,2,-,-,-,-,0,-,-,0,-,-
+WD09-005,悠久の使者　サシェ・ヌーベル,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-005.jpg,ルリグ,サシェ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+WD09-007,白羅星　マーキュリー,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-007.jpg,レゾナ,精羅：宇宙,白,4,-,-,-,15000,サシェ限定,-,-,0,-,-,0,【出現条件】《メインフェイズアイコン》レゾナではない＜宇宙＞のシグニ３体をあなたの場からトラッシュに置く【出】：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。,-
+WD09-008,白羅星　ビーナス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-008.jpg,レゾナ,精羅：宇宙,白,2,-,-,-,8000,サシェ限定,-,-,0,-,-,0,【出現条件】《メインフェイズアイコン》レゾナではない＜宇宙＞のシグニ２体をあなたの場からトラッシュに置く【出】：対戦相手のレベル２以下のシグニ１体を対象とし、それを手札に戻す。,-
+WD09-009,羅星　ベガ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-009.jpg,シグニ,精羅：宇宙,白,4,-,-,-,12000,サシェ限定,-,-,0,-,-,1,【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは15000になる。【出】《白》：あなたのデッキからレベル２以下の白のシグニ１枚を探して場に出し、デッキをシャッフルする。,：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+WD09-010,羅星　ベテルギウス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-010.jpg,シグニ,精羅：宇宙,白,3,-,-,-,10000,-,-,-,0,-,-,0,-,-
+WD09-011,羅星　アルタイル,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-011.jpg,シグニ,精羅：宇宙,白,3,-,-,-,7000,サシェ限定,-,-,0,-,-,1,【出】《白》：あなたのデッキから《羅星　ベガ》を探して公開し手札に加え、デッキをシャッフルする。,：カードを１枚引く。
+WD09-012,羅星　シリウス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-012.jpg,シグニ,精羅：宇宙,白,2,-,-,-,7000,-,-,-,0,-,-,0,-,-
+WD09-014,羅星　プロキオン,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-014.jpg,シグニ,精羅：宇宙,白,1,-,-,-,3000,-,-,-,0,-,-,0,-,-
+WD09-018,ゲット・トゥインクル,https://www.takaratomy.co.jp/products/wixoss/img/card/WD09/WD09-018.jpg,スペル,-,白,-,-,《白》×１,-,-,-,-,-,0,-,-,1,あなたのデッキからレベル３以下の白のシグニ１枚を探して公開し手札に加える。その後、あなたの場にレゾナがある場合、追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える。その後、デッキをシャッフルする。,：あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。

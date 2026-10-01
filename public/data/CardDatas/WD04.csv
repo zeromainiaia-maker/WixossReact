@@ -1,0 +1,19 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WD04-001,四ノ娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-001.jpg,ルリグ,緑子,緑,4,《緑》×３,-,11,-,-,-,-,0,-,-,0,【常】：あなたの場に《幻獣　セイリュ》があり、あなたのエナゾーンにカードが７枚以上あるかぎり、あなたのシグニのパワーを＋2000する。,-
+WD04-002,三ノ娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-002.jpg,ルリグ,緑子,緑,3,《緑》×２,-,8,-,-,-,-,0,-,-,0,-,-
+WD04-003,二ノ娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-003.jpg,ルリグ,緑子,緑,2,《緑》×１,-,5,-,-,-,-,0,-,-,0,-,-
+WD04-004,一ノ娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-004.jpg,ルリグ,緑子,緑,1,《緑》×０,-,2,-,-,-,-,0,-,-,0,-,-
+WD04-005,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-005.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+WD04-006,意気揚々,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-006.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,緑子限定,-,メインフェイズ,0,-,-,0,ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。,-
+WD04-007,再三再四,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-007.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのエナゾーンからカードを２枚まで対象とし、それらを手札に加える。,-
+WD04-008,付和雷同,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-008.jpg,アーツ,-,緑,-,-,《緑》×３,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。,-
+WD04-009,幻獣　セイリュ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-009.jpg,シグニ,精生：地獣,緑,4,-,-,-,12000,緑子限定,-,-,0,-,-,1,【常】：あなたの場にあるシグニ３体のパワーがそれぞれ15000以上であるかぎり、このシグニは【ランサー】と「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。,：対戦相手のパワー10000以上のシグニ１体を対象とし、それをバニッシュする。
+WD04-010,幻獣　ミスザク,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-010.jpg,シグニ,精生：地獣,緑,3,-,-,-,8000,緑子限定,-,-,0,-,-,1,【常】：このシグニのパワーが10000以上であるかぎり、このシグニは【ランサー】を得る。（【ランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）,：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。
+WD04-011,幻獣　ビグタット,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-011.jpg,シグニ,精生：地獣,緑,3,-,-,-,8000,緑子限定,-,-,0,-,-,1,【出】：ターン終了時まで、あなたのすべてのシグニのパワーを＋2000する。,：【エナチャージ１】
+WD04-012,幻獣　コアラン,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-012.jpg,シグニ,精生：地獣,緑,2,-,-,-,5000,緑子限定,-,-,0,-,-,1,【出】：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。,：カードを１枚引く。
+WD04-013,幻獣　コゲンブ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-013.jpg,シグニ,精生：地獣,緑,2,-,-,-,3000,緑子限定,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、このシグニのパワーが5000以上である場合、あなたのデッキの一番上のカードをエナゾーンに置く。,-
+WD04-014,幻獣　パンダン,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-014.jpg,シグニ,精生：地獣,緑,1,-,-,-,2000,緑子限定,-,-,0,-,-,1,【出】：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋2000する。,：カードを１枚引く。
+WD04-015,幻獣　ヒャッコ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-015.jpg,シグニ,精生：地獣,緑,1,-,-,-,1000,緑子限定,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、このシグニのパワーが3000以上である場合、あなたのデッキの一番上のカードをエナゾーンに置く。,-
+WD04-016,サーバント　Ｑ２,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-016.jpg,シグニ,精元,無,4,-,-,-,10000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
+WD04-017,サーバント　Ｏ２,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-017.jpg,シグニ,精元,無,1,-,-,-,1000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
+WD04-018,堕絡,https://www.takaratomy.co.jp/products/wixoss/img/card/WD04/WD04-018.jpg,スペル,-,緑,-,-,《緑》×１,-,-,-,-,-,0,-,-,0,対象のあなたのアップ状態のシグニ１体をダウンする。そうした場合、そのシグニのパワー以下の対象の対戦相手のシグニ１体をバニッシュする。,-

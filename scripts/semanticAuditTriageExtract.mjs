@@ -22,6 +22,7 @@
 import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const args = process.argv.slice(2);
 const argOf = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -74,7 +75,7 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(p, 'utf8')))) effectsMap.set(k, v);
 }
 const cards = new Map();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = path.join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   for (const r of Papa.parse(fs.readFileSync(p, 'utf8'), { header: true }).data) if (r.CardNum && !cards.has(r.CardNum)) cards.set(r.CardNum, r);

@@ -24,6 +24,7 @@ import {
   resumeDeclareBond, resumeRevealCards,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -35,7 +36,7 @@ const STEP_CAP = 200;
 
 // ── データ読み込み（decompileEffects と同じ）──
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const text = fs.readFileSync(p, 'utf-8').replace(/^﻿/, '');

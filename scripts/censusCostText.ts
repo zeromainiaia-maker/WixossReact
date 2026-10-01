@@ -25,6 +25,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths, cardDataIndex } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = join(import.meta.dirname, '..');
 const argv = process.argv.slice(2);
@@ -221,7 +222,7 @@ const uniq = rules.filter(r => {
 // ── 2) 全カードの原文に当てて母集団を測る ───────────────────────────────────
 type Card = { CardNum: string; CardName: string; Type: string; EffectText: string };
 const cards: Card[] = [];
-for (const f of readdirSync(join(root, 'public/data')).filter(n => /^CardData_.*\.csv$/.test(n)).sort()) {
+for (const f of [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`]) {
   const parsed = Papa.parse<Record<string, string>>(readFileSync(join(root, 'public/data', f), 'utf-8'), {
     header: true, skipEmptyLines: true,
   });

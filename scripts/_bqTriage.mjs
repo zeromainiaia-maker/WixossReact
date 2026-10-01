@@ -3,9 +3,10 @@
 // のに盤面が動かない＝欠落no-opバグの最有力。
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const cards = new Map();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   try { for (const r of Papa.parse(readFileSync('public/data/' + f, 'utf8'), { header: true }).data) if (r.CardNum) cards.set(r.CardNum, r); } catch {}
 }
 const eff = new Map();

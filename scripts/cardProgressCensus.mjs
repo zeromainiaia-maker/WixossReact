@@ -40,6 +40,8 @@ import fs from 'fs';
 import Papa from 'papaparse';
 // 🔴意味照合の残 OPEN は**この1本だけ**が正（罠5）。import しても何も印字しない作りにしてある。
 import { open as ledgerOpen } from './archive/semanticAuditLedger.mjs';
+import { cardDataIndex, tokenCsvPath, CARD_DATA_DIR } from './cardDataFiles.mjs';
+import { join } from 'node:path';
 
 // ── 引数：--sheet <1|Sheet1|CardData_Sheet1.csv> / --list ──
 const argv = process.argv.slice(2);
@@ -57,8 +59,8 @@ const listMode = argv.includes('--list');
 // ── 母数：CSV の全カード（先勝ち＝decompile/build と同じ規約）──
 const rows = new Map();
 const sheetOf = new Map();   // cardNum -> 最初に出会った CSV 名（＝先勝ちの帰属）
-const loadCsv = file => {
-  const p = `public/data/${file}`;
+// 🆕2026-10-01＝CSV はパック別（public/data/CardDatas/）。帰属の名前は**旧シート名のまま**（`legacySheet`）＝`--sheet N` は不変。
+const loadCsv = (file, p = `public/data/${file}`) => {
   if (!fs.existsSync(p)) return false;
   for (const r of Papa.parse(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true }).data) {
     const id = (r.CardNum ?? '').trim();
@@ -66,8 +68,11 @@ const loadCsv = file => {
   }
   return true;
 };
-for (let i = 1; i <= 11; i++) if (!loadCsv(`CardData_Sheet${i}.csv`)) break;
-loadCsv('CardData_TK.csv');
+for (const pk of cardDataIndex().packs) {
+  const label = pk.legacySheet == null ? `pack:${pk.pack}` : `CardData_Sheet${pk.legacySheet}.csv`;
+  loadCsv(label, join(CARD_DATA_DIR, pk.file));
+}
+loadCsv('CardData_TK.csv', tokenCsvPath());
 if (sheetArg && ![...sheetOf.values()].includes(sheetArg)) {
   console.error(`--sheet ${sheetArg} に該当するカードが1枚も無い（ファイル名を確認）`); process.exit(1);
 }

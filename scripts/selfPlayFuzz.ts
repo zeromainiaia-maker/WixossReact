@@ -46,10 +46,11 @@ const EXPLOSION_DELTA = 120; // 1ゲーム内でカード総数が基準＋こ�
 //     **落ちたシードを渡されても再現しない**（`--seed` が嘘になる）。
 //   ⚠ゲーム毎に seed を差し直す（下の `playGame` 冒頭）＝ゲーム間で列が持ち越されない。
 import { mulberry32, setRngSeed } from '../src/engine/rng';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 // ── データ読み込み（smokeTest と同じ）──
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const text = fs.readFileSync(p, 'utf-8').replace(/^﻿/, '');

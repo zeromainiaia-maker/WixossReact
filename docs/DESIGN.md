@@ -11,7 +11,7 @@ CSV のカードテキストを構造化 JSON（DSL）に変換し、ゲーム�
 
 ### データフロー
 ```
-CardData_Sheet*.csv（カードテキスト）
+public/data/CardDatas/*.csv（カードテキスト・パック別。並びは index.json）
   → effectParser.ts（自動解析）＋ manualEffects.ts（手動定義をマージ）
   → public/data/effects_*.json（buildEffectsJson.ts で生成）
   → effectExecutor.ts / effectEngine.ts（実行）

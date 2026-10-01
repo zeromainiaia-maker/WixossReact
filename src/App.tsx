@@ -14,6 +14,7 @@ import SpectateScreen from './screens/SpectateScreen';
 import { SPECTATE_ACTIVE_KEY } from './utils/spectateStore';
 import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
 import { deckFromRow } from './utils/deckRow';
+import { fetchCardCsvTexts } from './data/cardDataFetch';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -98,22 +99,14 @@ export default function App() {
 
   // CSV と事前生成 effects.json を並行 fetch してカードデータを構築
   useEffect(() => {
-    const sheetFetches = Array.from({ length: 10 }, (_, i) =>
-      fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => r.ok ? r.text() : null)
-    );
-    const tkFetch = fetch('/data/CardData_TK.csv').then(r => r.ok ? r.text() : null);
-    const variantsFetch = fetch('/data/CardData_Variants.csv').then(r => r.ok ? r.text() : null);
+    // 🆕2026-10-01＝カード CSV はパック別（`public/data/CardDatas/`・並びは index.json）。
+    const csvFetch = fetchCardCsvTexts();
     const effectFiles = ['effects_WX.json','effects_WXDi.json','effects_WX24_26.json','effects_WXK.json','effects_misc.json'];
     const effectsFetch = Promise.all(
       effectFiles.map(f => fetch(`/data/${f}`).then(r => r.json() as Promise<Record<string, CardEffect[]>>))
     ).then(parts => Object.assign({}, ...parts) as Record<string, CardEffect[]>);
-    Promise.all([
-      Promise.all(sheetFetches),
-      tkFetch,
-      effectsFetch,
-      variantsFetch,
-    ])
-      .then(([csvResults, tkCsv, effectsJson, variantsCsv]) => {
+    Promise.all([csvFetch, effectsFetch])
+      .then(([{ packs: csvResults, tokens: tkCsv, variants: variantsCsv }, effectsJson]) => {
         const parseRows = (csv: string) =>
           Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data;
         const storageBase = import.meta.env.VITE_CARD_IMAGE_BASE;

@@ -29,6 +29,7 @@ import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMa
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import { spectateLogLabel } from '../src/screens/battle/spectateLog';
 import { resolveSelfPlayDeck } from './selfPlayDecks';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const argv = process.argv.slice(2);
 const file = argv.find(a => !a.startsWith('--') && a.endsWith('.json'));
@@ -55,7 +56,7 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   Object.assign(effects, JSON.parse(fs.readFileSync(join('public/data', f), 'utf8')));
 }
 const all: CardData[] = [];
-for (const f of [...Array.from({ length: 10 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join('public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });

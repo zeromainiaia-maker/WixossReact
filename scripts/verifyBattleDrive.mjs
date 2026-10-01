@@ -13,6 +13,7 @@ import { chromium } from '@playwright/test';
 import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { harnessAccounts } from './verifyAccounts.mjs';
+import { cardCsvRelPaths, cardDataIndex } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const SHOT = 'scratchpad-verify';
 
@@ -17687,7 +17688,7 @@ function splitCsvLine(line) {
 }
 function loadCardDb() {
   const db = new Map();
-  for (const f of readdirSync('public/data').filter((n) => /^CardData_.*\.csv$/.test(n))) {
+  for (const f of [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`]) {
     for (const line of readFileSync(join('public/data', f), 'utf-8').split(/\r?\n/).slice(1)) {
       const c = splitCsvLine(line);
       // EffectText 内改行の継続行はここで弾く（CardNum 形式でない行は無視）

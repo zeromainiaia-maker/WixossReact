@@ -1,16 +1,17 @@
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
+import { cardCsvPaths, variantsCsvPath } from './cardDataFiles.mjs';
 const files = ['effects_WX.json','effects_WXDi.json','effects_WX24_26.json','effects_WXK.json','effects_misc.json'];
 const map = new Map();
 for (const f of files) for (const [k,v] of Object.entries(JSON.parse(readFileSync('public/data/'+f,'utf8')))) map.set(k, {v, f});
 const cards = new Map();
-for (let i=1;i<=11;i++){
+for (const p of [...cardCsvPaths({ tokens: false }), variantsCsvPath()]){
   try {
-    const {data} = Papa.parse(readFileSync('public/data/CardData_Sheet'+i+'.csv','utf8').replace(/^﻿/,''),{header:true});
+    const {data} = Papa.parse(readFileSync(p,'utf8').replace(/^﻿/,''),{header:true});
     for (const r of data) if (r.CardNum) cards.set(r.CardNum, r);
   } catch(e) {}
 }
-for (const f of ['CardData_Variants.csv']) {
+for (const f of []) {   // 🆕2026-10-01 Variants は上のループで読む
   try {
     const {data} = Papa.parse(readFileSync('public/data/'+f,'utf8').replace(/^﻿/,''),{header:true});
     for (const r of data) if (r.CardNum) cards.set(r.CardNum, r);

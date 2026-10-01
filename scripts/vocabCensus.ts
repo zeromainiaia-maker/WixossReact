@@ -25,6 +25,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { cardCsvRelPaths, cardDataIndex } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 // 2026-07-04 続き18: 死角調査第2〜4弾（トリガー種別/コスト/ゾーン/構造マーカー/引用付与平坦化/
 // 代わりに/できない/機構/逆方向action・数値 等）を組み込み＝25計測 → 98計測に拡張、実数 2023 で再登録。
@@ -1854,7 +1855,7 @@ function loadTexts(): Corpus {
   const all = new Map<string, string>(), eff = new Map<string, string>(), burst = new Map<string, string>();
   const rawAll = new Map<string, string>();
   const ctype = new Map<string, string>(), ctiming = new Map<string, string>();
-  const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('CardData_') && f.endsWith('.csv')).sort();
+  const files = [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`];
   for (const f of files) {
     for (const line of fs.readFileSync(path.join(DATA_DIR, f), 'utf8').split('\n')) {
       const cols = line.split(',');

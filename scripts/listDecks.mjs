@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { allAccounts, findAccount } from './verifyAccounts.mjs';
 import { join } from 'node:path';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const DEFAULT_USER = 'カルカドール';   // CPU デッキ作成用（ユーザー本人）
 const args = process.argv.slice(2);
@@ -48,7 +49,7 @@ const toFakeEmail = (username) =>
 /** カード番号→カード名（`public/data` の CSV から素朴に引く。ヘッダは CardNum,CardName,… 固定）。 */
 function loadCardNames() {
   const names = new Map();
-  for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+  for (const f of cardCsvRelPaths()) {
     let text;
     try { text = readFileSync(join('public/data', f), 'utf-8'); } catch { continue; }
     for (const line of text.split(/\r?\n/).slice(1)) {

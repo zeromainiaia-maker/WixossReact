@@ -42,6 +42,7 @@ import { parseCardEffects } from '../src/data/effectParser';
 import { MANUAL_EFFECTS } from '../src/data/manualEffects';
 import type { CardData } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = process.cwd();
 const argv = process.argv.slice(2);
@@ -76,9 +77,7 @@ try {
 
 // ── fresh（parser 出力。⚠`mergeManualEffects` は通さない＝「parser だけなら何を出すか」を見る）──
 const rows: Record<string, string>[] = [];
-for (const f of ['CardData_Sheet1.csv', 'CardData_Sheet2.csv', 'CardData_Sheet3.csv', 'CardData_Sheet4.csv',
-  'CardData_Sheet5.csv', 'CardData_Sheet6.csv', 'CardData_Sheet7.csv', 'CardData_Sheet8.csv',
-  'CardData_Sheet9.csv', 'CardData_Sheet10.csv', 'CardData_Sheet11.csv', 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!existsSync(p)) continue;
   rows.push(...Papa.parse<Record<string, string>>(readFileSync(p, 'utf-8').replace(/^﻿/, ''),

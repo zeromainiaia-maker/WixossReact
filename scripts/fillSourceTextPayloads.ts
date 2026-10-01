@@ -14,20 +14,14 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import { fillSourceTextPayloads, sourceTextPayloadFor, SOURCE_TEXT_PAYLOAD_KEYS } from '../src/data/sourceTextPayloads';
 import type { CardData } from '../src/types';
+import { cardCsvPaths } from './cardDataFiles.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
 
 // ── カード原文（build:effects と同じ読み方・先勝ち）──
 const cards = new Map<string, CardData>();
-const csvPaths: string[] = [];
-for (let i = 1; i <= 11; i++) {
-  const p = join(root, `public/data/CardData_Sheet${i}.csv`);
-  if (!existsSync(p)) break;
-  csvPaths.push(p);
-}
-const tkPath = join(root, 'public/data/CardData_TK.csv');
-if (existsSync(tkPath)) csvPaths.push(tkPath);
+const csvPaths: string[] = cardCsvPaths();   // パック別 CSV＋トークン（public/data/CardDatas/）
 for (const p of csvPaths) {
   const { data } = Papa.parse<Record<string, string>>(readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
   for (const r of data) {

@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { legacySheetCsvPaths } from './cardDataFiles.mjs';
 
 // ======= CLI引数 =======
 const args = process.argv.slice(2);
@@ -15,8 +16,9 @@ const cardFilter = args[includes(args, '--card') ? args.indexOf('--card') + 1 : 
 function includes(arr: string[], v: string) { return arr.includes(v); }
 
 // ======= 読み込み =======
-const CSV_PATH = path.resolve('public/data', `CardData_${sheetArg}.csv`);
-if (!fs.existsSync(CSV_PATH)) { console.error(`CSV not found: ${CSV_PATH}`); process.exit(1); }
+// 🆕2026-10-01＝CSV はパック別（public/data/CardDatas/）。`--sheet SheetN` は旧シート N に属したパック群。
+const CSV_PATHS = legacySheetCsvPaths(sheetArg.replace(/^Sheet/i, ''));
+if (CSV_PATHS.length === 0) { console.error(`CSV not found: --sheet ${sheetArg}`); process.exit(1); }
 
 const EFFECT_FILES = [
   'effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
@@ -29,7 +31,11 @@ for (const fname of EFFECT_FILES) {
   Object.assign(effectsAll, JSON.parse(fs.readFileSync(p, 'utf8')));
 }
 
-const csvRaw = fs.readFileSync(CSV_PATH, 'utf8').replace(/^﻿/, '');
+// 複数のパック CSV を1本の CSV に連結する（2本目以降は見出し行を落とす）
+const csvRaw = CSV_PATHS.map((p, i) => {
+  const t = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\n+$/, '');
+  return i === 0 ? t : t.slice(t.indexOf('\n') + 1);
+}).join('\n');
 
 // ======= 型定義（簡易） =======
 interface EffectDef {

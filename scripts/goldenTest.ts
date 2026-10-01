@@ -284,11 +284,12 @@ import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
 import { choiceLabelFromText } from '../src/screens/battle/choiceLabels';
 import { oppVirusChoiceNeeded, payRemoveOppVirus, payCharmTrash, payAcceTrash, ownCharmCandidates, ownAcceCandidates, ownCostChoiceNeeded } from '../src/screens/battle/costs';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
+import { cardCsvRelPaths, cardCsvPaths, variantsCsvPath, cardDataIndex, packOf, CARD_DATA_DIR } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 // ── データ読み込み ──
 const root = process.cwd();
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
@@ -21805,7 +21806,9 @@ test('CHOOSE[DRAW,ENERGY] 各選択肢が正しく実行（選択肢2=エナ+1�
 });
 test('CHOOSE choice.condition: 選択肢②「あなたの場に赤の＜龍獣＞のシグニがある場合」が場の状態でavailableを正しく切替（WX25-P3-092・続き105単点修正の回帰ガード）', () => {
   const eff = effectsMap.get('WX25-P3-092')!.find(e => e.effectId === 'WX25-P3-092-E1')!;
-  const ctxNo = mkCtx({ signi: [null, null, null] }, {}, 'WX25-P3-092');
+  // ⚠山札の一番上を＜龍獣＞に固定＝①「公開して＜龍獣＞ならエナチャージ」が実行できる盤面にする（共有カーソル任せだと
+  //   一番上次第で①も「実行できない」になり、全肢が選べず CHOOSE 自体が出なくなる＝2026-10-01 カード CSV の並び替えで顕在化）。
+  const ctxNo = mkCtx({ signi: [null, null, null], deckTop: ['WX04-031'] }, {}, 'WX25-P3-092');
   const rNo = executeEffect(eff, ctxNo);
   const pendingNo = (rNo as { pending: { options: { id: string; available?: boolean }[] } }).pending;
   eq(pendingNo.options.find(o => o.id === 'c1')?.available, false, '赤の＜龍獣＞シグニが場に無ければ選択肢②は選択不可');
@@ -72030,6 +72033,8 @@ test('§5.3 O-60 第57: WD22-016-UG は「そうした場合」がトラッシ�
   const c = () => fresh();
   const [u1, u2, u3, u4, top] = [c(), c(), c(), c(), c()];
   const ctx = mkCtx({ lrig: [u1, u2, u3, u4, top], signi: [null, null, null] }, {});
+  // ⚠トラッシュのシグニを明示（既定のトラッシュは共有カーソル任せ＝シグニが入らない回がある）
+  ctx.ownerState.trash = [SIGNI_L1];
   const r = finish(executeEffect(eff, ctx), ctx);
   eq(r.ownerState.lrig_trash.length, 4, 'ルリグの下から4枚を払った');
   ok(r.ownerState.field.signi.some(z => !!z && z.length > 0), 'トラッシュのシグニが場に出た');
@@ -79095,7 +79100,9 @@ test('第246 engine WXDi-P16-047-E2: 任意コスト支払い時だけ次の相�
   paidCtx.ownerState.energy = [white, colorless, colorless];
   const paid = run(effect.action, paidCtx);
   eq(paid.otherState.pending_lrig_limit_mod, -1, '支払い後は相手側の次メイン用予約に-1');
-  const unpaid = run(effect.action, mkCtx({}, {}, 'WXDi-P16-047'));
+  // ⚠払えない盤面を明示（既定のエナは共有カーソル任せ＝白と無色がそろって払えてしまう回がある）
+  const unpaidCtx = mkCtx({ energy: 0 }, {}, 'WXDi-P16-047');
+  const unpaid = run(effect.action, unpaidCtx);
   eq(unpaid.otherState.pending_lrig_limit_mod, undefined, '反転: 払えなければ予約しない');
 }));
 
@@ -89508,8 +89515,8 @@ test('カード検索: 番号は避難先(variant)にも当たり、返るのは
 
   // ② 実データ。`cardMap` は Sheet1〜11＋TK＝**本体だけ**なので、返り値がそこに在ることで
   //    「variant のデータが混ざっていない」を機械で言える。
-  const vpath = join(root, 'public/data/CardData_Variants.csv');
-  ok(fs.existsSync(vpath), 'CardData_Variants.csv が無い（検索の避難先が消えている）');
+  const vpath = variantsCsvPath();
+  ok(fs.existsSync(vpath), 'CardDatas/_Variants.csv が無い（検索の避難先が消えている）');
   const variantRows = Papa.parse<Record<string, string>>(
     fs.readFileSync(vpath, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true },
   ).data as unknown as CardData[];
@@ -89551,7 +89558,7 @@ test('デッキフォーマット: 再録を含めた全印刷で判定し、フ
 
   // ② 実データ＝避難先込みでプールを決める。
   const variantRows = Papa.parse<Record<string, string>>(
-    fs.readFileSync(join(root, 'public/data/CardData_Variants.csv'), 'utf-8').replace(/^﻿/, ''),
+    fs.readFileSync(variantsCsvPath(), 'utf-8').replace(/^﻿/, ''),
     { header: true, skipEmptyLines: true },
   ).data as unknown as CardData[];
   const vIdx = buildVariantNumIndex(variantRows);
@@ -89577,9 +89584,9 @@ test('デッキフォーマット: 再録を含めた全印刷で判定し、フ
   // 🔴**トークンも除く**（`CardData_TK.csv`）＝デッキに入れる札ではないうえ、**番号が `TK` で始まらない**
   //   （`WXDi-P07-TK01-A` の形＝43枚がディーバ番号）ので、接頭辞で外そうとすると 2,847 が 2,890 に化ける。
   const sheet: CardData[] = [];
-  for (let i = 1; i <= 10; i++) {
+  for (const csvPath of cardCsvPaths({ tokens: false })) {   // 🆕2026-10-01 パック別 CSV（トークン除く）
     const rows = Papa.parse<Record<string, string>>(
-      fs.readFileSync(join(root, `public/data/CardData_Sheet${i}.csv`), 'utf-8').replace(/^﻿/, ''),
+      fs.readFileSync(csvPath, 'utf-8').replace(/^﻿/, ''),
       { header: true, skipEmptyLines: true },
     ).data as unknown as CardData[];
     for (const r of rows) if (r.CardNum) sheet.push(r);
@@ -90916,7 +90923,17 @@ test('2026-09-28 ルール：実行できない選択肢は選べない（CHOOSE
   eq(availReal('WX17-Re14-E1', {}, { signi: [SIGNI, null, null] }, 'WX17-Re14')?.[0], false, '🔴WX17-Re14 ①：相手のシグニ1体で選べる');
   eq(availReal('WX17-Re14-E1', {}, { signi: [SIGNI, SIGNI_L1, null] }, 'WX17-Re14')?.[0], true, '🔴WX17-Re14 ①：相手のシグニ2体で選べない');
   // WD22-011-G ②「あなたのシグニ２体をバニッシュする」＝1体ならだめ
-  eq(availReal('WD22-011-G-E1', { signi: [SIGNI, null, null] }, {}, 'WD22-011-G')?.[1], false, '🔴WD22-011-G ②：自分のシグニ1体で選べる');
+  //   ⚠**トラッシュは空に固定**＝④「トラッシュのレベル３以下のシグニを場に出す」を先に処理すれば②が成立する
+  //   （2026-10-01＝処理順はプレイヤーが選ぶ）。既定のトラッシュは共有カーソルで埋まる＝中身次第で結果が変わっていた。
+  eq(availReal('WD22-011-G-E1', { signi: [SIGNI, null, null], trash: 0 }, {}, 'WD22-011-G')?.[1], false, '🔴WD22-011-G ②：自分のシグニ1体で選べる');
+  {
+    // 反転＝トラッシュにレベル３以下のシグニがあれば ④→② の順で②が成立する＝選べる
+    const ctxG = mkCtx({ signi: [SIGNI, null, null], trash: 0 }, {}, 'WD22-011-G');
+    ctxG.ownerState.trash = [SIGNI_L1];
+    const resG = executeAction(chooseNodeOf('WD22-011-G-E1'), ctxG);
+    eq(resG.done ? null : (resG.pending as { options: { available: boolean }[] }).options[1].available, true,
+      '🔴WD22-011-G ②：④（トラッシュから場に出す）を先にすれば成立するのに選べない');
+  }
   eq(availReal('WD22-011-G-E1', { signi: [SIGNI, SIGNI_L1, null] }, {}, 'WD22-011-G')?.[1], true, '🔴WD22-011-G ②：自分のシグニ2体で選べない');
   // WX24-P2-018 ①「対戦相手は自分のエナゾーンからカードを３枚選び」＝2枚以下でも可（すべて選ぶ）
   eq(availReal('WX24-P2-018-E2', {}, { energy: 2 }, 'WX24-P2-018')?.[0], true, '🔴WX24-P2-018 ①：相手のエナ2枚で選べない');
@@ -93770,6 +93787,35 @@ test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札
   const src = battleScreenSource();
   ok(!/getMyFreeZoneActions[\s\S]{0,300}label: '(手札に戻す|トラッシュへ)'/.test(src), '🔴フリーゾーンの手動操作が残っている');
   ok(src.includes('cheerCardOf(my) === cardNum ? getMySigniZoneActions(CHEER_ZONE) : []'), '🔴チアゾーンのシグニに【起】のボタンが出ない（O-538 段階2）');
+});
+
+// ── 🆕2026-10-01 カード CSV をパック別へ再編（`public/data/CardDatas/`）＝配置の整合 ──
+// 🔑**並び順の正本は index.json**＝アプリは index に載った CSV しか読まない。パックの CSV を足して index を忘れると
+//   **そのパックのカードがアプリから黙って消える**（Node 側の道具も index を見るので golden・smoke では気づけない）。
+test('2026-10-01 カード CSV（パック別）＝index とフォルダが一致・各行が自分のパックのファイルにある・旧ファイルが無い', () => {
+  const idx = cardDataIndex() as { packs: { pack: string; file: string }[]; tokens: string; variants: string };
+  const onDisk = fs.readdirSync(CARD_DATA_DIR).filter(f => f.endsWith('.csv') && f !== idx.tokens && f !== idx.variants).sort();
+  eq(JSON.stringify(onDisk), JSON.stringify(idx.packs.map(p => p.file).sort()), '🔴index.json とフォルダのパック CSV が食い違う（node scripts/cardDataIndex.mjs）');
+  const seen = new Set<string>();
+  let rows = 0;
+  for (const pk of idx.packs) {
+    const { data, meta } = Papa.parse<Record<string, string>>(fs.readFileSync(join(CARD_DATA_DIR, pk.file), 'utf-8').replace(/^\uFEFF/, ''), { header: true, skipEmptyLines: true });
+    eq(meta.fields?.length, 20, `${pk.file}: 列が20列でない`);
+    for (const r of data) {
+      rows++;
+      if (packOf(r.CardNum) !== pk.pack) throw new Error(`🔴${r.CardNum} が別パックのファイル ${pk.file} にある（パック番号は ${packOf(r.CardNum)}）`);
+      if (seen.has(r.CardNum)) throw new Error(`🔴${r.CardNum} が2か所にある`);
+      seen.add(r.CardNum);
+    }
+  }
+  eq(rows, 6666, '🔴パック CSV の総枚数が変わった（カードを足したならこの錨を測り直す）');
+  eq(packOf('SP01-001') + '/' + packOf('SPDi43-21') + '/' + packOf('SPK01-14'), 'SP/SPDi/SPK', '🔴SP・SPDi・SPK はそれぞれ1ファイル（ユーザー指定）');
+  eq(packOf('WXDi-P11-010A') + '/' + packOf('WX24-P1-044') + '/' + packOf('WX22-035'), 'WXDi-P11/WX24-P1/WX22', 'パック番号の規則');
+  ok(!fs.readdirSync(join(root, 'public/data')).some(f => /^CardData_.*\.csv$/.test(f)), '🔴旧 CardData_*.csv が残っている（どちらを読むか割れる）');
+  for (const f of ['src/App.tsx', 'src/verify/main.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf-8');
+    ok(src.includes('fetchCardCsvTexts') && !src.includes('/data/CardData_'), `🔴${f} が旧 CSV を読んでいる`);
+  }
 });
 
 if (listMode) {

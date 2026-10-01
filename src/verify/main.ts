@@ -14,14 +14,13 @@ import {
 } from '../engine/triggerCollect';
 import { collectBanishSubstitutes } from '../engine/effectEngine';
 import { mergeManualEffects } from '../data/manualEffects';
+import { fetchCardCsvTexts } from '../data/cardDataFetch';
 
 const cardMap = new Map<string, CardData>();
 
 async function loadCards(): Promise<void> {
-  const sheets = await Promise.all(
-    Array.from({ length: 10 }, (_, i) => fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => (r.ok ? r.text() : null))),
-  );
-  const tk = await fetch('/data/CardData_TK.csv').then(r => (r.ok ? r.text() : null));
+  // 🆕2026-10-01＝カード CSV はパック別（`public/data/CardDatas/`・並びは index.json）。
+  const { packs: sheets, tokens: tk } = await fetchCardCsvTexts();
   const effectFiles = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
   const parts = await Promise.all(effectFiles.map(f => fetch(`/data/${f}`).then(r => r.json() as Promise<Record<string, CardEffect[]>>)));
   const effectsJson: Record<string, CardEffect[]> = Object.assign({}, ...parts);

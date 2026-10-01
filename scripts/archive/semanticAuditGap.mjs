@@ -15,12 +15,14 @@
 //   1ファイルしか読まない（cardProgressCensus.mjs:221）。
 import fs from 'fs';
 import Papa from 'papaparse';
+import { join } from 'node:path';
+import { cardDataIndex, tokenCsvPath, CARD_DATA_DIR } from '../cardDataFiles.mjs';
 
 const sheetArg = (() => { const i = process.argv.indexOf('--sheet'); return i >= 0 ? process.argv[i + 1] : null; })();
 
 const rows = new Map(), sheetOf = new Map();
-const loadCsv = f => {
-  const p = `public/data/${f}`;
+// 🆕2026-10-01＝CSV はパック別（public/data/CardDatas/）。帰属の名前は**旧シート名のまま**（index.json の legacySheet）。
+const loadCsv = (f, p = `public/data/${f}`) => {
   if (!fs.existsSync(p)) return false;
   for (const r of Papa.parse(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true }).data) {
     const id = (r.CardNum ?? '').trim();
@@ -28,8 +30,10 @@ const loadCsv = f => {
   }
   return true;
 };
-for (let i = 1; i <= 11; i++) if (!loadCsv(`CardData_Sheet${i}.csv`)) break;
-loadCsv('CardData_TK.csv');
+for (const pk of cardDataIndex().packs) {
+  loadCsv(pk.legacySheet == null ? `pack:${pk.pack}` : `CardData_Sheet${pk.legacySheet}.csv`, join(CARD_DATA_DIR, pk.file));
+}
+loadCsv('CardData_TK.csv', tokenCsvPath());
 
 const hasEffect = r => {
   const ok = s => s && s !== '--' && s !== '-';

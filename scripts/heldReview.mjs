@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { cardCsvRelPaths, cardDataIndex } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = join(root, 'public', 'data');
@@ -44,7 +45,7 @@ if (!process.argv.includes('--stale-ok')) {
     }
   };
   check(join(root, 'src', 'data'), /\.ts$/);          // effectParser*.ts ほか parser ソース
-  check(DATA_DIR, /^CardData_.*\.csv$/);              // 原文 CSV
+  check(join(DATA_DIR, 'CardDatas'), /\.(csv|json)$/);   // 原文 CSV（パック別）
   if (statSync(join(root, 'scripts', 'buildEffectsJson.ts')).mtimeMs > heldM) stale.push('scripts/buildEffectsJson.ts');
   if (stale.length) {
     console.error('⚠ docs/_held_fresh.json が古い（生成後に以下が更新されている）。先に npm run build:effects を実行する。無視する場合は --stale-ok。');
@@ -65,7 +66,7 @@ for (const f of EFFECT_FILES) {
 
 // 原文（効果+LB・（…）注釈除去）＝レビュー時の照合用
 const texts = new Map();
-for (const f of readdirSync(DATA_DIR).filter(f => f.startsWith('CardData_') && f.endsWith('.csv')).sort()) {
+for (const f of [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`]) {
   for (const line of readFileSync(join(DATA_DIR, f), 'utf-8').split('\n')) {
     const cols = line.split(',');
     const id = cols[0];

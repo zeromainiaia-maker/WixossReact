@@ -69,6 +69,7 @@ import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/s
 import { formatAbReport, meanInterval, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck, type SelfPlayDeck } from './selfPlayDecks';
 import { buildScanSpecs, formatDivergeReport, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const argv = process.argv.slice(2);
 const numArg = (name: string, dflt: number) => {
@@ -156,7 +157,7 @@ let onChoice: ((mv: CpuMove, describe: string) => void) | undefined;
 // ── カードデータ（`goldenTest.ts` と同じ読み方）──
 const root = process.cwd();
 const allCards: CardData[] = [];
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });

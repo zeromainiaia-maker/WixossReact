@@ -17,6 +17,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const outDir = process.argv[2];
 if (!outDir) { console.error('使い方: node scripts/semanticAuditTriage.mjs <outDir> [cardNum...]'); process.exit(1); }
@@ -31,7 +32,7 @@ const effFiles = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json'
 const effectsMap = new Map();
 for (const f of effFiles) for (const [k, v] of Object.entries(JSON.parse(readFileSync(join(root, 'public/data', f), 'utf8')))) effectsMap.set(k, v);
 const cards = new Map();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!existsSync(p)) continue;
   for (const r of Papa.parse(readFileSync(p, 'utf8'), { header: true }).data) if (r.CardNum) cards.set(r.CardNum, r);

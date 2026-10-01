@@ -1,0 +1,17 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WD05-001,獄卒の閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-001.jpg,ルリグ,ウリス,黒,4,《黒》×３,-,11,-,-,-,-,0,-,-,0,【常】：あなたの場に《堕落の砲女　メツム》があり、あなたのトラッシュにカードが２０枚以上あるかぎり、あなたのシグニのパワーを＋2000する。,-
+WD05-002,阿鼻の閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-002.jpg,ルリグ,ウリス,黒,3,《黒》×２,-,8,-,-,-,-,0,-,-,0,-,-
+WD05-003,衆合の閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-003.jpg,ルリグ,ウリス,黒,2,《黒》×１,-,5,-,-,-,-,0,-,-,0,-,-
+WD05-004,灼熱の閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-004.jpg,ルリグ,ウリス,黒,1,《黒》×０,-,2,-,-,-,-,0,-,-,0,-,-
+WD05-005,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-005.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+WD05-006,モーメント・パニッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-006.jpg,アーツ,-,黒,-,-,《黒》×２,-,-,-,-,メインフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+WD05-007,エターナル・パニッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-007.jpg,アーツ,-,黒,-,-,《黒》×３,-,-,-,-,メインフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+WD05-008,グレイブ・アウト,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-008.jpg,アーツ,-,黒,-,-,《黒》×５,-,-,ウリス限定,-,メインフェイズ,0,-,-,0,あなたのトラッシュからシグニを３枚まで対象とし、それらを手札に加える。,-
+WD05-009,堕落の砲女　メツム,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-009.jpg,シグニ,精像：悪魔,黒,4,-,-,-,12000,ウリス限定,-,-,0,-,-,1,【出】：各プレイヤーは自分のデッキの上からカードを７枚トラッシュに置く。,：あなたのトラッシュからカード１枚を対象とし、それを手札に加える。
+WD05-010,廃悪の象徴　ベルゼ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-010.jpg,シグニ,精像：悪魔,黒,3,-,-,-,10000,-,-,-,0,-,-,0,-,-
+WD05-011,堕落の砲女　キャリ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-011.jpg,シグニ,精像：悪魔,黒,3,-,-,-,7000,ウリス限定,-,-,0,-,-,1,【常】：あなたのトラッシュにカードが１０枚以上あるかぎり、このシグニのパワーは＋5000される。,：カードを１枚引く。
+WD05-012,背徳の象徴　コスモ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-012.jpg,シグニ,精像：悪魔,黒,2,-,-,-,7000,-,-,-,0,-,-,0,-,-
+WD05-013,小悪の象徴　コオニ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-013.jpg,シグニ,精像：悪魔,黒,1,-,-,-,3000,-,-,-,0,-,-,0,-,-
+WD05-014,堕落の砲女　サキュ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-014.jpg,シグニ,精像：悪魔,黒,1,-,-,-,1000,ウリス限定,-,-,0,-,-,0,【出】：あなたのデッキの上からカードを３枚トラッシュに置く。,-
+WD05-017,ホール・ダーク,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-017.jpg,スペル,-,黒,-,-,《黒》×１,-,-,-,-,-,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+WD05-018,想起する祝福,https://www.takaratomy.co.jp/products/wixoss/img/card/WD05/WD05-018.jpg,スペル,-,無,-,-,《無》×２,-,-,-,-,-,0,-,-,1,あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。

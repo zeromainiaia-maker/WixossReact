@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第504バッチ）カード CSV をパック別に再編（ユーザー依頼）＝`public/data/CardDatas/`
+
+シート別 12 ファイル（`CardData_Sheet1..10`・`TK`・`Variants`）→ **124 パック CSV ＋ `_TK.csv` ＋ `_Variants.csv` ＋ `index.json`（並び順の正本）**。パック番号＝最初のハイフンまで（WXDi と WX24 以降は2つ目まで）・**SP／SPDi／SPK はそれぞれ1ファイル**（作業中の追加指示）。
+
+- **影響範囲（先に全数で洗った）**＝CSV を直接読む箇所が**アプリ2か所**（`App.tsx`・`src/verify/main.ts`）と**スクリプト約40本**（シート番号のループ／`readdir` で `CardData_*` を拾う／TK・Variants を名指し、の3形）。⇒ 読み手を **`scripts/cardDataFiles.mjs`（Node）／`src/data/cardDataFetch.ts`（ブラウザ）の1本**へ寄せた。シート番号に意味がある道具（`census:cards --sheet`・逆翻訳シート・`verifyEffects`・`semanticAuditGap`）は `index.json` の `legacySheet` で旧シートを引く＝使い方は不変（Sheet1 要対応 1/863 も不変）。パック追加用に `node scripts/cardDataIndex.mjs`。
+- **検証**＝分割は旧ファイルの全行と突き合わせ（6,666 枚・20 列の値すべて一致・パック内の並び不変・TK/Variants はバイト一致）。`build:effects` 後の効果 JSON は**中身が全件同一**（キーの並びだけ変化）。逆翻訳シートは全 6,666 枚のブロックが同一（シート間の移動だけ＝PR は Sheet6/10→3・WD12 は 4→3・SPK16/25 は 6→5）。配信側（vite preview）から 124 パック・6,666 枚・トークン 47・バリアント 2,572 を取得。`npm run gates` 全緑（golden 4445）・実機5本＋`verifyFullMatch cpu` PASS。
+- ⚠**並びが変わったのは散らばっていたパックだけ**（PR / WD12 / WX22 / WXDi-P11 / SPK がまとまった）。golden が共有カーソルで札を引いていたため **4本が盤面依存で落ちた**＝トラッシュ／エナ／山札の一番上を明示して固定した（どれも挙動のバグではない）。うち `WD22-011-G` ②は「④でトラッシュから出してから②」の順なら成立する＝第503バッチの「処理順はプレイヤーが選ぶ」の正しい帰結として、両方向を固定した。
+- 🆕golden「2026-10-01 カード CSV（パック別）」＝index とフォルダの一致・各行が自分のパックのファイルにある・重複なし・旧ファイルが無い・アプリが共通取得を使う。反転確認＝index に無い CSV を置くと FAIL。
+
 ## 2026-10-01（第503バッチ）ユーザー指摘＝複数選んで発動するとき順番を選べない／①の後の2択が「選択肢1／選択肢2」のまま（`WX20-078` ほか）
 
 `src/screens/`・`src/engine/`・parser を触ったので実機まで＝新規 `v291ChooseOrderAndLabels` PASS。`npm run gates` 全緑（golden 4444/4444）。

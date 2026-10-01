@@ -13,14 +13,15 @@ import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import type { CardData } from '../src/types';
+import { cardCsvPaths, tokenCsvPath } from './cardDataFiles.mjs';
 
 const FILES = ['effects_WX.json','effects_WXDi.json','effects_WX24_26.json','effects_WXK.json','effects_misc.json'];
 const PRESERVE = new Set(['MANUAL','PARTIAL']);
 const existing = new Map<string, any[]>();
 for (const f of FILES) { const j = JSON.parse(execSync(`git show HEAD:public/data/${f}`,{maxBuffer:1e9}).toString()); for (const [k,v] of Object.entries(j)) existing.set(k, v as any[]); }
 const rows: Record<string,string>[] = [];
-for (let i=1;i<=11;i++){ const p=`public/data/CardData_Sheet${i}.csv`; if(!existsSync(p))break; const {data}=Papa.parse<Record<string,string>>(readFileSync(p,'utf-8').replace(/^﻿/,''),{header:true,skipEmptyLines:true}); rows.push(...data); }
-const tk='public/data/CardData_TK.csv'; if(existsSync(tk)){const {data}=Papa.parse<Record<string,string>>(readFileSync(tk,'utf-8').replace(/^﻿/,''),{header:true,skipEmptyLines:true});rows.push(...data);}
+for (const p of cardCsvPaths({ tokens: false })){ if(!existsSync(p))break; const {data}=Papa.parse<Record<string,string>>(readFileSync(p,'utf-8').replace(/^﻿/,''),{header:true,skipEmptyLines:true}); rows.push(...data); }
+const tk=tokenCsvPath(); if(existsSync(tk)){const {data}=Papa.parse<Record<string,string>>(readFileSync(tk,'utf-8').replace(/^﻿/,''),{header:true,skipEmptyLines:true});rows.push(...data);}
 const fresh = new Map<string, any[]>();
 for (const r of rows){ if(!r.CardNum)continue; const eff=mergeManualEffects(r.CardNum, parseCardEffects({...r,effects:[]} as unknown as CardData)); if(eff.length) fresh.set(r.CardNum, eff); }
 

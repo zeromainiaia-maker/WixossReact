@@ -25,6 +25,7 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = join(import.meta.dirname, '..');
 const argv = process.argv.slice(2);
@@ -416,7 +417,7 @@ for (const s of SHEETS) {
 
 // ── 3) カード原文（EffectText + BurstText） ─────────────────────────────────
 const cardText = new Map<string, string>();
-for (const p of [...Array.from({ length: 11 }, (_, i) => `public/data/CardData_Sheet${i + 1}.csv`), 'public/data/CardData_TK.csv']) {
+for (const p of cardCsvRelPaths().map(f => `public/data/${f}`)) {
   const full = join(root, p);
   if (!existsSync(full)) continue;
   const { data } = Papa.parse<Record<string, string>>(readFileSync(full, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });

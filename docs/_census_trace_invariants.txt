@@ -242,7 +242,6 @@ WXK11-030-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) →
 WXK11-042-E2	base/both	選択肢なし・差分: 自S対象1: 自シグニ1(上) → 自エナ ; 相S対象0: 相シグニ0(上) → 相エナ
 WXK11-066-E2	base/both	選択肢なし・差分: 自S源: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WXK11-066:hand"]
 WD02-014-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
-WD10-006-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WD12-006-E1	nofield/both	選択肢なし・差分: 自エナ対象: 自エナ → 自シグニ2(上) ; 自状態 signi_placed_by_source: なし → {"自エナ対象":"自S源"} ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-087:energy"]
 WD12-009-E2	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(上) ; 自手札対象: 状態[なし]→[ダウン] ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-076:hand"]
 WD12-010-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(上) ; 自手札対象: 状態[なし]→[ダウン] ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-077:hand"]
@@ -250,6 +249,8 @@ WD12-012-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 
 WD12-013-E1	base/both	選択肢なし・差分: 自S源: 状態[なし]→[ダウン]
 WD12-014-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 自状態 turn_signi_returned_to_hand: なし → true
 WD12-015-E1	base/both	選択肢なし・差分: 自S源: 状態[なし]→[ダウン]
+PR-204-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
+WD10-006-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WD14-009-E1	base/both	選択肢なし・差分: 自エナ黒: 自エナ → 自トラッシュ ; 自エナ対象: 自エナ → 自トラッシュ ; 自トラッシュ対象: 自トラッシュ → 自シグニ0(上)
 WD15-013-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WD15-013:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WD15-013-E2	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
@@ -267,7 +268,6 @@ SP24-010-E1	empty/both	選択肢なし・差分: 自デッキ上対象: 自デ�
 SP27-006-E2	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 SP27-015-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自アクセ1 ; 自S乙: 状態[なし]→[アクセ有] ; 自状態 acce_just_done: なし → "自S乙"
 SP38-001-E1	base/both	選択肢なし・差分: WD01-001: 付与[なし]→[アタックできない]
-PR-204-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 SPDi43-03-E2	base/both	選択肢なし・差分: 相ライフ7: 相ライフ → 相チェック ; 自制限: [なし]→[ルリグ付与能力x1] ; 相状態 checked_life_order_this_turn: なし → ["相ライフ7"]
 SPDi43-05-E2	base/both	選択肢なし・差分: 自状態 granted_effects_until_opp_turn: なし → {"自S源":[{"effectId":"SPDi43-05-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI","ON_ATTACK_LRIG"],"triggerScope":"any_opp","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"upToCo…
 SPDi43-26-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; 自エナ対象: 自エナ → 自デッキ[0]
@@ -536,8 +536,8 @@ WXK11-029-E2	base/both	相状態 abilities_removed: なし → ["相S丙"]
 WXK11-036-E2	empty/accept	相S甲: 相シグニ0(上) → 相手札 ; 相状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 相状態 turn_signi_returned_to_hand: なし → true
 WXK01-TK-01A-E1	nofield/both	相S対象0: パワー+2000
 WD02-007-E1	base/both	相S乙: 相シグニ1(上) → 相エナ ; 相S対象0: 相シグニ0(上) → 相エナ ; 相S丙: 相シグニ2(上) → 相エナ
+PR-046-E3	nofield/both	相S対象0: 状態[なし]→[凍結]
+PR-426-E1	base/both	相S丙: 相シグニ2(上) → 相エナ
 WD10-009-BURST	nofield/both	相S対象0: 相シグニ0(上) → 相エナ
 WDA-F02-17-E2	base/both	相S丙: 状態[なし]→[ダウン]
 WDK06-R09-E3	nofield/both	相S対象0: パワー+2000
-PR-046-E3	nofield/both	相S対象0: 状態[なし]→[凍結]
-PR-426-E1	base/both	相S丙: 相シグニ2(上) → 相エナ

@@ -40,6 +40,7 @@ import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
@@ -57,7 +58,7 @@ if (ids.length === 0) {
 
 // CSV 行を集める（先勝ち＝decompile/build と同じ規約）
 const rows = new Map<string, Record<string, string>>();
-for (const f of [...Array.from({ length: 10 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(readFileSync(p, 'utf-8').replace(/^﻿/, ''), {

@@ -10,20 +10,14 @@
  * 見方: 上位クラスタ＝「その原文パターンに対応する timing 語彙が parser に無い」候補。engine 側に既に収集関数が
  *       あれば parser に regex を1本足すだけで直る（＝最も費用対効果が高い）。
  */
-import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import Papa from 'papaparse';
 import { parseCardEffects, getTimingFallbackLog } from '../src/data/effectParser';
 import type { CardData } from '../src/types';
+import { cardCsvPaths } from './cardDataFiles.mjs';
 
 const rows: Record<string, string>[] = [];
-for (let i = 1; i <= 11; i++) {
-  const p = `public/data/CardData_Sheet${i}.csv`;
-  if (!existsSync(p)) break;
-  const { data } = Papa.parse<Record<string, string>>(readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
-  rows.push(...data);
-}
-const tk = 'public/data/CardData_TK.csv';
-if (existsSync(tk)) {
+for (const tk of cardCsvPaths()) {   // パック別 CSV＋トークン（public/data/CardDatas/）
   const { data } = Papa.parse<Record<string, string>>(readFileSync(tk, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
   rows.push(...data);
 }

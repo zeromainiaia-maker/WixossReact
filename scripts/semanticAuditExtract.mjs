@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const args = process.argv.slice(2);
 function argOf(name, dflt) {
@@ -47,7 +48,7 @@ for (const f of effFiles) {
   for (const [k, v] of Object.entries(j)) effectsMap.set(k, v);
 }
 const cards = new Map();
-const csvs = [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv'];
+const csvs = cardCsvRelPaths();
 for (const f of csvs) {
   const p = join(root, 'public/data', f);
   if (!existsSync(p)) continue;

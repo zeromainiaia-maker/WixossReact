@@ -24,6 +24,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import type { CardData } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -41,7 +42,7 @@ for (const f of EFFECT_FILES) {
 
 // ── カード CSV（TK 含む＝クラフト/トークンも manualEffects の対象） ──
 const cards = new Map<string, Record<string, string>>();
-for (const p of [...Array.from({ length: 11 }, (_, i) => `public/data/CardData_Sheet${i + 1}.csv`), 'public/data/CardData_TK.csv']) {
+for (const p of cardCsvRelPaths().map(f => `public/data/${f}`)) {
   const full = join(root, p);
   if (!existsSync(full)) continue;
   const { data } = Papa.parse<Record<string, string>>(readFileSync(full, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });

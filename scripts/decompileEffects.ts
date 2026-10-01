@@ -17,7 +17,7 @@
  *       下流までまとめて回すなら npm run regen）
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
@@ -25,6 +25,8 @@ import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { keywordDisplayLabel } from '../src/utils/keywords';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
+import { legacySheetCsvPaths, legacySheetNumbers } from './cardDataFiles.mjs';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Eff = any;
@@ -35,7 +37,7 @@ const root = join(__dirname, '..');
 
 // ── データ読み込み ──
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!existsSync(p)) continue;
   const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
@@ -7477,22 +7479,22 @@ function effJa(e: Eff): string {
 }
 
 // ── 対象カードの決定 ──
-// CardData_Sheet<N>.csv の全カードを CSV 順で対象にする（引数長制限回避）
+// 旧シート <N> に属したパックの全カードを CSV 順で対象にする（引数長制限回避）
+// 🆕2026-10-01＝CSV はパック別（public/data/CardDatas/）。シート番号は index.json の `legacySheet`。
+//   ⚠新しく足したパック（legacySheet:null）はどのシートにも入らない＝`--file`／`--grep` で個別に逆翻訳する。
 function sheetTargets(n: string): string[] {
-  const p = join(root, 'public/data', `CardData_Sheet${n}.csv`);
-  const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
-  const { data } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-  return data.map(r => r.CardNum?.trim()).filter((x): x is string => !!x);
+  return legacySheetCsvPaths(n).flatMap(p => {
+    const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
+    const { data } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+    return data.map(r => r.CardNum?.trim()).filter((x): x is string => !!x);
+  });
 }
 
 const args = process.argv.slice(2);
 
 // --sheets: 全シートを docs/decompile_sheet<N>.txt へ UTF-8 直書き（シェルのリダイレクト不要）
 if (args[0] === '--sheets') {
-  const nums = readdirSync(join(root, 'public/data'))
-    .map(f => f.match(/^CardData_Sheet(\d+)\.csv$/)?.[1])
-    .filter((x): x is string => !!x)
-    .sort((a, b) => Number(a) - Number(b));
+  const nums = legacySheetNumbers().map(String);
   for (const n of nums) {
     const t = sheetTargets(n);
     writeFileSync(join(root, 'docs', `decompile_sheet${n}.txt`), renderCards(t), 'utf-8');

@@ -24,6 +24,7 @@ import path from 'path';
 import Papa from 'papaparse';
 import { fileURLToPath } from 'url';
 import { open } from './semanticAuditLedger.mjs';
+import { cardCsvRelPaths, cardDataIndex } from '../cardDataFiles.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const argv = process.argv.slice(2);
@@ -42,7 +43,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs')).filter(n => /^decompile_
 }
 // 原文（CardNum -> EffectText + BurstText）
 const src = new Map();
-for (const f of fs.readdirSync(path.join(ROOT, 'public', 'data')).filter(n => /^CardData_.*\.csv$/.test(n))) {
+for (const f of [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`]) {   // 🆕2026-10-01 パック別 CSV
   const rows = Papa.parse(fs.readFileSync(path.join(ROOT, 'public', 'data', f), 'utf-8'), { header: true }).data;
   for (const r of rows) {
     const num = r.CardNum ?? r.カード番号;

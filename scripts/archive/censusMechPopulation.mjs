@@ -39,11 +39,12 @@
  */
 import fs from 'fs';
 import Papa from 'papaparse';
+import { cardCsvRelPaths, cardDataIndex } from '../cardDataFiles.mjs';
 
 const only = (() => { const i = process.argv.indexOf('--id'); return i >= 0 ? process.argv[i + 1] : null; })();
 
 const rows = new Map();
-for (const f of fs.readdirSync('public/data').filter(f => /^CardData_.*\.csv$/.test(f)).sort())
+for (const f of [...cardCsvRelPaths(), `CardDatas/${cardDataIndex().variants}`])   // 🆕2026-10-01 パック別 CSV
   for (const r of Papa.parse(fs.readFileSync('public/data/' + f, 'utf-8'), { header: true, skipEmptyLines: true }).data) {
     const n = (r.CardNum ?? '').trim(); if (n && !rows.has(n)) rows.set(n, r);
   }

@@ -36,6 +36,7 @@ import { canActivateLrigEffect } from '../src/screens/battle/lrigActivateGate';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { applyActivateCostZero } from '../src/screens/battle/activateCostZero';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 setRngSeed(20260920);   // ⚠決定論（`behaviorAudit.ts` と同じ理由＝シャッフルする効果が毎回変わる）
 const root = process.cwd();
@@ -47,7 +48,7 @@ if (!file) { console.error('使い方: npx tsx scripts/replayReportEngine.ts <re
 
 // ── データ読み込み（`behaviorAudit.ts` と同じ）──
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });

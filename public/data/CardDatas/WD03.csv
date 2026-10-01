@@ -1,0 +1,16 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WD03-001,コード・ピルルク・Ｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-001.jpg,ルリグ,ピルルク,青,4,《青》×３,-,11,-,-,-,-,0,-,-,0,【常】：あなたの場に《コードアート　Ｒ・Ｍ・Ｎ》があり、対戦相手の手札が１枚以下であるかぎり、あなたのシグニのパワーを＋2000する。,-
+WD03-002,コード・ピルルク・Ｇ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-002.jpg,ルリグ,ピルルク,青,3,《青》×２,-,8,-,-,-,-,0,-,-,0,-,-
+WD03-003,コード・ピルルク・Ｍ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-003.jpg,ルリグ,ピルルク,青,2,《青》×１,-,5,-,-,-,-,0,-,-,0,-,-
+WD03-004,コード・ピルルク・Ｋ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-004.jpg,ルリグ,ピルルク,青,1,《青》×０,-,2,-,-,-,-,0,-,-,0,-,-
+WD03-005,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-005.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+WD03-006,ピーピング・アナライズ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-006.jpg,アーツ,-,青,-,-,《青》×３,-,-,ピルルク限定,-,メインフェイズ,0,-,-,0,数字１つを宣言する。その後、対戦相手の手札を見て、宣言した数字と同じレベルのシグニをすべて捨てさせる。,-
+WD03-007,ドント・ムーブ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-007.jpg,アーツ,-,青,-,-,《青》×３,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のシグニを２体まで対象とし、それらをダウンする。,-
+WD03-008,ドロー・ツー,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-008.jpg,アーツ,-,青,-,-,《青》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,カードを２枚引く。,-
+WD03-009,コードアート　Ｒ・Ｍ・Ｎ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-009.jpg,シグニ,精械：電機,青,4,-,-,-,12000,ピルルク限定,-,-,0,-,-,1,【出】《青》：対戦相手の手札を１枚見ないで選び、捨てさせる。,：対戦相手は手札を１枚捨てる。
+WD03-010,コードアート　Ｄ・Ｒ・Ｓ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-010.jpg,シグニ,精械：電機,青,3,-,-,-,10000,-,-,-,0,-,-,0,-,-
+WD03-011,コードアート　Ｓ・Ｍ・Ｐ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-011.jpg,シグニ,精械：電機,青,3,-,-,-,7000,ピルルク限定,-,-,0,-,-,1,【出】：対戦相手の手札を見てレベル１のカード１枚を選び、捨てさせる。,：カードを１枚引く。
+WD03-012,コードアート　Ｊ・Ｖ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-012.jpg,シグニ,精械：電機,青,2,-,-,-,7000,-,-,-,0,-,-,0,-,-
+WD03-013,コードアート　Ｓ・Ｃ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-013.jpg,シグニ,精械：電機,青,1,-,-,-,3000,-,-,-,0,-,-,0,-,-
+WD03-014,コードアート　Ｒ・Ｆ・Ｒ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-014.jpg,シグニ,精械：電機,青,1,-,-,-,1000,ピルルク限定,-,-,0,-,-,0,【出】：カードを１枚引き、手札を１枚捨てる。,-
+WD03-015,ＴＯＯ　ＢＡＤ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD03/WD03-015.jpg,スペル,-,青,-,-,《青》×１,-,-,-,-,-,0,-,-,0,対戦相手の手札を１枚見ないで選び、捨てさせる。,-

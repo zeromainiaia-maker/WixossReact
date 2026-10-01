@@ -16,6 +16,7 @@ import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from '../src/data/keyw
 import { parseHarmonyAbility } from '../src/data/effectParser';
 import { fillSourceTextPayloads } from '../src/data/sourceTextPayloads';
 import type { CardData } from '../src/types';
+import { cardCsvPaths } from './cardDataFiles.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -62,31 +63,18 @@ function isPureSuperset(existing: any, fresh: any): boolean {
   return f.size > e.size;                       // 純粋に増えている
 }
 
-// 存在する Sheet*.csv を順番に読み込んで結合
+// パック別 CSV（`public/data/CardDatas/`・並びは index.json）を順番に読み込んで結合。トークン（_TK.csv）も含む。
 const allRows: Record<string, string>[] = [];
-for (let i = 1; i <= 11; i++) {
-  const csvPath = join(root, `public/data/CardData_Sheet${i}.csv`);
-  if (!existsSync(csvPath)) break;
+for (const csvPath of cardCsvPaths()) {
+  if (!existsSync(csvPath)) throw new Error(`カード CSV が無い: ${csvPath}（index.json と食い違い＝node scripts/cardDataIndex.mjs --check）`);
   const csvText = readFileSync(csvPath, 'utf-8').replace(/^﻿/, ''); // BOM除去
   const { data } = Papa.parse<Record<string, string>>(csvText, {
     header: true,
     skipEmptyLines: true,
   });
-  console.log(`Sheet${i}: ${data.length}件`);
   allRows.push(...data);
 }
-
-// CardData_TK.csv（クラフトカード・トークン）も読み込む
-const tkPath = join(root, 'public/data/CardData_TK.csv');
-if (existsSync(tkPath)) {
-  const tkText = readFileSync(tkPath, 'utf-8').replace(/^﻿/, '');
-  const { data: tkData } = Papa.parse<Record<string, string>>(tkText, {
-    header: true,
-    skipEmptyLines: true,
-  });
-  console.log(`CardData_TK: ${tkData.length}件`);
-  allRows.push(...tkData);
-}
+console.log(`カード CSV: ${cardCsvPaths().length} ファイル`);
 
 const rows = allRows;
 

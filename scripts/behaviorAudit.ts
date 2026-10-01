@@ -35,6 +35,7 @@ import {
   resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 // 🆕🔴**乱数を固定する**（2026-09-20・`S-9` の簿記中に発覚）＝この監査基盤は冒頭に「決定論」と書いてあるのに
 //   **`setRngSeed` を一度も呼んでいなかった**＝`src/engine/rng.ts` の既定は `Math.random`（`C-1` の契約）なので、
@@ -79,7 +80,7 @@ const STEP_CAP = 200;
 
 // ── データ読み込み（smokeTest と同じ）──
 const cardMap = new Map<string, CardData>();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   const p = join(root, 'public/data', f);
   if (!fs.existsSync(p)) continue;
   const text = fs.readFileSync(p, 'utf-8').replace(/^﻿/, '');

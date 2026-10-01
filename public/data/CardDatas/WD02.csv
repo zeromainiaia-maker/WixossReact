@@ -1,0 +1,16 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WD02-001,花代・肆,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-001.jpg,ルリグ,花代,赤,4,《赤》×３,-,11,-,-,-,-,0,-,-,0,【常】：あなたのターンの間、あなたの場に《羅石　ヴォルカノ》があるかぎり、あなたのシグニのパワーを＋2000する。,-
+WD02-002,花代・参,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-002.jpg,ルリグ,花代,赤,3,《赤》×２,-,8,-,-,-,-,0,-,-,0,-,-
+WD02-003,花代・爾,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-003.jpg,ルリグ,花代,赤,2,《赤》×１,-,5,-,-,-,-,0,-,-,0,-,-
+WD02-004,花代・壱,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-004.jpg,ルリグ,花代,赤,1,《赤》×０,-,2,-,-,-,-,0,-,-,0,-,-
+WD02-005,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-005.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+WD02-006,飛火夏虫,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-006.jpg,アーツ,-,赤,-,-,《赤》×３,-,-,-,-,メインフェイズ,0,-,-,0,対戦相手のパワー15000以下のシグニ１体を対象とし、それをバニッシュする。,-
+WD02-007,背炎之陣,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-007.jpg,アーツ,-,赤,-,-,《赤》×２,-,-,花代限定,-,メインフェイズ,0,-,-,0,手札を３枚捨てる。そうした場合、すべてのシグニをバニッシュする。（あなたのシグニも含まれる）,-
+WD02-008,焼石炎,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-008.jpg,アーツ,-,赤,-,-,《赤》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。,-
+WD02-009,羅石　ヴォルカノ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-009.jpg,シグニ,精羅：鉱石,赤,4,-,-,-,12000,花代限定,-,-,0,-,-,1,【出】《赤》《赤》《赤》：対戦相手のパワー15000以下のシグニ１体を対象とし、それをバニッシュする。,：対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。
+WD02-010,羅石　シルバン,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-010.jpg,シグニ,精羅：鉱石,赤,3,-,-,-,10000,-,-,-,0,-,-,0,-,-
+WD02-011,羅石　ガーネット,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-011.jpg,シグニ,精羅：宝石,赤,3,-,-,-,7000,花代限定,-,-,0,-,-,1,【出】：ターン終了時まで、このシグニの基本パワーは15000になる。,：カードを１枚引く。
+WD02-012,羅石　ブロンダ,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-012.jpg,シグニ,精羅：鉱石,赤,2,-,-,-,7000,-,-,-,0,-,-,0,-,-
+WD02-013,羅石　アイロン,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-013.jpg,シグニ,精羅：鉱石,赤,1,-,-,-,3000,-,-,-,0,-,-,0,-,-
+WD02-014,羅石　アメジスト,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-014.jpg,シグニ,精羅：宝石,赤,1,-,-,-,1000,花代限定,-,-,0,-,-,0,【出】：対戦相手のパワー1000以下のシグニ１体を対象とし、それをバニッシュしてもよい。,-
+WD02-015,轟音の火柱,https://www.takaratomy.co.jp/products/wixoss/img/card/WD02/WD02-015.jpg,スペル,-,赤,-,-,《赤》×１,-,-,-,-,-,0,-,-,0,対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。,-

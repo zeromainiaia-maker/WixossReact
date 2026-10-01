@@ -1,0 +1,4 @@
+CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+WDK-F01-02,アロス・ピルルク　TRI,https://www.takaratomy.co.jp/products/wixoss/img/card/WDK/WDK-F01-02.jpg,ルリグ,ピルルク,青,3,《青》×２,-,7,-,-,-,-,0,-,-,0,【出】《青》：《コインアイコン》を得る。,-
+WDK-F01-03,アロス・ピルルク　DI,https://www.takaratomy.co.jp/products/wixoss/img/card/WDK/WDK-F01-03.jpg,ルリグ,ピルルク,青,2,《青》×１,-,4,-,-,-,-,0,-,-,0,【出】《コインアイコン》：カードを１枚引く。,-
+WDK-F01-04,アロス・ピルルク　MONO,https://www.takaratomy.co.jp/products/wixoss/img/card/WDK/WDK-F01-04.jpg,ルリグ,ピルルク,青,1,《青》×０,-,2,-,-,-,-,0,-,-,0,【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）,-

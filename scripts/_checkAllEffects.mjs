@@ -15,6 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { legacySheetCsvPaths, variantsCsvPath } from './cardDataFiles.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -34,7 +35,7 @@ function splitCSVLine(line) {
 }
 
 function loadCSV(filename) {
-  const lines = fs.readFileSync(path.join(root, 'public/data', filename), 'utf8').replace(/^﻿/, '').replace(/\r/g, '').split('\n');
+  const lines = fs.readFileSync(filename, 'utf8').replace(/^﻿/, '').replace(/\r/g, '').split('\n');
   const h = splitCSVLine(lines[0]);
   const get = (row, col) => row[h.indexOf(col)] || '';
   const map = {};
@@ -56,23 +57,23 @@ function loadCSV(filename) {
 const FILES = [
   {
     json: 'effects_misc.json',
-    csvs: ['CardData_Sheet5.csv', 'CardData_Sheet6.csv', 'CardData_Variants.csv'],
+    csvs: [...legacySheetCsvPaths(5), ...legacySheetCsvPaths(6), variantsCsvPath()],
   },
   {
     json: 'effects_WX.json',
-    csvs: ['CardData_Sheet1.csv', 'CardData_Sheet2.csv'],
+    csvs: [...legacySheetCsvPaths(1), ...legacySheetCsvPaths(2)],
   },
   {
     json: 'effects_WX24_26.json',
-    csvs: ['CardData_Sheet9.csv', 'CardData_Sheet10.csv'],
+    csvs: [...legacySheetCsvPaths(9), ...legacySheetCsvPaths(10)],
   },
   {
     json: 'effects_WXDi.json',
-    csvs: ['CardData_Sheet7.csv', 'CardData_Sheet8.csv'],
+    csvs: [...legacySheetCsvPaths(7), ...legacySheetCsvPaths(8)],
   },
   {
     json: 'effects_WXK.json',
-    csvs: ['CardData_Sheet4.csv'],
+    csvs: legacySheetCsvPaths(4),
   },
 ];
 

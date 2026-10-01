@@ -35,6 +35,7 @@ WixossカードゲームのReactクローン実装。
 - 🆕**⑤実機の要否は「触ったディレクトリ」で機械的に決める**（PLAN §2.2）：**`src/screens/` を触った回**と**新しい型・機構を足した回**は**実機まで必須**。**`src/data/` `src/engine/` `public/data/` だけの回は④まででよい**（実機不要）。判定した理由を BUGFIXES に1行書く。
 - 🆕**⑥簿記は速いレーンなら10件まとめて1回**（BUGFIXES は**真因1行／影響枚数／検証コマンド／反転確認の有無**の約10行）。遅いレーン・機構変更のときだけ `/baton` フル。
 - **CSV の順番を必ず維持する**（スクリプト内の `sorted` ロジックで対応済み）
+- 🆕🔴**カード CSV はパック別（2026-10-01 再編）＝`public/data/CardDatas/<パック番号>.csv`＋`_TK.csv`（トークン）＋`_Variants.csv`（再録・別絵柄）＋`index.json`（並び順の正本）**。パック番号＝最初のハイフンまで（WXDi と WX24 以降は2つ目のハイフンまで）／**SP・SPDi・SPK はそれぞれ1ファイル**。🔴**読むコードは必ず `scripts/cardDataFiles.mjs`（Node）／`src/data/cardDataFetch.ts`（ブラウザ）を通す**＝ファイル名を決め打ちしない。🔴**パックの CSV を足したら `node scripts/cardDataIndex.mjs`**（index.json に載っていない CSV はアプリが読まない＝golden が検出する）。⚠旧「シート」（Sheet1〜10）は `index.json` の `legacySheet` として残してある＝`census:cards --sheet N`・`docs/decompile_sheetN.txt` は従来どおり（新しく足したパックはどのシートにも属さない）。
 - `scripts/addWX01.mjs` などのWEL化スクリプトは削除済み（WEL化は廃止）
 
 ## ディレクトリ規約（2026-07-05整理）

@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
+import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 
 const args = process.argv.slice(2);
 const argOf = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
@@ -23,7 +24,7 @@ if (!outDir || !tracesPath) { console.error('--out と --traces は必須'); pro
 
 const root = process.cwd();
 const cards = new Map();
-for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+for (const f of cardCsvRelPaths()) {
   let text;
   try { text = readFileSync(join(root, 'public/data', f), 'utf8').replace(/^﻿/, ''); } catch { continue; }
   for (const r of Papa.parse(text, { header: true, skipEmptyLines: true }).data) {

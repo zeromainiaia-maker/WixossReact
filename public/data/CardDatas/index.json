@@ -1,0 +1,626 @@
+{
+ "packs": [
+  {
+   "pack": "WD01",
+   "file": "WD01.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WD02",
+   "file": "WD02.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WD03",
+   "file": "WD03.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WD04",
+   "file": "WD04.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WD05",
+   "file": "WD05.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX01",
+   "file": "WX01.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX02",
+   "file": "WX02.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX03",
+   "file": "WX03.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX04",
+   "file": "WX04.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX05",
+   "file": "WX05.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX06",
+   "file": "WX06.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX07",
+   "file": "WX07.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX08",
+   "file": "WX08.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX09",
+   "file": "WX09.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX10",
+   "file": "WX10.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX11",
+   "file": "WX11.csv",
+   "legacySheet": 1
+  },
+  {
+   "pack": "WX12",
+   "file": "WX12.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX13",
+   "file": "WX13.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX14",
+   "file": "WX14.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX15",
+   "file": "WX15.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX16",
+   "file": "WX16.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX17",
+   "file": "WX17.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX18",
+   "file": "WX18.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX19",
+   "file": "WX19.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX20",
+   "file": "WX20.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX21",
+   "file": "WX21.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WD06",
+   "file": "WD06.csv",
+   "legacySheet": 2
+  },
+  {
+   "pack": "WX22",
+   "file": "WX22.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WD12",
+   "file": "WD12.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXEX1",
+   "file": "WXEX1.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "PR",
+   "file": "PR.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXEX2",
+   "file": "WXEX2.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK01",
+   "file": "WXK01.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK02",
+   "file": "WXK02.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK03",
+   "file": "WXK03.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK04",
+   "file": "WXK04.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK05",
+   "file": "WXK05.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK06",
+   "file": "WXK06.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK07",
+   "file": "WXK07.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WD07",
+   "file": "WD07.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WD08",
+   "file": "WD08.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WD09",
+   "file": "WD09.csv",
+   "legacySheet": 3
+  },
+  {
+   "pack": "WXK08",
+   "file": "WXK08.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WXK09",
+   "file": "WXK09.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WXK10",
+   "file": "WXK10.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WXK11",
+   "file": "WXK11.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD10",
+   "file": "WD10.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD11",
+   "file": "WD11.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD13",
+   "file": "WD13.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD14",
+   "file": "WD14.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD15",
+   "file": "WD15.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD16",
+   "file": "WD16.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD17",
+   "file": "WD17.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD18",
+   "file": "WD18.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD19",
+   "file": "WD19.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD20",
+   "file": "WD20.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD21",
+   "file": "WD21.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD22",
+   "file": "WD22.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WD23",
+   "file": "WD23.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDA",
+   "file": "WDA.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDK01",
+   "file": "WDK01.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDK02",
+   "file": "WDK02.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDK03",
+   "file": "WDK03.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDK04",
+   "file": "WDK04.csv",
+   "legacySheet": 4
+  },
+  {
+   "pack": "WDK05",
+   "file": "WDK05.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK06",
+   "file": "WDK06.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK07",
+   "file": "WDK07.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK08",
+   "file": "WDK08.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK09",
+   "file": "WDK09.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK10",
+   "file": "WDK10.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK11",
+   "file": "WDK11.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK12",
+   "file": "WDK12.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK13",
+   "file": "WDK13.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK",
+   "file": "WDK.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK14",
+   "file": "WDK14.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK15",
+   "file": "WDK15.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK16",
+   "file": "WDK16.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WDK17",
+   "file": "WDK17.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "SP",
+   "file": "SP.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "SPK",
+   "file": "SPK.csv",
+   "legacySheet": 5
+  },
+  {
+   "pack": "WXDi-D01",
+   "file": "WXDi-D01.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D02",
+   "file": "WXDi-D02.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D03",
+   "file": "WXDi-D03.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D04",
+   "file": "WXDi-D04.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D05",
+   "file": "WXDi-D05.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D06",
+   "file": "WXDi-D06.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D07",
+   "file": "WXDi-D07.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D08",
+   "file": "WXDi-D08.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-D09",
+   "file": "WXDi-D09.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P00",
+   "file": "WXDi-P00.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P01",
+   "file": "WXDi-P01.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P02",
+   "file": "WXDi-P02.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P03",
+   "file": "WXDi-P03.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P04",
+   "file": "WXDi-P04.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P05",
+   "file": "WXDi-P05.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P06",
+   "file": "WXDi-P06.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P07",
+   "file": "WXDi-P07.csv",
+   "legacySheet": 7
+  },
+  {
+   "pack": "WXDi-P08",
+   "file": "WXDi-P08.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P09",
+   "file": "WXDi-P09.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P10",
+   "file": "WXDi-P10.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P11",
+   "file": "WXDi-P11.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P12",
+   "file": "WXDi-P12.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P13",
+   "file": "WXDi-P13.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P14",
+   "file": "WXDi-P14.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P15",
+   "file": "WXDi-P15.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-P16",
+   "file": "WXDi-P16.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-CP01",
+   "file": "WXDi-CP01.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WXDi-CP02",
+   "file": "WXDi-CP02.csv",
+   "legacySheet": 8
+  },
+  {
+   "pack": "WX24-P1",
+   "file": "WX24-P1.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-P2",
+   "file": "WX24-P2.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-P3",
+   "file": "WX24-P3.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-P4",
+   "file": "WX24-P4.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX25-P1",
+   "file": "WX25-P1.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX25-P2",
+   "file": "WX25-P2.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX25-P3",
+   "file": "WX25-P3.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX25-CP1",
+   "file": "WX25-CP1.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX26-CP1",
+   "file": "WX26-CP1.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-D1",
+   "file": "WX24-D1.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-D2",
+   "file": "WX24-D2.csv",
+   "legacySheet": 9
+  },
+  {
+   "pack": "WX24-D3",
+   "file": "WX24-D3.csv",
+   "legacySheet": 10
+  },
+  {
+   "pack": "WX24-D4",
+   "file": "WX24-D4.csv",
+   "legacySheet": 10
+  },
+  {
+   "pack": "WX24-D5",
+   "file": "WX24-D5.csv",
+   "legacySheet": 10
+  },
+  {
+   "pack": "WX25-CD1",
+   "file": "WX25-CD1.csv",
+   "legacySheet": 10
+  },
+  {
+   "pack": "SPDi",
+   "file": "SPDi.csv",
+   "legacySheet": 10
+  }
+ ],
+ "tokens": "_TK.csv",
+ "variants": "_Variants.csv"
+}
