@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第501バッチ）§5.1 `V-288` 返済＝【トラップ】のルール上の誘発を人間守備側の実機で確認
+
+`scripts/verifyBattleDrive.mjs` だけの回（src は触っていない）＝実機シナリオ3本を新設して PASS（直前の `v286HiddenInfoNotInSharedLog` と連続でも PASS）。
+
+- **シナリオ**＝`v288NaturalTrapAccept` / `v288NaturalTrapDecline` / `v288NaturalTrapBlocked`。CPU（バニラ `WX01-053`）を `ATTACK_SIGNI` で注入し、**本物のアタック経路**（`performSigniAttack.ts` の守備側収集）から人間の画面に「発動する／発動しない」が出るのを見る。
+- **観測**＝発動する→手札 0→2・`WX19-059` がトラッシュへ／発動しない→裏向きのまま残る・手札不変／正面（同じゾーン）にシグニ→問われない。**正面以外（ゾーン3）の `WX19-025` は3本とも場に残る**＝誘発は正面だけ。
+- 🔑**初回 FAIL は判定の誤り**＝「画面に札名が出た」を漏れと数えたが、**持ち主の問いに名前と効果文が出るのは正しい**（どのトラップか判断するのに要る）。守るべきは相手に届く共有ログ（`game_logs`）＝断った／誘発しない側でそこに札名が無いことへ直し、**共有ログに誘発の行自体が載っていること**も必須にした（DRIVE_TRAPS 127＝片側だけの assert にしない）。
+- 検証＝`node scripts/verifyBattleDrive.mjs v286HiddenInfoNotInSharedLog v288NaturalTrapAccept v288NaturalTrapDecline v288NaturalTrapBlocked`（4/4 PASS）。
+
 ## 2026-10-01（第500バッチ）§5.3 `O-541` STUB ほかの「場のシグニ」走査をチアゾーン込みに／場を離れたかの検出／チアゾーンのエナチャージ
 
 `src/engine/`・`src/screens/` を触ったので実機まで＝新規 `cheerEnergyCharge`（エナフェイズにチアゾーンのＳｃをエナチャージ）PASS＋チアゾーン6本・`acceAttach`・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4442/4442）。

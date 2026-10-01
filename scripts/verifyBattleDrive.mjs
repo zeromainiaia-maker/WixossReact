@@ -62271,6 +62271,113 @@ scenarios.v286HiddenInfoNotInSharedLog = {
 };
 order.push('v286HiddenInfoNotInSharedLog');
 
+// ── 🆕§5.1 `V-288`（2026-10-01）＝**【トラップ】のルール上の誘発（人間が守備側）** ──────────────
+// 🔴**発端**＝バグ報告 `b16e1b03`「トラップが発動しない」＝設置したトラップは相手のアタックで**一度も誘発しなかった**
+//   （収集箇所が無かった）。engine の判定は golden「バグ報告 b16e1b03」、CPU 守備側は replay:spectate で確認済み。
+//   ここで確かめるのは**人間が守備側**のとき＝CPU の本物のアタック（`performSigniAttack.ts` の守備側収集）から
+//   スタックを経て**人間の画面に「発動する／発動しない」が出る**こと。
+// 盤面＝CPU のアタッカー（バニラ `WX01-053`）をゾーン2（添字1）に置く＝正面は自分のゾーン2（`2 - 1`）。
+//   自分のゾーン2に【トラップ】`WX19-059`（大罠　ブーブー＝カードを２枚引く）。
+//   🔑**正面以外のゾーン3にも別の【トラップ】`WX19-025`（２枚エナチャージ）を置く**＝誘発するのは正面だけ、を同じ巡で見る。
+// ⚠CPU のルリグはダウン済みにしてルリグアタックを起こさない（§4.4-54 の逆向き）／`H.stdStep()` は使わない（§4.4-53）。
+const V288_TRAP = 'WX19-059', V288_TRAP_NAME = '大罠　ブーブー';
+const V288_SIDE_TRAP = 'WX19-025';
+function v288Spec(mode) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD05-001#1'],
+      // `blocked`＝正面（ゾーン2）にシグニがいる＝誘発しない側。
+      'field.signi': [null, mode === 'blocked' ? ['WD01-013#v288s'] : null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, `${V288_TRAP}#v288t1`, `${V288_SIDE_TRAP}#v288t2`],
+      'field.check': null,
+      'deck': ['WD01-013#v288d1', 'WD01-013#v288d2', 'WD01-013#v288d3', 'WD01-013#v288d4', 'WD01-013#v288d5', 'WD01-013#v288d6'],
+      'life_cloth': ['WD01-013#v288l1', 'WD01-013#v288l2', 'WD01-013#v288l3', 'WD01-013#v288l4', 'WD01-013#v288l5'],
+      'hand': [], 'trash': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#v288g'], 'field.lrig_down': true,
+      'field.signi': [null, ['WX01-053#v288a'], null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3, effect_stack: null, pending_effect: null },
+  };
+}
+async function driveV288(page, H, mode) {
+  const tag = `v288${mode}`;
+  const st0 = await H.queryState();
+  const hand0 = st0?.host?.hand ?? 0;
+  H.log(`  ${tag} 開始 hand=${hand0} traps=${JSON.stringify(st0?.host?.signiTraps)} gField=${JSON.stringify(st0?.guest?.fieldSigni)} gLrigDown=${st0?.guest?.lrigDown} phase=${st0?.turnPhase}`);
+  let sawPrompt = false, answered = false, attacked = false, settled = 0, last = st0;
+  const shared = new Set(st0?.logTail ?? []);
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    last = st;
+    for (const l of st?.logTail ?? []) shared.add(l);
+    const inDialog = !!st?.pendingEffect || (st?.stackLen ?? 0) > 0 || !!st?.host?.fieldCheck;
+    let did = null;
+    const accept = page.getByRole('button', { name: '発動する', exact: true }).first();
+    if (!answered && await accept.isVisible().catch(() => false)) {
+      sawPrompt = true;
+      await page.screenshot({ path: `${SHOT}/${tag}-prompt.png`, fullPage: true });
+      did = mode === 'accept' ? await H.clickBtn('発動する', { exact: true }) : await H.clickBtn('発動しない', { exact: true });
+      if (did) answered = true;
+    }
+    // 応答系は対話中だけ押す（§4.4-58）。CPU のアタックはガード応答を押さないと解決しない（§4.4-127）。
+    if (!did && inDialog) did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'ガードしない', 'エナに送る', '発動順序を確定', 'OK']);
+    attacked ||= (st?.guest?.signiDown ?? [])[1] === true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | prompt=${sawPrompt} hand=${st?.host?.hand} traps=${JSON.stringify(st?.host?.signiTraps)} gDown=${JSON.stringify(st?.guest?.signiDown)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+    settled = (attacked && !inDialog && !did) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}-end.png`, fullPage: true });
+  const traps = last?.host?.signiTraps ?? [];
+  const trash = last?.host?.trashCards ?? [];
+  const trapInTrash = trash.some(c => String(c).startsWith(V288_TRAP));
+  const sideStays = String(traps[2] ?? '').startsWith(V288_SIDE_TRAP);
+  // 🔴**相手に届く共有ログ（`game_logs`）に裏向きの札の名前を出さない**（§5.1 `V-285`）。
+  //   ⚠持ち主（この画面）の問いに名前と効果文が出るのは正しい＝どのトラップかを判断するのに要る（初回はそれを漏れと誤判定した）。
+  //   ⚠「発動する」なら表向きになる＝その後のログに名前が出てよい。
+  const leak = mode !== 'accept' && [...shared].some(l => String(l).includes(V288_TRAP_NAME));
+  const summary = `prompt=${sawPrompt} hand ${hand0}→${last?.host?.hand} traps=${JSON.stringify(traps)} trapInTrash=${trapInTrash} leak=${leak}`;
+  if (!attacked) return { pass: false, detail: `前提崩れ＝CPU がアタックしていない（${summary}）` };
+  if (leak) return { pass: false, detail: `🔴共有ログに裏向きのままの札の名前が出た（${summary}）` };
+  if (!sideStays) return { pass: false, detail: `🔴正面以外（ゾーン3）の【トラップ】が場を離れた（${summary}）` };
+  if (mode === 'blocked') {
+    const ok = !sawPrompt && String(traps[1] ?? '').startsWith(V288_TRAP) && !trapInTrash;
+    return { pass: ok, detail: `${ok ? '' : '🔴'}反転＝正面にシグニがいると問われず、トラップは残る（${summary}）` };
+  }
+  if (!sawPrompt) return { pass: false, detail: `🔴「発動する／発動しない」が出なかった（${summary}）` };
+  // 漏れ判定が空振りしていないこと＝共有ログに誘発の行そのものは載っている（§4.4-127＝片側だけの assert にしない）。
+  if (![...shared].some(l => String(l).includes('【トラップ】'))) return { pass: false, detail: `前提崩れ＝共有ログに【トラップ】の行が無い＝漏れ判定が効いていない（${summary}）` };
+  if (mode === 'accept') {
+    const ok = traps[1] == null && trapInTrash && last?.host?.hand === hand0 + 2;
+    return { pass: ok, detail: `${ok ? '' : '🔴'}発動する＝《トラップアイコン》で2枚引き、トラップはトラッシュへ（${summary}）` };
+  }
+  const ok = String(traps[1] ?? '').startsWith(V288_TRAP) && !trapInTrash && last?.host?.hand === hand0;
+  return { pass: ok, detail: `${ok ? '' : '🔴'}発動しない＝何も起きず、トラップは裏向きのまま残る（${summary}）` };
+}
+scenarios.v288NaturalTrapAccept = {
+  title: 'V-288 【トラップ】のルール上の誘発＝人間守備側で「発動する」→2枚引きトラッシュへ（正面以外は誘発しない）',
+  spec: v288Spec('accept'),
+  drive: (page, H) => driveV288(page, H, 'accept'),
+};
+scenarios.v288NaturalTrapDecline = {
+  title: 'V-288 【トラップ】のルール上の誘発＝「発動しない」→裏向きのまま残る',
+  spec: v288Spec('decline'),
+  drive: (page, H) => driveV288(page, H, 'decline'),
+};
+scenarios.v288NaturalTrapBlocked = {
+  title: 'V-288 反転＝正面（同じゾーン）にシグニがいると【トラップ】は誘発しない',
+  spec: v288Spec('blocked'),
+  drive: (page, H) => driveV288(page, H, 'blocked'),
+};
+order.push('v288NaturalTrapAccept', 'v288NaturalTrapDecline', 'v288NaturalTrapBlocked');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
