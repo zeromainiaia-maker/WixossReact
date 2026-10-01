@@ -289,6 +289,7 @@ import { shouldGoToStartOnSignIn } from '../src/utils/authNav';
 import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 import { isResumeEvent } from '../src/utils/resumeSync';
 import { signiPlaceableByLimit } from '../src/engine/placeLimitGate';
+import { signiStackView } from '../src/components/BoardComponents';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93947,6 +93948,18 @@ test('2026-10-01 報告 131184e7＝効果で場に出すときもリミットを
   ok((pend.unplaceableCards ?? []).includes(LV4), '🔴リミットを超える Lv4 に「出せない」印が付かない（選べて場に出せてしまう）');
   ok(!(pend.unplaceableCards ?? []).includes(LV3), '反転: リミット内の Lv3 には印を付けない');
 }));
+
+// ── 2026-10-01 ユーザー要望：シグニに重なったアクセ・下のカードをルリグと同じスワイプ画面で見られる ──
+test('2026-10-01 シグニのスワイプ画面＝シグニ → アクセ → 下のカード の順に並ぶ', () => {
+  const v = signiStackView(['U1', 'U2', 'TOP'], ['A1']);
+  eq(JSON.stringify(v.stack), JSON.stringify(['U1', 'U2', 'A1', 'TOP']), '並び（先頭が一番下）＝下のカード → アクセ → シグニ');
+  eq(JSON.stringify(v.labels), JSON.stringify(['下のカード', '下のカード', 'アクセ', undefined]), '種類ラベル');
+  eq(JSON.stringify(signiStackView(['TOP'], null).stack), JSON.stringify(['TOP']), '重なりもアクセも無ければシグニだけ');
+  eq(signiStackView([], ['A1']).stack.length, 0, 'シグニが居なければ何も出さない');
+  const src = fs.readFileSync(join(root, 'src/components/BoardComponents.tsx'), 'utf-8');
+  ok(/const view = signiStackView\(stack, acceCardNums\);\s*return <CardStackModal stack=\{view\.stack\} labels=\{view\.labels\}/.test(src),
+    '🔴シグニをタップしたスワイプ画面にアクセが入っていない（ACE の印だけで中身が見えない）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

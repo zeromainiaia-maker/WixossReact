@@ -1315,7 +1315,7 @@ function mkBug0918Texa(refreshCase) {
         if (refreshCase && (onField || sawTarget)) return { pass: false, detail: `🔴リフレッシュより先にテキサハンマが解決した（hField=${JSON.stringify(st.host.fieldSigni)} sawTarget=${sawTarget}）` };
         // ②＝ミル直後にリフレッシュ済み（デッキ再構築・ログあり）で、数手待ってもテキサハンマが場に出ず対象選択も出ないこと。
         if (refreshCase && s >= 6 && !st?.stackLen && !st?.pendingEffect) {
-          const refreshLog = await H.findLog(/^リフレッシュ（デッキを再構築）/);
+          const refreshLog = await H.findLog(/リフレッシュ（デッキを再構築）/)   /* 2026-10-02＝画面のログは行頭に「何手目」が付く＝^ を外す */;
           return { pass: (st?.host?.deck ?? 0) > 0 && !!refreshLog, detail: `デッキ0枚→先にリフレッシュ（hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} log=${refreshLog}）→テキサハンマは不発（texaLog=${!!texaLog}）` };
         }
       }
@@ -10266,7 +10266,9 @@ const scenarios = {
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX15-073#1'));
-        const drawLog = await H.findLog(/^1枚ドロー$/);
+        // ⚠2026-10-02＝画面のログには行頭に「何手目」が付く（2026-09-23〜）＝`/^1枚ドロー$/` は当たらない。
+        //   DB のログ（`logTail`）で見る（DRIVE_TRAPS 128）。
+        const drawLog = (st?.logTail ?? []).find(l => /(^|\s)1枚ドロー$/.test(String(l))) ?? null;
         const handDelta = (st?.host?.hand ?? NaN) - (before?.host?.hand ?? NaN);
         H.log(`  eponp[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand}(開始${before?.host?.hand},差分${handDelta}) placed=${placed} drawLog=${drawLog ?? '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (placed && handDelta === 1 && st?.host?.hand === 2 && drawLog) {
@@ -10274,7 +10276,7 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      const drawLog = await H.findLog(/^1枚ドロー$/);
+      const drawLog = (fin?.logTail ?? []).find(l => /(^|\s)1枚ドロー$/.test(String(l))) ?? null;
       return { pass: false, detail: `効果配置【出】DRAW未確認（hHand=${before?.host?.hand}→${fin?.host?.hand}, drawLog=${drawLog ?? '-'}, hField=${JSON.stringify(fin?.host?.fieldSigni)}, pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
@@ -62678,6 +62680,51 @@ function mkPlaceLimitTrashAct(over) {
 scenarios.v293PlaceLimitTrashOver = mkPlaceLimitTrashAct(true);
 scenarios.v293PlaceLimitTrashWithin = mkPlaceLimitTrashAct(false);
 order.push('v293PlaceLimitTrashOver', 'v293PlaceLimitTrashWithin');
+
+// ── 🆕§5.1 `V-294`（2026-10-01）＝**シグニに重なったアクセ・下のカードをスワイプ画面で見られる**（ユーザー要望） ──
+// 🔴旧＝タップで開くスワイプ画面（`CardStackModal`）にはシグニの重なりだけ＝アクセは「ACE」の印しか無く中身を見られなかった。
+// 盤面＝ゾーン1に 小剣　ククリ（下のカード）＋ 小弓　ボーニャ（シグニ）、アクセ＝コードイート　ミント。
+// 観測点＝点が3つ・最初はシグニ（種類ラベルなし）→ 1つ下＝「アクセ」ミント → 一番下＝「下のカード」ククリ。
+scenarios.v294SigniStackSwipeShowsAcce = {
+  title: 'V-294 シグニのスワイプ画面で アクセ・下のカード も見られる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WD01-013#u294', 'WD01-014#s294'], null, null],
+      'field.signi_acce': [['WXK05-041#a294'], null, null],
+      'field.signi_charms': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.cheer': null, 'field.check': null, 'hand': [], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.cheer': null, 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    await H.clickTestId('my-signi-zone-0');
+    await page.waitForTimeout(600);
+    const modal = page.getByTestId('stack-detail-modal').first();
+    if (!(await modal.count())) return { pass: false, detail: '🔴シグニをタップしてもスワイプ画面が開かない' };
+    const dots = await page.locator('[data-testid^="stack-dot-"]').count();
+    const read = async () => {
+      const text = (await modal.innerText().catch(() => '')).replace(/\n/g, ' / ');
+      const kind = await page.getByTestId('stack-detail-kind').first().innerText().catch(() => '');
+      return { text, kind };
+    };
+    const top = await read();
+    await page.getByTestId('stack-dot-1').first().click(); await page.waitForTimeout(300);
+    const acce = await read();
+    await page.screenshot({ path: `${SHOT}/v294-acce.png`, fullPage: false });
+    await page.getByTestId('stack-dot-0').first().click(); await page.waitForTimeout(300);
+    const under = await read();
+    H.log(`  v294 点=${dots} 上=${top.kind}|${top.text.slice(0, 40)} 2枚目=${acce.kind}|${acce.text.slice(0, 40)} 3枚目=${under.kind}|${under.text.slice(0, 40)}`);
+    await page.mouse.click(5, 5); await page.waitForTimeout(300);   // 閉じる（§4.4-1＝後始末）
+    const ok = dots === 3 && top.text.includes('小弓') && !top.kind
+      && acce.kind === 'アクセ' && acce.text.includes('コードイート　ミント')
+      && under.kind === '下のカード' && under.text.includes('小剣　ククリ');
+    return { pass: ok, detail: `${ok ? '' : '🔴'}点=${dots}／シグニ=${top.text.includes('小弓')}／アクセ「${acce.kind}」ミント=${acce.text.includes('ミント')}／下のカード「${under.kind}」ククリ=${under.text.includes('ククリ')}` };
+  },
+};
+order.push('v294SigniStackSwipeShowsAcce');
 
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──

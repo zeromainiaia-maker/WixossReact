@@ -118,11 +118,16 @@ export function CardModal({ card, onClose, actions }: { card: CardData; onClose:
 }
 
 // ─── CardStackModal: スタックカード拡大（スワイプで上下移動） ──────────
-export function CardStackModal({ stack, cards, onClose, actions }: {
+export function CardStackModal({ stack, cards, onClose, actions, labels }: {
   stack: string[];
   cards: CardData[];
   onClose: () => void;
   actions?: CardAction[];
+  /**
+   * 🆕2026-10-01（ユーザー要望）＝各カードの種類（`stack` と同じ並び＝先頭が一番下）。例「アクセ」「下のカード」。
+   * 省略時は従来どおり「最上層／上からN枚目／最下層」だけ。
+   */
+  labels?: (string | undefined)[];
 }) {
   const [idx, setIdx] = useState(stack.length - 1);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -172,7 +177,7 @@ export function CardStackModal({ stack, cards, onClose, actions }: {
           {[...stack].reverse().map((_, ri) => {
             const si = stack.length - 1 - ri;
             return (
-              <div key={ri} onClick={e => { e.stopPropagation(); setIdx(si); }}
+              <div key={ri} data-testid={`stack-dot-${si}`} onClick={e => { e.stopPropagation(); setIdx(si); }}
                 style={{
                   width: 9, height: 9, borderRadius: '50%', cursor: 'pointer',
                   backgroundColor: si === idx ? C.accent : C.textVeryFaint,
@@ -183,6 +188,7 @@ export function CardStackModal({ stack, cards, onClose, actions }: {
         </div>
       )}
       <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 6, textAlign: 'center' }}>
+        {labels?.[idx] ? <span data-testid="stack-detail-kind" style={{ color: C.textSub, fontWeight: 'bold', marginRight: 6 }}>{labels[idx]}</span> : null}
         {isTop ? '最上層（アクティブ）' : isBottom ? '最下層' : `上から${stack.length - idx}枚目`}
         {hasStack && <span style={{ color: C.textVeryFaint, marginLeft: 8 }}>{idx + 1} / {stack.length}</span>}
       </div>
@@ -384,6 +390,20 @@ export function StackSlot({ stack, cards, width = 60, height = 84, label, faceDo
       )}
     </>
   );
+}
+
+/**
+ * 🆕2026-10-01＝シグニゾーンのスワイプ画面に並べるカード（先頭が一番下）。
+ * 並び＝下のカード（古いほど下）→ アクセ → シグニ（最上層）＝**上からスワイプすると シグニ → アクセ → 下のカード**。
+ */
+export function signiStackView(stack: string[], acceCardNums?: string[] | null): { stack: string[]; labels: (string | undefined)[] } {
+  if (!stack.length) return { stack: [], labels: [] };
+  const under = stack.slice(0, -1);
+  const acce = acceCardNums ?? [];
+  return {
+    stack: [...under, ...acce, stack[stack.length - 1]],
+    labels: [...under.map(() => '下のカード'), ...acce.map(() => 'アクセ'), undefined],
+  };
 }
 
 // ─── StackedSigniSlot: シグニゾーン用スタックスロット ──────────────
@@ -819,9 +839,13 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
           onTap={() => setShowFacedownModal(true)} />
       )}
       </div>
-      {showModal && stack && (
-        <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
-      )}
+      {showModal && stack && (() => {
+        // 🆕2026-10-01（ユーザー要望「アクセなど重なったカードの下が見えない。ルリグと同じスワイプで」）＝
+        //   **シグニ → アクセ → 下のカード** の順にスワイプで見られる（アクセは別の置き場なので、旧は「ACE」の印しか無かった）。
+        //   ⚠チャーム・裏向きで付いたカードは非公開＝ここには入れない（従来どおり別の小窓）。
+        const view = signiStackView(stack, acceCardNums);
+        return <CardStackModal stack={view.stack} labels={view.labels} cards={cards} onClose={() => setShowModal(false)} actions={actions} />;
+      })()}
       {showMBPeek && magicBoxCardNum && isMe && (() => {
         const mbCard = cards.find(c => c.CardNum === getCardNum(magicBoxCardNum));
         return mbCard ? <CardModal card={mbCard} onClose={() => setShowMBPeek(false)} /> : null;
@@ -1104,7 +1128,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       data-cheer={cheerNum ?? ''}
       data-cheer-down={cheerDown ? '1' : '0'}
       data-cheer-frozen={cheerFrozen ? '1' : '0'}
-      onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: [...allFreeCards, ...cheerUnderCards], isFreeZone: isMe })}
+      onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: [...allFreeCards, ...(cheerNum ? (normalizeAcceSlot(state.field.signi_acce?.[3]) ?? []) : []), ...cheerUnderCards], isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
         border: hasBeat ? '1px solid #ff8844' : (allFreeCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455'),
