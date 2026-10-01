@@ -485,6 +485,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     (s.field.key_piece_extra ?? []).forEach(id => put(id, `${side}キー`));
     (s.field.free_zone ?? []).forEach(id => put(id, `${side}フリー`));
     put(s.field.cheer, `${side}チア`);
+    (s.field.cheer_under ?? []).forEach(id => put(id, `${side}チア下`));   // 🆕§5.3 `O-542`(b)
     if (s.field.cheer) {
       const cf = [s.field.cheer_frozen ? '凍結' : '', s.field.cheer_down ? 'ダウン' : ''].filter(Boolean).join(',');
       if (cf) flags.set(s.field.cheer, cf);

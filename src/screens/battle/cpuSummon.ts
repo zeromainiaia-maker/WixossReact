@@ -1,7 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
 import {
-  resonaCombinedOptions, resonaPaymentOptions, validateResonaSelection,
+  resonaCombinedOptions, resonaFieldCardAt, resonaPaymentOptions, validateResonaSelection, RESONA_CHEER_INDEX,
   type ResonaPaymentItem, type ResonaPaymentPlan, type ResonaPaymentSelection,
 } from './resonaSummon';
 
@@ -24,7 +24,7 @@ export function pickCpuResonaSelection(
   if (plan.combined) {
     const c = plan.combined;
     const cardOf = (i: ResonaPaymentItem) => i.zone === 'field'
-      ? state.field.signi[i.index]?.at(-1)
+      ? resonaFieldCardAt(state, i.index)
       : (i.zone === 'hand' ? state.hand : state.energy)[i.index];
     const weight = (i: ResonaPaymentItem) => {
       const card = cardMap.get(getCardNum(cardOf(i) ?? ''));
@@ -68,7 +68,8 @@ export function pickCpuResonaSelection(
 
 /** 配置先＝**支払いで空くゾーン**があればそこ（場から払う形）、無ければ最初の空きゾーン。 */
 export function pickCpuResonaZone(state: PlayerState, selection: ResonaPaymentSelection): number | null {
-  const paidField = (selection.items ?? []).find(i => i.zone === 'field');
+  // ⚠チアゾーン（`O-542`(a)）から払っても**シグニゾーンは空かない**＝配置先にはならない。
+  const paidField = (selection.items ?? []).find(i => i.zone === 'field' && i.index !== RESONA_CHEER_INDEX);
   if (paidField) return paidField.index;
   const empty = [0, 1, 2].find(z => (state.field.signi[z] ?? []).length === 0);
   return empty ?? null;
@@ -77,6 +78,7 @@ export function pickCpuResonaZone(state: PlayerState, selection: ResonaPaymentSe
 /** 支払いで場から離れるシグニのレベル合計（リミットの再計算に使う＝`performSummonSigni` の確定時検証と同じ式）。 */
 export function paidFieldLevels(state: PlayerState, selection: ResonaPaymentSelection, cardMap: Map<string, CardData>): number {
   return (selection.items ?? []).filter(i => i.zone === 'field').reduce((sum, item) => {
+    // ⚠チアゾーンのシグニはリミットを消費しない（`O-538` 段階5）＝添字3は `field.signi[3]` が無く 0 になるのが正。
     const num = getCardNum(state.field.signi[item.index]?.at(-1) ?? '');
     return sum + (parseInt(cardMap.get(num)?.Level ?? '0', 10) || 0);
   }, 0);

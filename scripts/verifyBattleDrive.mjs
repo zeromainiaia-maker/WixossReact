@@ -62378,6 +62378,139 @@ scenarios.v288NaturalTrapBlocked = {
 };
 order.push('v288NaturalTrapAccept', 'v288NaturalTrapDecline', 'v288NaturalTrapBlocked');
 
+// ── 🆕§5.1 `V-289`（2026-10-01）＝**チアゾーンのシグニをレゾナの素材にできる**（§5.3 `O-542`(a)・ユーザー裁定） ──
+// 盤面＝`WX07-009`（白羅星　ジュピタ＝白の非レゾナ2体を場からトラッシュ）。シグニゾーンに白1体＋チアゾーンに白1体（下にカード1枚）。
+// 観測点＝支払い画面に**チアゾーンの札（`resona-payment-field-3`）が出る**／それとゾーン1の札で払える／
+//   払ったチアゾーンのシグニと**その下のカード**がトラッシュへ・チアゾーンが空になる。
+// ⚠`WX07-009` はサシェ限定（b17 と同じ罠）。
+scenarios.v289ResonaFromCheer = {
+  title: 'V-289 チアゾーンのシグニをレゾナの出現条件の素材にできる（O-542(a)）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX07-007#1'],
+      'field.signi': [['WD01-013#v289a'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.cheer': 'WD01-014#v289c', 'field.cheer_down': false, 'field.cheer_frozen': false,
+      'field.cheer_under': ['WD01-013#v289u'],
+      'field.check': null,
+      'lrig_deck': ['WX07-009#v289r'],
+      'hand': [], 'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.cheer': null, 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`  v289 開始 field=${JSON.stringify(st0?.host?.fieldSigni)} cheer=${st0?.host?.cheer} under=${JSON.stringify(st0?.host?.cheerUnder)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+    if (st0?.host?.cheer !== 'WD01-014#v289c') return { pass: false, detail: `前提崩れ＝チアゾーンが注入されていない（cheer=${st0?.host?.cheer}）` };
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(500);
+    await H.clickTestId('zone-card-0');
+    const picked = new Set();
+    let sawCheerOption = false;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(700);
+      let did = await H.clickBtn('【出現条件】で召喚', { exact: true });
+      if (!did) {
+        // 🔑チアゾーンの札＝添字3。これが出ることが観測点そのもの。
+        const cheerPay = page.getByTestId('resona-payment-field-3').first();
+        if (await cheerPay.count() && await cheerPay.isVisible().catch(() => false)) sawCheerOption = true;
+        for (const i of [0, 3]) {
+          const pay = page.getByTestId(`resona-payment-field-${i}`).first();
+          if (!picked.has(i) && await pay.count() && await pay.isVisible().catch(() => false)) {
+            await page.screenshot({ path: `${SHOT}/v289-pay.png`, fullPage: true });
+            await pay.click(); picked.add(i); did = `tid:resona-payment-field-${i}`; break;
+          }
+        }
+      }
+      if (!did) {
+        const zone = page.getByTestId('resona-zone-0').first();
+        if (await zone.count() && await zone.isVisible().catch(() => false) && await zone.isEnabled().catch(() => false)) {
+          await zone.click(); did = 'tid:resona-zone-0';
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v289[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(st?.host?.fieldSigni)} cheer=${st?.host?.cheer} under=${JSON.stringify(st?.host?.cheerUnder)} trash=${JSON.stringify(st?.host?.trashCards)}`);
+      const placed = st?.host?.fieldSigni?.[0]?.includes('WX07-009#v289r');
+      const trash = st?.host?.trashCards ?? [];
+      if (placed) {
+        await page.screenshot({ path: `${SHOT}/v289-end.png`, fullPage: true });
+        const ok = sawCheerOption && !st?.host?.cheer && (st?.host?.cheerUnder ?? []).length === 0
+          && ['WD01-013#v289a', 'WD01-014#v289c', 'WD01-013#v289u'].every(id => trash.includes(id));
+        return { pass: ok, detail: `${ok ? '' : '🔴'}チアゾーンの札が支払い候補に出て（${sawCheerOption}）払える＝チアゾーンが空き、その下のカードもトラッシュへ（cheer=${st?.host?.cheer} trash=${JSON.stringify(trash)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `🔴レゾナ召喚が完了しない（チアゾーンの札の候補=${sawCheerOption} field=${JSON.stringify(fin?.host?.fieldSigni)} cheer=${fin?.host?.cheer}）` };
+  },
+};
+order.push('v289ResonaFromCheer');
+
+// ── 🆕§5.1 `V-290`（2026-10-01）＝**チアゾーンのシグニを「シグニの下に置く」置き先にできる**（§5.3 `O-542`(b)・ユーザー裁定） ──
+// 盤面＝`WXK08-048-E2`（【起】《ターン１回》《黒》：トラッシュのシグニ１枚を＜ウェポン＞のシグニ１体の下に置く）。
+//   置き先の候補＝効果元自身（ゾーン1・＜ウェポン＞）と、チアゾーンの `WXK08-084`（＜ウェポン＞）の2つ。
+// 観測点＝置き先の選択肢に「チアゾーン」が出る → 選ぶと `field.cheer_under` に入り、盤面のチアゾーン枠に「下1」が出る。
+// ⚠反転（ゾーン1を選ぶと従来どおりシグニゾーンの下）は golden（§5.3 O-542）と既存の TSU 系シナリオが受け持つ。
+scenarios.v290PlaceUnderCheer = {
+  title: 'V-290 チアゾーンのシグニを「シグニの下に置く」置き先にできる（O-542(b)）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK09-018#1'],
+      'field.signi': [['WXK08-048#v290s'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.cheer': 'WXK08-084#v290c', 'field.cheer_down': false, 'field.cheer_frozen': false, 'field.cheer_under': [],
+      'field.check': null,
+      'energy': ['WX05-080#v290e'],
+      'trash': ['WD01-013#v290t'],
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.cheer': null, 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`  v290 開始 field=${JSON.stringify(st0?.host?.fieldSigni)} cheer=${st0?.host?.cheer} trash=${JSON.stringify(st0?.host?.trashCards)}`);
+    if (st0?.host?.cheer !== 'WXK08-084#v290c') return { pass: false, detail: `前提崩れ＝チアゾーンが注入されていない（cheer=${st0?.host?.cheer}）` };
+    await H.clickTestId('my-signi-zone-0');
+    let opened = false, energyPicked = false, trashPicked = false, sawCheerDest = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { did = await H.clickBtn(/【起】/, { exact: false }); if (did) opened = true; }
+      // 置き先の選択肢（ボタン限定＝ログの文言に当てない・DRIVE_TRAPS 2b）
+      if (!did) {
+        const dest = page.getByRole('button', { name: /チアゾーン/ }).first();
+        if (await dest.count() && await dest.isVisible().catch(() => false)) {
+          sawCheerDest = true;
+          await page.screenshot({ path: `${SHOT}/v290-dest.png`, fullPage: true });
+          await dest.click(); did = 'btn:チアゾーン';
+        }
+      }
+      if (!did && opened && !energyPicked) { did = await H.clickModalImage('使命の怠惰　ヘカーテ'); if (did) energyPicked = true; }
+      if (!did && opened && !trashPicked) { did = await H.clickModalImage('小剣　ククリ'); if (did) trashPicked = true; }
+      // ⚠エナを選んだら「発動」（exact）で確定する（effectPlacedOnPlayZoneSelect と同じ）。
+      if (!did && energyPicked && !trashPicked) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.clickTextOrBtn(['支払う', '決定', '確定', '発動する', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v290[${s}] -> ${did ?? 'なし'} | cheer=${st?.host?.cheer} under=${JSON.stringify(st?.host?.cheerUnder)} field=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if ((st?.host?.cheerUnder ?? []).includes('WD01-013#v290t')) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/v290-end.png`, fullPage: true });
+        const badge = await page.getByTestId('my-cheer-under').first().innerText().catch(() => '');
+        const zone0 = st?.host?.fieldSigni?.[0] ?? [];
+        const ok = sawCheerDest && badge.includes('下1') && !(st?.host?.trashCards ?? []).includes('WD01-013#v290t') && zone0.length === 1;
+        return { pass: ok, detail: `${ok ? '' : '🔴'}置き先に「チアゾーン」が出て（${sawCheerDest}）選ぶとチアゾーンのシグニの下へ（under=${JSON.stringify(st?.host?.cheerUnder)}・盤面「${badge}」・ゾーン1は重ならない=${JSON.stringify(zone0)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `🔴チアゾーンのシグニの下に置けなかった（置き先の候補=${sawCheerDest} under=${JSON.stringify(fin?.host?.cheerUnder)} field=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  },
+};
+order.push('v290PlaceUnderCheer');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
@@ -66506,6 +66639,9 @@ try {
         handCards: s.hand ?? [],
         trash: (s.trash ?? []).length,
         trashCards: s.trash ?? [],
+        // 🆕§5.3 `O-542`＝チアゾーンのシグニとその下のカード（DRIVE_TRAPS 128＝見たい state は queryState に足す）。
+        cheer: s.field?.cheer ?? null,
+        cheerUnder: s.field?.cheer_under ?? [],
         energy: (s.energy ?? []).length,
         // 🆕§5.3 `O-147`（2026-09-05）＝【ライズ】の材料をエナから引く形（`WXK05-035`）の観測点。
         //   枚数だけだと「どの札が下へ重なったか」が見えない。

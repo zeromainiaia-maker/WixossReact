@@ -1,4 +1,4 @@
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, placeUnderFieldSigni, placeUnderZone } from './cheerZoneView';
 import type { Owner, PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { keywordDisplayLabel } from '../utils/keywords';
 import { parseCardEffects } from '../data/effectParser';
@@ -150,7 +150,7 @@ export function execStubPart1(
       ...cards([field.key_piece]), ...cards(field.key_piece_extra),
       ...cards(field.signi_charms), ...(field.signi_acce ?? []).flatMap(acce => acce ?? []), ...cards(field.signi_soul),
       ...cards(field.signi_traps), ...cards(field.signi_magic_boxes), ...cards(field.signi_seeds),
-      ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone), ...cards([field.cheer]),
+      ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone), ...cards([field.cheer]), ...cards(field.cheer_under ?? []),
     ];
     const newOwnerState: PlayerState = {
       ...ctx.ownerState,
@@ -178,7 +178,7 @@ export function execStubPart1(
         signi_soul: [null, null, null], signi_traps: [null, null, null],
         signi_magic_boxes: [null, null, null], signi_seeds: [null, null, null],
         facedown_signi: [null, null, null], signi_armor: [false, false, false],
-        puppet_signi: [], free_zone: [], beat_zone: [], cheer: null, cheer_down: false, cheer_frozen: false,
+        puppet_signi: [], free_zone: [], beat_zone: [], cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [],
         cross_state: [false, false, false], heaven_state: [false, false, false],
       },
       deck_shuffled_count: (ctx.ownerState.deck_shuffled_count ?? 0) + 1,
@@ -1488,9 +1488,10 @@ export function execStubPart1(
       const srcZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
       if (srcZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
       const hostFilterPCUS = stub.selectTarget?.filter;
-      const candidatesPCUS = [0, 1, 2]
-        .filter(zi => zi !== srcZonePCUS && ctx.ownerState.field.signi[zi]?.length)
-        .map(zi => ctx.ownerState.field.signi[zi]!.at(-1)!)
+      const stacksPCUS = fieldSigniStacks(ctx.ownerState);   // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニも置き先
+      const candidatesPCUS = stacksPCUS.map((_, zi) => zi)
+        .filter(zi => zi !== srcZonePCUS && stacksPCUS[zi]?.length)
+        .map(zi => stacksPCUS[zi]!.at(-1)!)
         .filter(cn => !hostFilterPCUS || matchesFilter(ctx.cardMap.get(cn), hostFilterPCUS))
         .filter(Boolean);
       if (candidatesPCUS.length === 0) return done(addLog(ctx, '配置先シグニなし'));
@@ -1549,15 +1550,14 @@ export function execStubPart1(
     const srcCnIPSUS = ctx.sourceCardNum;
     if (!targetCnIPSUS || !srcCnIPSUS) return done(addLog(ctx, '対象なし'));
     const srcZoneIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcCnIPSUS);
-    const targetZoneIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetCnIPSUS);
-    if (srcZoneIPSUS < 0 || targetZoneIPSUS < 0) return done(addLog(ctx, 'ゾーン特定不可'));
+    if (srcZoneIPSUS < 0) return done(addLog(ctx, 'ゾーン特定不可'));
     const newSigniIPSUS = [...ctx.ownerState.field.signi] as (string[] | null)[];
     // sourceCardNumを元ゾーンから削除（スタックの最後だけ取り出す）
     const srcStackIPSUS = newSigniIPSUS[srcZoneIPSUS] ?? [];
     newSigniIPSUS[srcZoneIPSUS] = srcStackIPSUS.length > 1 ? srcStackIPSUS.slice(0, -1) : null;
-    // targetゾーンのスタック最下部に追加
-    newSigniIPSUS[targetZoneIPSUS] = [srcCnIPSUS, ...(newSigniIPSUS[targetZoneIPSUS] ?? [])];
-    const newOwnerIPSUS: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } };
+    // targetのスタック最下部に追加（🆕§5.3 `O-542`(b)＝チアゾーンのシグニでもよい）
+    const newOwnerIPSUS = placeUnderFieldSigni({ ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } }, targetCnIPSUS, [srcCnIPSUS]);
+    if (!newOwnerIPSUS) return done(addLog(ctx, 'ゾーン特定不可'));
     return done(addLog({ ...ctx, ownerState: newOwnerIPSUS },
       `${ctx.cardMap.get(srcCnIPSUS)?.CardName ?? srcCnIPSUS}を${ctx.cardMap.get(targetCnIPSUS)?.CardName ?? targetCnIPSUS}の下に配置`));
   }
@@ -3326,7 +3326,7 @@ export function execStubPart1(
     const newOtherField: PlayerState['field'] = {
       ...ctx.otherState.field,
       signi: [null, null, null],
-      cheer: null, cheer_down: false, cheer_frozen: false,
+      cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [],
     };
     const newOther: PlayerState = {
       ...ctx.otherState,
@@ -3381,7 +3381,7 @@ export function execStubPart1(
         lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
         field: {
           ...st.field,
-          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[], cheer: null, cheer_down: false, cheer_frozen: false } : {}),
+          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[], cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] } : {}),
           ...(moveSigni && specTAK.zoneAttachments
             ? {
               signi_charms: [null, null, null] as (string | null)[],
@@ -4530,8 +4530,10 @@ export function execStubPart1(
     //   参照先の「直前に場に出したシグニ」を engine が持っていない。**過小に倒さず全ゾーンを候補にする。**
     //   🔴そもそも `WDK15-007` は前段「あなたのトラッシュから対象の＜ウェポン＞のシグニ１枚を**場に出し**」が
     //     live JSON に無い（parser の別の穴）＝§5.3 `O-231` に登録した。
-    const fieldZones = [0, 1, 2].filter(zi => {
-      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+    // 🆕§5.3 `O-542`(b)＝置き先はチアゾーン（添字3）のシグニでもよい（ユーザー裁定）。
+    const stacksTSU = fieldSigniStacks(ctx.ownerState);
+    const fieldZones = stacksTSU.map((_, zi) => zi).filter(zi => {
+      const top = stacksTSU[zi]?.at(-1);
       if (!top) return false;
       if (specTSU?.destFilter && !specTSU.destLastPlayed) {
         return matchesFilter(ctx.cardMap.get(getCardNum(top)), specTSU.destFilter);
@@ -4540,12 +4542,12 @@ export function execStubPart1(
     });
     if (fieldZones.length === 0) return done(addLog(ctx, '対象フィールドシグニなし'));
     const opts = fieldZones.map(zi => {
-      const top = ctx.ownerState.field.signi[zi]!.at(-1)!;
+      const top = stacksTSU[zi]!.at(-1)!;
       const rest = restTrash.join(',');
       const encoded = rest ? `${firstTrash}:${zi}:${rest}` : `${firstTrash}:${zi}`;
       return {
         id: `zone_${zi}`,
-        label: `${ctx.cardMap.get(top)?.CardName ?? top}の下（ゾーン${zi + 1}）`,
+        label: `${ctx.cardMap.get(getCardNum(top))?.CardName ?? top}の下（${zi === 3 ? 'チアゾーン' : `ゾーン${zi + 1}`}）`,
         action: { type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE', value: encoded,
           ...(specTSU ? { trashUnderPlace: specTSU } : {}) } as StubAction as EffectAction,
         available: true,
@@ -4569,11 +4571,11 @@ export function execStubPart1(
     const zone = parseInt(zoneStr);
     if (!trashCard || isNaN(zone)) return done(addLog(ctx, '配置情報なし'));
     const newTrashITP = ctx.ownerState.trash.filter(c => c !== trashCard);
-    const newSigniITP = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    newSigniITP[zone] = [trashCard, ...(newSigniITP[zone] ?? [])];
-    const newOwnerITP = { ...ctx.ownerState, trash: newTrashITP, field: { ...ctx.ownerState.field, signi: newSigniITP } };
+    // 🆕§5.3 `O-542`(b)＝ゾーン3はチアゾーン（`placeUnderZone` が `cheer_under` へ置く）。
+    const newOwnerITP = placeUnderZone({ ...ctx.ownerState, trash: newTrashITP }, zone, [trashCard]);
+    if (!newOwnerITP) return done(addLog(ctx, '置き先のシグニが場にいない'));
     const ctxITP = addLog({ ...ctx, ownerState: newOwnerITP },
-      `${ctx.cardMap.get(trashCard)?.CardName ?? trashCard}をゾーン${zone + 1}のシグニの下に配置`);
+      `${ctx.cardMap.get(trashCard)?.CardName ?? trashCard}を${zone === 3 ? 'チアゾーン' : `ゾーン${zone + 1}`}のシグニの下に配置`);
     // 残りのトラッシュカードがあれば次の選択へ
     // 🔴🆕**§5.1 `V-139`③（2026-09-04・実機で発覚）＝`trashUnderPlace` を継承する。**
     //   旧実装はここで payload を落としていたので、**2枚目以降の配置先だけ絞り込みが消えていた**

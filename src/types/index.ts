@@ -389,6 +389,7 @@ export interface PlayerState {
     cheer?:        string | null;     // 🆕チアゾーンのシグニ（§5.3 `O-538`・1体まで。「場」だがシグニゾーンではない＝`engine/cheerZone.ts`）
     cheer_down?:   boolean;           // チアゾーンのシグニのダウン状態
     cheer_frozen?: boolean;           // 🆕チアゾーンのシグニの凍結状態（§5.3 `O-538` 段階5＝凍結はゾーンではなくシグニの状態）
+    cheer_under?:  string[];          // 🆕チアゾーンのシグニの**下**のカード（§5.3 `O-542`(b)＝ユーザー裁定「チアゾーンのシグニも置き先にできる」）。並びは `field.signi` の重なりと同じ＝先頭が一番下。シグニが場を離れるとトラッシュ
     beat_zone?:    string[];          // ビートゾーン（ターン終了時にトラッシュへ、UIはフリーゾーンと共有）
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み

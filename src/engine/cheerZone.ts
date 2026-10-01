@@ -10,7 +10,7 @@ import { removeFromField } from './execUtils';
  *   `free_zone`（バリアトークンの置き場）にも同居させない。
  * ⚠旧実装（〜v0.594）は `free_zone` へ移して `keyword_grants` に「チアガール」の印を付けていた＝`cheerCardOf` はその形も読む（進行中の対戦の互換）。
  */
-export { CHEER_GIRL, cheerCardOf, fieldSigniStacks } from './cheerZoneView';
+export { CHEER_GIRL, cheerCardOf, fieldSigniStacks, placeUnderFieldSigni, placeUnderZone } from './cheerZoneView';
 import { cheerCardOf } from './cheerZoneView';
 
 /**
@@ -25,7 +25,7 @@ export function moveToCheerZone(state: PlayerState, cardNum: string): PlayerStat
   const wasDown = state.field.signi_down?.[zi] ?? false;
   const wasFrozen = state.field.signi_frozen?.[zi] ?? false;   // 段階5＝凍結もシグニの状態として引き継ぐ
   const removed = removeFromField(cardNum, state);
-  return { ...removed, field: { ...removed.field, cheer: cardNum, cheer_down: wasDown, cheer_frozen: wasFrozen } };
+  return { ...removed, field: { ...removed.field, cheer: cardNum, cheer_down: wasDown, cheer_frozen: wasFrozen, cheer_under: [] } };
 }
 
 /**
@@ -37,7 +37,7 @@ export const CHEER_ZONE = 3;
 
 /** ゾーン番号（0〜2＝シグニゾーン／`CHEER_ZONE`＝チアゾーン）にあるシグニの重なり。 */
 export function signiStackAt(state: PlayerState, zoneIndex: number): string[] | null {
-  if (zoneIndex === CHEER_ZONE) { const c = cheerCardOf(state); return c ? [c] : null; }
+  if (zoneIndex === CHEER_ZONE) { const c = cheerCardOf(state); return c ? [...(state.field.cheer_under ?? []), c] : null; }
   return state.field.signi[zoneIndex] ?? null;
 }
 

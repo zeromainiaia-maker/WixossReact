@@ -211,7 +211,7 @@ import { PLAY_MECHANISMS, tallyPlayMechanisms, unvisitedMechanisms } from '../sr
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
-import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
+import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection, resonaPaymentOptions } from '../src/screens/battle/resonaSummon';
 import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, keywordDisplayLabel, normalizeKeywordName, parseAssassinScopeText, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
@@ -234,7 +234,7 @@ import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
-import { cheerCardOf, moveToCheerZone, CHEER_ZONE, fieldSigniStacks as fieldSigniStacksG } from '../src/engine/cheerZone';
+import { cheerCardOf, moveToCheerZone, CHEER_ZONE, fieldSigniStacks as fieldSigniStacksG, placeUnderZone, placeUnderFieldSigni } from '../src/engine/cheerZone';
 import { applyUpPhaseToField as applyUpPhaseToFieldCheer } from '../src/screens/battle/upPhase';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
@@ -93679,6 +93679,65 @@ test('§5.3 O-541 チアゾーンも「場」＝場を離れたかの検出・�
   // ③ 場の札を数える（`countFromZone` の zone:'field'）にチアゾーンも入る。
   eq(countFromZone({ zone: 'field', owner: 'self', filter: { cardType: 'シグニ' } } as never, toCheer, mkState({}), cm), 1,
     '🔴「場のシグニ1体につき」がチアゾーンのシグニを数えない');
+}));
+
+// ── 🆕§5.3 `O-542`（2026-10-01・ユーザー裁定）：チアゾーンのシグニは (a) レゾナの素材 (b)「シグニの下に置く」の置き先 にできる ──
+// 🔑公式ルールに明記が無く索引H で問うた＝「チアゾーンは場」に揃えて**どちらも「できる」**。
+//   (a) 支払い候補は添字3（`CHEER_ZONE` と同じ番号）でチアゾーンを足す／払うと下のカード・【チャーム】もトラッシュ。
+//   (b) チアゾーンの下は `field.cheer_under`（先頭が一番下）＝`fieldSigniStacks` の4番目の重なりに出るので、数える側はそのまま追従する。
+test('§5.3 O-542 チアゾーンのシグニ＝(a) レゾナの素材 (b) 下に置く置き先', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  // ── (a) レゾナの素材 ──
+  const resona = 'WX07-009'; // 白の非レゾナシグニ2体を場からトラッシュ
+  const whiteA = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白'));
+  const whiteB = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && c.CardNum !== whiteA);
+  const one = mkState({ signi: [whiteA, null, null] });
+  one.lrig_deck = [resona];
+  eq(getMainSingleZoneResonaCandidate(resona, one, cm, effectsMap), null, '反転: シグニゾーンの1体だけでは候補外');
+  const withCheer: PlayerState = { ...one, field: { ...one.field,
+    cheer: whiteB, cheer_under: ['WD01-013#u542'], signi_charms: [null, null, null, SIGNI] } };
+  const candA = getMainSingleZoneResonaCandidate(resona, withCheer, cm, effectsMap);
+  ok(!!candA, '🔴チアゾーンのシグニをレゾナの素材に数えない（場に2体あるのに候補にならない）');
+  ok(resonaPaymentOptions(withCheer, candA!.payment.groups[0], cm).includes(CHEER_ZONE), '支払い候補にチアゾーン（添字3）が出る');
+  const paidA = payResonaAppearanceAndPlace(withCheer, resona, candA!.payment, { zone: 'field', indices: [0, CHEER_ZONE] }, 0, cm);
+  ok(!!paidA, '🔴チアゾーンから払うと支払いが失敗する');
+  ok(!paidA!.state.field.cheer && (paidA!.state.field.cheer_under ?? []).length === 0, 'チアゾーンが空になる');
+  ok(paidA!.state.trash.includes(whiteB) && paidA!.state.trash.includes('WD01-013#u542') && paidA!.state.trash.includes(SIGNI),
+    '払ったチアゾーンのシグニ・その下のカード・【チャーム】がトラッシュへ');
+  eq(paidA!.state.field.signi[0]?.at(-1), resona, 'レゾナは払って空いたシグニゾーンへ');
+  eq(paidA!.state.field.signi.length, 3, '🔴チアゾーンを field.signi の4番目に書いた');
+  // ── (b) 下に置く置き先 ──
+  const SC = 'WXEX2-65#1';
+  const toCheer = moveToCheerZone(mkState({ signi: [SC, null, null] }), SC)!;
+  eq(placeUnderZone(mkState({}), CHEER_ZONE, ['X#1']), null, '反転: チアゾーンにシグニがいなければ置けない');
+  const under = placeUnderZone(toCheer, CHEER_ZONE, ['WD01-013#u1'])!;
+  eq(JSON.stringify(under.field.cheer_under), JSON.stringify(['WD01-013#u1']), '🔴チアゾーンのシグニの下に置けない');
+  eq(JSON.stringify(fieldSigniStacksG(under)[3]), JSON.stringify(['WD01-013#u1', SC]), '「場のシグニ」の重なりに下のカードが出る（先頭が一番下）');
+  eq(JSON.stringify(placeUnderFieldSigni(under, SC, ['WD01-013#u2'])!.field.cheer_under), JSON.stringify(['WD01-013#u2', 'WD01-013#u1']),
+    'カード指定でも置ける（新しく置いた札が一番下）');
+  const left = removeFromField(SC, under);
+  ok(left.trash.includes('WD01-013#u1') && (left.field.cheer_under ?? []).length === 0, '🔴チアゾーンのシグニが場を離れても下のカードが残る（トラッシュへ行かない）');
+  // 受け皿の代表＝トラッシュのシグニをシグニの下に置く（9効果）・デッキの上から見て置く（「選べるのに置けなかった」）。
+  const ctxT = mkCtx({}, {});
+  ctxT.ownerState = { ...toCheer, trash: ['WD01-013#t1'] };
+  const chooseT = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE', value: 'WD01-013#t1' } as EffectAction } as CardEffect, ctxT);
+  ok(!chooseT.done && chooseT.pending.type === 'CHOOSE' && chooseT.pending.options.some(o => o.id === 'zone_3'),
+    '🔴トラッシュのシグニの置き先にチアゾーンのシグニが出ない');
+  const doneT = run({ type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE', value: 'WD01-013#t1:3' } as EffectAction, ctxT);
+  ok((doneT.ownerState.field.cheer_under ?? []).includes('WD01-013#t1') && !doneT.ownerState.trash.includes('WD01-013#t1'),
+    '🔴チアゾーン（ゾーン3）を選んでも下に置かれない');
+  const ctxL = mkCtx({}, {});
+  ctxL.ownerState = { ...toCheer, deck: ['WD01-013#d1', 'WD01-013#d2', 'WD01-013#d3'] };
+  const looked = run({ type: 'STUB', id: 'INTERNAL_LOOKED_CARD_UNDER_APPLY', value: `${SC}:WD01-013#d1` } as EffectAction, ctxL);
+  ok((looked.ownerState.field.cheer_under ?? []).includes('WD01-013#d1'), '🔴見たカードをチアゾーンのシグニの下に置けない（候補には出るのに「場にいない」）');
+  eq(looked.ownerState.deck.at(-1), 'WD01-013#d2', '残りはデッキの一番下');
+  // 取り出す側（汎用 `TAKE_FROM_UNDER_SIGNI`）＝チアゾーンのシグニの下からも取れる。
+  const ctxK = mkCtx({}, {});
+  ctxK.ownerState = under;
+  const took = run({ type: 'TAKE_FROM_UNDER_SIGNI', count: 1, destination: 'hand' } as unknown as EffectAction, ctxK);
+  ok(took.ownerState.hand.includes('WD01-013#u1') && (took.ownerState.field.cheer_under ?? []).length === 0,
+    '🔴チアゾーンのシグニの下のカードを取り出せない（置けるのに取れない）');
 }));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

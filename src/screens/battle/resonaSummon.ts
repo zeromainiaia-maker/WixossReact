@@ -1,5 +1,6 @@
 import { getCardNum } from '../../engine/effectExecutor';
 import { matchesFilter } from '../../engine/execUtils';
+import { cheerCardOf } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState } from '../../types';
 import type { AppearanceCondition, AppearanceSourceZone, EffectCost, TargetFilter } from '../../types/effects';
 
@@ -84,14 +85,26 @@ export function singleZonePayment(appearance?: AppearanceCondition): ResonaPayme
   return appearancePayment(appearance)?.groups[0] ?? null;
 }
 
+/**
+ * 🆕§5.3 `O-542`(a)（2026-10-01・ユーザー裁定「チアゾーンのシグニもレゾナの素材にできる」）＝
+ * 支払い項目 `{zone:'field', index}` の札。**添字 0〜2＝シグニゾーン／3＝チアゾーン**（`CHEER_ZONE` と同じ番号）。
+ * ⚠UI・CPU・確定時の検証は `field.signi[index]` を直接読まずにこれを通す（添字3が undefined になる）。
+ */
+export const RESONA_CHEER_INDEX = 3;
+export function resonaFieldCardAt(state: PlayerState, index: number): string | undefined {
+  if (index === RESONA_CHEER_INDEX) return cheerCardOf(state) ?? undefined;
+  return state.field.signi[index]?.at(-1);
+}
+
 export function resonaPaymentOptions(
   state: PlayerState,
   payment: ResonaPaymentSpec,
   cardMap: Map<string, CardData>,
 ): number[] {
   if (payment.zone === 'field') {
-    return state.field.signi.flatMap((stack, zoneIndex) => {
-      const top = stack?.at(-1);
+    // 「あなたの場にある〜」＝チアゾーンも「場」（`O-542`(a)）＝添字3で末尾に足す。
+    return [0, 1, 2, RESONA_CHEER_INDEX].flatMap(zoneIndex => {
+      const top = resonaFieldCardAt(state, zoneIndex);
       return top && matchesFilter(cardMap.get(getCardNum(top)), payment.filter) ? [zoneIndex] : [];
     });
   }
@@ -113,7 +126,7 @@ export function resonaCombinedOptions(
 }
 
 function cardForItem(state: PlayerState, item: ResonaPaymentItem): string | undefined {
-  if (item.zone === 'field') return state.field.signi[item.index]?.at(-1);
+  if (item.zone === 'field') return resonaFieldCardAt(state, item.index);
   return (item.zone === 'hand' ? state.hand : state.energy)[item.index];
 }
 
@@ -278,6 +291,21 @@ export function payResonaAppearanceAndPlace(
   const nextAcce = [...(state.field.signi_acce ?? [null, null, null])];
   const nextSoul = [...(state.field.signi_soul ?? [null, null, null])];
   const fieldTrashed: string[] = [], extras: string[] = [], lrigTrashed: string[] = [];
+  // 🆕§5.3 `O-542`(a)＝チアゾーンから払う（下のカード・付いていた【チャーム】【アクセ】はシグニゾーンと同じくトラッシュ）。
+  let cheerPatch: Partial<PlayerState['field']> = {};
+  if (fieldSet.has(RESONA_CHEER_INDEX)) {
+    const cheerId = cheerCardOf(state);
+    if (!cheerId) return null;
+    if (fieldLrigTrashSet.has(RESONA_CHEER_INDEX)) lrigTrashed.push(cheerId);
+    else fieldTrashed.push(cheerId);
+    extras.push(...(state.field.cheer_under ?? []));
+    if (nextCharms[RESONA_CHEER_INDEX]) { extras.push(nextCharms[RESONA_CHEER_INDEX]!); nextCharms[RESONA_CHEER_INDEX] = null; }
+    if (nextAcce[RESONA_CHEER_INDEX]) { extras.push(...nextAcce[RESONA_CHEER_INDEX]!); nextAcce[RESONA_CHEER_INDEX] = null; }
+    cheerPatch = { cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] };
+    // ⚠旧形式（`free_zone`＋「チアガール」の印）なら free_zone からも抜く。
+    if (!state.field.cheer) cheerPatch.free_zone = (state.field.free_zone ?? []).filter(n => n !== cheerId);
+    fieldSet.delete(RESONA_CHEER_INDEX);
+  }
   for (const zi of fieldSet) {
     const stack = nextSigni[zi];
     if (!stack?.length) return null;
@@ -313,6 +341,7 @@ export function payResonaAppearanceAndPlace(
     field: {
       ...state.field, signi: nextSigni, signi_down: nextDown, signi_frozen: nextFrozen,
       signi_charms: nextCharms, signi_acce: nextAcce, signi_soul: nextSoul,
+      ...cheerPatch,
       // ⚠`fieldTrashed` は instanceId になったので **id 同士で比べる**（`getCardNum` を噛ませると必ず外れる）。
       puppet_signi: (state.field.puppet_signi ?? []).filter(id => !fieldTrashed.includes(id)),
     },

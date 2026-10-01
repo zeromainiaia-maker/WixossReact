@@ -179,7 +179,7 @@ export function collectSuppressedSigniTriggerNums(...states: PlayerState[]): Set
       ...(state.field.signi_seeds ?? []).filter((n): n is string => !!n),
       ...(state.field.facedown_signi ?? []).filter((n): n is string => !!n),
       ...(state.field.free_zone ?? []), ...(state.field.beat_zone ?? []),
-      ...(state.field.cheer ? [state.field.cheer] : []),
+      ...(state.field.cheer ? [state.field.cheer] : []), ...(state.field.cheer_under ?? []),
     ];
     for (const num of nums) out.add(num);
   }

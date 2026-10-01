@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第502バッチ）§5.3 `O-542` チアゾーンのシグニを (a) レゾナの素材 (b)「シグニの下に置く」置き先 にできる（ユーザー裁定）
+
+`src/engine/`・`src/screens/` を触り機構を足したので実機まで＝新規 `v289ResonaFromCheer`・`v290PlaceUnderCheer` PASS＋既存のチアゾーン6本・レゾナ3本・`v288` を連続で PASS・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4443/4443）・取り出し側の修正後に golden 全件・smoke を再実行して緑。
+
+- **裁定**＝索引H `O-542` をユーザーに問い、(a)(b) とも「できる」（RULES.md `R-55`）。
+- **(a) レゾナの素材**＝`resonaPaymentOptions` の `zone:'field'` に添字3（チアゾーン）を足し、札の引き方を `resonaFieldCardAt` に集約（UI `ResonaSummonModal`・CPU `cpuSummon` が `field.signi[index]` を直接読んでいた）。支払うとチアゾーンのシグニ・下のカード・【チャーム】【アクセ】がトラッシュ。⚠チアゾーンから払っても**シグニゾーンは空かない**＝CPU の配置先（`pickCpuResonaZone`）と配置数制限の差し引き（`performSummonSigni`）からは外した。リミットは消費0のまま。
+- **(b) 下に置く置き先**＝下の置き場 `field.cheer_under`（先頭が一番下）を新設し、`fieldSigniStacks` の4番目の重なりを `[...下, チア]` にした＝「下のカード」を数える走査はそのまま追従する。書き手は `placeUnderFieldSigni`（カード指定）／`placeUnderZone`（ゾーン番号・3＝チアゾーン）に集約し、置き先を選ぶ受け皿8か所（`INTERNAL_TSU_*`＝9効果・`PLACE_UNDER_SOURCE_SIGNI`＝手札→下・`execPlaceUnderSigni`・`INTERNAL_PLACE_SELF_UNDER_SIGNI` 2本・ウェポン系3本・`INTERNAL_LOOKED_CARD_UNDER_APPLY`）を通した。場を離れる処理（`removeFromField`）・一括で場を空にする5か所・リミット超過のルール処理で下のカードもトラッシュ／空にする。所在の走査（`battleCardNums`・`boardDiff`・`triggerCollect`・CPU の持ち主判定・公開領域・`behaviorAudit`）にも足した。盤面のチアゾーン枠に「下N」。
+- **取り出す側**＝汎用 `TAKE_FROM_UNDER_SIGNI`（候補集め・適用）もチアゾーンの下から取れるようにした（置けるのに取れない形を残さない）。⚠効果元のゾーン番号で「このシグニの下」を読む個別 STUB は未対応＝チアゾーンのシグニ自身がそれを読む原文は0枚。
+- 🔴**ついでに見つけた実バグ**＝`INTERNAL_LOOKED_CARD_UNDER_APPLY`（`WXK08-084`「デッキの上から2枚見て1枚をそれの下に置く」）は**候補にはチアゾーンのシグニが出る**（`fieldCandidatesByOwner` は `O-538` 段階5でチアゾーン込み）のに、適用側の `findIndex` が -1 で「置き先のシグニが場にいない」＝**選べるのに置けなかった**。
+- 検証＝`npm run golden -- --only "O-542"`。反転確認＝(a) 候補の添字3を外す／(b) 離れたときの下のカードのトラッシュを外す／見たカードの適用を旧に戻す、の3方向でそれぞれ FAIL。
+
 ## 2026-10-01（第501バッチ）§5.1 `V-288` 返済＝【トラップ】のルール上の誘発を人間守備側の実機で確認
 
 `scripts/verifyBattleDrive.mjs` だけの回（src は触っていない）＝実機シナリオ3本を新設して PASS（直前の `v286HiddenInfoNotInSharedLog` と連続でも PASS）。

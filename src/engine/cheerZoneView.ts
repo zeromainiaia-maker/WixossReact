@@ -21,7 +21,35 @@ export function cheerCardOf(state: PlayerState): string | null {
  */
 export function fieldSigniStacks(state: PlayerState): (string[] | null)[] {
   const cheer = cheerCardOf(state);
-  return cheer ? [...state.field.signi, [cheer]] : state.field.signi;
+  // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニの下のカード（`cheer_under`）も重なりとして渡す＝「下のカード」を数える走査がそのまま追従する。
+  return cheer ? [...state.field.signi, [...(state.field.cheer_under ?? []), cheer]] : state.field.signi;
+}
+
+/**
+ * 🆕§5.3 `O-542`(b)（2026-10-01・ユーザー裁定）＝**場のシグニ（シグニゾーン／チアゾーン）の下にカードを置く**。
+ * `cards` を `hostCardNum` の重なりの一番下へ（並びはそのまま）。`hostCardNum` が場にいなければ `null`。
+ * 🔑「下に置く」の書き手は `field.signi[zi] = [札, ...重なり]` を各所で手書きしていた＝チアゾーンは `findIndex` が -1 で黙って何も起きない。
+ *   ⇒ 置き先を**カード**で受けるハンドラはこれを通す（ゾーン番号で受けるハンドラは `placeUnderZone`）。
+ * ⚠置く札を元の場所から抜くのは呼び出し側。
+ */
+export function placeUnderFieldSigni(state: PlayerState, hostCardNum: string, cards: string[]): PlayerState | null {
+  const zi = state.field.signi.findIndex(st => st?.includes(hostCardNum));
+  if (zi >= 0) return placeUnderZone(state, zi, cards);
+  if (cheerCardOf(state) === hostCardNum || (state.field.cheer_under ?? []).includes(hostCardNum)) return placeUnderZone(state, 3, cards);
+  return null;
+}
+
+/** `placeUnderFieldSigni` のゾーン番号版（0〜2＝シグニゾーン／3＝チアゾーン）。そのゾーンにシグニがいなければ `null`。 */
+export function placeUnderZone(state: PlayerState, zoneIndex: number, cards: string[]): PlayerState | null {
+  if (zoneIndex === 3) {
+    if (!cheerCardOf(state)) return null;
+    return { ...state, field: { ...state.field, cheer_under: [...cards, ...(state.field.cheer_under ?? [])] } };
+  }
+  const stack = state.field.signi[zoneIndex];
+  if (!stack?.length) return null;
+  const signi = [...state.field.signi] as (string[] | null)[];
+  signi[zoneIndex] = [...cards, ...stack];
+  return { ...state, field: { ...state.field, signi } };
 }
 
 /**

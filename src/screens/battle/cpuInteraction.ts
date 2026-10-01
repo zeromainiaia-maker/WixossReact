@@ -167,7 +167,7 @@ function isCpuOwned(id: string, cpu: PlayerState): boolean {
   const f = cpu.field;
   const zones: (readonly (string | null | undefined)[] | undefined)[] = [
     cpu.hand, cpu.deck, cpu.energy, cpu.trash, cpu.life_cloth, cpu.lrig_deck, cpu.lrig_trash,
-    f.lrig, f.assist_lrig_l, f.assist_lrig_r, f.free_zone, f.cheer ? [f.cheer] : [],
+    f.lrig, f.assist_lrig_l, f.assist_lrig_r, f.free_zone, f.cheer ? [f.cheer] : [], f.cheer_under,
     ...f.signi.map(s => s ?? []),
   ];
   return zones.some(z => z?.includes(id));

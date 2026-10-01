@@ -4201,6 +4201,8 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   if (state.field.cheer === cardNum) {
     if (newCharms[3]) { extraTrash.push(newCharms[3]!); newCharms[3] = null; }
     if (newAcce[3])   { extraTrash.push(...newAcce[3]!); newAcce[3] = null; }
+    // 🆕§5.3 `O-542`(b)＝下のカード（`cheer_under`）もルール処理でトラッシュ（シグニゾーンの重なりと同じ）。
+    extraTrash.push(...(state.field.cheer_under ?? []));
   }
   if (zoneIdx >= 0) {
     newDown[zoneIdx]   = false;
@@ -4271,7 +4273,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_armor:  newArmor  as boolean[],
       ...(newFacedown ? { signi_facedown_attached: newFacedown } : {}),
       // 🆕§5.3 `O-538`＝チアゾーンのシグニも「場」＝場を離れる処理はここを通る。
-      ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false, cheer_frozen: false } : {}),
+      ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] } : {}),
     },
   };
 }

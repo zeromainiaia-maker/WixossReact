@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
 import type { ResonaPaymentItem, ResonaSummonCandidate } from '../resonaSummon';
-import { resonaCombinedOptions, resonaPaymentOptions, validateResonaSelection } from '../resonaSummon';
+import { resonaCombinedOptions, resonaFieldCardAt, resonaPaymentOptions, validateResonaSelection } from '../resonaSummon';
 import type { BattleModalCtx } from './types';
 
 interface Props {
@@ -23,7 +23,7 @@ export function ResonaSummonModal({ ctx, pending, selected, setSelected, close, 
   const key = (i: ResonaPaymentItem) => `${i.zone}:${i.index}`;
   const chosen = (i: ResonaPaymentItem) => selected.some(s => key(s) === key(i));
   const cardNum = (i: ResonaPaymentItem) => getCardNum(i.zone === 'field'
-    ? my.field.signi[i.index]?.at(-1) ?? ''
+    ? resonaFieldCardAt(my, i.index) ?? ''   // 🆕§5.3 `O-542`(a)＝添字3はチアゾーン
     : (i.zone === 'hand' ? my.hand : my.energy)[i.index] ?? '');
   const zoneName = (z: ResonaPaymentItem['zone']) => z === 'hand' ? '手札' : z === 'energy' ? 'エナゾーン' : '場';
   const toggle = (item: ResonaPaymentItem) => {

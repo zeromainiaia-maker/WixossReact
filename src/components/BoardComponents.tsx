@@ -1091,6 +1091,8 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   // 🆕§5.3 `O-540`＝チアゾーンのシグニに付いた【チャーム】【アクセ】（置き場は添字3）。
   const cheerCharm = cheerNum ? (state.field.signi_charms?.[3] ?? null) : null;
   const cheerAcceCount = cheerNum ? (normalizeAcceSlot(state.field.signi_acce?.[3])?.length ?? 0) : 0;
+  // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニの下のカード（公開＝シグニゾーンの重なりと同じ）。
+  const cheerUnderCards = cheerNum ? (state.field.cheer_under ?? []) : [];
   // フリーゾーンとビートゾーンを合算して表示
   const allFreeCards = [...(cheerNum ? [cheerNum] : []), ...freeZoneCards, ...beatZoneCards];
   const hasBeat = beatZoneCards.length > 0;
@@ -1102,7 +1104,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       data-cheer={cheerNum ?? ''}
       data-cheer-down={cheerDown ? '1' : '0'}
       data-cheer-frozen={cheerFrozen ? '1' : '0'}
-      onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: allFreeCards, isFreeZone: isMe })}
+      onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: [...allFreeCards, ...cheerUnderCards], isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
         border: hasBeat ? '1px solid #ff8844' : (allFreeCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455'),
@@ -1132,6 +1134,12 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
               <div data-testid={`${isMe ? 'my' : 'op'}-cheer-attached`}
                 style={{ fontSize: 8, color: '#ffd27f', fontWeight: 'bold', marginBottom: 2 }}>
                 {[cheerCharm ? 'チャーム' : '', cheerAcceCount > 0 ? `アクセ${cheerAcceCount}` : ''].filter(Boolean).join('・')}
+              </div>
+            )}
+            {cheerUnderCards.length > 0 && (
+              <div data-testid={`${isMe ? 'my' : 'op'}-cheer-under`}
+                style={{ fontSize: 8, color: '#c8b8ff', fontWeight: 'bold', marginBottom: 2 }}>
+                下{cheerUnderCards.length}
               </div>
             )}
             {/* 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニの実効パワー（【常】・一時修正込み＝段階3で計算される）。 */}

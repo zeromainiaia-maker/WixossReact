@@ -1,5 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
-import { fieldSigniStacks, signiDownOf, withSigniDown, isZoneFrozen } from './cheerZoneView';
+import { fieldSigniStacks, signiDownOf, withSigniDown, isZoneFrozen, placeUnderFieldSigni } from './cheerZoneView';
 import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
 import { currentRng, mulberry32, setRng } from './rng';
@@ -9809,20 +9809,15 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   const sourceCardNum = ctx.sourceCardNum;
   if (!sourceCardNum) return done(ctx);
 
-  // ソースシグニがあるゾーンのインデックスを探す
-  const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
-  if (zoneIdx === -1) return done(ctx);
+  // ソースシグニが場（シグニゾーン／チアゾーン＝§5.3 `O-542`(b)）にいなければ何もしない
+  if (!fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(sourceCardNum))) return done(ctx);
 
   if (a.source === 'deck_top') {
     const count = Math.min(a.count, ctx.ownerState.deck.length);
     if (count === 0) return done(ctx);
     const cards = ctx.ownerState.deck.slice(0, count);
-    const newDeck = ctx.ownerState.deck.slice(count);
-    const newSigni = ctx.ownerState.field.signi.map((stack, i) => {
-      if (i !== zoneIdx) return stack;
-      return [...cards, ...(stack ?? [])];
-    }) as (string[] | null)[];
-    const newOwner = { ...ctx.ownerState, deck: newDeck, field: { ...ctx.ownerState.field, signi: newSigni } };
+    const newOwner = placeUnderFieldSigni({ ...ctx.ownerState, deck: ctx.ownerState.deck.slice(count) }, sourceCardNum, cards);
+    if (!newOwner) return done(ctx);
     return done(addLog({ ...ctx, ownerState: newOwner }, `デッキの上から${count}枚を${ctx.cardMap.get(getCardNum(sourceCardNum))?.CardName ?? sourceCardNum}の下に置く`));
   }
 
@@ -9858,10 +9853,12 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
 function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigniAction, ctx: ExecCtx): ExecResult {
   let cands: string[] = [];
   let scope: TargetScope = 'self_field';
+  // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニの下（`cheer_under`）も「シグニの下」＝`fieldSigniStacks` の4番目の重なりで読む。
+  const stacksTFU = fieldSigniStacks(ctx.ownerState);
   if (a.fromThis && ctx.sourceCardNum) {
-    const zoneIdx = ctx.ownerState.field.signi.findIndex(s => s?.includes(ctx.sourceCardNum!));
+    const zoneIdx = stacksTFU.findIndex(s => s?.includes(ctx.sourceCardNum!));
     if (zoneIdx !== -1) {
-      const stack = ctx.ownerState.field.signi[zoneIdx]!;
+      const stack = stacksTFU[zoneIdx]!;
       // under-cards = all except the last (top) card
       cands = stack.slice(0, -1).filter(cn => !a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter));
     } else {
@@ -9873,7 +9870,7 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
       scope = 'self_trash';
     }
   } else {
-    ctx.ownerState.field.signi.forEach(stack => {
+    stacksTFU.forEach(stack => {
       if (!stack || stack.length <= 1) return;
       if (a.hostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(stack.at(-1)!)), a.hostFilter)) return;
       stack.slice(0, -1).forEach(cn => {
@@ -14634,8 +14631,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       //   効果元がスペルの「〈手札のシグニ〉を**あなたの〈条件〉のシグニ１体の下に**置く」用。
       const sourceCard = pussA.hostCardNum ?? ctx.sourceCardNum;
       if (!sourceCard) return done(ctx);
-      const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCard));
-      if (zoneIdx === -1) return done(ctx);
+      // 🆕§5.3 `O-542`(b)＝置き先はチアゾーンのシグニでもよい（ユーザー裁定）。
+      if (!fieldSigniStacks(ctx.ownerState).some(stack => stack?.includes(sourceCard))) return done(ctx);
       // 移動元のリストから除去
       let newState = { ...ctx.ownerState };
       if (fromLoc === 'trash') {
@@ -14656,11 +14653,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
       }
       // ゾーンの先頭に追加（下に置く）
-      const newSigni = newState.field.signi.map((stack, i) => {
-        if (i !== zoneIdx) return stack;
-        return [cardNum, ...(stack ?? [])];
-      }) as (string[] | null)[];
-      newState = { ...newState, field: { ...newState.field, signi: newSigni } };
+      const placedPUSS = placeUnderFieldSigni(newState, sourceCard, [cardNum]);
+      if (!placedPUSS) return done(ctx);
+      newState = placedPUSS;
       return done(addLog({ ...ctx, ownerState: newState },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下に置いた`));
     }
@@ -14771,7 +14766,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       let newOwner = {
         ...ctx.ownerState,
         trash: ctx.ownerState.trash.filter(n => n !== cardNum),
-        field: { ...ctx.ownerState.field, signi: newSigni },
+        field: { ...ctx.ownerState.field, signi: newSigni,
+          // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニの下から取る。
+          ...((ctx.ownerState.field.cheer_under ?? []).includes(cardNum)
+            ? { cheer_under: ctx.ownerState.field.cheer_under!.filter(n => n !== cardNum) } : {}) },
       };
       const destLabel = ta.destination === 'hand' ? '手札' : ta.destination === 'energy' ? 'エナゾーン' : 'トラッシュ';
       if (ta.destination === 'hand') {

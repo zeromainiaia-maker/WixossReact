@@ -1,4 +1,4 @@
-import { fieldSigniStacks } from './cheerZoneView';
+import { fieldSigniStacks, placeUnderFieldSigni, placeUnderZone } from './cheerZoneView';
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -626,7 +626,7 @@ export function execStubPart3(
         targetScope: 'self_field', thenAction: noop as EffectAction, continuation: cont as EffectAction,
       });
     }
-    const weaponCandsSUWS = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+    const weaponCandsSUWS = fieldSigniStacks(ctx.ownerState).map(stack => stack?.at(-1))   // 🆕§5.3 `O-542`(b)＝チアゾーンも置き先
       .filter((cn): cn is string => !!cn && cn !== sourceSUWS &&
         (ctx.cardMap.get(cn)?.CardClass ?? '').includes('ウェポン'));
     if (weaponCandsSUWS.length === 0) return done(addLog(ctx, 'ウェポンシグニなし（SIGNI_UNDER_WEAPON_SIGNI）'));
@@ -643,45 +643,40 @@ export function execStubPart3(
     if (!srcSUWI || !weaponSUWI) return done(addLog(ctx, '対象なし（INTERNAL_SIGNI_UNDER_WEAPON）'));
     const signiSUWI = [...(ctx.ownerState.field.signi ?? [])] as (string[] | null)[];
     const srcZoneSUWI = signiSUWI.findIndex(s => s?.at(-1) === srcSUWI);
-    const weaponZoneSUWI = signiSUWI.findIndex(s => s?.at(-1) === weaponSUWI);
-    if (srcZoneSUWI < 0 || weaponZoneSUWI < 0) return done(addLog(ctx, 'ゾーン特定不可（INTERNAL_SIGNI_UNDER_WEAPON）'));
+    if (srcZoneSUWI < 0) return done(addLog(ctx, 'ゾーン特定不可（INTERNAL_SIGNI_UNDER_WEAPON）'));
     const srcStackSUWI = [...(signiSUWI[srcZoneSUWI] ?? [])];
     signiSUWI[srcZoneSUWI] = srcStackSUWI.length > 1 ? srcStackSUWI.slice(0, -1) : null;
-    signiSUWI[weaponZoneSUWI] = [srcSUWI, ...(signiSUWI[weaponZoneSUWI] ?? [])];
-    const newOwnerSUWI = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiSUWI } };
+    // 🆕§5.3 `O-542`(b)＝置き先の＜ウェポン＞はチアゾーンのシグニでもよい。
+    const newOwnerSUWI = placeUnderFieldSigni({ ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiSUWI } }, weaponSUWI, [srcSUWI]);
+    if (!newOwnerSUWI) return done(addLog(ctx, 'ゾーン特定不可（INTERNAL_SIGNI_UNDER_WEAPON）'));
     return done(addLog({ ...ctx, ownerState: newOwnerSUWI },
       `${ctx.cardMap.get(srcSUWI)?.CardName ?? srcSUWI}を${ctx.cardMap.get(weaponSUWI)?.CardName ?? weaponSUWI}の下に配置`));
   }
   // PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: ウェポンシグニの下にデッキ上を置く
   if (stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI') {
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
-    const newSigniPDTUW = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const topCardPDTUW = ctx.ownerState.deck[0];
-    // ウェポンシグニのゾーンを探す
-    let placedPDTUW = false;
-    for (let zi = 0; zi < 3; zi++) {
-      const stack = newSigniPDTUW[zi];
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      const card = ctx.cardMap.get(topNum);
-      if (card?.CardClass?.includes('ウェポン') || card?.CardClass?.includes('武器')) {
-        newSigniPDTUW[zi] = [topCardPDTUW, ...stack]; // デッキ上をスタック底に追加
-        placedPDTUW = true;
-        break;
-      }
-    }
-    if (!placedPDTUW) return done(addLog(ctx, 'ウェポンシグニなし'));
-    const newOwnerPDTUW: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(1), field: { ...ctx.ownerState.field, signi: newSigniPDTUW } };
+    // ウェポンシグニのゾーンを探す（🆕§5.3 `O-542`(b)＝チアゾーン（添字3）のシグニも置き先）
+    const weaponZonePDTUW = fieldSigniStacks(ctx.ownerState).findIndex(stack => {
+      const topNum = stack?.at(-1);
+      const card = topNum ? ctx.cardMap.get(getCardNum(topNum)) : undefined;
+      return !!(card?.CardClass?.includes('ウェポン') || card?.CardClass?.includes('武器'));
+    });
+    if (weaponZonePDTUW < 0) return done(addLog(ctx, 'ウェポンシグニなし'));
+    // デッキ上をスタック底に追加
+    const newOwnerPDTUW = placeUnderZone({ ...ctx.ownerState, deck: ctx.ownerState.deck.slice(1) }, weaponZonePDTUW, [topCardPDTUW]);
+    if (!newOwnerPDTUW) return done(addLog(ctx, 'ウェポンシグニなし'));
     return done(addLog({ ...ctx, ownerState: newOwnerPDTUW }, `ウェポン下にデッキ上配置: ${ctx.cardMap.get(topCardPDTUW)?.CardName ?? topCardPDTUW}`));
   }
   // PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 全ウェポンシグニの下にトラッシュからシグニを1枚ずつ置く
   if (stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON') {
     if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     const weaponZonesPTSUAW: number[] = [];
-    for (let zi = 0; zi < 3; zi++) {
-      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+    const stacksPTSUAW = fieldSigniStacks(ctx.ownerState);   // 🆕§5.3 `O-542`(b)＝チアゾーン（添字3）も
+    for (let zi = 0; zi < stacksPTSUAW.length; zi++) {
+      const top = stacksPTSUAW[zi]?.at(-1);
       if (!top) continue;
-      const c = ctx.cardMap.get(top);
+      const c = ctx.cardMap.get(getCardNum(top));
       if (c?.CardClass?.includes('ウェポン') || c?.CardClass?.includes('武器')) weaponZonesPTSUAW.push(zi);
     }
     if (weaponZonesPTSUAW.length === 0) return done(addLog(ctx, 'ウェポンシグニなし'));
@@ -689,7 +684,7 @@ export function execStubPart3(
     if (trashSigniPTSUAW.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし'));
     // 1つ目のウェポンゾーンに1枚選択して配置
     const tgtZonePTSUAW = weaponZonesPTSUAW[0];
-    return needsInteraction(addLog(ctx, `ウェポン（ゾーン${tgtZonePTSUAW + 1}）下にトラッシュシグニを置く`), {
+    return needsInteraction(addLog(ctx, `ウェポン（${tgtZonePTSUAW === 3 ? 'チアゾーン' : `ゾーン${tgtZonePTSUAW + 1}`}）下にトラッシュシグニを置く`), {
       type: 'SELECT_TARGET',
       candidates: trashSigniPTSUAW,
       count: 1,
@@ -703,11 +698,10 @@ export function execStubPart3(
     const zoneIdxIPTSUAW = typeof stub.value === 'number' ? stub.value : 0;
     const cardIPTSUAW = ctx.lastProcessedCards?.[0];
     if (!cardIPTSUAW) return done(addLog(ctx, 'INTERNAL_PTSUAW_PLACE: カードなし'));
-    const newSigniIPTSUAW = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    const existingStackIPTSUAW = newSigniIPTSUAW[zoneIdxIPTSUAW] ?? [];
-    newSigniIPTSUAW[zoneIdxIPTSUAW] = [cardIPTSUAW, ...existingStackIPTSUAW];
     const newTrashIPTSUAW = ctx.ownerState.trash.filter(c => c !== cardIPTSUAW);
-    const newOwnerIPTSUAW: PlayerState = { ...ctx.ownerState, trash: newTrashIPTSUAW, field: { ...ctx.ownerState.field, signi: newSigniIPTSUAW } };
+    // 🆕§5.3 `O-542`(b)＝ゾーン3はチアゾーン。
+    const newOwnerIPTSUAW = placeUnderZone({ ...ctx.ownerState, trash: newTrashIPTSUAW }, zoneIdxIPTSUAW, [cardIPTSUAW]);
+    if (!newOwnerIPTSUAW) return done(addLog(ctx, 'INTERNAL_PTSUAW_PLACE: 置き先のシグニが場にいない'));
     return done(addLog({ ...ctx, ownerState: newOwnerIPTSUAW }, `ウェポン下に配置: ${ctx.cardMap.get(cardIPTSUAW)?.CardName ?? cardIPTSUAW}`));
   }
   // CONDITIONAL_TRASH_UNDER_SIGNI: 相手エナN枚以上の場合、シグニ下カードを任意でトラッシュ
@@ -907,7 +901,7 @@ export function execStubPart3(
             signi_frozen: [false, false, false],
             signi_charms: [null, null, null],
             signi_acce: [null, null, null],
-            cheer: null, cheer_down: false, cheer_frozen: false,
+            cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [],
           },
           deck_shuffled_count: (s.deck_shuffled_count ?? 0) + 1,
         },
@@ -5422,7 +5416,7 @@ export function execStubPart3(
       othPDL = {
         ...othPDL,
         energy: [...othPDL.energy, ...movedPDL],
-        field: { ...othPDL.field, signi: [null, null, null], cheer: null, cheer_down: false, cheer_frozen: false },
+        field: { ...othPDL.field, signi: [null, null, null], cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] },
       };
       logsPDL.push(`緑：相手シグニ${movedPDL.length}枚をエナゾーンへ`);
     }
@@ -6416,17 +6410,17 @@ export function execStubPart3(
     const valILU = typeof stub.value === 'string' ? stub.value : '';
     const [hostILU, pickILU] = valILU.split(':');
     if (!hostILU || !pickILU) return done(addLog(ctx, '引数不正（シグニの下に置く）'));
-    const signiILU = ctx.ownerState.field.signi;
-    const zoneILU = signiILU.findIndex(st => st?.includes(hostILU));
-    if (zoneILU < 0) return done(addLog(ctx, '置き先のシグニが場にいない'));
     const lookedILU = ctx.ownerState.deck.slice(0, 2);
     const restILU = lookedILU.filter(cn => cn !== pickILU);
-    const newSigniILU = signiILU.map((st, i) => (i === zoneILU ? [pickILU, ...(st ?? [])] : st)) as (string[] | null)[];
     // ⚠**公開した2枚をまとめてデッキから抜き**、残りを一番下へ回す（原文「残りをデッキの一番下に置く」）。
     const newDeckILU = [...ctx.ownerState.deck.slice(lookedILU.length), ...restILU];
+    // 🆕§5.3 `O-542`(b)＝置き先はチアゾーンのシグニでもよい（候補の `fieldCandidatesByOwner` は既にチアゾーン込み＝
+    //   🔴旧はここの `findIndex` が -1 で「置き先のシグニが場にいない」になり、選べるのに置けなかった）。
+    const ownerILU = placeUnderFieldSigni({ ...ctx.ownerState, deck: newDeckILU }, hostILU, [pickILU]);
+    if (!ownerILU) return done(addLog(ctx, '置き先のシグニが場にいない'));
     return done(addLog({
       ...ctx,
-      ownerState: { ...ctx.ownerState, deck: newDeckILU, field: { ...ctx.ownerState.field, signi: newSigniILU } },
+      ownerState: ownerILU,
       // 🔴**見た2枚はどちらも非公開**＝下に置く札の名前を書かない（置き先のシグニは場＝公開なので残す）。
     }, `カード１枚を${ctx.cardMap.get(getCardNum(hostILU))?.CardName ?? hostILU}の下に置き、残り${restILU.length}枚をデッキの一番下へ`));
   }

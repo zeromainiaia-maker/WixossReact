@@ -185,9 +185,10 @@ export function applyLimitExcessTrash(
       const acce3 = acceCardsAt(field, 3);
       if (charm3) trash = [...trash, charm3];
       if (acce3.length) trash = [...trash, ...acce3];
+      trash = [...trash, ...(field.cheer_under ?? [])];   // 🆕§5.3 `O-542`(b)＝下のカードも
       const charmsC = [...(field.signi_charms ?? [null, null, null])]; if (charmsC.length > 3) charmsC[3] = null;
       const acceC = cloneAcceSlots(field); if (acceC.length > 3) acceC[3] = null;
-      field = { ...field, cheer: null, cheer_down: false, cheer_frozen: false, signi_charms: charmsC, signi_acce: acceC };
+      field = { ...field, cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [], signi_charms: charmsC, signi_acce: acceC };
       continue;
     }
     const stack = state.field.signi[zi] ?? [];

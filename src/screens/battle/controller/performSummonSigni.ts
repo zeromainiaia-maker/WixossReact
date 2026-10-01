@@ -119,7 +119,8 @@ export const performSummonSigni = async (
   // ライズ（既存シグニへの上乗せ）は「新たに場に出す」ではないので対象外。
   {
     const paidFieldCount = resona
-      ? (resona.selection.items ?? []).filter(i => i.zone === 'field').length
+      // ⚠チアゾーン（添字3＝`O-542`(a)）から払っても**シグニゾーンの数は減らない**＝配置数制限の差し引きに入れない。
+      ? (resona.selection.items ?? []).filter(i => i.zone === 'field' && i.index < 3).length
       : 0;
     const blockedDeploy = deployLimitBlockReason({
       placingState: my, opponentState: op, cardNum: summonCardNum,
@@ -153,6 +154,7 @@ export const performSummonSigni = async (
     const paidFieldLevels = (resona.selection.items ?? [])
       .filter(i => i.zone === 'field')
       .reduce((sum, item) => {
+        // ⚠チアゾーンのシグニはリミットを消費しない（`O-538` 段階5）＝添字3は 0 になるのが正。
         const paidNum = getCardNum(my.field.signi[item.index]?.at(-1) ?? '');
         return sum + (parseInt(ctx.cardMap.get(paidNum)?.Level ?? '0', 10) || 0);
       }, 0);

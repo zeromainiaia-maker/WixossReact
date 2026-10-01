@@ -1,5 +1,5 @@
 import type { PlayerState, TargetScope, SigniZoneBlock, CardData } from '../types';
-import { fieldSigniStacks, isZoneFrozen } from './cheerZoneView';
+import { fieldSigniStacks, isZoneFrozen, placeUnderFieldSigni } from './cheerZoneView';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -103,7 +103,7 @@ export function execStubPart2(
     const specHSU = stub.handToUnderSigni;
     if (!pickHSU || !specHSU) return done(addLog(ctx, '[HAND_SIGNI_UNDER_SIGNI: 置く対象／置き先なし（未指定）]'));
     if (pickHSU.cands.length === 0) return done(addLog(ctx, '手札にシグニなし（シグニ下配置スキップ）'));
-    const hostsHSU = ctx.ownerState.field.signi.flatMap(stack => {
+    const hostsHSU = fieldSigniStacks(ctx.ownerState).flatMap(stack => {   // 🆕§5.3 `O-542`(b)＝チアゾーンのシグニも置き先
       const top = stack?.at(-1);
       if (!top || top === ctx.sourceCardNum) return [];
       return (!specHSU.hostFilter || matchesFilter(ctx.cardMap.get(getCardNum(top)), specHSU.hostFilter)) ? [top] : [];
@@ -3172,14 +3172,10 @@ export function execStubPart2(
     const hostSigniNumIPSUS = String(stub.value ?? '');
     const spellNumIPSUS = ctx.sourceCardNum;
     if (!hostSigniNumIPSUS || !spellNumIPSUS) return done(addLog(ctx, 'INTERNAL_PLACE_SELF_UNDER_SIGNI: パラメータ不足'));
-    const zoneIdxIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === hostSigniNumIPSUS);
-    if (zoneIdxIPSUS < 0) return done(addLog(ctx, `INTERNAL_PLACE_SELF_UNDER_SIGNI: ホスト${hostSigniNumIPSUS}が見つからない`));
     const newTrashIPSUS = ctx.ownerState.trash.filter(n => n !== spellNumIPSUS);
-    const newSigniIPSUS = ctx.ownerState.field.signi.map((stack, i) => {
-      if (i !== zoneIdxIPSUS || !stack) return stack;
-      return [spellNumIPSUS, ...stack];
-    }) as (string[] | null)[];
-    const newOwnerIPSUS: PlayerState = { ...ctx.ownerState, trash: newTrashIPSUS, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } };
+    // 🆕§5.3 `O-542`(b)＝置き先はチアゾーンのシグニでもよい。
+    const newOwnerIPSUS = placeUnderFieldSigni({ ...ctx.ownerState, trash: newTrashIPSUS }, hostSigniNumIPSUS, [spellNumIPSUS]);
+    if (!newOwnerIPSUS) return done(addLog(ctx, `INTERNAL_PLACE_SELF_UNDER_SIGNI: ホスト${hostSigniNumIPSUS}が見つからない`));
     const placedCtxIPSUS = addLog({ ...ctx, ownerState: newOwnerIPSUS, sourceCardNum: spellNumIPSUS },
       `${ctx.cardMap.get(spellNumIPSUS)?.CardName ?? spellNumIPSUS}を${ctx.cardMap.get(hostSigniNumIPSUS)?.CardName ?? hostSigniNumIPSUS}の下に配置`);
     // ON_PLACED_UNDER_SIGNI効果を発火（プリパースJSON優先、なければテキストパーサーフォールバック）

@@ -106,6 +106,7 @@ export function detectPlacedFromZone(
     ...(before.field.key_piece_extra ?? []),
     ...(before.field.free_zone ?? []),
     ...(before.field.cheer ? [before.field.cheer] : []),   // 🆕§5.3 `O-538` チアゾーン
+    ...(before.field.cheer_under ?? []),   // 🆕§5.3 `O-542`(b) その下のカード
     ...(before.field.beat_zone ?? []),
     ...(before.field.signi_traps ?? []),
     ...(before.field.signi_magic_boxes ?? []),
