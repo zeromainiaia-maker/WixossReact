@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第498バッチ）§5.3 `O-539` シグニの限定条件が合わなくなったらトラッシュ（ルール処理・`R-48b`）
+
+`src/screens/` を触り新しいルール処理を足したので実機まで＝新規 `restrictionLoss`（タマ→イオナに差し替えるとタマ限定のボーニャがトラッシュ／最初からイオナの盤面では残る）PASS＋`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4440/4440）。
+
+- **真因（1行）**＝限定条件は配置ゲートでしか見ておらず、グロウで別タイプのルリグになる／効果でルリグタイプを失う／限定を無視する効果が終わる、のどれでも場に残っていた（限定つきシグニ 990枚）。
+- **ユーザー裁定（2026-10-01）＝`R-48`（レベル）と同じ「変動したときだけ」**＝前回のルール処理で満たしていて今回満たさないシグニだけを落とす。初めて見たシグニは落とさない（限定を無視して出したシグニ・検証の注入盤面を守る）。
+- **直し方**＝判定は純関数 `limitExcess.planRestrictionLoss`（配置ゲートと同じ式＝`effectiveLrigClass`＋`meetsRestriction`＋`hasIgnoreLrigRestriction(…,'signi')`＋宣言名の上書き）。前回値は `RuleCheckMemo.restrictionMatchedRef`（ページの記憶・DB に書かない＝読み込み直し／手を戻した直後は空＝落とさない側）。funnel は `checkLimitExcessRule`（レベル超過の直後・自分の盤面と CPU の盤面）、行き先は `applyLimitExcessTrash`。チアゾーン（`CHEER_ZONE`）も対象。
+- 検証＝`npm run golden -- --only "O-539"`。反転確認＝「前回は満たしていた」の条件を外すと FAIL（初めて見たシグニを落とす）。
+
 ## 2026-10-01（第497バッチ）§5.3 `O-538` 段階5＝チアゾーンのシグニを「場のシグニ」の対象・数に入れる（🏁`O-538` クローズ）
 
 `src/engine/`・`src/screens/`・`src/components/` を触り新しい状態（`cheer_frozen`）を足したので実機まで＝新規 `cheerZoneTargeted`（人間の森羅万象＝「すべてのシグニ」でチアゾーンのゴッドイーターがエナへ・凍結とパワーの表示）PASS＋既存 `cheerZonePlace`・`cheerZoneActivate`・`cheerZoneAttack`・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4439/4439・`census:traceinv` I1 0）。

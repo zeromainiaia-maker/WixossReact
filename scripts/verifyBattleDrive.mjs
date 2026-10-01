@@ -61270,6 +61270,49 @@ scenarios.cheerZoneTargeted = {
 };
 order.push('cheerZoneTargeted');
 
+// ── 🆕§5.3 `O-539`（2026-10-01）＝**シグニの限定条件が合わなくなったらトラッシュ**（ルール処理・変動したときだけ）──
+// 観測点＝①タマ（満月の巫女　タマヨリヒメ）＋タマ限定の小弓　ボーニャ を読み込み（＝満たしている状態を覚える）
+//   → **読み込み直さずに**センタールリグをイオナ（純白の巫女　ユキ）へ差し替える → ボーニャがトラッシュへ（ログ「限定条件：…（ルール処理）」）
+//   ②反転＝イオナの盤面を最初から読み込む（初めて見た＝変動ではない）→ ボーニャは残る
+const restrictionSpec = (lrig) => ({
+  hostSet: { 'field.lrig': [lrig], 'field.signi': [['WD01-014#1'], null, null], 'field.signi_down': [false, false, false], 'trash': [], 'actions_done': [] },
+  guestSet: { 'field.signi': [null, null, null] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 },
+});
+scenarios.restrictionLoss = {
+  title: 'O-539 限定条件が合わなくなったシグニはトラッシュ（変動したときだけ）',
+  spec: restrictionSpec('WD01-001#1'),
+  async drive(page, H) {
+    const hostField = async () => JSON.stringify((await H.queryState())?.host?.fieldSigni ?? []);
+    // ① 満たしている盤面を覚えさせてから、ルリグだけ差し替える（読み込み直さない＝ページの記憶を保つ）
+    await injectScenario(page, restrictionSpec('WD01-001#1'));
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(3000);
+    const before = await hostField();
+    await injectScenario(page, restrictionSpec('WX11-002#1'));
+    let after = before, log = null;
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(800);
+      after = await hostField();
+      log = ((await H.queryState())?.logTail ?? []).find(l => /限定条件：小弓　ボーニャをトラッシュに置く（ルール処理）/.test(l)) ?? null;
+      if (!after.includes('WD01-014#1') && log) break;
+    }
+    await page.screenshot({ path: `${SHOT}/restrictionLoss-01.png`, fullPage: true });
+    H.log(`① before=${before} after=${after} log=${log}`);
+    // ② 反転：最初からイオナ＝変動ではない
+    await injectScenario(page, restrictionSpec('WX11-002#1'));
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(4000);
+    const fresh = await hostField();
+    H.log(`② fresh=${fresh}`);
+    if (!before.includes('WD01-014#1')) return { pass: false, detail: `🔴前提＝タマの盤面でボーニャが場にいない（${before}）` };
+    if (after.includes('WD01-014#1') || !log) return { pass: false, detail: `🔴ルリグがイオナになってもタマ限定のボーニャが場に残る（${after}・log=${log}）` };
+    if (!fresh.includes('WD01-014#1')) return { pass: false, detail: `🔴最初からイオナの盤面（変動ではない）でボーニャを落とした（${fresh}）` };
+    return { pass: true, detail: `①「${log}」 ②最初から合わない盤面では残る` };
+  },
+};
+order.push('restrictionLoss');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

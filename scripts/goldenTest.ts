@@ -115,7 +115,7 @@ import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
-import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from '../src/screens/battle/limitExcess';
+import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess, planRestrictionLoss } from '../src/screens/battle/limitExcess';
 import { deployLimitBlockReason, deployLimitLogMessage } from '../src/engine/deployLimit';
 import { centerLrigLevelOf, signiPlaceableByLevel } from '../src/engine/placeLevelGate';
 import { collectRiseBanishSubstitutes } from '../src/engine/effectEngine';
@@ -93596,6 +93596,34 @@ test('§5.3 O-538 段階5＝チアゾーンのシグニは「場のシグニ」�
   eq(JSON.stringify(p15.levelOverZones), JSON.stringify([CHEER_ZONE]), '🔴チアゾーンのシグニのレベルがルリグを超えたのに落とさない');
   const trashed = applyLimitExcessTrash(dyn(15), p15.levelOverZones, cardMap, effectsMap);
   ok(!trashed.state.field.cheer && trashed.state.trash.includes('WX20-Re18'), '🔴チアゾーンのレベル超過がトラッシュへ行かない');
+}));
+
+test('§5.3 O-539 シグニの限定条件が合わなくなったらトラッシュ（ルール処理・変動したときだけ＝2026-10-01 ユーザー裁定）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  // 実データ＝「タマ限定」のシグニと、タマ／タマ以外のルリグ。
+  const SIG = findCard(c => c.Type === 'シグニ' && c.Restriction === 'タマ限定');
+  const TAMA = findCard(c => c.Type === 'ルリグ' && c.CardClass === 'タマ');
+  const OTHER = findCard(c => c.Type === 'ルリグ' && !!c.CardClass && !c.CardClass.includes('タマ'));
+  const withLrig = (lrig: string) => mkState({ lrig: [lrig], signi: [SIG, null, null] });
+  // ① 初回（前回値なし）は落とさない＝検証の注入盤面・限定を無視して出したシグニを守る。
+  const first = planRestrictionLoss(withLrig(OTHER), cm, effectsMap);
+  eq(first.zones.length, 0, '🔴初めて見たシグニを落としている（変動ではない）');
+  eq(first.now.get(SIG), false, '限定を満たさないのに満たすと判定している');
+  // ② 前回は満たしていた（タマ）→ 今回は満たさない（別タイプのルリグにグロウ等）＝落とす。
+  const prev = planRestrictionLoss(withLrig(TAMA), cm, effectsMap).now;
+  eq(prev.get(SIG), true, 'タマ限定をタマで満たさない');
+  eq(JSON.stringify(planRestrictionLoss(withLrig(OTHER), cm, effectsMap, prev).zones), JSON.stringify([0]),
+    '🔴限定条件を満たさなくなったのに落とさない');
+  // ③ 満たしたままなら落とさない。
+  eq(planRestrictionLoss(withLrig(TAMA), cm, effectsMap, prev).zones.length, 0, '満たしたままなのに落としている');
+  // ④ チアゾーンのシグニも同じ（添字＝CHEER_ZONE）。
+  const cheer = (lrig: string) => { const s = mkState({ lrig: [lrig] }); s.field.cheer = SIG; return s; };
+  const prevC = planRestrictionLoss(cheer(TAMA), cm, effectsMap).now;
+  eq(JSON.stringify(planRestrictionLoss(cheer(OTHER), cm, effectsMap, prevC).zones), JSON.stringify([CHEER_ZONE]),
+    '🔴チアゾーンのシグニの限定条件を見ていない');
+  // 🔴配線＝ルール処理の funnel が自分の盤面と CPU の盤面の両方で呼ぶ。
+  const rc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  ok(rc.includes("restrictionLossOf(my, myKey)") && rc.includes("restrictionLossOf(cpuSt, 'guest_state')"), '🔴ルール処理が限定条件を見ていない');
 }));
 
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {

@@ -4,7 +4,8 @@ import type { CardEffect } from '../../types/effects';
 import { applyTimedBaseLevelOverrides, calcSigniLevels } from '../../engine/effectEngine';
 import { resonaLeaveDestination } from '../../engine/resonaZone';
 import { computeEffectiveLrigLimit } from './lrigLimit';
-import { declaredSigniOverride } from './growLogic';
+import { declaredSigniOverride, effectiveLrigClass, meetsRestriction } from './growLogic';
+import { hasIgnoreLrigRestriction } from './artsUseGate';
 import { clearZoneOnSigniLeave } from './leaveFieldZone';
 
 const baseNum = (id: string): string => { const h = id.indexOf('#'); return h > 0 ? id.slice(0, h) : id; };
@@ -201,4 +202,45 @@ export function applyLimitExcessTrash(
     state: { ...state, field: { ...field, signi }, trash, lrig_trash: lrigTrash, lrig_deck: lrigDeck, excluded },
     trashedTops,
   };
+}
+
+/**
+ * 🆕**§5.3 `O-539`（2026-10-01）＝シグニの限定条件（`Restriction`）が合わなくなったらトラッシュ**（ルール処理）。
+ *
+ * 🔑**ユーザー裁定（2026-10-01）＝`R-48`（レベル）と同じ「変動したときだけ」**＝
+ *   **前回のルール処理で満たしていて、今回は満たさない**シグニだけを落とす（グロウで別タイプのルリグになった／
+ *   効果でルリグタイプを失った／限定を無視する効果が終わった）。
+ *   ⚠**初めて見たシグニは落とさない**（`prev` に無い）＝限定を無視して出したシグニ・検証の注入盤面を守る。
+ * 🔑**判定は配置ゲートと同じ式**＝センタールリグの実効ルリグタイプ（`effectiveLrigClass`）に `meetsRestriction`、
+ *   限定を無視する宣言（`hasIgnoreLrigRestriction(…,'signi')`・宣言名の上書き）を加味する
+ *   （`BattleScreen` の召喚ボタン・CPU の `cpuMoves` と同じ）。ズレると「置けたのにルール処理が落とす」になる。
+ * ⚠対象はシグニゾーンとチアゾーン（`CHEER_ZONE`）。センタールリグがいなければ判定しない。
+ *
+ * @param prev 前回の結果（シグニのインスタンス → 満たしていたか）。呼び出し側が覚えておく（画面は ref・DB には書かない）。
+ * @returns zones＝落とすゾーン／now＝今回の結果（次回の `prev`）
+ */
+export function planRestrictionLoss(
+  owner: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, CardEffect[]>,
+  prev?: ReadonlyMap<string, boolean>,
+): { zones: number[]; now: Map<string, boolean> } {
+  const now = new Map<string, boolean>();
+  const center = owner.field.lrig.at(-1);
+  if (!center) return { zones: [], now };
+  const lrigClass = effectiveLrigClass(owner, (cardMap.get(center) ?? cardMap.get(baseNum(center)))?.CardClass);
+  const zones: number[] = [];
+  const judge = (top: string, zone: number) => {
+    const card = cardMap.get(top) ?? cardMap.get(baseNum(top));
+    if (!card) return;
+    const ignore = hasIgnoreLrigRestriction(owner, effectsMap, 'signi', card)
+      || declaredSigniOverride(owner, card.CardName).ignoreRestriction;
+    const ok = meetsRestriction(card.Restriction, lrigClass, ignore);
+    now.set(top, ok);
+    if (!ok && prev?.get(top) === true) zones.push(zone);
+  };
+  owner.field.signi.forEach((stack, zi) => { const top = stack?.at(-1); if (top) judge(top, zi); });
+  const cheer = cheerCardOf(owner);
+  if (cheer) judge(cheer, CHEER_ZONE);
+  return { zones, now };
 }

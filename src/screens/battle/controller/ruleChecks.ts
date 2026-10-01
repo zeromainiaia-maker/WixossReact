@@ -12,7 +12,7 @@ import { consumeOnceDelayedTriggers } from '../delayedTrigger';
 import { refreshForcesTurnEnd } from '../refreshTurnEnd';
 import { applyForcedTurnEnd } from '../turnScopedState';
 import { isSelectedPowerZeroBanishRedirect } from '../battleUtils';
-import { applyLimitExcessTrash, planLimitExcess, pickLimitExcessZone } from '../limitExcess';
+import { applyLimitExcessTrash, planLimitExcess, pickLimitExcessZone, planRestrictionLoss } from '../limitExcess';
 import { resolveLrigAttackContinuation } from '../attackNegation';
 import { CPU_PLAYER_ID } from '../battleUtils';
 import { reduceBattle, type PlayerStateKey } from './battleController';
@@ -40,6 +40,11 @@ export interface RuleCheckMemo {
   lastRefreshTurnEndKeyRef: { current: string };
   lastDeferredRefreshKeyRef: { current: string };
   lastLimitExcessKeyRef: { current: string };
+  /**
+   * 🆕§5.3 `O-539`＝**前回のルール処理での限定条件の満たし具合**（持ち主の state キー → シグニ → 満たしていたか）。
+   * 「変動したときだけ落とす」（`planRestrictionLoss`）の前回値。⚠DB には書かない＝読み込み直し・手を戻すと空＝落とさない側。
+   */
+  restrictionMatchedRef: { current: Partial<Record<string, Map<string, boolean>>> };
 }
 
 export function createRuleCheckMemo(): RuleCheckMemo {
@@ -47,6 +52,7 @@ export function createRuleCheckMemo(): RuleCheckMemo {
     lastBanishedKeyRef: { current: '' }, lastContMutationKeyRef: { current: '' },
     lastRefreshTurnEndKeyRef: { current: '' }, lastDeferredRefreshKeyRef: { current: '' },
     lastLimitExcessKeyRef: { current: '' },
+    restrictionMatchedRef: { current: {} },
   };
 }
 
@@ -78,7 +84,7 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
   const op = isHost ? bs.guest_state : bs.host_state;
   const isMyTurn = bs.active_user_id === user.id;
   const { lastBanishedKeyRef, lastContMutationKeyRef, lastRefreshTurnEndKeyRef,
-    lastDeferredRefreshKeyRef, lastLimitExcessKeyRef } = p.memo;
+    lastDeferredRefreshKeyRef, lastLimitExcessKeyRef, restrictionMatchedRef } = p.memo;
   // ── 画面にあった薄いラッパ（逐語）──
   const collectTrashTriggers = (
     trashedCardNum: string,
@@ -557,6 +563,13 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
     }
   };
 
+  /** 🆕§5.3 `O-539`＝前回値と比べて「限定条件を満たさなくなった」ゾーン（前回値はここで更新する）。 */
+  const restrictionLossOf = (owner: PlayerState, ownerKey: PlayerStateKey): number[] => {
+    const plan = planRestrictionLoss(owner, battleCardMap, effectsMap, restrictionMatchedRef.current[ownerKey]);
+    restrictionMatchedRef.current[ownerKey] = plan.now;
+    return plan.zones;
+  };
+
   /** ルール処理 funnel の本体（`checkAndBanishPowerZero` と同じ形）。 */
   const checkLimitExcessRule = async () => {
     if (!bs || loading || bs.global_phase !== 'PLAYING') return;
@@ -572,6 +585,12 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
       await applyLimitExcessRule(my, myKey, user.id, myPlan.levelOverZones, 'レベル超過');
       return;
     }
+    // 🆕①' **限定条件が合わなくなったシグニ**も選択の余地なくトラッシュ（`O-539`・2026-10-01 ユーザー裁定＝変動したときだけ）。
+    const myLoss = restrictionLossOf(my, myKey);
+    if (myLoss.length > 0) {
+      await applyLimitExcessRule(my, myKey, user.id, myLoss, '限定条件');
+      return;
+    }
     // ② **リミット超過**は持ち主が1体ずつ選ぶ＝自分の盤面は `LimitExcessModal` が受ける（ここでは何もしない）。
     // ③ CPU の盤面＝問う相手が居ないので①②とも自動で解く（ホスト側のクライアントが回す）。
     if (isCpuBattle && isHost) {
@@ -582,6 +601,11 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
       });
       if (cpuPlan.levelOverZones.length > 0) {
         await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, cpuPlan.levelOverZones, '[CPU] レベル超過');
+        return;
+      }
+      const cpuLoss = restrictionLossOf(cpuSt, 'guest_state');
+      if (cpuLoss.length > 0) {
+        await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, cpuLoss, '[CPU] 限定条件');
         return;
       }
       const pick = pickLimitExcessZone(cpuPlan);
