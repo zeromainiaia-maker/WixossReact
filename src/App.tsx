@@ -15,6 +15,7 @@ import { SPECTATE_ACTIVE_KEY } from './utils/spectateStore';
 import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
 import { deckFromRow } from './utils/deckRow';
 import { fetchCardCsvTexts } from './data/cardDataFetch';
+import { shouldGoToStartOnSignIn } from './utils/authNav';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -36,9 +37,14 @@ export default function App() {
 
   // 認証状態の監視 + 対戦ルームへの再入場
   useEffect(() => {
+    // 🆕2026-10-01＝前面に戻っただけの `SIGNED_IN`（同じユーザーのセッション確認し直し）で画面を戻さないための記録
+    //   （`utils/authNav.ts`）。iPhone の Safari でホーム画面から戻るとタイトルへ飛ばされていた。
+    let signedInUserId: string | null = null;
+    let initDone = false;
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const u = session?.user ?? null;
+      signedInUserId = u?.id ?? null;
       setUser(u);
 
       if (u) {
@@ -81,15 +87,18 @@ export default function App() {
       setLoading(false);
     };
 
-    init();
+    init().finally(() => { initDone = true; });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
+      const goStart = shouldGoToStartOnSignIn({ event, prevUserId: signedInUserId, newUserId: u?.id ?? null, initDone });
+      signedInUserId = u?.id ?? null;
       setUser(u);
       if (!u) {
         setViewMode('LOGIN');
-      } else if (event === 'SIGNED_IN') {
-        // 新規ログイン時はスタート画面へ（リロード復元は init() が担当）
+      } else if (goStart) {
+        // 新規ログイン時だけスタート画面へ（リロード復元は init() が担当）。
+        // ⚠タブが前面に戻ったときの `SIGNED_IN`（同じユーザー）では動かさない＝対戦・デッキ編集を閉じない。
         setViewMode('START');
       }
     });

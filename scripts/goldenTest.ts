@@ -285,6 +285,7 @@ import { choiceLabelFromText } from '../src/screens/battle/choiceLabels';
 import { oppVirusChoiceNeeded, payRemoveOppVirus, payCharmTrash, payAcceTrash, ownCharmCandidates, ownAcceCandidates, ownCostChoiceNeeded } from '../src/screens/battle/costs';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { cardCsvRelPaths, cardCsvPaths, variantsCsvPath, cardDataIndex, packOf, CARD_DATA_DIR } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
+import { shouldGoToStartOnSignIn } from '../src/utils/authNav';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93831,6 +93832,21 @@ test('2026-10-01 カード CSV（パック別）＝index とフォルダが一�
     const src = fs.readFileSync(join(root, f), 'utf-8');
     ok(src.includes('fetchCardCsvTexts') && !src.includes('/data/CardData_'), `🔴${f} が旧 CSV を読んでいる`);
   }
+});
+
+// ── 2026-10-01 ユーザー報告：iPhone の Safari でホーム画面から戻るとタイトル画面に戻される ──
+// 🔴Supabase の認証ライブラリはタブが前面に戻るたびに**同じユーザーのまま `SIGNED_IN` を通知する**＝それを新規ログインとみなして
+//   スタート画面へ戻していた（`App.tsx`）。スタートへ戻すのは「初期化後に、別のユーザー（未ログインから）がログインした」ときだけ。
+test('2026-10-01 前面に戻っただけの SIGNED_IN では画面を戻さない（iPhone Safari でタイトルへ飛ばされる）', () => {
+  eq(shouldGoToStartOnSignIn({ event: 'SIGNED_IN', prevUserId: 'u1', newUserId: 'u1', initDone: true }), false,
+    '🔴同じユーザーの SIGNED_IN（タブが前面に戻った）でスタートへ戻した');
+  eq(shouldGoToStartOnSignIn({ event: 'SIGNED_IN', prevUserId: null, newUserId: 'u1', initDone: true }), true, '反転: ログイン画面からのログインはスタートへ');
+  eq(shouldGoToStartOnSignIn({ event: 'SIGNED_IN', prevUserId: 'u1', newUserId: 'u2', initDone: true }), true, '反転: 別のユーザーでのログインはスタートへ');
+  eq(shouldGoToStartOnSignIn({ event: 'SIGNED_IN', prevUserId: null, newUserId: 'u1', initDone: false }), false, '起動時の復元（対戦中なら対戦画面）を上書きしない');
+  eq(shouldGoToStartOnSignIn({ event: 'TOKEN_REFRESHED', prevUserId: 'u1', newUserId: 'u1', initDone: true }), false, 'トークン更新では動かさない');
+  const app = fs.readFileSync(join(root, 'src/App.tsx'), 'utf-8');
+  ok(app.includes('shouldGoToStartOnSignIn(') && !/event === 'SIGNED_IN'\)\s*\{[^}]*setViewMode\('START'\)/.test(app),
+    '🔴App.tsx が SIGNED_IN だけでスタート画面へ戻している');
 });
 
 if (listMode) {
