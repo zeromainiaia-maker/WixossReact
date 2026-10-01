@@ -7699,7 +7699,7 @@ function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
  * 🆕2026-09-28 バグ報告 7e71c7d1（`WX20-078` エンザ）＝**2つ以上選ぶときは、前の肢が盤面を変えてから後の肢が解決する。**
  *   `choiceExecutable` は各肢を「いまの盤面で単独に」試すので、①「【ウィルス】を取り除く」→②「【ウィルス】を置く」の
  *   ②が（相手の全ゾーンに【ウィルス】がある盤面で）選べなくなっていた＝①と組めば置ける。
- *   ⇒ 複数選ぶときは、**それより前に並ぶ選べる肢を解決した後の盤面**でもう一度試す（肢は記載順に解決する）。
+ *   ⇒ 複数選ぶときは、**他の選べる肢を解決した後の盤面**でもう一度試す（🆕2026-10-01＝処理順はプレイヤーが選ぶ＝記載順ではない）。
  *   ⚠前の肢が対話で止まる／STUB を含む（盤面を先読みできない）ときは開ける＝選べないと言い切れない。
  *   ⚠前の肢が盤面を変えないなら閉じたまま（`WD22-011-G`＝①遅延トリガー設置のあとも②「自分のシグニ２体」は1体では選べない）。
  *   ⚠緩めるのは「実行できない」だけ＝肢の条件（`ch.condition`）や「選び済み」で閉じた肢は開けない。
@@ -7724,7 +7724,9 @@ function chooseOptionsForCount<T extends { available: boolean; gateOk: boolean; 
   };
   return options.map(({ gateOk, ...o }, i) => {
     if (count <= 1 || o.available || !gateOk) return o;
-    const opened = options.slice(0, i).some(p => {
+    // 🆕2026-10-01＝**処理順はプレイヤーが選ぶ**（UI は押した順に ID を渡し `resumeChoose` はその順に解決する）＝
+    //   記載順で前の肢だけでなく、**他の選べる肢のどれか**を先に解決すれば実行できるなら選べる。
+    const opened = options.filter((_, j) => j !== i).some(p => {
       if (!p.available) return false;
       const after = boardAfter(p.action);
       return after === 'unknown' || choiceExecutable(o.action, after);

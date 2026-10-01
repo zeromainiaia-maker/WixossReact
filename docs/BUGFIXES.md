@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第503バッチ）ユーザー指摘＝複数選んで発動するとき順番を選べない／①の後の2択が「選択肢1／選択肢2」のまま（`WX20-078` ほか）
+
+`src/screens/`・`src/engine/`・parser を触ったので実機まで＝新規 `v291ChooseOrderAndLabels` PASS。`npm run gates` 全緑（golden 4444/4444）。
+
+- **順番**＝engine は渡した ID の順に解決する（`resumeChoose`）＝UI は `Set` の挿入順（押した順）で渡していたので**処理順は前から押した順だった**が、**画面に出ていなかった**。複数選択の画面に「N番目」と「選んだ順に処理します（押し直すと外れます）」を出した（`EffectInteractionModal`）。合わせて「選べるか」の判定（`chooseOptionsForCount`）を**記載順で前の肢だけでなく他の選べる肢のどれか**を先に解決した盤面へ広げた（順番を選べる以上、後ろの肢が前の肢を開くこともある）。
+- **ラベル**＝parser の「AするかBする」2択（`parseDrawOrChoice`）が `選択肢1/2` を出していた＝丸数字が無いので画面側の `choiceLabelFromText` でも救えない。**原文の A・B 文をラベルにした**。live へは `heldReview --adopt-effect` で**ラベルだけが違う 47効果**を採用（held 41＋partial 3＋先行3。全件をラベル以外の差が無いことを機械で確認）。
+- ⚠`WX20-078` ①の「そうした場合」は JSON 上 `CONDITIONAL{IS_MY_TURN}` だが、engine の REMOVE_VIRUS 専用分岐が【ウィルス】不足で後段を飛ばす＝正しい（偽陽性）。
+- 検証＝`npm run golden -- --only "2026-10-01 複数選択"`（②→①の順に解決して①の2択に届く＝記載順で解決すると①が空振りして届かない）。実機＝②→①を押して「1番目／2番目」・ゾーン選択・原文の2択・1枚引く まで。⚠選べる判定の拡張は、この盤面では①が元から選べるため反転確認では識別できなかった。
+
 ## 2026-10-01（第502バッチ）§5.3 `O-542` チアゾーンのシグニを (a) レゾナの素材 (b)「シグニの下に置く」置き先 にできる（ユーザー裁定）
 
 `src/engine/`・`src/screens/` を触り機構を足したので実機まで＝新規 `v289ResonaFromCheer`・`v290PlaceUnderCheer` PASS＋既存のチアゾーン6本・レゾナ3本・`v288` を連続で PASS・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4443/4443）・取り出し側の修正後に golden 全件・smoke を再実行して緑。

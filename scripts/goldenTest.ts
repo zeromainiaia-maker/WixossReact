@@ -93312,6 +93312,32 @@ test('2026-09-28 報告 7e71c7d1＝エンザ：2つ選ぶときは①が【ウ�
   eq(choiceLabelFromText('選択肢1', text, 2), '選択肢1', '🔴①の中の2択（エナ/ドロー）に①の文を当てた');
 });
 
+// ── 2026-10-01 ユーザー指摘：複数選んで発動するとき、発動する順番を選べない／①の後の2択が「選択肢1／選択肢2」のまま ──
+// 🔑engine は渡した ID の順に解決する（`resumeChoose`）＝UI は押した順に渡す。画面に順番が出ていなかった。
+//   選べるかの判定（`chooseOptionsForCount`）も「記載順で前の肢」しか見ていなかった＝②を先にすれば①が実行できる形が選べなかった。
+test('2026-10-01 複数選択＝処理順はプレイヤーが選ぶ（②→①）／入れ子の2択は原文の文で出す', () => {
+  const eff = effectsMap.get('WX20-078')!.find(e => e.effectId === 'WX20-078-E1')!;
+  const ctx = mkCtx({ signi: [null, null, 'WX20-078'], trash: 0 }, { signi: [SIGNI, SIGNI, SIGNI] }, 'WX20-078');
+  ctx.ownerState.trash = ['WX16-032'];                                  // 《インフル》＝2つまで選べる
+  ctx.otherState.field.signi_virus = [0, 0, 0];                         // 【ウィルス】が無い＝①は単独では実行できない
+  const r = executeEffect(eff, ctx);
+  const p = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  ok(p.options.find(o => o.id === 'c0')?.available === true, '①が選べない');
+  // ②→① の順に渡すと、その順に解決する（置いた【ウィルス】を①が取り除く）＝その後「エナに置くか1枚引く」の2択
+  const placing = resumeChoose(['c1', 'c0'], p, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+  ok(!placing.done && placing.pending.type === 'SELECT_VIRUS_ZONE', '🔴②→①なのに先に②（【ウィルス】を置くゾーン）を問わない');
+  const pc = placing as { pending: PendingInteractionDef };
+  const mid = resumeSelectVirusZone(0, pc.pending as never, { ...ctx, ownerState: placing.ownerState, otherState: placing.otherState, logs: placing.logs });
+  ok(!mid.done && mid.pending.type === 'CHOOSE', '🔴②→①で①の「そうした場合」の2択に届かない（順番どおりに解決していない）');
+  eq((mid.otherState.field.signi_virus ?? []).reduce((a, n) => a + (n ?? 0), 0), 0, '②で置いて①で取り除く');
+  const inner = (mid as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(JSON.stringify(inner.options.map(o => o.label)), JSON.stringify(['あなたのデッキの一番上のカードをエナゾーンに置く', 'カードを１枚引く']),
+    '🔴①の後の2択が「選択肢1／選択肢2」のまま');
+  // 画面＝選んだ肢に「N番目」を出し、押した順に処理すると書く
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/EffectInteractionModal.tsx'), 'utf8');
+  ok(modal.includes('選んだ順に処理します') && modal.includes('${order}番目'), '🔴複数選択の画面に処理順が出ない');
+});
+
 test('2026-09-28 報告 001668ea＝「ターン終了時」はエンドフェイズに入った時点で収集する（押下時ではない）', () => {
   const src = fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf-8');
   ok(/nextPhase === 'END'[^\n]*\n\s*const endRes = collectTurnTriggers\('ON_TURN_END', newMyState, op, 'END'\)/.test(src),

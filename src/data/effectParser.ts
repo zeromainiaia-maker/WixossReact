@@ -7936,8 +7936,10 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
     ...(optional ? { upTo: true } : {}),
     ...(opponentResponds ? { opponentResponds: true } : {}),
     choices: [
-      { choiceId: 'c0', label: '選択肢1', action: aLift.action, ...(aLift.condition ? { condition: aLift.condition } : {}) },
-      { choiceId: 'c1', label: '選択肢2', action: bLift.action, ...(bLift.condition ? { condition: bLift.condition } : {}) },
+      // 🆕2026-10-01 ユーザー指摘＝ラベルは原文の文（`WX20-078` ①の後の「エナに置くか1枚引く」が「選択肢1／選択肢2」のまま出ていた）。
+      //   ⚠入れ子の2択は丸数字が無い＝画面側の `choiceLabelFromText`（①②③の文を引く）では救えない。
+      { choiceId: 'c0', label: aText, action: aLift.action, ...(aLift.condition ? { condition: aLift.condition } : {}) },
+      { choiceId: 'c1', label: bText, action: bLift.action, ...(bLift.condition ? { condition: bLift.condition } : {}) },
     ],
   };
 }

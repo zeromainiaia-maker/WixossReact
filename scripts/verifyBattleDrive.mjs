@@ -62511,6 +62511,87 @@ scenarios.v290PlaceUnderCheer = {
 };
 order.push('v290PlaceUnderCheer');
 
+// ── 🆕§5.1 `V-291`（2026-10-01）＝**複数選んで発動するとき、処理する順番を選べる**／**入れ子の2択が原文の文で出る** ──
+// 🔴ユーザー指摘＝`WX20-078`（羅菌　エンザ）で「発動する順番を選べない」「①の後の選択肢が選択肢1／選択肢2のまま」。
+//   engine は渡した ID の順に解決する（`resumeChoose`）＝UI は押した順に渡していたが、**画面に順番が出ていなかった**。
+// 盤面＝トラッシュに《インフル》＝2つまで選べる。相手に【ウィルス】が無い＝**②（置く）→①（取り除く）の順**でしか①が働かない。
+// 観測点＝②→①の順に押すと「1番目／2番目」が出る → ②のゾーン選択 → ①の「そうした場合」の2択が**原文の文**で出る →
+//   「カードを１枚引く」で手札が増え、相手の【ウィルス】は 0 に戻る（＝押した順に解決した）。
+scenarios.v291ChooseOrderAndLabels = {
+  title: 'V-291 複数選択の処理順を選べる・入れ子の2択が原文の文で出る（WX20-078 エンザ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.cheer': null, 'field.check': null,
+      'hand': ['WX20-078#v291'],
+      'trash': ['WX16-032#v291i'],
+      'deck': ['WD01-013#v291d1', 'WD01-013#v291d2', 'WD01-013#v291d3', 'WD01-013#v291d4'],
+      'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#2'],
+      'field.signi': [['WD01-013#v291g1'], ['WD01-013#v291g2'], ['WD01-013#v291g3']],
+      'field.signi_virus': [0, 0, 0],
+      'field.cheer': null, 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    H.log('  v291 手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false, step = 0, sawOrder = false, sawInnerLabels = false, drew = false;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      if (!did && summoned && step === 0) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      // ②→① の順に押す
+      const c1 = page.getByTestId('choose-multi-c1').first();
+      if (!did && step <= 1 && await c1.count() && await c1.isVisible().catch(() => false)) {
+        if (step === 0) { await c1.click(); step = 1; did = 'choose:②'; }
+        else { await page.getByTestId('choose-multi-c0').first().click(); step = 2; did = 'choose:①'; }
+      }
+      if (!did && step === 2) {
+        const o1 = await c1.getAttribute('data-order').catch(() => null);
+        const o0 = await page.getByTestId('choose-multi-c0').first().getAttribute('data-order').catch(() => null);
+        const txt = await page.getByTestId('choose-multi-c1').first().innerText().catch(() => '');
+        const hint = await page.getByTestId('choose-order-hint').count();
+        sawOrder = o1 === '1' && o0 === '2' && txt.startsWith('1番目') && hint > 0;
+        await page.screenshot({ path: `${SHOT}/v291-order.png`, fullPage: true });
+        H.log(`  v291 順番: ②=${o1} ①=${o0} 表示「${txt.slice(0, 12)}」 hint=${hint}`);
+        did = await H.clickBtn('決定', { exact: true }); step = 3;
+      }
+      if (!did && step === 3) {
+        const z = page.getByRole('button', { name: /^ゾーン1/ }).first();
+        if (await z.count() && await z.isVisible().catch(() => false)) { await z.click(); did = 'virus:ゾーン1'; step = 4; }
+      }
+      if (!did && step >= 3) {
+        const draw = page.getByRole('button', { name: 'カードを１枚引く', exact: true }).first();
+        const ena = page.getByRole('button', { name: 'あなたのデッキの一番上のカードをエナゾーンに置く', exact: true }).first();
+        if (await draw.count() && await draw.isVisible().catch(() => false)) {
+          sawInnerLabels = await ena.count() > 0;
+          await page.screenshot({ path: `${SHOT}/v291-inner.png`, fullPage: true });
+          await draw.click(); did = 'inner:カードを１枚引く'; drew = true; step = 5;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', 'OK']);
+      const st = await H.queryState();
+      const virus = (st?.guest?.signiVirus ?? st?.guest?.virus ?? null);
+      H.log(`  v291[${s}] -> ${did ?? 'なし'} | step=${step} hand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'} virus=${JSON.stringify(virus)}`);
+      if (drew && !st?.pendingEffect && !(st?.stackLen > 0)) {
+        const ok = sawOrder && sawInnerLabels && st?.host?.hand === 1;
+        return { pass: ok, detail: `${ok ? '' : '🔴'}②→①の順番表示=${sawOrder}・①の後の2択が原文の文=${sawInnerLabels}・1枚引いた（hand=${st?.host?.hand}）＝押した順に解決（①が置いた【ウィルス】を取り除けた）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `🔴最後まで進まない（step=${step} 順番表示=${sawOrder} 2択の文=${sawInnerLabels} hand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v291ChooseOrderAndLabels');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：

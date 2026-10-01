@@ -766,11 +766,19 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                     {inter.upTo ? `${maxSel}個まで選択` : `${maxSel}個選択`}（{selectedMultiChoiceIds.size}/{maxSel}）
                   </p>
+                  {/* 🆕2026-10-01 ユーザー指摘「発動する順番を選べない」＝engine は**渡した ID の順**に解決する（`resumeChoose`）。
+                      選択は `Set` の挿入順＝押した順なので、順番は前から選べていたが**画面に出ていなかった**。 */}
+                  {maxSel > 1 && (
+                    <p data-testid="choose-order-hint" style={{ color: C.textSub, fontSize: 11, margin: 0, textAlign: 'center' }}>
+                      選んだ順に処理します（押し直すと外れます）
+                    </p>
+                  )}
                   {inter.options.map(opt => {
                     const isSel = selectedMultiChoiceIds.has(opt.id);
+                    const order = isSel ? [...selectedMultiChoiceIds].indexOf(opt.id) + 1 : 0;
                     const canAdd = isSel || (opt.available && selectedMultiChoiceIds.size < maxSel);
                     return (
-                      <button key={opt.id}
+                      <button key={opt.id} data-testid={`choose-multi-${opt.id}`} data-order={order || undefined}
                         disabled={loading || (!isSel && !canAdd)}
                         onClick={() => setSelectedMultiChoiceIds(prev => {
                           const next = new Set(prev);
@@ -782,7 +790,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                           color: C.text, fontSize: 13, fontWeight: 'bold', textAlign: 'left',
                           cursor: (loading || (!isSel && !canAdd)) ? 'default' : 'pointer',
                           outline: isSel ? `2px solid ${C.success}` : 'none' }}>
-                        {isSel ? '✓ ' : ''}{choiceLabelFromText(opt.label, srcCard?.EffectText, inter.options.length)}
+                        {isSel ? (maxSel > 1 ? `${order}番目 ` : '✓ ') : ''}{choiceLabelFromText(opt.label, srcCard?.EffectText, inter.options.length)}
                       </button>
                     );
                   })}
