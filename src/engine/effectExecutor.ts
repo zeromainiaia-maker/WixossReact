@@ -7675,6 +7675,14 @@ function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
   if ((top?.type === 'TRASH' || top?.type === 'REVEAL') && ref?.type === 'HAND_CARD' && ref.owner === 'self'
     && typeof ref.count === 'number' && !ref.upToCount
     && handCandidates(ctx.ownerState, ref.filter, ctx.cardMap, ctx.treatAsClassAllZones).length < ref.count) return false;
+  // 🆕2026-10-01 ユーザー判断＝**デッキを「公開する」肢は、公開するカードがあれば選べる**（公開だけで実行したとみなす）。
+  //   🔴下の「盤面が変わらなければ選べない」で判定すると、`WX25-P3-092` ①「デッキの一番上を公開する。＜龍獣＞なら
+  //     【エナチャージ１】」は**一番上が＜龍獣＞でないと選べなかった**（公開しただけでは state が変わらない）。
+  //   ⚠デッキが空なら公開できない＝選べない。手札を公開する肢は上の「枚数がそろわなければ選べない」のまま。
+  if (top?.type === 'REVEAL_AND_PICK' || top?.type === 'REVEAL_UNTIL' || top?.type === 'REVEAL_UNTIL_TO_HAND') {
+    const revealOwner = (top as { owner?: Owner }).owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+    return revealOwner.deck.length > 0;
+  }
   const prevRng = currentRng();
   setRng(mulberry32(0x5eed));
   try {

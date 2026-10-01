@@ -21816,6 +21816,21 @@ test('CHOOSE choice.condition: 選択肢②「あなたの場に赤の＜龍獣�
   const rYes = executeEffect(eff, ctxYes);
   const pendingYes = (rYes as { pending: { options: { id: string; available?: boolean }[] } }).pending;
   eq(pendingYes.options.find(o => o.id === 'c1')?.available, true, '赤の＜龍獣＞シグニ(WX04-031)が場にあれば選択肢②は選択可');
+
+  // ⚠盤面（mkCtx）は共有カーソルから札を引く＝カーソルを保存・復元しないと後続のテストの札がずれる
+  withSavedCursor(() => {
+    // 🆕2026-10-01 ユーザー判断＝デッキを「公開する」肢は、公開するカードがあれば選べる（公開だけで実行したとみなす）。
+    //   🔴旧＝一番上が＜龍獣＞でないと①が「実行できない」になり、②も条件不成立なら CHOOSE 自体が出なかった。
+    const notDragon = 'WD01-013';   // 小剣　ククリ（＜アーム＞）。⚠findCard は共有カーソルを進めて後続のテストを狂わせるので使わない
+    const rTop = executeEffect(eff, mkCtx({ signi: [null, null, null], deckTop: [notDragon] }, {}, 'WX25-P3-092'));
+    ok(!rTop.done, '🔴一番上が＜龍獣＞でないと①「公開する」が選べない（CHOOSE が出ない）');
+    eq((rTop as { pending: { options: { id: string; available?: boolean }[] } }).pending.options.find(o => o.id === 'c0')?.available, true,
+      '🔴①「デッキの一番上を公開する」は公開できれば選べる');
+    // 反転＝デッキが空なら公開できない＝①も選べない（②も不成立＝何も起きない）
+    const ctxEmpty = mkCtx({ signi: [null, null, null] }, {}, 'WX25-P3-092');
+    ctxEmpty.ownerState.deck = [];
+    eq(executeEffect(eff, ctxEmpty).done, true, '反転: デッキが空なら①は選べない');
+  });
 });
 // 続き416：任意コストの表現が `TRASH{optional}` から `STUB{OPTIONAL_COST,handDiscard}` へ変わった
 // （前者は「0枚選択」でも後続の「そうした場合」ゲートが通る＝**払わずに本体が撃てる**）。
