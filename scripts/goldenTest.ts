@@ -93873,6 +93873,9 @@ test('2026-10-01 デッキ編成の検索＝カード効果で絞り込む（部
     '🔴検索結果が先頭200件で打ち切られている（ページ送りが無い）');
   ok(/const resetSearchFilters = \(\) => \{\s*setSearch\(''\); setEffectSearch\(''\); setFilterType\(''\); setFilterColor\(''\); setFilterLevel\(''\); setFilterClass\(''\);/.test(src)
     && src.includes('data-testid="search-reset"'), '🔴絞込リセットがすべての条件を戻していない');
+  // 🆕同日＝絞り込み条件のエリアを折り畳める（畳んでも条件は保つ＝検索欄は消すが state は残す）
+  ok(src.includes('data-testid="search-filters-collapse"') && src.includes('data-testid="search-filters-expand"') && src.includes('{filtersCollapsed ? ('),
+    '🔴絞り込み条件の折り畳み／展開ボタンが無い');
 });
 
 // ── 2026-10-01 ユーザー要望：アプリが前面に戻ったら最新の盤面を取り直す（強制リロードはしない） ──

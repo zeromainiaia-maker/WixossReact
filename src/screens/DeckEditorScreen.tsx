@@ -48,7 +48,9 @@ const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レ
 export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCards = [], onUpdate, onDelete, onBack }: Props) {
   const [current, setCurrent] = useState<Deck>(deck);
   const [search, setSearch] = useState('');
-  const [effectSearch, setEffectSearch] = useState('');   // 🆕2026-10-01 カード効果のテキストで絞り込む（部分一致）
+  const [effectSearch, setEffectSearch] = useState('');
+  // 🆕2026-10-01（ユーザー要望）＝絞り込み条件のエリアを折り畳める（画面が狭いときにカード一覧を広く使う）。
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);   // 🆕2026-10-01 カード効果のテキストで絞り込む（部分一致）
   const [filterType, setFilterType] = useState('');
   const [filterColor, setFilterColor] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
@@ -417,7 +419,15 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
       {/* カード追加タブ */}
       <div style={{ flex: 1, display: screenTab === 'search' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid #c8bce8', display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0, backgroundColor: '#ede8f5' }}>
+          {filtersCollapsed ? (
+            // 折り畳み中＝細い帯と、元に戻す「∨」だけ（条件は保ったまま＝畳んでも絞り込みは効いている）
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', padding: '0 10px', height: '18px',
+              borderBottom: '1px solid #c8bce8', flexShrink: 0, backgroundColor: '#ede8f5' }}>
+              {filtersActive && <span style={{ fontSize: '10px', color: '#7a6aa8' }}>絞込中</span>}
+              <button data-testid="search-filters-expand" aria-label="絞り込み条件を表示" onClick={() => setFiltersCollapsed(false)} style={chevronStyle}>∨</button>
+            </div>
+          ) : (
+          <div style={{ position: 'relative', padding: '10px 12px 18px', borderBottom: '1px solid #c8bce8', display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0, backgroundColor: '#ede8f5' }}>
             <input data-testid="search-name" placeholder="カード名・番号で検索" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
             <input data-testid="search-effect" placeholder="カード効果で検索（空白で複数語）" value={effectSearch} onChange={e => setEffectSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
             <select value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
@@ -441,7 +451,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 color: filtersActive ? '#5a3fa0' : '#aaa' }}>
               絞込リセット
             </button>
+            <button data-testid="search-filters-collapse" aria-label="絞り込み条件を畳む" onClick={() => setFiltersCollapsed(true)}
+              style={{ ...chevronStyle, position: 'absolute', right: '10px', bottom: '1px' }}>∧</button>
           </div>
+          )}
           <div ref={searchListRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
             {filteredCards.slice(pageInfo.start, pageInfo.end).map(card => {
               const lrig = isLrigCard(card);
@@ -805,6 +818,8 @@ const selectStyle: React.CSSProperties = {
   padding: '8px 10px', borderRadius: '6px', border: '1px solid #c8bce8',
   backgroundColor: '#fff', color: '#333', fontSize: '13px',
 };
+// 🆕折り畳み／展開の記号ボタン（簡素・小さく＝ユーザー要望）
+const chevronStyle: React.CSSProperties = { background: 'none', border: 'none', padding: '0 4px', lineHeight: '16px', fontSize: '12px', color: '#7a6aa8', cursor: 'pointer' };
 const iconButtonStyle: React.CSSProperties = {
   padding: '6px 12px', borderRadius: '6px', border: '1px solid #c8bce8',
   backgroundColor: 'transparent', color: '#555', fontSize: '13px',
