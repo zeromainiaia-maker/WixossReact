@@ -804,8 +804,10 @@ const sectionHeaderStyle = (bg: string, color: string): React.CSSProperties => (
   marginBottom: '4px',
 });
 
+// 🆕2026-10-01＝**折り返さない**（ユーザー指摘＝選択中だけ太字になり「デッキ内容（[13：27][5]）」が2行になっていた）。
+//   左右の余白を詰め、はみ出す幅なら省略記号で切る（狭い端末でもタブの高さを揃える）。
 const screenTabStyle = (active: boolean): React.CSSProperties => ({
-  flex: 1, padding: '12px', border: 'none',
+  flex: 1, padding: '12px 4px', border: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
   backgroundColor: active ? '#d5c8f0' : 'transparent',
   color: active ? '#5533aa' : '#888',
   fontSize: '14px', fontWeight: active ? 'bold' : 'normal',

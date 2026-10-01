@@ -93877,6 +93877,7 @@ test('2026-10-01 デッキ編成の検索＝カード効果で絞り込む（部
   ok(src.includes('data-testid="search-filters-collapse"') && src.includes('data-testid="search-filters-expand"') && src.includes('{filtersCollapsed ? ('),
     '🔴絞り込み条件の折り畳み／展開ボタンが無い');
   ok(src.includes('[{mainLbYesCount}：{mainLbNoCount}][{current.lrigDeck.length}]'), '🔴デッキ内容のタブが [LB有：LB無][ルリグデッキ] の枚数になっていない');
+  ok(/const screenTabStyle = [\s\S]{0,200}whiteSpace: 'nowrap'/.test(src), '🔴タブが折り返す（選択中は太字で幅が広がり2行になる）');
 });
 
 // ── 2026-10-01 ユーザー要望：アプリが前面に戻ったら最新の盤面を取り直す（強制リロードはしない） ──
