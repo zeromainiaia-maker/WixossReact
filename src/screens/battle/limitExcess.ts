@@ -1,3 +1,4 @@
+import { acceCardsAt, cloneAcceSlots } from '../../utils/acce';
 import { CHEER_ZONE, cheerCardOf } from '../../engine/cheerZone';
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
@@ -179,7 +180,14 @@ export function applyLimitExcessTrash(
       else if (resonaDest === 'lrig_trash') lrigTrash = [...lrigTrash, top];
       else if (resonaDest === 'exile') excluded = [...excluded, top];
       else trash = [...trash, top];
-      field = { ...field, cheer: null, cheer_down: false, cheer_frozen: false };
+      // 🆕§5.3 `O-540`＝付いていた【チャーム】【アクセ】もトラッシュ（添字3）。
+      const charm3 = field.signi_charms?.[3] ?? null;
+      const acce3 = acceCardsAt(field, 3);
+      if (charm3) trash = [...trash, charm3];
+      if (acce3.length) trash = [...trash, ...acce3];
+      const charmsC = [...(field.signi_charms ?? [null, null, null])]; if (charmsC.length > 3) charmsC[3] = null;
+      const acceC = cloneAcceSlots(field); if (acceC.length > 3) acceC[3] = null;
+      field = { ...field, cheer: null, cheer_down: false, cheer_frozen: false, signi_charms: charmsC, signi_acce: acceC };
       continue;
     }
     const stack = state.field.signi[zi] ?? [];

@@ -888,7 +888,7 @@ export function execStubPart3(
     const drawN = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '6'), 10);
     const isCraft = (n: string) => /クラフト/.test(ctx.cardMap.get(getCardNum(n))?.Type ?? '');
     const resetOne = (s: PlayerState): { state: PlayerState; exiled: number } => {
-      const fieldCards = s.field.signi.flatMap(stack => stack ?? []);
+      const fieldCards = fieldSigniStacks(s).flatMap(stack => stack ?? []);   // 🆕`O-540`＝チアゾーンも
       const charmCards = (s.field.signi_charms ?? []).filter((c): c is string => !!c);
       const acceCards = (s.field.signi_acce ?? []).flatMap(a => a ?? []);
       const gathered = [...s.hand, ...fieldCards, ...charmCards, ...acceCards, ...s.energy, ...s.trash];
@@ -907,6 +907,7 @@ export function execStubPart3(
             signi_frozen: [false, false, false],
             signi_charms: [null, null, null],
             signi_acce: [null, null, null],
+            cheer: null, cheer_down: false, cheer_frozen: false,
           },
           deck_shuffled_count: (s.deck_shuffled_count ?? 0) + 1,
         },
@@ -2739,7 +2740,7 @@ export function execStubPart3(
     const srcASAC = ctx.sourceCardNum;
     const zoneIdxASAC = findAcceZone(ctx.ownerState.field, srcASAC);
     if (zoneIdxASAC < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
-    const targetSigniASAC = ctx.ownerState.field.signi[zoneIdxASAC]?.at(-1);
+    const targetSigniASAC = fieldSigniStacks(ctx.ownerState)[zoneIdxASAC]?.at(-1);   // 🆕`O-540`＝チアゾーンは添字3
     if (!targetSigniASAC) return done(addLog(ctx, 'アクセ先のシグニがいない'));
     // story_overrides にフラグとして記録（全色付与の意）
     const ovASAC = { ...(ctx.ownerState.story_overrides ?? {}), [targetSigniASAC]: 'ALL_COLOR' };
@@ -3638,7 +3639,7 @@ export function execStubPart3(
     const srcAcceAGSA = ctx.sourceCardNum;
     const zoneIdxAGSA = findAcceZone(ctx.ownerState.field, srcAcceAGSA);
     if (zoneIdxAGSA < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
-    const targetSigniAGSA = ctx.ownerState.field.signi[zoneIdxAGSA]?.at(-1);
+    const targetSigniAGSA = fieldSigniStacks(ctx.ownerState)[zoneIdxAGSA]?.at(-1);   // 🆕`O-540`＝チアゾーンは添字3
     if (!targetSigniAGSA) return done(addLog(ctx, 'アクセ先のシグニがいない'));
     const srcCardAGSA = ctx.cardMap.get(srcAcceAGSA ?? '');
     const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
@@ -5417,11 +5418,11 @@ export function execStubPart3(
       logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手が手札${blueCountPDL}枚を選んで捨てる`);
     }
     if (qualifies('緑')) {
-      const movedPDL = othPDL.field.signi.flatMap(s => s ?? []);
+      const movedPDL = fieldSigniStacks(othPDL).flatMap(s => s ?? []);   // 🆕`O-540`＝チアゾーンも
       othPDL = {
         ...othPDL,
         energy: [...othPDL.energy, ...movedPDL],
-        field: { ...othPDL.field, signi: [null, null, null] },
+        field: { ...othPDL.field, signi: [null, null, null], cheer: null, cheer_down: false, cheer_frozen: false },
       };
       logsPDL.push(`緑：相手シグニ${movedPDL.length}枚をエナゾーンへ`);
     }

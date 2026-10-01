@@ -61313,6 +61313,64 @@ scenarios.restrictionLoss = {
 };
 order.push('restrictionLoss');
 
+// ── 🆕§5.3 `O-540`（2026-10-01）＝**チアゾーンのシグニに【アクセ】が付く**──
+// `acceAttach` と同じ操作（エルドラ　オーバークロックの【起】デコレ → 手札のミントを選ぶ → 付け先を選ぶ）を、
+// 付け先がチアゾーンのコードオーダー　BCPIC（Lv4）しかいない盤面で行う。
+// 観測点＝①`signi_acce[3]` にミント ②盤面のチアゾーンに「アクセ1」 ③アクセしたときの【自】（WXK05-041-E2・付け先 Lv4 以上）が誘発
+scenarios.cheerAcce = {
+  title: 'O-540：チアゾーンのシグニに【アクセ】が付く（置き場は添字3）・アクセ時【自】も誘発',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK04-003#1'], 'field.signi': [null, null, null],
+      'field.cheer': 'WXK05-026#1', 'field.cheer_down': false, 'field.signi_acce': [null, null, null, null],
+      'energy': ['WD03-009#1'], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [['WD01-013#1'], null, null] },
+    handPrepend: ['WXK05-041#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.cheerAcce.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    await H.ensureMain();
+    const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
+    if (await lrigImg.count()) await lrigImg.click({ force: true }).catch(() => {});
+    const readAcce = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const r = (await (await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h })).json())?.[0];
+      return { acce3: r.host_state.field.signi_acce?.[3] ?? null, done: r.host_state.actions_done ?? [] };
+    }, { SUPA_URL, ANON });
+    let row = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      let did = null;
+      const actBtns = page.getByRole('button', { name: '【起】コストなし', exact: true });
+      const actCnt = await actBtns.count();
+      if (actCnt > 0) { const b = actCnt > 1 ? actBtns.nth(actCnt - 1) : actBtns.first(); if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = '【起】'; } }
+      if (!did) { const f = page.getByRole('button', { name: '発動', exact: true }).first(); if (await f.count() && await f.isVisible().catch(() => false) && await f.isEnabled().catch(() => false)) { await f.click().catch(() => {}); did = '発動'; } }
+      if (!did) { const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first(); if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = '選択肢2'; } }
+      if (!did) { const p0 = page.getByTestId('pick-0').first(); if (await p0.count() && await p0.isVisible().catch(() => false) && !(await page.getByRole('button', { name: /決定 \(1\// }).count())) { await p0.click().catch(() => {}); did = 'pick-0'; } }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+      if (!did) did = await H.clickTextOrBtn(['スキップ']);
+      row = await readAcce();
+      H.log(`  [${s}] -> ${did ?? 'なし'} | acce3=${JSON.stringify(row.acce3)} E2=${row.done.includes('WXK05-041-E2')}`);
+      if (row.acce3 && row.done.includes('WXK05-041-E2')) break;
+    }
+    const label = await page.getByTestId('my-cheer-attached').first().textContent({ timeout: 2000 }).catch(() => null);
+    await page.screenshot({ path: `${SHOT}/cheerAcce-01.png`, fullPage: true });
+    H.log(`① acce3=${JSON.stringify(row?.acce3)} ②label=${label} ③E2=${row?.done.includes('WXK05-041-E2')}`);
+    if (!JSON.stringify(row?.acce3 ?? []).includes('WXK05-041#1')) return { pass: false, detail: `🔴チアゾーンのシグニに【アクセ】が付かない（${JSON.stringify(row?.acce3)}）` };
+    if (!label || !/アクセ1/.test(label)) return { pass: false, detail: `🔴チアゾーンの枠にアクセが出ない（${label}）` };
+    if (!row.done.includes('WXK05-041-E2')) return { pass: false, detail: '🔴付け先がチアゾーンだとアクセしたときの【自】が誘発しない' };
+    return { pass: true, detail: `①signi_acce[3]=${JSON.stringify(row.acce3)} ②「${label}」 ③WXK05-041-E2 誘発` };
+  },
+};
+order.push('cheerAcce');
+
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
 // 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。

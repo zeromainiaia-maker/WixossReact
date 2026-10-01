@@ -373,6 +373,9 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
       st.field.cheer = tgt;
       st.field.cheer_down = !!st.field.signi_down?.[zi];
       st.field.cheer_frozen = !!st.field.signi_frozen?.[zi];
+      // 🆕§5.3 `O-540`＝付いている【チャーム】【アクセ】もチアゾーンの置き場（添字3）へ運ぶ。
+      if (st.field.signi_charms?.[zi]) { st.field.signi_charms[3] = st.field.signi_charms[zi]; st.field.signi_charms[zi] = null; }
+      if (st.field.signi_acce?.[zi]) { st.field.signi_acce[3] = st.field.signi_acce[zi]; st.field.signi_acce[zi] = null; }
       st.field.signi = st.field.signi.map(z => (z && z.includes(sourceNum) ? z : null));
       break;   // 1体だけ（チアゾーンは1体まで）
     }

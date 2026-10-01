@@ -8802,7 +8802,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
 
   if (a.perAllSigni && a.charm.type === 'DECK_CARD') {
     // §5.3 `O-528`＝【チャーム】が既に付いているシグニには付けない（下の通常経路と同じ規則）。
-    const targetZones = toState.field.signi
+    // 🆕§5.3 `O-540`＝チアゾーンのシグニにも付く（添字3＝`fieldSigniStacks`。置き場は `signi_charms[3]`）。
+    const targetZones = fieldSigniStacks(toState)
       .map((stack, index) => ({ stack, index }))
       .filter(({ stack, index }) => stack && stack.length > 0 && !toState.field.signi_charms?.[index]);
     const attachCount = Math.min(targetZones.length, charmSrc.deck.length);
@@ -8880,7 +8881,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   //   🔴旧実装は既存の `signi_charms[z]` を見ずに上書きしており、古い【チャーム】がどこにも無くなっていた
   //   （`WX11-034-BURST`・round6 R6-0 の全数トレースで唯一残った「消滅」）。
   toCands = toCands.filter(n => {
-    const z = toState.field.signi.findIndex(s => s?.at(-1) === n);
+    const z = fieldSigniStacks(toState).findIndex(s => s?.at(-1) === n);
     return z < 0 || !toState.field.signi_charms?.[z];
   });
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
@@ -8890,7 +8891,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   if (pairCount <= 0) return done(addLog(ctx, 'チャーム付与対象なし'));
   const charmNums = charmCands.slice(0, pairCount);
   const targetNums = toCands.slice(0, pairCount);
-  const zoneIdxs = targetNums.map(n => toState.field.signi.findIndex(s => s?.at(-1) === n));
+  // 🆕§5.3 `O-540`＝チアゾーンのシグニは添字3（`signi_charms[3]`）。
+  const zoneIdxs = targetNums.map(n => fieldSigniStacks(toState).findIndex(s => s?.at(-1) === n));
   if (zoneIdxs.some(i => i < 0)) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
 
   // チャームカードをソースから除去
@@ -10976,7 +10978,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
 
   // エナゾーン/手札からのアクセ: ホストシグニ選択
   // targetFilter でホスト側フィルター、signiFilter でアクセカード側フィルター
-  const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
+  // 🆕§5.3 `O-540`＝チアゾーンのシグニにも【アクセ】できる（添字3＝`signi_acce[3]`）。
+  const hostCands = fieldSigniStacks(tgtState).flatMap((stack, i) => {
     if (!stack || stack.length === 0) return [];
     const top = stack[stack.length - 1];
     if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
@@ -14394,7 +14397,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const isTgtTurn = acceAction.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
       // fromHand step1完了: cardNum = 手札から選んだアクセカード。続けてホストシグニ選択(step2)を発行する。
       if (acceAction._selectingAcceFromHand) {
-        const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
+        const hostCands = fieldSigniStacks(tgtState).flatMap((stack, i) => {   // 🆕`O-540`＝チアゾーンも
           if (!stack || stack.length === 0) return [];
           const top = stack[stack.length - 1];
           if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
@@ -14414,7 +14417,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         });
       }
       // step2 / エナ経路: cardNum = SELECT_TARGETで選ばれたホストシグニ
-      const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      const zoneIdx  = fieldSigniStacks(tgtState).findIndex(s => s?.at(-1) === cardNum);   // 🆕`O-540`＝チアゾーンは添字3
       if (zoneIdx < 0) return done(ctx);
       if (!canAttachAcceToHost(tgtState, tgtOther, cardNum, zoneIdx, ctx, isTgtTurn)) return done(ctx);
       // acceカード = _pickedAcceCard（手札選択後）／sourceCardNum（エナゾーンからの場合）／lastProcessedCards[0]

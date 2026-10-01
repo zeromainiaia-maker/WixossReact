@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
-import { CHEER_ZONE, cheerCardOf, signiStackAt } from '../engine/cheerZone';
+import { CHEER_ZONE, cheerCardOf, signiStackAt, fieldSigniStacks } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
@@ -4664,7 +4664,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const triggerEntries: StackEntry[] = [];
     // 🆕2026-08-31 続き748＝**いま付いた【アクセ】カード**（スタック末尾）。原文「**それが**レベル２以下の
     //   【アクセ】の場合」（`WXK05-065-E1`）を `TRIGGER_SOURCE_MATCHES` が読むためにトリガー元として運ぶ。
-    const acceHostZoneIdx = state.field.signi.findIndex(sg => sg?.at(-1) === acceHostCardNum);
+    // 🆕§5.3 `O-540`＝付け先がチアゾーンのシグニなら添字3（置き場は `signi_acce[3]`）。
+    const acceHostZoneIdx = fieldSigniStacks(state).findIndex(sg => sg?.at(-1) === acceHostCardNum);
     const acceCardNum = acceHostZoneIdx >= 0 ? acceCardsAt(state.field, acceHostZoneIdx).at(-1) : undefined;
     const usedOncePerTurnIdsAcce: string[] = [];
     // 《ターン1回》《ターン2回》の使用制限（actions_done ＋ 本収集内で積んだ分の両方を数える）。
@@ -4677,7 +4678,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       usedOncePerTurnIdsAcce.push(eff.effectId);
       return true;
     };
-    for (const stack of state.field.signi) {
+    for (const stack of fieldSigniStacks(state)) {   // 🆕`O-540`＝チアゾーンのシグニも【自】の持ち主
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
       for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -4723,7 +4724,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     // ON_ACCE_ATTACH（アクセカード自身）: 「このカードが【アクセ】としてシグニに付いたとき」（SPK01-11 ラズベリー）
-    const hostZoneAcce = state.field.signi.findIndex(s => s?.at(-1) === acceHostCardNum);
+    const hostZoneAcce = fieldSigniStacks(state).findIndex(s => s?.at(-1) === acceHostCardNum);   // 🆕`O-540`
     const attachedAcceNum = hostZoneAcce >= 0 ? acceCardsAt(state.field, hostZoneAcce).at(-1) : null;
     if (attachedAcceNum) {
       for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {

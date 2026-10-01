@@ -178,7 +178,7 @@ export function execStubPart1(
         signi_soul: [null, null, null], signi_traps: [null, null, null],
         signi_magic_boxes: [null, null, null], signi_seeds: [null, null, null],
         facedown_signi: [null, null, null], signi_armor: [false, false, false],
-        puppet_signi: [], free_zone: [], beat_zone: [], cheer: null, cheer_down: false,
+        puppet_signi: [], free_zone: [], beat_zone: [], cheer: null, cheer_down: false, cheer_frozen: false,
         cross_state: [false, false, false], heaven_state: [false, false, false],
       },
       deck_shuffled_count: (ctx.ownerState.deck_shuffled_count ?? 0) + 1,
@@ -3321,11 +3321,12 @@ export function execStubPart1(
   // 表示: 対戦相手のエナゾーンにあるすべてのカードと対戦相手の場にあるすべてのシグニをトラッシュに置く
   if (stub.id === 'MASS_TRASH') {
     // 相手のエナゾーン全カード + フィールド全シグニをトラッシュ
-    const oppSigniAll = ctx.otherState.field.signi.flatMap(s => s ?? []);
+    const oppSigniAll = fieldSigniStacks(ctx.otherState).flatMap(s => s ?? []);   // 🆕`O-540`＝チアゾーンも「すべてのシグニ」
     const oppEnaAll = [...ctx.otherState.energy];
     const newOtherField: PlayerState['field'] = {
       ...ctx.otherState.field,
       signi: [null, null, null],
+      cheer: null, cheer_down: false, cheer_frozen: false,
     };
     const newOther: PlayerState = {
       ...ctx.otherState,
@@ -3357,7 +3358,7 @@ export function execStubPart1(
       const moveSigni = specTAK.zones.includes('signi');
       const moveHand = specTAK.zones.includes('hand');
       const moveEnergy = specTAK.zones.includes('energy');
-      const signiAll = moveSigni ? st.field.signi.flatMap(s => s ?? []) : [];
+      const signiAll = moveSigni ? fieldSigniStacks(st).flatMap(s => s ?? []) : [];   // 🆕`O-540`＝チアゾーンも
       const handAll = moveHand ? [...st.hand] : [];
       const energyAll = moveEnergy ? [...st.energy] : [];
       const keyCard = specTAK.keys ? st.field.key_piece : null;
@@ -3380,7 +3381,7 @@ export function execStubPart1(
         lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
         field: {
           ...st.field,
-          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[] } : {}),
+          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[], cheer: null, cheer_down: false, cheer_frozen: false } : {}),
           ...(moveSigni && specTAK.zoneAttachments
             ? {
               signi_charms: [null, null, null] as (string | null)[],

@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-01（第499バッチ）§5.3 `O-540` チアゾーンのシグニに【チャーム】【アクセ】が付く
+
+`src/engine/`・`src/screens/`・`src/components/` を触ったので実機まで＝新規 `cheerAcce`（デコレでチアゾーンのコードオーダー　BCPIC にミントをアクセ→`signi_acce[3]`・盤面に「アクセ1」・アクセしたときの【自】WXK05-041-E2 が誘発）PASS＋既存 `acceAttach`・チアゾーン5本・`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4441/4441）。`census:cheer` **68 → 51**（【チャーム】で絞る効果が解消・残りはルールどおり／計器の盤面の都合）。
+
+- **設計**＝チアゾーンの【チャーム】【アクセ】は**既存の配列の添字3**（`signi_charms[3]`／`signi_acce[3]`）に置く。🔑段階3〜5で「場のシグニ」の走査はチアゾーンを添字3で回しているので（`fieldSigniStacks`・`matchesStateFilter(state,3,…)`・`fieldCandidates`）、**読み取り側（「付いているシグニ」の絞り込み・数える・集める）は自動で効く**。全部を集める処理（`allAcceCards` 等）も添字3を含む＝場の札として数えるのがルールどおり。
+- **直したもの**＝①付ける側4か所（チャームの一斉付与・個別付与／アクセの付け先候補2か所＋付け先のゾーン）②付いているシグニを引く2か所（`execStubPart3`）③場を離れる（`removeFromField`）・レベル超過／限定条件のトラッシュ（`applyLimitExcessTrash`）で添字3の札もトラッシュ（`R-41`）④アクセを付けられるかの提示（`acceHostAvailable`）⑤🔴**アクセしたときの【自】**（画面の `checkAndFireOnAcceTriggersForOwner`）＝付け先探し2か所と【自】の持ち主の走査が `field.signi` だけ＝**実機 `cheerAcce` で初めて発覚**（golden は engine しか見ない）⑥盤面のチアゾーンにチャーム／アクセの枚数。
+- **同じ形で見つけたもの**＝「場をまとめて片付ける」処理4か所（`MASS_TRASH`・`TRASH_ALL_SIGNI_AND_KEY`・クラフトの除外＋全ゾーンのリセット・緑の相手シグニ全部エナへ）がチアゾーンのシグニを残していた＝集める側を `fieldSigniStacks` に・チアゾーンを空に。⚠夢限 -Q-（`WXDi-P11-010A`）は**既に `cheer: null` にしていた**＝複製と一度読み違えた（`cheer_frozen` だけ足した）。
+- **新規登録**＝`O-541`（STUB の中で場のシグニを自前で集める `flatMap` 43か所＝`census:cheer` に映らない形・用途が混在）。
+- 検証＝`npm run golden -- --only "O-540"`。反転確認＝チャームの付け先探しを `field.signi` に戻すと FAIL。
+
 ## 2026-10-01（第498バッチ）§5.3 `O-539` シグニの限定条件が合わなくなったらトラッシュ（ルール処理・`R-48b`）
 
 `src/screens/` を触り新しいルール処理を足したので実機まで＝新規 `restrictionLoss`（タマ→イオナに差し替えるとタマ限定のボーニャがトラッシュ／最初からイオナの盤面では残る）PASS＋`verifyFullMatch cpu` PASS。`npm run gates` 全緑（golden 4440/4440）。

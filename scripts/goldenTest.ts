@@ -93626,6 +93626,38 @@ test('§5.3 O-539 シグニの限定条件が合わなくなったらトラッ�
   ok(rc.includes("restrictionLossOf(my, myKey)") && rc.includes("restrictionLossOf(cpuSt, 'guest_state')"), '🔴ルール処理が限定条件を見ていない');
 }));
 
+test('§5.3 O-540 チアゾーンのシグニに【チャーム】【アクセ】が付く（置き場は添字3）・絞り込み・場を離れたらトラッシュ', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const SC = 'WXEX2-65';
+  // ① チャームを付ける：付け先の候補がチアゾーンのシグニだけ → `signi_charms[3]`。
+  const opp = mkState({}); opp.field.cheer = SC;
+  const ch = run({ type: 'ATTACH_CHARM', charm: { type: 'DECK_CARD', owner: 'self', count: 1 }, to: { type: 'SIGNI', owner: 'opponent', count: 1 } } as unknown as EffectAction,
+    { ...mkCtx({ deckTop: [SIGNI] }, {}), otherState: opp });
+  eq(ch.otherState.field.signi_charms?.[3], SIGNI, '🔴チアゾーンのシグニに【チャーム】が付かない');
+  // ② 「【チャーム】が付いているシグニ」で絞れる（`hasCharm`）。
+  ok(fieldCandidates(ch.otherState, { cardType: 'シグニ', hasCharm: true }, cm).includes(SC), '🔴【チャーム】が付いたチアゾーンのシグニが絞り込みに入らない');
+  // ③ アクセを付ける（手札から）：付け先の候補がチアゾーンのシグニだけ → `signi_acce[3]`。
+  const own = mkState({}); own.field.cheer = SC; own.hand = [SIGNI_L1, ...own.hand];
+  const ac = run({ type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self', fromHand: true } as EffectAction, { ...mkCtx({}, {}), ownerState: own });
+  eq(ac.ownerState.field.signi_acce?.[3]?.[0], SIGNI_L1, '🔴チアゾーンのシグニに【アクセ】が付かない');
+  ok(fieldCandidates(ac.ownerState, { cardType: 'シグニ', hasAcce: true }, cm).includes(SC), '🔴アクセされたチアゾーンのシグニが絞り込みに入らない');
+  // ④ 場を離れたら付いていた札もトラッシュ（`R-41`）。
+  const both: PlayerState = { ...ac.ownerState, field: { ...ac.ownerState.field, signi_charms: [null, null, null, SIGNI] } };
+  const left = removeFromField(SC, both);
+  ok(!left.field.cheer && left.trash.includes(SIGNI) && left.trash.includes(SIGNI_L1), '🔴チアゾーンのシグニが離れても【チャーム】【アクセ】が残る');
+  eq(left.field.signi_charms?.[3] ?? null, null, 'チャームの置き場が空かない');
+  eq((left.field.signi_acce?.[3] ?? null), null, 'アクセの置き場が空かない');
+  // ⑤ 「すべてのシグニを場からトラッシュ」系もチアゾーンを含む（`TRASH_ALL_SIGNI_AND_KEY`）。
+  const allSt = mkState({ signi: [SIGNI_P3000, null, null] }); allSt.field.cheer = SC;
+  const all = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY', trashAllScope: { owner: 'self', zones: ['signi'] } } as unknown as EffectAction,
+    { ...mkCtx({}, {}), ownerState: allSt });
+  ok(!all.ownerState.field.cheer && all.ownerState.trash.includes(SC), '🔴「すべてのシグニ」をトラッシュしてもチアゾーンのシグニが残る');
+  // 🔴配線＝アクセしたときの【自】（画面の `checkAndFireOnAcceTriggersForOwner`）も付け先にチアゾーンを含める（実機 `cheerAcce` で発覚）。
+  const bsrc = battleScreenSource();
+  ok(bsrc.includes('const acceHostZoneIdx = fieldSigniStacks(state).findIndex') && bsrc.includes('const hostZoneAcce = fieldSigniStacks(state).findIndex'),
+    '🔴付け先がチアゾーンだとアクセしたときの【自】が誘発しない');
+}));
+
 test('2026-09-28 報告 f51afd57＝チアゾーンのカードを手動で手札／トラッシュへ動かせない', () => {
   const src = battleScreenSource();
   ok(!/getMyFreeZoneActions[\s\S]{0,300}label: '(手札に戻す|トラッシュへ)'/.test(src), '🔴フリーゾーンの手動操作が残っている');

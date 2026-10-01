@@ -1,3 +1,4 @@
+import { fieldSigniStacks } from '../../engine/cheerZoneView';
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { AttachAcceAction, CardEffect, EffectTiming } from '../../types/effects';
 import { evalUseCondition } from '../../engine/effectExecutor';
@@ -44,7 +45,8 @@ export function acceHostAvailable(
 ): boolean {
   const filter = (eff.action as AttachAcceAction).targetFilter;
   const limits = collectMultiAcceLimits(my, effectsMap, cardMap, op, true);
-  return my.field.signi.some((stack, zi) => {
+  // 🆕§5.3 `O-540`＝チアゾーンのシグニも付け先（添字3）。engine の候補（`fieldSigniStacks`）と同じ集合。
+  return fieldSigniStacks(my).some((stack, zi) => {
     const top = stack?.at(-1);
     if (!top) return false;
     if (filter && !matchesFilter(cardMap.get(top), filter)) return false;

@@ -24,7 +24,7 @@ miss = 各ソース行について、その行の門から来る live カード�
 | fn:collectOppLrigAttackExtraCost + OPP_LRIG_ATTACK_COST | effectEngine.ts:5906 | 1 | 1 | 1 | 0 |
 | fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH | effectEngine.ts:7064 | 1 | 1 | 1 | 0 |
 | GRANT_ABILITY_UNTIL_OPP_TURN | execStubPart2.ts:4798 | 1 | 1 | 4 | 0 |
-| ACCE_SIGNI_GRANT_ABILITY | execStubPart3.ts:3644 | 0 | 0 | 1 | 0 |
+| ACCE_SIGNI_GRANT_ABILITY | execStubPart3.ts:3645 | 0 | 0 | 1 | 0 |
 | fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:7255 | 0 | 0 | 1 | 0 |
 | fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6143 | 0 | 0 | 1 | 0 |
 | fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6898 | 0 | 0 | 1 | 0 |
@@ -114,7 +114,7 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit str:シャドウ
 
 ### ACCE_SIGNI_GRANT_ABILITY  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3644  [門 sourceAction=ACCE_SIGNI_GRANT_ABILITY] live 0効果 / 0カード / miss 0
+  execStubPart3.ts:3645  [門 sourceAction=ACCE_SIGNI_GRANT_ABILITY] live 0効果 / 0カード / miss 0
     const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
     lit re:【([^】]+)】
 
@@ -161,6 +161,6 @@ miss = 各ソース行について、その行の門から来る live カード�
   execUtils.ts:1752 <fn:matchesFilter> const txt = card.EffectText ?? '';
   execUtils.ts:1882 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:3122 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:4588 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
-  execUtils.ts:4935 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  execUtils.ts:4594 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
+  execUtils.ts:4941 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
   triggerCollect.ts:1924 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

@@ -1088,6 +1088,9 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const cheerNum = state.field.cheer ?? null;
   const cheerDown = !!cheerNum && !!state.field.cheer_down;
   const cheerFrozen = !!cheerNum && !!state.field.cheer_frozen;   // 🆕§5.3 `O-538` 段階5
+  // 🆕§5.3 `O-540`＝チアゾーンのシグニに付いた【チャーム】【アクセ】（置き場は添字3）。
+  const cheerCharm = cheerNum ? (state.field.signi_charms?.[3] ?? null) : null;
+  const cheerAcceCount = cheerNum ? (normalizeAcceSlot(state.field.signi_acce?.[3])?.length ?? 0) : 0;
   // フリーゾーンとビートゾーンを合算して表示
   const allFreeCards = [...(cheerNum ? [cheerNum] : []), ...freeZoneCards, ...beatZoneCards];
   const hasBeat = beatZoneCards.length > 0;
@@ -1124,6 +1127,12 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             )}
             {cheerFrozen && (
               <div style={{ fontSize: 8, color: '#9fe8ff', fontWeight: 'bold', marginBottom: 2 }}>凍結</div>
+            )}
+            {(cheerCharm || cheerAcceCount > 0) && (
+              <div data-testid={`${isMe ? 'my' : 'op'}-cheer-attached`}
+                style={{ fontSize: 8, color: '#ffd27f', fontWeight: 'bold', marginBottom: 2 }}>
+                {[cheerCharm ? 'チャーム' : '', cheerAcceCount > 0 ? `アクセ${cheerAcceCount}` : ''].filter(Boolean).join('・')}
+              </div>
             )}
             {/* 🆕§5.3 `O-538` 段階5＝チアゾーンのシグニの実効パワー（【常】・一時修正込み＝段階3で計算される）。 */}
             {cheerNum && effectivePowers?.get(cheerNum) !== undefined && (

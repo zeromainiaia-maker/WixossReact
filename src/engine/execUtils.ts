@@ -4196,6 +4196,12 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   const revealedFacedown: string[] = [];
   const extraTrash: string[] = [];
   const extraLrigTrash: string[] = [];
+  // 🆕§5.3 `O-540`＝**チアゾーンのシグニが場を離れる**ときも、付いていた【チャーム】【アクセ】はトラッシュ（`R-41`）。
+  //   置き場は添字3（`signi_charms[3]`／`signi_acce[3]`）。
+  if (state.field.cheer === cardNum) {
+    if (newCharms[3]) { extraTrash.push(newCharms[3]!); newCharms[3] = null; }
+    if (newAcce[3])   { extraTrash.push(...newAcce[3]!); newAcce[3] = null; }
+  }
   if (zoneIdx >= 0) {
     newDown[zoneIdx]   = false;
     newFrozen[zoneIdx] = false;
