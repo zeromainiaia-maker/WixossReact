@@ -286,6 +286,7 @@ import { oppVirusChoiceNeeded, payRemoveOppVirus, payCharmTrash, payAcceTrash, o
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { cardCsvRelPaths, cardCsvPaths, variantsCsvPath, cardDataIndex, packOf, CARD_DATA_DIR } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
 import { shouldGoToStartOnSignIn } from '../src/utils/authNav';
+import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -93847,6 +93848,30 @@ test('2026-10-01 前面に戻っただけの SIGNED_IN では画面を戻さな�
   const app = fs.readFileSync(join(root, 'src/App.tsx'), 'utf-8');
   ok(app.includes('shouldGoToStartOnSignIn(') && !/event === 'SIGNED_IN'\)\s*\{[^}]*setViewMode\('START'\)/.test(app),
     '🔴App.tsx が SIGNED_IN だけでスタート画面へ戻している');
+});
+
+// ── 2026-10-01 ユーザー要望：デッキ編成のカード追加＝効果で絞り込む・200件ずつページ送り・絞込リセット ──
+test('2026-10-01 デッキ編成の検索＝カード効果で絞り込む（部分一致・全角半角を無視・複数語は AND）／200件ずつのページ送り', () => {
+  const enza = cardMap.get('WX20-078')!;   // 「…【ウィルス】１つを取り除く…カードを１枚引く…」
+  ok(cardMatchesEffectSearch(enza, 'ウィルス'), '🔴効果テキストの部分一致で当たらない');
+  ok(cardMatchesEffectSearch(enza, 'カードを1枚引く'), '🔴半角数字で全角の「１枚」に当たらない');
+  ok(cardMatchesEffectSearch(enza, 'ウィルス　取り除く'), '全角空白区切りの複数語（すべて含む）');
+  ok(!cardMatchesEffectSearch(enza, 'ウィルス 凍結'), '反転: 含まない語があれば当たらない（AND）');
+  ok(cardMatchesEffectSearch(enza, ''), '空なら全部');
+  ok(!cardMatchesEffectSearch(enza, '羅菌'), '反転: カード名は効果検索の対象ではない（名前は名前の欄）');
+  const lb = [...cardMap.values()].find(c => (c.BurstText ?? '').includes('エナチャージ') && !(c.EffectText ?? '').includes('エナチャージ'));
+  if (lb) ok(cardMatchesEffectSearch(lb, 'エナチャージ'), '🔴ライフバーストの文に当たらない');
+  // ページ分け
+  eq(JSON.stringify(searchPage(450, 0, 200)), JSON.stringify({ start: 0, end: 200, page: 0, pageCount: 3 }), '1ページ目');
+  eq(JSON.stringify(searchPage(450, 2, 200)), JSON.stringify({ start: 400, end: 450, page: 2, pageCount: 3 }), '最後のページは端数');
+  eq(searchPage(450, 9, 200).page, 2, 'ページ番号は範囲内へ丸める');
+  eq(JSON.stringify(searchPage(0, 0, 200)), JSON.stringify({ start: 0, end: 0, page: 0, pageCount: 1 }), '0件');
+  const src = fs.readFileSync(join(root, 'src/screens/DeckEditorScreen.tsx'), 'utf-8');
+  ok(src.includes('cardMatchesEffectSearch(c, effectSearch)') && src.includes('data-testid="search-effect"'), '🔴効果検索の欄が絞り込みに入っていない');
+  ok(src.includes('data-testid="search-next-page"') && src.includes('data-testid="search-prev-page"') && !src.includes('filteredCards.slice(0, 200)'),
+    '🔴検索結果が先頭200件で打ち切られている（ページ送りが無い）');
+  ok(/const resetSearchFilters = \(\) => \{\s*setSearch\(''\); setEffectSearch\(''\); setFilterType\(''\); setFilterColor\(''\); setFilterLevel\(''\); setFilterClass\(''\);/.test(src)
+    && src.includes('data-testid="search-reset"'), '🔴絞込リセットがすべての条件を戻していない');
 });
 
 if (listMode) {

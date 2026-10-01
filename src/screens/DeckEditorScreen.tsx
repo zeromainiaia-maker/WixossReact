@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { CardData, Deck } from '../types';
 import { isLrigCard } from '../types';
 import {
@@ -9,7 +9,7 @@ import {
   assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, pruneLrigRoles,
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
-import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../utils/cardSearch';
+import { buildVariantNumIndex, cardMatchesSearch, cardMatchesEffectSearch, matchedVariantNums, searchPage } from '../utils/cardSearch';
 import { DECK_FORMAT_JA, effectiveDeckFormat, outOfFormatCardNums, type DeckFormat } from '../utils/deckFormat';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 import { DeckFormatModal } from './deck/DeckFormatModal';
@@ -48,6 +48,7 @@ const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レ
 export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCards = [], onUpdate, onDelete, onBack }: Props) {
   const [current, setCurrent] = useState<Deck>(deck);
   const [search, setSearch] = useState('');
+  const [effectSearch, setEffectSearch] = useState('');   // 🆕2026-10-01 カード効果のテキストで絞り込む（部分一致）
   const [filterType, setFilterType] = useState('');
   const [filterColor, setFilterColor] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
@@ -124,12 +125,32 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
   const filteredCards = useMemo(() => cards.filter(c => {
     if (!cardMatchesSearch(c, search, variantNumIndex)) return false;
+    if (!cardMatchesEffectSearch(c, effectSearch)) return false;
     if (filterType && c.Type !== filterType) return false;
     if (filterColor && c.Color !== filterColor) return false;
     if (filterLevel && c.Level !== filterLevel) return false;
     if (filterClass && c.CardClass !== filterClass) return false;
     return true;
-  }), [cards, search, variantNumIndex, filterType, filterColor, filterLevel, filterClass]);
+  }), [cards, search, effectSearch, variantNumIndex, filterType, filterColor, filterLevel, filterClass]);
+
+  // 🆕2026-10-01（ユーザー要望）＝検索結果を 200 件ずつページ送り（旧＝先頭200件だけ表示）。
+  //   🔑**条件を変えたら1ページ目へ戻す**＝ページ番号は「どの条件の組で付けたか」のキーと一緒に持ち、キーが変われば 0 とみなす。
+  const SEARCH_PAGE_SIZE = 200;
+  const filterKey = [search, effectSearch, filterType, filterColor, filterLevel, filterClass].join('\u0001');
+  const [pageState, setPageState] = useState<{ key: string; page: number }>({ key: '', page: 0 });
+  const pageInfo = searchPage(filteredCards.length, pageState.key === filterKey ? pageState.page : 0, SEARCH_PAGE_SIZE);
+  const searchListRef = useRef<HTMLDivElement>(null);
+  const goSearchPage = (next: number) => {
+    setPageState({ key: filterKey, page: next });
+    if (searchListRef.current) searchListRef.current.scrollTop = 0;
+  };
+  // 🆕絞込リセット＝検索語・タイプ・色・レベル・クラス・ページを初期値へ。
+  const resetSearchFilters = () => {
+    setSearch(''); setEffectSearch(''); setFilterType(''); setFilterColor(''); setFilterLevel(''); setFilterClass('');
+    setPageState({ key: '', page: 0 });
+    if (searchListRef.current) searchListRef.current.scrollTop = 0;
+  };
+  const filtersActive = !!(search || effectSearch || filterType || filterColor || filterLevel || filterClass);
 
   const countInMainByName = (cardName: string) =>
     current.mainDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
@@ -397,7 +418,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
       {/* カード追加タブ */}
       <div style={{ flex: 1, display: screenTab === 'search' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #c8bce8', display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0, backgroundColor: '#ede8f5' }}>
-            <input placeholder="カード名・番号で検索" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
+            <input data-testid="search-name" placeholder="カード名・番号で検索" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
+            <input data-testid="search-effect" placeholder="カード効果で検索（空白で複数語）" value={effectSearch} onChange={e => setEffectSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
             <select value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
               <option value="">タイプ：すべて</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
@@ -414,9 +436,14 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               <option value="">クラス：すべて</option>
               {classes.map(cl => <option key={cl} value={cl}>{cl}</option>)}
             </select>
+            <button data-testid="search-reset" onClick={resetSearchFilters} disabled={!filtersActive}
+              style={{ ...selectStyle, cursor: filtersActive ? 'pointer' : 'default', fontWeight: 'bold',
+                color: filtersActive ? '#5a3fa0' : '#aaa' }}>
+              絞込リセット
+            </button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
-            {filteredCards.slice(0, 200).map(card => {
+          <div ref={searchListRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+            {filteredCards.slice(pageInfo.start, pageInfo.end).map(card => {
               const lrig = isLrigCard(card);
               const nameCount = lrig ? countInLrigByName(card.CardName) : countInMainByName(card.CardName);
               const blockReason = addBlockReason(card);
@@ -480,10 +507,26 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 </div>
               );
             })}
-            {filteredCards.length > 200 && (
-              <p style={{ textAlign: 'center', color: '#888', fontSize: '12px', padding: '12px' }}>
-                検索を絞り込んでください（{filteredCards.length}件中200件表示）
-              </p>
+            {filteredCards.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#888', fontSize: '12px', padding: '12px' }}>条件に合うカードがありません</p>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '12px 0 20px' }}>
+                {pageInfo.pageCount > 1 && (
+                  <button data-testid="search-prev-page" onClick={() => goSearchPage(pageInfo.page - 1)} disabled={pageInfo.page === 0}
+                    style={{ ...selectStyle, cursor: pageInfo.page === 0 ? 'default' : 'pointer', color: pageInfo.page === 0 ? '#aaa' : '#333' }}>
+                    ◀ 前の{SEARCH_PAGE_SIZE}件
+                  </button>
+                )}
+                <span data-testid="search-page-range" style={{ color: '#666', fontSize: '12px' }}>
+                  {pageInfo.start + 1}〜{pageInfo.end}件 / 全{filteredCards.length}件
+                </span>
+                {pageInfo.pageCount > 1 && (
+                  <button data-testid="search-next-page" onClick={() => goSearchPage(pageInfo.page + 1)} disabled={pageInfo.page >= pageInfo.pageCount - 1}
+                    style={{ ...selectStyle, cursor: pageInfo.page >= pageInfo.pageCount - 1 ? 'default' : 'pointer', color: pageInfo.page >= pageInfo.pageCount - 1 ? '#aaa' : '#333' }}>
+                    次の{SEARCH_PAGE_SIZE}件 ▶
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

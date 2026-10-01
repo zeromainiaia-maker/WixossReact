@@ -38,3 +38,27 @@ export function cardMatchesSearch(card: CardData, search: string, index: Map<str
   if (card.CardNum.toUpperCase().includes(search.toUpperCase())) return true;
   return matchedVariantNums(card, search, index).length > 0;
 }
+
+/** 全角・半角や記号の揺れを吸収した比較用の文字列（「５０００」と「5000」、「（」と「(」を同じに扱う）。 */
+function normalizeForSearch(s: string): string {
+  return s.normalize('NFKC').toUpperCase();
+}
+
+/**
+ * 🆕2026-10-01（ユーザー要望）＝**カード効果のテキストで絞り込む**（部分一致）。
+ * 対象＝効果テキスト（`EffectText`）とライフバースト（`BurstText`）。全角・半角の違いは無視する。
+ * 空白区切りで複数語を入れたら**すべて含む**カードだけ（「エナ 凍結」）。
+ */
+export function cardMatchesEffectSearch(card: CardData, query: string): boolean {
+  const words = normalizeForSearch(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = normalizeForSearch(`${card.EffectText ?? ''} ${card.BurstText ?? ''}`);
+  return words.every(w => text.includes(w));
+}
+
+/** 検索結果のページ分け（1ページ `size` 件）。ページ番号は範囲内へ丸める。 */
+export function searchPage(total: number, page: number, size: number): { start: number; end: number; page: number; pageCount: number } {
+  const pageCount = Math.max(1, Math.ceil(total / size));
+  const p = Math.min(Math.max(0, page), pageCount - 1);
+  return { start: p * size, end: Math.min(total, (p + 1) * size), page: p, pageCount };
+}
