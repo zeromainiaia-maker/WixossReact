@@ -2774,6 +2774,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-10-01 チアゾーンの機構の完成・PLAN §6 から退避）
+
+- **2026-10-01 時点**（チアゾーンの機構の完成＝`O-538` 段階4・5／`O-539`／`O-540`／`O-541`・v0.598〜0.608）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝🏁機構 worklist **0**（索引H＝ユーザー判断待ち **1**）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4442**＝+14）｜実機 新設 **9本** PASS（`effectSourceHeader`・`effectAnnounce`・`vimanaSelfAttack`・`nanashiP0Redirect`・`cheerZoneAttack`・`cheerZoneTargeted`・`restrictionLoss`・`cheerAcce`・`cheerEnergyCharge`）／`verifyFullMatch cpu` PASS
+  - 📏**計器**＝🆕`census:cheer`（チアゾーンでは対象に何も起きない効果）**2,464 → 51**（比べた 2,432・保存則の違反 0）
+
 ## 恒久指標アーカイブ（2026-09-28 第487〜488バッチ・PLAN §6 から退避）
 
 - **2026-09-28 時点**（第487〜488バッチ＝アシストグロウをアーツと同じ扱いに／アシストルリグの【起】をセンタールリグと同じ判定・実行に）
