@@ -2782,6 +2782,36 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4442**＝+14）｜実機 新設 **9本** PASS（`effectSourceHeader`・`effectAnnounce`・`vimanaSelfAttack`・`nanashiP0Redirect`・`cheerZoneAttack`・`cheerZoneTargeted`・`restrictionLoss`・`cheerAcce`・`cheerEnergyCharge`）／`verifyFullMatch cpu` PASS
   - 📏**計器**＝🆕`census:cheer`（チアゾーンでは対象に何も起きない効果）**2,464 → 51**（比べた 2,432・保存則の違反 0）
 
+## O-543 追加パック WX26-P1 の受け皿待ち（2026-10-03 登録）
+
+**経緯**＝WX26-P1（97枚＋トークン3）を取り込み、逆翻訳 × 原文を全数照合した。parser 規則2本＋手書き53効果で直し、**受け皿の無いものは誤動作を消して `DEFERRED_*`（ラベルは `scripts/decompileEffects.ts` の `miscStubMap`）か PARTIAL にした**。どれも1種1〜2効果＝速いレーンで1件ずつ取る。定義は `src/data/manualEffects.ts` の「WX26-P1 BEGIN」区画（各カードの直前コメントに原文の読みと parser の誤りを書いてある）。
+
+| 効果 | 足りない受け皿 | いまの扱い |
+|---|---|---|
+| `WX26-P1-002-E1` リコレクト／`073-E1` | ガードの代替コスト（「この能力を失ってもよい」「このシグニを場からトラッシュ」）＝`GUARD_ALTERNATIVE_COST` に kind が無い＋`GuardResponseDialog`（`src/screens/`） | 付与部分が未実装表示 |
+| `006-E1` ② | 強制の置換「次とその次のダメージ → 手札1枚捨て（捨てられなければ置換しない）」 | `DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE` |
+| `008-E1` ①・リコレクト | ①対象「ルリグかシグニ」（いまはシグニのみ）／リコレクト「シグニによるダメージを《無》で置換・能力を失う」 | PARTIAL 相当（parser 出力のまま） |
+| `010-E1` ② | 「このターン、あなたは自分の効果によってシグニを場に出せない」＝🔴既存の `blocked_actions:'PLACE_SIGNI'` は**読む側が無い**（`WXK10-013-E1` も同じく無言 no-op） | PARTIAL |
+| `005-E1` | 「レベルの合計が6以下になるように好きな数」＝選択制約 | parser 出力（1体だけ）＝過少 |
+| `007-E1` | デッキトップ公開→2択 を3回 | `DEFERRED_REVEAL_TOP_CHOOSE_THRICE` |
+| `018-E2` | 相手がアーツ・ピースを公開し、それ以外を使用禁止 | `DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS` |
+| `022-E1`／`022-E2` | 【自】の「ターン終了時まで、この能力を失う」（いまはターン1回で近似）／ルリグのアタックの「無効にならず」 | MANUAL（近似）／PARTIAL |
+| `026-E1`／`026-E2` | 相手アタッカーの正面の【マジックボックス】を開いてライフバースト比較／プレイヤーが得る【ホログラフ】 | `DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE`／`DEFERRED_GAIN_HOLOGRAPH_MARKER` |
+| `030-E1`／`030-E2` | クラフト3種から選んでアクセ／「次の相手アタックフェイズの間」【自】封じ＋強制アタック | `DEFERRED_CRAFT_ACCE_CHOICE`／parser 出力（強制アタックのみ） |
+| `034-E1`／`034-E2` | 感染状態へのパワーマイナス2倍（`DOUBLE_OWN_POWER_MINUS` の実体を要確認）／アタックフェイズ単位の期間（いまは次の相手ターン終了まで） | parser 出力／MANUAL（近似） |
+| `048-E1` | アーツをルリグトラッシュ→ライフ追加／相手効果で動いたライフ枚数ぶんダメージ防止 | `DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT` |
+| `049-E1` | アシストルリグをルリグデッキのレベル3へグロウ＋アシスト化 | `DEFERRED_ASSIST_GROW_TO_LV3` |
+| `052-E1` | 中央のシグニゾーンへの新たな配置禁止（このターンと次のターン） | parser の未実装 STUB |
+| `053-E1` | 付与する【自】「場を離れたとき、手札からより低いレベルの＜怪異＞をダウンで出す（【出】発動しない）」 | パワー＋2000 だけ MANUAL（PARTIAL） |
+| `058-E2` | 【マジックボックス】を3つまで手札に戻す | `DEFERRED_MAGIC_BOX_TO_HAND`（後半の設置は動く） |
+| `063-E1`／`063-E2` | 他のシグニのパワー合計だけマイナス／【アサシン（同じパワー）】 | parser の未実装 STUB／`DEFERRED_ASSASSIN_SAME_POWER` |
+| `072-E2` | コスト「エナの＜調理＞をこのシグニの下に置く」＋「同じレベルの」限定 | `DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE`（`costUnparsed`＝golden (xxix)(2) の据え置き1件） |
+| `098-E1` | 下の＜調理＞を1枚までエナへ | `DEFERRED_UNDER_COOKING_TO_ENA` |
+| `102-E1`／`102-E2` | 場を離れる代わりに下を全部トラッシュ／下からシグニを場に出す | `DEFERRED_LEAVE_REPLACE_TRASH_UNDER`／`DEFERRED_UNDER_SIGNI_TO_FIELD` |
+| `105-E2` | 【ランサー（下のシグニと同じパワー）】 | `DEFERRED_LANCER_SAME_POWER_AS_UNDER` |
+
+**取り方**＝§5.3「1〜3枚の項目の取り方」。🔑まず受け皿を疑う（`node`／grep で原文の言い回しを既存カードに当てる）。直したら `DEFERRED_*` のラベル行を `miscStubMap` から消し、この表の行を消す。
+
 ## 恒久指標アーカイブ（2026-09-28 第487〜488バッチ・PLAN §6 から退避）
 
 - **2026-09-28 時点**（第487〜488バッチ＝アシストグロウをアーツと同じ扱いに／アシストルリグの【起】をセンタールリグと同じ判定・実行に）

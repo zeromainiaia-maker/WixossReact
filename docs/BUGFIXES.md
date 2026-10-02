@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-03（第515バッチ）追加パック WX26-P1 の取り込み（97枚＋トークン3＋Variants 55）と効果の原文照合
+
+- **取り込みの道具**＝`incoming-cards/pack|token/` に CSV を置き、`scripts/uploadCardImages.mjs --incoming`（ImageKit・155枚）→ `scripts/importNewCards.mjs --apply`（同名は Variants・本体は CSV の並びで最初・トークンはトークン内だけで照合・同名で本文が違えば停止）。🔴**`uploadCardImages.mjs` は 10/01 の再編後も旧 `public/data/CardData_*.csv` を読んでおり0枚だった**（`scripts/archive/` から現役へ移した）。ヘッダ無しの CSV にも対応（初回の CSV がそうで、1行目が黙って捨てられるところだった）。`decompileEffects.ts --pack <パック番号>` を追加。
+- **データの訂正**＝`SPDi01-131`／`SPDi01-132` のガードを 1→0（ユーザー確認・再録 `WX26-P1-116/117` が 0）。
+- **parser 2規則**＝①「ベット**していた**場合、使用コストは《無×1》減る」（`keywordCosts.ts`・5枚＝軽減が効いていなかった）②「この方法で捨てたカード１枚につき【エナチャージ１】」（5枚＝常に1枚だった）。
+- **手書き53効果**（`manualEffects.ts` の「WX26-P1」区画・各カードの直前に原文の読みと parser の誤り）。🔴害の大きかった型＝**主体の取り違え**（004 相手のライフをクラッシュ／083 自分のライフをクラッシュ／077・082・086 **相手の**ルリグとシグニをダウン／022・026 **自分のシグニの能力を消す**）・**「代わりに」の両方実行**（080 バニッシュ2回／106 無関係に【アクセ】）・**条件と絞り込みの欠落**（約15効果）・**期間の欠落**（034【シャドウ】が永続）・**無料で撃てる**（072-E2）。受け皿の無い約20効果は `DEFERRED_*` か PARTIAL にして誤動作を消し、PLAN §5.3 `O-543` に登録。
+- **engine**＝`BLOCK_OPP_SIGNI_AUTO_THIS_TURN`（このターンだけ相手シグニの【自】を封じる）／`OPP_SIGNI_TO_DECK_AND_SHUFFLE{allSigni}`（相手のシグニを全部デッキへ）。
+- **ついでに直した既存の穴**＝①`behaviorAudit.ts` が `hasAcce` の盤面でアクセを文字列で入れて snapshot が落ちていた（census:traceinv が止まった）②golden O-219（`WD13-002`）と O-60 第51（`WX04-047`）が POOL から引く手札・山札に依存しており、カード追加で偶然が崩れて FAIL＝手札・山札を明示した。
+- **見つけたが先送り**＝`blocked_actions:'PLACE_SIGNI'` は**読む側が無い**（`WXK10-013-E1` も無言 no-op）＝`O-543` の 010 行に記載。
+- **検証**＝`npm run gates` 全緑（golden 4454/4454・新規2本＝新設 STUB と主体取り違えの錨）。カード追加で動いた錨（総枚数 6666→6763・ディーバ 2847→2944・ライズ 41→42 ほか）は実測へ更新しコメントに理由。census 高シグナル 1→3（053-E1＝`O-543`／057-E1＝偽陽性）。⑤実機は不要と判断（`src/screens/` を触っていない・新機構は既存の封じ／移動の受け皿に載せただけ）。
+
 ## 2026-10-02（第514バッチ）ユーザー要望＝シグニに重なったアクセなどをルリグと同じスワイプで見られるように
 
 - **真因**＝シグニをタップすると開くスワイプ画面（`CardStackModal`）には**シグニの重なり（下のカード）だけ**を渡していた。アクセは別の置き場（`signi_acce`）なので**盤面の「ACE」の印しか無く中身を見る手段が無かった**。
@@ -16525,7 +16536,7 @@ npx tsx scripts/decompileEffects.ts WXK03-003B   # 逆翻訳を原文と目視�
 - `ik.imagekit.io/9rbn01opz/WXK03-003B.webp` ＝ **404 → 200**（webp 197KB／JPEG 257KB を Accept で出し分け）。
 - 🔑**道具は 2026-06-09 の `82a1b65c1`「chore: 未使用ファイルを削除してリポジトリを整理」で消えていた**
   （`scripts/upload-*.mjs` 5本と `migrate-to-imagekit.mjs`）。git 履歴から
-  **`scripts/archive/uploadCardImages.mjs` として1本に統合して復元**した。旧版からの変更3点＝
+  **`scripts/uploadCardImages.mjs` として1本に統合して復元**した。旧版からの変更3点＝
   ①**private key をハードコードしない**（`.env.local` の `IMAGEKIT_PRIVATE_KEY` を読む）
   ②読む CSV を `public/data/backup/`（現存しない）→ **現行の `public/data/CardData_*.csv` 全部**
   ③**既定を「全件」にしない**＝`--only <CardNum,…>` / `--missing` / `--all` の明示が要る（`--dry` あり）。

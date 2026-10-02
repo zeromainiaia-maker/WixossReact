@@ -12745,6 +12745,217 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXEX1-13": [
     {"effectId":"WXEX1-13-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"any_opp","duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_ACTIVATE"},{"type":"STUB","id":"TRAP_TO_HAND","trapToHand":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom"}}}]}},
   ],
+  // ── WX26-P1（2026-10-03 追加パック）BEGIN：原文を読み直して手で書いた定義 ──
+  // WX26-P1-004: ②「対象とし、**あなたの**ライフクロス１枚をクラッシュする。そうした場合、それをバニッシュする」＝parser は相手のライフをクラッシュしていた。
+  // WX26-P1-004: ⚠リコレクトの「対戦相手のルリグからのダメージによって」の限定は `PREVENT_DEFEAT_THIS_TURN` が持たない（既存 `WX25-P3-049` と同じ近似）。
+  "WX26-P1-004": [
+    {"effectId":"WX26-P1-004-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX26-P1-004-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"STUB","id":"PREVENT_DEFEAT_THIS_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-014: E1＝対象は「あなたの＜怪異＞のシグニ」（parser は種族を落としていた）。
+  "WX26-P1-014": [
+    {"effectId":"WX26-P1-014-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"怪異"},"explicitTarget":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["白"],"handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"explicitTarget":true},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-022: E1＝「このルリグをアップし、ターン終了時まで、このルリグはこの能力を失う」＝parser は**自分のシグニの能力を消していた**。
+  //    ⚠「この能力を失う」を【自】で表す受け皿が無い＝ターン1回で近似（差は《赤》を払わなかったときにも1回分を使い切る点だけ）。
+  // WX26-P1-022: E2＝「次にこのルリグがアタックしたとき」の付与にした（parser はメインフェイズで即座にガード封じを立てていた）。
+  //    ⚠「そのアタックは対戦相手の効果によって無効にならず」はルリグのアタックに受け皿が無い＝PARTIAL。
+  "WX26-P1-022": [
+    {"effectId":"WX26-P1-022-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"story":"乗機"},"usageLimit":"once_per_turn"},
+    {"effectId":"WX26-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-022-E2-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+  ],
+  // WX26-P1-026: E1＝「アタックしたシグニの正面の、中身が＜トリック＞の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効」。
+  //    🔴受け皿が無い（`OPEN_MAGIC_BOX` は**効果元シグニと同じゾーン**しか開けない）＝新機構待ち。parser は**自分のシグニの能力を消していた**ので、まず害を消す。
+  // WX26-P1-026: E2＝「あなたは【ホログラフ】１つを得る」（プレイヤーが得る印）＝受け皿が無い。parser はシグニにキーワード【ホログラフ】を与えていた。起動名の「ホログラフ」は `holograph` 印のまま。
+  "WX26-P1-026": [
+    {"effectId":"WX26-P1-026-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE"},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"any_opp"},
+    {"effectId":"WX26-P1-026-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"STUB","id":"DEFERRED_GAIN_HOLOGRAPH_MARKER"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","holograph":true,"usageLimit":"once_per_game"},
+  ],
+  // WX26-P1-056: E1＝「あなたの場に他の＜乗機＞のシグニがある場合」の条件が落ちていた／②は「あなたのアップ状態の《レイラ＝デッドヒート》をダウン」（parser は自分のシグニをダウン）。
+  "WX26-P1-056": [
+    {"effectId":"WX26-P1-056-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"乗機"},"excludeSelf":true},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true,"cardName":"レイラ＝デッドヒート"}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-077: ②＝「あなたのアップ状態のセンタールリグ１体をダウンしてもよい」（parser は**相手の**ルリグとシグニをダウンしていた。同型 082/086/104）。
+  "WX26-P1-077": [
+    {"effectId":"WX26-P1-077-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1,"filter":{"cardType":"シグニ","story":"乗機"}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-078: 「対戦相手のセンタールリグと共通する色を持たない」エナの絞り込みが落ちていた（同型 080-E2/084）。
+  "WX26-P1-078": [
+    {"effectId":"WX26-P1-078-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"乗機"},"excludeSelf":true},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesLrig":true}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-080: E1＝「《ライズアイコン》を持つレベル３以上のシグニがある場合、**代わりに**」＝parser は両方バニッシュしていた。
+  "WX26-P1-080": [
+    {"effectId":"WX26-P1-080-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrash":{"count":1,"filter":{"cardType":"シグニ","story":"武勇"}}},"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasRiseIcon":true,"level":{"min":3}}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}},"else":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","onPlayIcon":true},
+    {"effectId":"WX26-P1-080-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":2},"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesLrig":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  // WX26-P1-082: 「他の＜乗機＞がある場合」の条件が落ちていた／②は自分のセンタールリグをダウン（077 と同型）。
+  "WX26-P1-082": [
+    {"effectId":"WX26-P1-082-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"乗機"},"excludeSelf":true},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-083: 「このターン、次にこのシグニのアタックによってクラッシュされたカードのライフバーストは発動しない」＝parser は**自分のライフをクラッシュ**していた。
+  //    ⚠「このシグニの」アタックに限る点は `SUPPRESS_LIFE_BURST_ON_CARD{nextCrashOnly}`（次のアタックのクラッシュ）で近似＝このシグニのアタック中に発動するので通常は同じ。
+  "WX26-P1-083": [
+    {"effectId":"WX26-P1-083-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD","nextCrashOnly":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-084: 078 と同型（エナの色の絞り込み）。
+  "WX26-P1-084": [
+    {"effectId":"WX26-P1-084-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"微菌"},"excludeSelf":true},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesLrig":true}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-086: 077 と同型（自分のセンタールリグをダウン）。
+  "WX26-P1-086": [
+    {"effectId":"WX26-P1-086-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-088: 付与する能力の②＝「あなたのセンタールリグをアップ」（parser はシグニをアップ）。
+  "WX26-P1-088": [
+    {"effectId":"WX26-P1-088-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"乗機"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX26-P1-088-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-104: 「他の＜乗機＞がある場合」の条件が落ちていた／②のダウンはアップ状態のセンタールリグ。
+  "WX26-P1-104": [
+    {"effectId":"WX26-P1-104-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"乗機"},"excludeSelf":true},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000,"duration":"UNTIL_OPP_TURN_END"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー:{\"powerLte\":8000}","duration":"UNTIL_END_OF_TURN"}}]}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-003: parser が文全体を UNKNOWN にしていた（ベットの軽減はコスト側で取れている）。③は「対戦相手は自分のエナゾーンからカード３枚を選び」＝相手が選ぶ。
+  "WX26-P1-003": [
+    {"effectId":"WX26-P1-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"explicitTarget":true},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-003-E1-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"opponent","operator":"gte","value":3},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":3},"opponentSelects":true,"bestEffort":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-006: ①「このターン、対戦相手のシグニの【自】能力は発動しない」＝`BLOCK_OPP_SIGNI_AUTO_THIS_TURN`（2026-10-03 新設）。
+  // WX26-P1-006: ②「次とその次にダメージを受ける場合、代わりに手札を１枚捨てる」＝**強制の置換**の受け皿が無い（既存 `DAMAGE_REPLACE_BY_COST` は任意かつ能力喪失つき）＝PARTIAL。
+  "WX26-P1-006": [
+    {"effectId":"WX26-P1-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"BLOCK_OPP_SIGNI_AUTO_THIS_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"STUB","id":"DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE"}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"DRAW","owner":"self","count":3}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-009: parser が文全体を UNKNOWN にしていた。③「このターンと次のターンの間」＝自分のターンに使うアーツなので次の相手ターン終了時まで。
+  "WX26-P1-009": [
+    {"effectId":"WX26-P1-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1},"until":"UNTIL_END_OF_TURN"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsLastProcessed":true}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"シャドウ:{\"powerLte\":10000}","duration":"UNTIL_OPP_TURN_END"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-010: ②の帰結は「**それの**パワーを－12000」（対象にした相手シグニ）＝parser は `targetsTriggerSource` を立て、期間も落としていた。
+  //    ⚠②の「このターン、あなたは自分の効果によってシグニを場に出せない」は受け皿が無い（`PLACE_SIGNI` の封じは読む側が無い）＝PARTIAL。
+  "WX26-P1-010": [
+    {"effectId":"WX26-P1-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"REPLACE_NEXT_DAMAGE_WITH_MILL","millCount":3}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","fieldTrash":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-036: ②「この方法で捨てたカード１枚につき【エナチャージ１】」は parser に規則を足した（2026-10-03）＝手書き不要。
+  // WX26-P1-043: ①の対象は「パワー15000以下」（parser は落としていた）。②は parser の新規則と同じ形。
+  "WX26-P1-043": [
+    {"effectId":"WX26-P1-043-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":15000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":3,"upToCount":true,"filter":{"color":"緑"}}},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":{"$ref":"last_processed_count"}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-051: 「対戦相手のすべてのシグニをデッキに加えてシャッフルする」が落ちていた＝`OPP_SIGNI_TO_DECK_AND_SHUFFLE{allSigni}`（2026-10-03 新設）。
+  // WX26-P1-051: 「残りを好きな順番でデッキの一番下に置く」の並べ替えが落ちていた（並べるのは対戦相手）。
+  "WX26-P1-051": [
+    {"effectId":"WX26-P1-051-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPP_SIGNI_TO_DECK_AND_SHUFFLE","allSigni":true},{"type":"LOOK_PICK_CHAIN","owner":"opponent","revealCount":5,"stages":[{"filter":{"cardType":"シグニ"},"pickCount":3,"pickUpTo":true,"then":"field","suppressOnPlay":true}],"remainder":{"location":"deck","position":"bottom","reorder":true},"opponentResponds":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+  // WX26-P1-061: E2＝対象は「【アクセ】が付いているあなたのシグニ」。
+  "WX26-P1-061": [
+    {"effectId":"WX26-P1-061-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","hasAcce":true}},"delta":5000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-062: ①＝「あなたのセンタールリグと共通する色を持つ」シグニ／②＝「エナゾーンの枚数が対戦相手より多い場合」（どちらも落ちていた）。
+  "WX26-P1-062": [
+    {"effectId":"WX26-P1-062-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","colorMatchesLrig":true}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COMPARE_OPP","operator":"gt"},"then":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COMPARE_OPP","operator":"gt"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-089: ②＝「このシグニと同じシグニゾーンに【マジックボックス】がある場合」の条件が落ちていた。
+  "WX26-P1-089": [
+    {"effectId":"WX26-P1-089-E1","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"PLACE_MAGIC_BOX"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"DRAW","owner":"self","count":1}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-100: E1＝「このシグニと同じシグニゾーンに【マジックボックス】があるかぎり」の条件が落ちていた。
+  "WX26-P1-100": [
+    {"effectId":"WX26-P1-100-E1","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"TURN_OWNER","owner":"self"},{"type":"SAME_ZONE_HAS_MAGIC_BOX"}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-105: E1＝「トラッシュから**緑の**シグニを**２枚まで**」（parser は1枚・色なし）。
+  // WX26-P1-105: E2＝【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】＝限定つきの受け皿が無い（parser は**限定なし**の【ランサー】を与えていた）。
+  "WX26-P1-105": [
+    {"effectId":"WX26-P1-105-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PLACE_UNDER_SIGNI","source":"trash","count":2,"filter":{"cardType":"シグニ","color":"緑"},"upToCount":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+    {"effectId":"WX26-P1-105-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"STUB","id":"DEFERRED_LANCER_SAME_POWER_AS_UNDER"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-106: 「それに【アクセ】が付いている場合、**代わりに**【ランサー（10000以下）】」＝parser は無関係に【アクセ】を与えていた。
+  "WX26-P1-106": [
+    {"effectId":"WX26-P1-106-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"調理"},"explicitTarget":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"hasAcce":true}},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー:{\"powerLte\":10000}","duration":"UNTIL_END_OF_TURN","targetsStored":true},"else":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー:{\"powerLte\":8000}","duration":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-113: LB＝対象を先に決め、《無》を払ったら「**それの**」パワーを－12000（ターン終了時まで）。parser は払ったあと別に対象を選び直していた。
+  "WX26-P1-113": [
+    {"effectId":"WX26-P1-113-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-TK03A: 付与する能力の対象は「パワーがこのシグニのパワー以下の」相手シグニ（parser は絞り込みを落としていた）。
+  "WX26-P1-TK03A": [
+    {"effectId":"WX26-P1-TK03A-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_ACCE_HOST_ABILITY","filter":{"cardType":"シグニ"},"abilities":[{"effectId":"WX26-P1-TK03A-E1-G","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-034: E2＝「次の対戦相手のアタックフェイズの間」＝parser は**期間なし（永続）**で【シャドウ】を与えていた。
+  //    ⚠アタックフェイズ単位の期間が無い＝次の相手ターン終了時までで近似（自分のターンの残りにも付く分だけ広い）。E1 の「２倍－」は受け皿が無い（PARTIAL）。
+  "WX26-P1-034": [
+    {"effectId":"WX26-P1-034-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
+  // WX26-P1-053: E1＝「《ドーナ　SUNNY》がいるかぎり、あなたの＜怪異＞のシグニのパワーを＋2000し、それらは『場を離れたとき〜』を得る」。
+  //    parser は【常】のまま手札からシグニを出す形にしていた。パワーだけ書き、付与する【自】は受け皿待ち（PARTIAL）。
+  "WX26-P1-053": [
+    {"effectId":"WX26-P1-053-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"ドーナ　SUNNY"}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"怪異"}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-055: E1＝コストは「エナゾーンから＜武勇＞のシグニ１枚をトラッシュに置いてもよい」（parser は総称の `TRADE_BANISH_SELF_SIGNI`＝自分のシグニを捨てていた）。
+  "WX26-P1-055": [
+    {"effectId":"WX26-P1-055-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"純燃の記憶　リル"}},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardType":"シグニ","story":"武勇"}}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-064: ②「あなたのエナゾーンから＜微菌＞のシグニ２枚をトラッシュに置く。そうした場合」＝2枚置けたときだけ全体－5000。
+  "WX26-P1-064": [
+    {"effectId":"WX26-P1-064-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"ナナシ　其ノ参ノ天"}},"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","infected":true}},"until":"UNTIL_END_OF_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"微菌"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}]}}],"upTo":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-066: E1＝「ターン終了時まで、このシグニは『アタックしたとき、対戦相手は手札を１枚捨てる』を得る」（parser は付与を構造化できず no-op）。
+  "WX26-P1-066": [
+    {"effectId":"WX26-P1-066-E1","effectType":"AUTO","timing":["ON_SIGNI_POWER_ZERO_OR_LESS"],"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX26-P1-066-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp","usageLimit":"twice_per_turn"},
+  ],
+  // WX26-P1-081: 「あなたの他の＜武勇＞のシグニ１体は『【常】：《ライズアイコン》を持つシグニがあるかぎり【アサシン】』を得る」（先行例 `WX07-065` の付与形）。
+  "WX26-P1-081": [
+    {"effectId":"WX26-P1-081-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true,"energyTrash":{"count":2,"filter":{"cardType":"シグニ","story":"武勇"}}},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"武勇","excludeSelf":true},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX26-P1-081-sub-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasRiseIcon":true}},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-092: E1＝コストは「エナゾーンから＜トリック＞のシグニ１枚」（parser は総称の `TRADE_BANISH_SELF_SIGNI`）。「同じゾーンに【マジックボックス】がある場合、**代わりに**－5000」。
+  "WX26-P1-092": [
+    {"effectId":"WX26-P1-092-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardType":"シグニ","story":"トリック"}}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000,"duration":"UNTIL_END_OF_TURN","targetsStored":true},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-3000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-115: 出したシグニが「ターン終了時まで『アタックしたとき、相手の感染状態のシグニ１体を－2000』を得る」（parser は即座に－2000していた）。先行例 `WX26-P1-042` の付与形。
+  "WX26-P1-115": [
+    {"effectId":"WX26-P1-115-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"微菌"}}},{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"duration":"UNTIL_END_OF_TURN","targetsLastProcessed":true,"effect":{"effectId":"WX26-P1-115-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"delta":-2000,"duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-007: 「デッキをシャッフルし、デッキの一番上を公開して2択を3回」＝受け皿が無い（parser も UNKNOWN）。
+  "WX26-P1-007": [
+    {"effectId":"WX26-P1-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"STUB","id":"DEFERRED_REVEAL_TOP_CHOOSE_THRICE"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-018: E2＝「対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、それ以外を使用できない」＝受け皿が無い。
+  "WX26-P1-018": [
+    {"effectId":"WX26-P1-018-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"STUB","id":"DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+  ],
+  // WX26-P1-030: E1＝「クラフトの《マヨネーズ》《ステーキソース》《チョコスプレー》から1枚を＜調理＞のシグニのアクセにする」＝受け皿が無い（parser は手札からアクセする別の処理を出していた）。
+  "WX26-P1-030": [
+    {"effectId":"WX26-P1-030-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"STUB","id":"DEFERRED_CRAFT_ACCE_CHOICE"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"twice_per_turn"},
+  ],
+  // WX26-P1-048: ①アーツをルリグトラッシュに置いたらライフ1枚追加／②相手の効果で動いたライフ1枚につき次のダメージを防ぐ＝受け皿が無い（parser も UNKNOWN）。
+  "WX26-P1-048": [
+    {"effectId":"WX26-P1-048-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"STUB","id":"DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-049: レベル2のアシストルリグをルリグデッキのレベル3へグロウさせる＝受け皿が無い。parser は**グロウせずにリミットだけ＋1**し、無関係にシグニをダウンしていた。
+  "WX26-P1-049": [
+    {"effectId":"WX26-P1-049-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"STUB","id":"DEFERRED_ASSIST_GROW_TO_LV3"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-058: E2＝「あなたの【マジックボックス】を3つまで手札に戻す」は受け皿が無い（parser は**自分のシグニ**を手札に戻していた）。後半の設置は既存の受け皿。
+  "WX26-P1-058": [
+    {"effectId":"WX26-P1-058-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DEFERRED_MAGIC_BOX_TO_HAND"},{"type":"STUB","id":"PLACE_MAGIC_BOX"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","onPlayIcon":true},
+  ],
+  // WX26-P1-063: E2＝【アサシン（このシグニと同じパワーのシグニ）】＝限定つきの受け皿が無い（parser は**限定なし**の【アサシン】を与えていた）。
+  "WX26-P1-063": [
+    {"effectId":"WX26-P1-063-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"STUB","id":"DEFERRED_ASSASSIN_SAME_POWER"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+  // WX26-P1-072: E2＝コスト「エナゾーンから＜調理＞のシグニ1枚をこのシグニの下に置く」と「下に置いたシグニと同じレベルの」限定が無い＝parser は**無料で相手の全シグニの能力を消していた**。
+  "WX26-P1-072": [
+    {"effectId":"WX26-P1-072-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL","onPlayIcon":true,"costUnparsed":true},
+  ],
+  // WX26-P1-071: 付与する【自】＝「デッキの上から３枚見て１枚まで手札、残りを好きな順番で一番下」＝parser は「見る」と「公開して加える」を二重に出していた。
+  "WX26-P1-071": [
+    {"effectId":"WX26-P1-071-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX26-P1-071-E1-G","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"怪異","count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"pickUpTo":true,"then":"hand","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"outsideMainPhase":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-098: E1＝「このシグニの下にある＜調理＞のシグニを1枚までエナゾーンに置く」＝受け皿が無い（parser も UNKNOWN）。
+  "WX26-P1-098": [
+    {"effectId":"WX26-P1-098-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"DEFERRED_UNDER_COOKING_TO_ENA"},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"self"},
+  ],
+  // WX26-P1-102: E1（場を離れる代わりに下のカードを全部トラッシュ）・E2（下からシグニを場に出す）は受け皿が無い（parser はどちらも壊れた形）。
+  // WX26-P1-102: E3＝「エナゾーンから＜調理＞のシグニを1枚までこのシグニの下に置く」は既存の `PLACE_UNDER_SIGNI`。
+  "WX26-P1-102": [
+    {"effectId":"WX26-P1-102-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"DEFERRED_LEAVE_REPLACE_TRASH_UNDER"},"duration":"PERMANENT","mandatory":true,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-102-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"STUB","id":"DEFERRED_UNDER_SIGNI_TO_FIELD"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-102-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PLACE_UNDER_SIGNI","source":"energy","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+  // ── WX26-P1 END ──
 };
 
 

@@ -6418,6 +6418,10 @@ function parseSingleSentenceInner(text: string): EffectAction {
     if (/^この方法で捨てたカードの枚数(?:に等しい枚数|と同じ枚数)のカードを引く$/.test(t)) {
       return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
     }
+    // 2026-10-03（WX26-P1 のアーツ5枚）＝「この方法で捨てたカード１枚につき【エナチャージ１】をする」。
+    if (/^この方法で捨てたカード[１1]枚につき【エナチャージ[１1]】をする$/.test(t)) {
+      return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
     const per = t.match(/^この方法で捨てたカード([０-９\d]+)枚につきカードを([０-９\d]+)枚引く$/);
     if (per && parseNum(per[1]) === 1 && parseNum(per[2]) === 1) {
       return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };

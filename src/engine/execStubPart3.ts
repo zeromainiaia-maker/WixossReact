@@ -831,6 +831,14 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedBOSANT } },
       '次の対戦相手のターン中、相手はスペルと起動能力を使用できない'));
   }
+  // 表示: このターン、対戦相手のシグニの【自】能力は発動しない
+  // BLOCK_OPP_SIGNI_AUTO_THIS_TURN（2026-10-03・`WX26-P1-006-E1`）＝下の EXTENDED から「次のターン」の予約を外した形。
+  //   ⚠封じは**効果の持ち主の** `blocked_actions` に積む（`triggerCollect` は持ち主側を見る）。
+  //   ターン終了時に `clearTurnEndScopedState` が**両プレイヤー**とも `:NEXT_TURN` 以外を落とす＝相手ターンに使っても次へ残らない。
+  if (stub.id === 'BLOCK_OPP_SIGNI_AUTO_THIS_TURN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'] } },
+      'このターン: 相手シグニの【自】能力は発動しない'));
+  }
   // BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない
   if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED') {
     const newBlocedBOAE = [

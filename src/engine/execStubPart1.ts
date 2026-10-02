@@ -4755,6 +4755,10 @@ export function execStubPart1(
   if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE') {
     const oppCandsSDS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
     if (oppCandsSDS.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
+    // 🆕2026-10-03＝`allSigni`＝「対戦相手の**すべての**シグニをデッキに加えてシャッフルする」（`WX26-P1-051-E1`）＝選ばせない。
+    if (stub.allSigni) {
+      return exec({ type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE' } as StubAction, { ...ctx, lastProcessedCards: oppCandsSDS });
+    }
     const noopSDS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contSDS: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE' };
     const pendingSDS: PendingInteractionDef = {

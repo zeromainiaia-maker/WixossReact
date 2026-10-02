@@ -304,7 +304,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-🏁**残0**（`O-533` は 2026-09-18 にクローズ＝PLAN_DETAIL）
+| ID | 内容 | 母集団 | 状態 |
+|---|---|---|---|
+| `O-543` | 🆕**追加パック WX26-P1 の受け皿待ち**（2026-10-03）＝明示の `DEFERRED_*`／PARTIAL にして誤動作を消した残り**約20効果**（1種1〜2効果ずつ） | 各1〜2 | 着手前に PLAN_DETAIL `O-543` を読む |
+
+（`O-533` は 2026-09-18 にクローズ＝PLAN_DETAIL）
 
 #### 索引 H. ルール解釈待ち（Claude は取らない）
 

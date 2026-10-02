@@ -26,7 +26,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { keywordDisplayLabel } from '../src/utils/keywords';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
-import { legacySheetCsvPaths, legacySheetNumbers } from './cardDataFiles.mjs';
+import { legacySheetCsvPaths, legacySheetNumbers, packOf } from './cardDataFiles.mjs';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Eff = any;
@@ -5750,6 +5750,22 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕2026-10-03（WX26-P1）＝受け皿待ちの明示 defer（ハンドラ無し＝engine は何もしない）。
+        DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE: 'アタックしたシグニの正面の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効にする（未実装）',
+        DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE: 'このターン、次とその次にダメージを受ける場合、代わりに手札を1枚捨てる（未実装）',
+        DEFERRED_GAIN_HOLOGRAPH_MARKER: 'あなたは【ホログラフ】1つを得る（未実装）',
+        DEFERRED_REVEAL_TOP_CHOOSE_THRICE: 'デッキをシャッフルし、一番上を公開して「公開したシグニのパワー以下の相手シグニをバニッシュ」か「1枚引いて【エナチャージ１】」を選ぶ、を3回行う（未実装）',
+        DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS: '対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、このターンと次のターンの間、それらと名前の異なるアーツとピースを使用できない（未実装）',
+        DEFERRED_CRAFT_ACCE_CHOICE: 'あなたの＜調理＞のシグニ1体に、クラフトの《コードイート　マヨネーズ》《コードイート　ステーキソース》《コードイート　チョコスプレー》のいずれか1枚を【アクセ】として付ける（未実装）',
+        DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT: '①ルリグデッキからアーツ1枚をルリグトラッシュに置いたら、デッキをシャッフルし一番上をライフクロスに加える／②このターンに相手の効果で動いたライフクロス1枚につき次のダメージを1回防ぐ、から2つまで（未実装）',
+        DEFERRED_ASSIST_GROW_TO_LV3: 'センタールリグがレベル3以上なら、レベル2のアシストルリグ1体をルリグデッキのレベル3のルリグへグロウさせ、このゲームの間センタールリグのリミットを＋1する（未実装）',
+        DEFERRED_MAGIC_BOX_TO_HAND: 'あなたの【マジックボックス】を3つまで手札に戻す（未実装）',
+        DEFERRED_ASSASSIN_SAME_POWER: 'ターン終了時まで、このシグニは【アサシン（このシグニと同じパワーのシグニ）】を得る（未実装）',
+        DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE: 'エナゾーンから＜調理＞のシグニ1枚をこのシグニの下に置いてもよい。そうした場合、ターン終了時まで、それと同じレベルの対戦相手のすべてのシグニは能力を失う（未実装）',
+        DEFERRED_UNDER_COOKING_TO_ENA: 'このシグニの下にある＜調理＞のシグニを1枚までエナゾーンに置く（未実装）',
+        DEFERRED_LEAVE_REPLACE_TRASH_UNDER: '対戦相手のターンの間、下にカードがあるこのシグニが場を離れる場合、代わりにこのシグニの下のカードをすべてトラッシュに置いてもよい（未実装）',
+        DEFERRED_UNDER_SIGNI_TO_FIELD: 'このシグニの下からシグニ1枚を場に出す（未実装）',
+        DEFERRED_LANCER_SAME_POWER_AS_UNDER: 'ターン終了時まで、このシグニは【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】を得る（未実装）',
         // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
         PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
         // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと
@@ -7511,6 +7527,11 @@ if (args.includes('--manual')) {
   targets = [...src.matchAll(/'([A-Z0-9]+-[A-Za-z0-9-]+)':\s*\[/g)].map(m => m[1]);
 } else if (args[0] === '--sheet') {
   targets = sheetTargets(args[1] ?? '1');
+} else if (args[0] === '--pack') {
+  // 🆕2026-10-03＝パック単位（例 `--pack WX26-P1`）。新しく足したパックは旧シートに属さないのでこれで逆翻訳する。
+  //   トークン（_TK.csv）も番号のパックが一致すれば含める（`WX26-P1-TK01A` → WX26-P1）。CSV 順。
+  const pack = args[1] ?? '';
+  targets = [...cardMap.keys()].filter(id => packOf(id) === pack);
 } else if (args[0] === '--file') {
   // 改行/空白区切りのカード番号ファイル
   targets = readFileSync(args[1], 'utf-8').split(/\s+/).map(s => s.trim()).filter(Boolean);
@@ -7523,7 +7544,7 @@ if (args.includes('--manual')) {
   targets = args;
 }
 if (targets.length === 0) {
-  console.log('使い方: npx tsx scripts/decompileEffects.ts <CardNum...> | --manual | --grep <語> | --sheet <N> | --sheets | --file <path>');
+  console.log('使い方: npx tsx scripts/decompileEffects.ts <CardNum...> | --manual | --grep <語> | --sheet <N> | --sheets | --pack <パック番号> | --file <path>');
   process.exit(0);
 }
 

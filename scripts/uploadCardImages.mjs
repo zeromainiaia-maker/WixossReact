@@ -14,9 +14,10 @@
  *      ⚠全件を流すのは 6,700 枚への外向き書き込みなので `--all` を明示したときだけにする。
  *
  * 使い方:
- *   node scripts/archive/uploadCardImages.mjs --only WXK03-003B
- *   node scripts/archive/uploadCardImages.mjs --only WXK03-003B --dry   # DL と変換だけ（送信しない）
- *   node scripts/archive/uploadCardImages.mjs --missing                 # ImageKit に無い分だけ
+ *   node scripts/uploadCardImages.mjs --only WXK03-003B
+ *   node scripts/uploadCardImages.mjs --only WXK03-003B --dry   # DL と変換だけ（送信しない）
+ *   node scripts/uploadCardImages.mjs --missing                 # ImageKit に無い分だけ
+ *   node scripts/uploadCardImages.mjs --incoming [--dry]        # 🆕incoming-cards/ の追加分全部（取り込みの前に回す）
  *
  * ⚠**アップロードは外向きの操作**＝実行前にユーザーの承認を取ること。
  */
@@ -24,9 +25,10 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { cardCsvPaths, variantsCsvPath } from './cardDataFiles.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, '../..');
+const root = resolve(__dirname, '..');
 
 // ── private key は .env.local から（コミットしない）──
 function readEnvLocal() {
@@ -56,19 +58,20 @@ const argv = process.argv.slice(2);
 const dry = argv.includes('--dry');
 const all = argv.includes('--all');
 const missingOnly = argv.includes('--missing');
+const incoming = argv.includes('--incoming');
 const onlyIdx = argv.indexOf('--only');
 const only = onlyIdx >= 0 ? (argv[onlyIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean) : [];
-if (only.length === 0 && !all && !missingOnly) {
-  console.error('対象の指定がない。--only <CardNum,...> / --missing / --all のどれかを付ける。');
+if (only.length === 0 && !all && !missingOnly && !incoming) {
+  console.error('対象の指定がない。--only <CardNum,...> / --missing / --all / --incoming のどれかを付ける。');
   process.exit(1);
 }
 
-// ── CSV（現行の public/data/CardData_*.csv 全部。ImgURL 列＝原本の在処）──
+// ── CSV（ImgURL 列＝原本の在処）──
 // ⚠`ImgURL` は**実行時には使われない**（App.tsx が `${VITE_CARD_IMAGE_BASE}/${CardNum}.webp` を組み立てる）＝
 //   この列は「原本をどこから取るか」だけに効く。
 function parseCSV(filePath) {
   const cards = [];
-  const lines = readFileSync(filePath, 'utf-8').replace(/^﻿/, '').split('\n').slice(1);
+  const lines = readFileSync(filePath, 'utf-8').replace(/^﻿/, '').split('\n').filter(l => !l.startsWith('CardNum,'));  // ヘッダ行は無くてもよい（incoming-cards の CSV）
   for (const line of lines) {
     if (!line.trim()) continue;
     const cols = line.split(',');
@@ -78,12 +81,19 @@ function parseCSV(filePath) {
   }
   return cards;
 }
-const dataDir = join(root, 'public', 'data');
+// 🆕2026-10-03＝読む CSV を再編後の置き場へ（旧 `public/data/CardData_*.csv` は 10/01 の再編で消えており、0枚になっていた）。
+//   既定＝現行の CardDatas 全部（パック・トークン・Variants）／`--incoming`＝`incoming-cards/` の追加分だけ。
+const csvFiles = incoming
+  ? ['pack', 'token'].flatMap(k => {
+      const dir = join(root, 'incoming-cards', k);
+      return existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.csv')).sort().map(f => join(dir, f)) : [];
+    })
+  : [...cardCsvPaths(), variantsCsvPath()];
 const seen = new Set();
 let cards = [];
-for (const f of readdirSync(dataDir).filter(f => /^CardData_.*\.csv$/.test(f))) {
-  for (const c of parseCSV(join(dataDir, f))) {
-    if (seen.has(c.cardNum)) continue;   // シート帰属は先勝ち（decompile/build と同じ規約）
+for (const f of csvFiles) {
+  for (const c of parseCSV(f)) {
+    if (seen.has(c.cardNum)) continue;
     seen.add(c.cardNum);
     cards.push(c);
   }

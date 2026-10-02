@@ -1,16 +1,16 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 583（総ノード 3708 件）
+live JSON の STUB id 種類 : 604（総ノード 3804 件）
 逆翻訳シートの [STUB:…] 総数: 275  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 0 種 / 0 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 0 種 / 0 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 20 種 / 20 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 20 種 / 20 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 41 種 / 129 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 583 種
+  D 健全（実装あり＋日本語表示）                          : 584 種
   E 表示だけの穴（条件側 `[条件:…]` の生ID露出）          : 0 種 / 0 箇所
   F 表示だけの穴（STUB ラベルに内部実装の識別子）          : 0 種 / 0 箇所
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 373 種
@@ -22,6 +22,66 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
+     1件   1枚  DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT
+        カード: WX26-P1-048
+        生成: src\data\manualEffects.ts:12925
+     1件   1枚  DEFERRED_ASSASSIN_SAME_POWER
+        カード: WX26-P1-063
+        生成: src\data\manualEffects.ts:12937
+     1件   1枚  DEFERRED_ASSIST_GROW_TO_LV3
+        カード: WX26-P1-049
+        生成: src\data\manualEffects.ts:12929
+     1件   1枚  DEFERRED_CRAFT_ACCE_CHOICE
+        カード: WX26-P1-030
+        生成: src\data\manualEffects.ts:12921
+     1件   1枚  DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE
+        カード: WX26-P1-006
+        生成: src\data\manualEffects.ts:12822
+     1件   1枚  DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE
+        カード: WX26-P1-072
+        生成: src\data\manualEffects.ts:12941
+     1件   1枚  DEFERRED_GAIN_HOLOGRAPH_MARKER
+        カード: WX26-P1-026
+        生成: src\data\manualEffects.ts:12771
+     1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
+        カード: WX26-P1-002
+        生成: src\data\parsers\parseSentencePart2.ts:3061
+     1件   1枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
+        カード: WX26-P1-073
+        生成: src\data\effectParser.ts:27158 / src\data\parsers\parseSentencePart3.ts:191
+     1件   1枚  DEFERRED_LANCER_SAME_POWER_AS_UNDER
+        カード: WX26-P1-105
+        生成: src\data\manualEffects.ts:12863
+     1件   1枚  DEFERRED_LEAVE_REPLACE_TRASH_UNDER
+        カード: WX26-P1-102
+        生成: src\data\manualEffects.ts:12954
+     1件   1枚  DEFERRED_MAGIC_BOX_TO_HAND
+        カード: WX26-P1-058
+        生成: src\data\manualEffects.ts:12933
+     1件   1枚  DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE
+        カード: WX26-P1-026
+        生成: src\data\manualEffects.ts:12770
+     1件   1枚  DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS
+        カード: WX26-P1-018
+        生成: src\data\manualEffects.ts:12917
+     1件   1枚  DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED
+        カード: WX26-P1-008
+        生成: src\data\effectParser.ts:8184 / src\data\effectParser.ts:9023
+     1件   1枚  DEFERRED_REVEAL_TOP_CHOOSE_THRICE
+        カード: WX26-P1-007
+        生成: src\data\manualEffects.ts:12913
+     1件   1枚  DEFERRED_UNDER_COOKING_TO_ENA
+        カード: WX26-P1-098
+        生成: src\data\manualEffects.ts:12949
+     1件   1枚  DEFERRED_UNDER_SIGNI_TO_FIELD
+        カード: WX26-P1-102
+        生成: src\data\manualEffects.ts:12955
+     1件   1枚  DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE
+        カード: WX26-P1-063
+        生成: src\data\parsers\parseSentencePart3.ts:2891
+     1件   1枚  DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE
+        カード: WX26-P1-052
+        生成: src\data\parsers\parseSentencePart3.ts:2166
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）

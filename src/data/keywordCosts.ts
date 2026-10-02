@@ -292,7 +292,8 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
 
   // ⓪' ベット形の**軽減**（`WDK15-007`）。⚠**ガード（「〜になる」）より前**に見る＝
   //     この形に当たったら以降は一切見ない（旧実装の early return）。
-  const betReduce = effectText.match(/あなたがベットする場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/);
+  // 🆕2026-10-03＝「ベット**していた**場合」（WX26-P1 のアーツ5枚）も同じ形＝宣言はアーツ使用時なので意味は同じ。
+  const betReduce = effectText.match(/あなたがベット(?:する|していた)場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/);
   if (betReduce) {
     return [{ when: { kind: 'betting' }, mode: 'reduce', cost: parseReduceIcons(betReduce[1]), stopIfUnmet: true }];
   }

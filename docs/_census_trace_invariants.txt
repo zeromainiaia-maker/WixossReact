@@ -1,9 +1,9 @@
 # 実行結果の不変条件センサス（R6-1）
-# トレース: node_modules\.tmp\traceinv_traces.json（効果 9374件）
+# トレース: node_modules\.tmp\traceinv_traces.json（効果 9544件）
 
 ## I1（0効果）
 
-## I2（268効果）
+## I2（270効果）
 WX01-028-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 WX02-073-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-073:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX04-015-E1	base/both	選択肢なし・差分: 相デッキの並びが変わった（残り12枚）
@@ -211,6 +211,9 @@ WX26-CP1-008-E1	base/both	選択肢なし・差分: 自エナ青: 自エナ → 
 WX26-CP1-010-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自手札
 WX26-CP1-055-E1	base/both	選択肢なし・差分: 自トラッシュ対象3: 自トラッシュ → 自デッキ[12] ; 自S対象0: パワー+5000
 WX26-CP1-101-E1	base/both	選択肢なし・差分: 自制限: [なし]→[力を貸して！]
+WX26-P1-001-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; WX26-CP1-TK01#1: (不在) → 自フリー
+WX26-P1-005-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相デッキ[11] ; 相デッキ上1: 相デッキ[0] → 相手札
+WX26-P1-060-E2	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX26-P1-060:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WXK01-037-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自エナ ; 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札
 WXK01-055-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WXK01-055:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WXK01-104-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WXK01-104:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
@@ -232,7 +235,6 @@ WXK08-017-E1	base/both	選択肢なし・差分: 自状態 prevent_next_damage: 
 WXK08-022-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WXK08-059-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-081:hand"]
 WXK09-097-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
-WXK10-051-E1	empty/both	選択肢なし・差分: 自S源: 自トラッシュ → 自デッキ[0] ; 自状態 deck_shuffled_count: なし → 1
 WXK10-055-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自トラッシュ ; 自トラッシュ対象: 自トラッシュ → 自手札
 WXK10-055-E2	nofield/both	選択肢なし・差分: ⚠側跨ぎ 相トラッシュ1: 相トラッシュ → 自シグニ1(上)
 WXK10-057-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自シグニ0(上) ; 自デッキ上1: 状態[なし]→[ダウン]
@@ -273,7 +275,7 @@ SPDi43-05-E2	base/both	選択肢なし・差分: 自状態 granted_effects_until
 SPDi43-26-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; 自エナ対象: 自エナ → 自デッキ[0]
 SPDi44-12-E2	base/both	選択肢なし・差分: 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"SPDi44-12-sub-E1","duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DAMAGE_REPLACE_BY_COST","damageReplaceByCost":{"options":[{"handDiscard":1},{"en…
 
-## I3（77効果）
+## I3（81効果）
 WX02-026-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自S対象1: 自シグニ1(上) → 自トラッシュ ; 自デッキ上対象2: 自デッキ[0] → 自シグニ1(上)
 WX11-025-E2	nofield/both	失敗ログ「並び替え対象が1体以下のためスキップ」・差分: 自S源: 状態[なし]→[ダウン]
 WX14-012-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り14枚） ; 自状態 deck_shuffled_count: なし → 1
@@ -329,6 +331,10 @@ WX26-CP1-006-E1	base/both	失敗ログ「リコレクト条件未達（アーツ
 WX26-CP1-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自エナ青: 自エナ → 自手札 ; 自エナ白: 自エナ → 自手札 ; 相状態 negated_attacks: なし → ["相S対象0"]
 WX26-CP1-010-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自S源: 自トラッシュ → 自手札
 WX26-CP1-036-E2	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札 ; 自デッキ上3: 自デッキ[2] → 自手札
+WX26-P1-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相状態 negated_attacks: なし → ["相S対象0"]
+WX26-P1-010-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自状態 life_crash_replacements: なし → [{"kind":"mill","count":3,"once":true,"sourceCardNum":"自S源"}]
+WX26-P1-083-E1	base/decline	辞退・差分: 相状態 suppress_life_burst: なし → "once"
+WX26-P1-086-E1	base/decline	辞退・差分: 相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
 WX25-P3-TK03-E1	base/both	失敗ログ「ウイルスなし」・差分: 自手札1: 自手札 → 自トラッシュ ; 自状態 turn_hand_discarded_cards: なし → ["自手札1"] ; 自状態 turn_hand_discarded_count: なし → 1
 WXK01-107-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
 WXK06-016-E1	base/both	失敗ログ「ルリグデッキに戻す対象なし（RETURN_SELF_ARTS_TO_LRIG_DECK）」・差分: 自デッキ上1: 自デッキ[0] → 自手札
@@ -352,7 +358,7 @@ WD23-039-A-TRAP	full/accept	失敗ログ「空きシグニゾーンなし（カ�
 WDK07-Y20-E1	base/both	失敗ログ「SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シードなし」・差分: 自S対象1: 自シグニ1(上) → 自トラッシュ
 SP07-009-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自ライフ
 
-## I4（131効果）
+## I4（132効果）
 WX01-080-E1	empty/both	ドロー: ログ1枚／移動0件
 WX01-084-E1	empty/both	ドロー: ログ1枚／移動0件
 WX02-058-E1	empty/both	ドロー: ログ1枚／移動0件
@@ -457,6 +463,7 @@ WX26-CP1-005-E1	empty/both	ドロー: ログ1枚／移動0件
 WX26-CP1-006-E1	base/both	ドロー: ログ2枚／移動4件
 WX24-D4-04-E2	empty/both	エナチャージ: ログ1枚／移動0件
 WX24-D4-25-BURST	empty/both	エナチャージ: ログ1枚／移動0件
+WX26-P1-106-BURST	empty/both	エナチャージ: ログ1枚／移動0件
 WXK01-013-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK01-078-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK01-090-E1	empty/both	ドロー: ログ1枚／移動0件
@@ -485,7 +492,7 @@ WDK08-L17-E1	empty/both	ドロー: ログ1枚／移動0件
 WDK12-001-E1	empty/both	エナチャージ: ログ1枚／移動0件
 WDK14-017-E1	empty/both	ドロー: ログ1枚／移動0件
 
-## I5（55効果）
+## I5（56効果）
 WX01-024-E1	nofield/both	相S対象0: パワー+5000
 WX02-034-E1	nofield/both	相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
 WX02-034-BURST	nofield/both	相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
@@ -530,6 +537,7 @@ WXDi-P10-070-E2	nofield/both	相S対象0: パワー+2000
 WXDi-P11-032-E1	base/both	相S対象0: 付与[なし]→[アサシン]
 WXDi-P11-032-E2	base/both	相S対象0: 付与[なし]→[アサシン]
 WX25-P3-054-E1	base/both	相状態 abilities_removed: なし → ["相S丙"]
+WX26-P1-083-E1	base/decline	相状態 suppress_life_burst: なし → "once"
 WXK04-072-E2	base/both	相S丙: 相シグニ2(上) → 相エナ
 WXK07-053-E2	nofield/both	相S対象0: レベル-1
 WXK11-029-E2	base/both	相状態 abilities_removed: なし → ["相S丙"]

@@ -67,3 +67,6 @@ docs/_held_review_all.txt
 /scratchpad-reports/
 # §5.7 S-23: DB から書き出したユーザーのデッキ（本物の山で A/B を測る入力）
 /scratchpad-decks/
+
+# 追加カードの受け口（取り込み後は public/data/CardDatas/ へ移すので CSV は追跡しない）
+incoming-cards/**/*.csv

@@ -3983,10 +3983,21 @@ test('§5.3 O-219: 「このカードにグロウするためのコストは〜�
       'O-219: ライフ1枚以下で《赤》《緑》が全額落ちる（印字 ×1 を上回る）');
     eq(of(red(high, 'WX13-001'), '赤'), 0, 'O-219 反転: ライフ4枚では軽減されない（条件を真に倒さない）');
   }
-  { // WD13-002＝「公開した場合」の支払いが未実装のあいだは**1色も**軽減しない（旧定義は無条件2色だった）
+  { // WD13-002＝「手札から＜迷宮＞を公開した場合《白×1》／＜毒牙＞なら《黒×1》」＝手札にその種族があるときだけ減る
+    // （旧定義は無条件2色だった）。⚠手札は必ず明示する＝`mkState({})` の手札は POOL から引くので、
+    //   カードが増えると＜迷宮＞が紛れ込んで結果が変わる（2026-10-03 WX26-P1 追加で `WXEX1-55` が入って FAIL した）。
+    const nonMatch = findCard(c => isSigni(c) && !/迷宮|毒牙/.test(c.CardClass ?? ''));
+    const maze = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('迷宮'));
+    const fang = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙'));
     const st = mkState({});
-    eq(of(red(st, 'WD13-002'), '白'), 0, 'O-219: WD13-002 は公開の支払い前に軽減しない（白）');
-    eq(of(red(st, 'WD13-002'), '黒'), 0, 'O-219: WD13-002 は公開の支払い前に軽減しない（黒）');
+    st.hand = [nonMatch];
+    eq(of(red(st, 'WD13-002'), '白'), 0, 'O-219: WD13-002 は＜迷宮＞を公開できなければ軽減しない（白）');
+    eq(of(red(st, 'WD13-002'), '黒'), 0, 'O-219: WD13-002 は＜毒牙＞を公開できなければ軽減しない（黒）');
+    st.hand = [nonMatch, maze];
+    eq(of(red(st, 'WD13-002'), '白'), 1, 'O-219: 手札に＜迷宮＞があれば《白×1》減る');
+    eq(of(red(st, 'WD13-002'), '黒'), 0, 'O-219: ＜迷宮＞だけなら《黒》は減らない');
+    st.hand = [maze, fang];
+    eq(of(red(st, 'WD13-002'), '黒'), 1, 'O-219: 手札に＜毒牙＞もあれば《黒×1》も減る');
     st.field.lrig = ['WD13-002'];
     eq(of(red(st), '白'), 0, 'O-219 反転: センターに居ても次のグロウを安くしない');
   }
@@ -17102,7 +17113,7 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
   //   `GRANT_LRIG_ABILITY` の中の【自】へ入れ子にしたので、トップレベルの ON_TURN_END が1件減った
   //   （挙動は消えていない＝センタールリグが得る能力として発火する。§5.2 意味照合）。
   // 第233バッチで PR-319-E2 の「あなたのターン終了時」を CONTINUOUS から AUTO へ修復し、186→187。
-  eq(count('ON_TURN_END').eff, 187, 'ON_TURN_END（CPU 経路に収集が無かった）');
+  eq(count('ON_TURN_END').eff, 188, 'ON_TURN_END（CPU 経路に収集が無かった）'); // 187→188（2026-10-03 WX26-P1 追加で+1）
   eq(count('ON_MAIN_PHASE_START').eff, 31, 'ON_MAIN_PHASE_START（同上）');
   eq(count('ON_TURN_START').eff, 3, 'ON_TURN_START（同上）');
   eq(count('ON_LRIG_ATTACK_STEP_START').eff, 1, 'ON_LRIG_ATTACK_STEP_START（同上）');
@@ -32798,6 +32809,33 @@ test('task12 lxxiv E2E: WXK11-008 は任意コストを払えないとき②③�
   eq(r.ownerState.life_cloth.length, 7, 'WXK11-008③: 未払いならライフは増えない');
 });
 
+// 🆕2026-10-03（追加パック WX26-P1）＝新設 STUB 2本と、parser が逆の主体・過剰な処理を出していた手書き定義の錨。
+test('2026-10-03 WX26-P1：新設 STUB（相手の【自】をこのターンだけ封じる／相手のシグニを全部デッキへ）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh();
+  const all = executeAction({ type: 'STUB', id: 'OPP_SIGNI_TO_DECK_AND_SHUFFLE', allSigni: true } as EffectAction, mkCtx({}, { signi: [a, b, null] }));
+  ok(all.done, 'allSigni は選ばせずに解決する');
+  eq(all.otherState.field.signi.filter(s => s?.length).length, 0, '相手の場のシグニが全部消える');
+  ok(all.otherState.deck.includes(a) && all.otherState.deck.includes(b), '消えたシグニは相手のデッキに入る');
+  const one = executeAction({ type: 'STUB', id: 'OPP_SIGNI_TO_DECK_AND_SHUFFLE' } as EffectAction, mkCtx({}, { signi: [a, b, null] }));
+  ok(!one.done, '反転: allSigni なしは従来どおり1体を選ばせる');
+
+  const blk = executeAction({ type: 'STUB', id: 'BLOCK_OPP_SIGNI_AUTO_THIS_TURN' } as EffectAction, mkCtx({}, {}));
+  ok((blk.ownerState.blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'), '持ち主側に封じが立つ');
+  ok(!(blk.ownerState.blocked_actions ?? []).some(x => x.endsWith(':NEXT_TURN')), '次のターンの予約は立てない（EXTENDED との違い）');
+  ok(!(clearTurnEndScopedState(blk.ownerState).blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'), 'ターン終了で消える');
+}));
+test('2026-10-03 WX26-P1：parser が主体を取り違えていた効果は手書き定義で直っている', () => {
+  const act = (id: string) => JSON.stringify(effectsMap.get(id.match(/^WX26-P1-[0-9A-Z]+/)![0])?.find(e => e.effectId === id)?.action ?? null);
+  ok(act('WX26-P1-004-E1').includes('"LIFE_CRASH","owner":"self"'), '004②: クラッシュするのは自分のライフ');
+  ok(!act('WX26-P1-022-E1').includes('REMOVE_ABILITIES'), '022: 自分のシグニの能力を消さない');
+  ok(!act('WX26-P1-026-E1').includes('REMOVE_ABILITIES'), '026: 自分のシグニの能力を消さない');
+  ok(!act('WX26-P1-083-E1').includes('LIFE_CRASH'), '083: 自分のライフをクラッシュしない');
+  for (const id of ['WX26-P1-077-E1', 'WX26-P1-082-E1', 'WX26-P1-086-E1']) {
+    ok(!act(id).includes('"type":"LRIG","owner":"opponent"'), id + ': ダウンするのは自分のセンタールリグ');
+  }
+  ok(act('WX26-P1-036-E1').includes('"count":{"$ref":"last_processed_count"}'), '036: 捨てた枚数ぶんエナチャージ（parser 規則）');
+});
+
 console.log('\n===== goldenTest 結果 =====');
 test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
   for (const [num, id] of [['PR-204','PR-204-E1'], ['WD21-009','WD21-009-E1'], ['PR-238','PR-238-E1'], ['WX17-041','WX17-041-BURST'], ['PR-470A','PR-470A-E2']]) {
@@ -36730,7 +36768,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   **ピースの正準形 `ACTIVATED/['MAIN']` へ直した**ぶんの1減（旧＝`AUTO/['ON_PLAY']`・mandatory）。
     //   ⚠**発火は減っていない**＝`queueCardEffects` はピースに `['AUTO','ACTIVATED']` を積むので同じく走る。
     //   この集合から抜けたのは「AUTO の【出】watcher ではなくピース本体だから」＝**分類の是正**。
-    eq(eligible.length, 1465, '段階2 mandatory集合');
+    eq(eligible.length, 1474, '段階2 mandatory集合'); // 1465→1474（2026-10-03 WX26-P1 追加で+9）
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -36753,19 +36791,20 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   （`WDK05-T14-E1` / `WX03-034-E1` / `WX09-025-E1` / `WX21-051-E1` / `WX21-Re06-E2` / `WX22-048-E1` /
     //   `WXK02-095-E1` / `WXK07-088-E1` / `WXK08-027-E1` のうち ON_PLAY mandatory のもの）の条件を
     //   **効果レベルから宣言の後ろ（木の中）へ移した**＝**較正**（条件は消えていない・集合の総数も不変）。
-    eq(eligible.length - conditional.length, 1411, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    eq(eligible.length - conditional.length, 1420, // 1411→1420（2026-10-03 WX26-P1 追加で+9）
+      '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 54, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
     //   `WXDi-CP02-100-E1`（`trashToDeckBottom`）の costUnparsed を解いた分。
     // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝`WXDi-P03-019-E1` の costUnparsed を解いた分。
-    eq(optionalCost.length, 965, '任意costあり（+O-68① の1効果＝fieldTrashAll）');
+    eq(optionalCost.length, 976, '任意costあり（+O-68① の1効果＝fieldTrashAll）'); // 965→976（2026-10-03 WX26-P1 追加で+11）
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
     // 🆕20→18＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
     //   costUnparsed を解いた分（cost あり側へ移動）。
     // 🆕18→17＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` も cost あり側へ移動。
-    eq(optionalNoCost.length, 17, '任意costなし（-O-68① の1効果＝costUnparsed を解いて cost あり側へ移動）');
+    eq(optionalNoCost.length, 18, '任意costなし（-O-68① の1効果＝costUnparsed を解いて cost あり側へ移動）'); // 17→18（2026-10-03 WX26-P1 追加で+1）
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -36813,8 +36852,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` の costUnparsed を解いた分。
-    eq(optionalCost.length, 965, '母集団（+O-68① の1効果）');
-    eq(mapped.length, 965, "OPTIONAL_COST へ写せる（fieldTrashAll も 'ALL' 規約で写せる）");
+    eq(optionalCost.length, 976, '母集団（+O-68① の1効果）'); // 965→976（2026-10-03 WX26-P1 追加で+11）
+    eq(mapped.length, 976, "OPTIONAL_COST へ写せる（fieldTrashAll も 'ALL' 規約で写せる）"); // 965→976（2026-10-03 WX26-P1 追加で+11）
     eq(optionalCost.length - mapped.length, 0, '未対応の外側 cost は0件');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -36955,7 +36994,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕3→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の costUnparsed を解いた分。
     // 🆕1→0＝同日（索引 B 第2巡・§5.3 `O-68`①）で最後の1件 `WXDi-P03-019-E1` も解いた
     //   （`fieldTrashAll` を新設）＝**任意【出】で明示保留している cost 未表現はゼロになった**。
-    eq(deferred, 0, '据え置き＝明示保留した cost 未表現は0件（O-68① で最後の1件を解消）');
+    // 🆕0→1（2026-10-03）＝`WX26-P1-072-E2`（コスト「エナの＜調理＞をこのシグニの下に置く」が未表現）。本体は `DEFERRED_*`＝何もしないので踏み倒しは起きない。
+    eq(deferred, 1, '据え置き＝明示保留した cost 未表現は1件（WX26-P1-072-E2＝本体も未実装）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -38323,7 +38363,7 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
         && (e.mandatory === false || e.effectId === 'WXDi-P15-034-E1')
       ).map(e => ({ cardNum, effect: e })),
     );
-    eq(formerlyOptional.length, 160, '旧mandatory:false母集団');
+    eq(formerlyOptional.length, 161, '旧mandatory:false母集団'); // 160→161（2026-10-03 WX26-P1 追加で+1）
     eq(formerlyOptional.filter(({ effect }) =>
       effect.triggerCondition?.byEffect || effect.triggerCondition?.bySigniEffect
     ).length, 0, '通常配置で除外されるbyEffect/bySigniEffectは0件');
@@ -38341,7 +38381,7 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
     //   🔴それまでは **`optionalOnPlayCostStub` の SUPPORTED に無い**ため包めず、この【出】は不発だった。
     // 🆕159→160＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝`WXDi-P03-019-E1`（アシストルリグの任意【出】）の
     //   costUnparsed を解いたので、据え置き7件のうち1件が収集側へ移った。
-    eq(collectedCount, 160, '相互制約コスト対応を含む160件を通常アシスト経路で収集');
+    eq(collectedCount, 161, '相互制約コスト対応を含む161件を通常アシスト経路で収集'); // 160→161（2026-10-03 WX26-P1 追加で+1）
     // 🆕1→0＝同上（`WXDi-P03-019-E1` が最後の1件だった）＝**通常アシスト経路の据え置きはゼロ**。
     eq(deferred.length, 0, '表現不能コストによる据え置きは0件（O-68① で最後の1件を解消）');
   } finally {
@@ -40263,7 +40303,8 @@ test('task12(l) B群: ホログラフ判定は live データの CardEffect.holo
   for (const [cardNum, effs] of effectsMap) {
     for (const e of mergeManualEffects(cardNum, effs)) if (e.holograph) holoCards.add(cardNum);
   }
-  eq([...holoCards].sort().join(','), 'WX15-002,WXEX2-15', 'holograph が立つのはホログラフ表記のある2カードだけ');
+  // 🆕2026-10-03＝`WX26-P1-026`（【起】ホログラフ《青×0》）を追加。
+  eq([...holoCards].sort().join(','), 'WX15-002,WX26-P1-026,WXEX2-15', 'holograph が立つのはホログラフ表記のある3カードだけ');
 });
 
 test('task12(l) B群: WX15-002-E2 の公開は3枚を非公開で並べ替え、戻したトップだけ公開', () => {
@@ -64142,8 +64183,8 @@ test('rise: getRiseRequirement が【ライズ】カードの配置条件を取�
   eq(getRiseRequirement('【ライズ】あなたの赤のシグニ２体とあなたの＜武勇＞のシグニの上に置く【常】：…'), null, '体数の無い枠は受けない');
 
   // 母集団のラチェット＝CSV 全件で「配置要求が立つ枚数」を固定する。
-  const RISE_CARD_TOTAL = 41;      // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
-  const RISE_CARD_GATED = 41;      // 旧28 → 32（family B の4枚）→ 🏁**41**（2026-09-05・family A の9枚で全数）
+  const RISE_CARD_TOTAL = 42; // 41→42（2026-10-03 WX26-P1 追加で+1＝`WX26-P1-055`）      // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
+  const RISE_CARD_GATED = 42; // 41→42（2026-10-03 WX26-P1 追加で+1＝`WX26-P1-055`）      // 旧28 → 32（family B の4枚）→ 🏁**41**（2026-09-05・family A の9枚で全数）
   const RISE_CARD_MATERIAL = 4;    // うち「下に重ねる材料」を要求する枚数（family B）
   const RISE_CARD_MULTI_FIELD = 9; // うち場のシグニを2体以上消費する枚数（family A）
   const riseCards = [...cardMap.values()].filter(c => /^【ライズ】/.test(c.EffectText ?? ''));
@@ -69178,7 +69219,8 @@ test('§5.3 O-60 第51: WX04-047-E1 のペナルティ枚数は payload（該当
     eq(notAtom.length, 4, '＜原子＞でないシグニを4枚用意できる');
     const mk = (action: EffectAction) => {
       const ctx = mkCtx({}, {}, 'WX04-047');
-      ctx.ownerState = { ...ctx.ownerState, hand: [...notAtom] };
+      // ⚠山札も明示する＝POOL から引くと＜原子＞が紛れ込んでペナルティが減る（2026-10-03 WX26-P1 追加で POOL がずれて FAIL した）。
+      ctx.ownerState = { ...ctx.ownerState, hand: [...notAtom], deck: [...notAtom] };
       return run(action, ctx);
     };
     const r = mk(eff.action);
@@ -89625,14 +89667,14 @@ test('デッキフォーマット: 再録を含めた全印刷で判定し、フ
     ).data as unknown as CardData[];
     for (const r of rows) if (r.CardNum) sheet.push(r);
   }
-  eq(sheet.length, 6666, '🔴シートのカード枚数が変わった（以下の錨を測り直す）');
+  eq(sheet.length, 6763, '🔴シートのカード枚数が変わった（以下の錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）
   let dOnly = 0, lOnly = 0, both = 0;
   for (const c of sheet) {
     const p = cardPoolsOf(c, vIdx);
     if (p.diva && p.legacy) both++; else if (p.diva) dOnly++; else lOnly++;
   }
   eq(both, 91, '🔴再録で両プールに居る札の数が変わった（判定の前提が動いた＝測り直す）');
-  eq(dOnly + both, 2847, 'ディーバで使えるカード数が変わった');
+  eq(dOnly + both, 2944, 'ディーバで使えるカード数が変わった'); // 2847→2944（2026-10-03 WX26-P1 追加で+97）
   eq(lOnly + both, 3910, 'レガシーで使えるカード数が変わった');
 
   // ④ 中身からの推定＝「そのプールにしか無い札」で決める。
@@ -93842,7 +93884,7 @@ test('2026-10-01 カード CSV（パック別）＝index とフォルダが一�
       seen.add(r.CardNum);
     }
   }
-  eq(rows, 6666, '🔴パック CSV の総枚数が変わった（カードを足したならこの錨を測り直す）');
+  eq(rows, 6763, '🔴パック CSV の総枚数が変わった（カードを足したならこの錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）
   eq(packOf('SP01-001') + '/' + packOf('SPDi43-21') + '/' + packOf('SPK01-14'), 'SP/SPDi/SPK', '🔴SP・SPDi・SPK はそれぞれ1ファイル（ユーザー指定）');
   eq(packOf('WXDi-P11-010A') + '/' + packOf('WX24-P1-044') + '/' + packOf('WX22-035'), 'WXDi-P11/WX24-P1/WX22', 'パック番号の規則');
   ok(!fs.readdirSync(join(root, 'public/data')).some(f => /^CardData_.*\.csv$/.test(f)), '🔴旧 CardData_*.csv が残っている（どちらを読むか割れる）');

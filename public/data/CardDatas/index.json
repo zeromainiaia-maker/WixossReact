@@ -619,6 +619,11 @@
    "pack": "SPDi",
    "file": "SPDi.csv",
    "legacySheet": 10
+  },
+  {
+   "pack": "WX26-P1",
+   "file": "WX26-P1.csv",
+   "legacySheet": null
   }
  ],
  "tokens": "_TK.csv",

@@ -5239,6 +5239,8 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /** 🆕`OPP_SIGNI_TO_DECK_AND_SHUFFLE` で「対戦相手の**すべての**シグニ」（選ばせない・2026-10-03 `WX26-P1-051-E1`）。 */
+  allSigni?: boolean;
   /**
    * 🆕**この STUB が立てるフラグを「そのアタックの間」だけにする**（§5.3 `O-367`・2026-09-14）。
    * いまの消費者は `CRASH_TO_TRASH_INSTEAD` のみ（`WX19-034-E1`＝原文が「そのアタックの間」）。

@@ -295,7 +295,8 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
       if (f.isFrozen) st.field.signi_frozen![z] = true;
       if (f.isDown) st.field.signi_down![z] = true;
       if (f.hasCharm) st.field.signi_charms![z] = take(`${side}チャーム${z}`);
-      if (f.hasAcce || f.acceHost) st.field.signi_acce![z] = take(`${side}アクセ${z}`);
+      // ⚠`signi_acce` はゾーンごとの**配列**（`(string[] | null)[]`）＝文字列で入れると snapshot が落ちる（2026-10-03・`WX26-P1-061-E2` で初めて踏んだ）。
+      if (f.hasAcce || f.acceHost) st.field.signi_acce![z] = [take(`${side}アクセ${z}`)];
       if (f.infected) st.field.signi_virus![z] = 1;
       if (f.isArmored) st.field.signi_armor![z] = true;
       if (f.crossState) st.field.cross_state![z] = true;
