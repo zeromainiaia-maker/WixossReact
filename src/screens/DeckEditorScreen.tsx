@@ -28,6 +28,8 @@ interface Props {
   tkCards?: CardData[];
   onUpdate: (deck: Deck) => void;
   onDelete: (id: string) => void;
+  /** 🆕このデッキを別の種類（自分のデッキ ⇄ CPU デッキ）へコピーする。 */
+  onCopyToKind: (kind: 'player' | 'cpu') => void;
   onBack: () => void;
 }
 
@@ -45,7 +47,7 @@ const getCardBg = (color: string) => COLOR_BG[color] ?? '#f5f0fb';
 
 const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レゾナ', 'キー', 'ピース', 'リレーピース'];
 
-export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCards = [], onUpdate, onDelete, onBack }: Props) {
+export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCards = [], onUpdate, onDelete, onCopyToKind, onBack }: Props) {
   const [current, setCurrent] = useState<Deck>(deck);
   const [search, setSearch] = useState('');
   const [effectSearch, setEffectSearch] = useState('');
@@ -573,6 +575,18 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#2e4a2e', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
               >🤖 CPU の作戦</button>
             )}
+            {/* 🆕2026-10-02＝自分のデッキ ⇄ CPU デッキへコピー（名前は「<名前>コピー」・同名があれば「(1)」…）。 */}
+            {(() => {
+              const target = current.kind === 'cpu' ? 'player' : 'cpu';
+              const label = target === 'cpu' ? 'CPUデッキにコピー' : '自分のデッキにコピー';
+              return (
+                <button
+                  data-testid="deck-copy-to-kind"
+                  onClick={() => { if (confirm(`このデッキを${label}しますか？`)) { setShowDeckSettingsMenu(false); onCopyToKind(target); } }}
+                  style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
+                >📋 {label}</button>
+              );
+            })()}
           </div>
         </div>
       )}

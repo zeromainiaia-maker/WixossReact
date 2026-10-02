@@ -201,7 +201,7 @@ import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReas
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
 import { ALL_LRIG_FOLDER, withAllLrigFolder } from '../src/utils/deckFolders';
-import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
+import { applyFolderReorder, copyDeckName, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
@@ -87108,6 +87108,20 @@ test('デッキのフォルダ（センターのルリグタイプ別）・種�
   ok(/useCpuDeckPicker\(validCpuDecks, cardMap, variantNumIndex\)/.test(mm), '🔴マッチングが共有の CPU デッキ選択を通っていない');
   ok(/randomCandidates = randomFolders\.find\(f => f\.name === randomFolder\)/.test(picker) && picker.includes('pickRandomDeck(randomCandidates)'),
     '🔴ランダムモードが選んだフォルダから引いていない');
+}));
+
+test('デッキのコピー（自分のデッキ ⇄ CPU デッキ）＝名前は「<名前>コピー」・同名があれば(1)(2)…', () => withSavedCursor(() => {
+  // 🆕2026-10-02（ユーザー要望）＝デッキ設定のボタンで別の種類へコピーする。名前の規則は `copyDeckName`。
+  eq(copyDeckName('赤', []), '赤コピー', '既定の名前が「<名前>コピー」にならない');
+  eq(copyDeckName('赤', ['赤']), '赤コピー', '元の名前と同じだけで番号を付けた');
+  eq(copyDeckName('赤', ['赤コピー']), '赤コピー(1)', '🔴同名があるのに番号が付かない');
+  eq(copyDeckName('赤', ['赤コピー', '赤コピー(1)', '赤コピー(3)']), '赤コピー(2)', '空いている番号を使わない');
+  // 画面の配線＝コピー先の種類の名前だけで重複を見る／CPU の作戦は自分のデッキへ持ち込まない。
+  const app = fs.readFileSync(join(root, 'src/App.tsx'), 'utf8');
+  ok(app.includes("copyDeckName(src.name, decks.filter(d => deckKindOf(d) === kind).map(d => d.name))"), '🔴コピー名の重複判定がコピー先の種類で行われていない');
+  ok(app.includes("const cpuPlan = kind === 'cpu' ? src.cpuPlan : undefined;"), '🔴CPU の作戦を自分のデッキへ持ち込む');
+  const editor = fs.readFileSync(join(root, 'src/screens/DeckEditorScreen.tsx'), 'utf8');
+  ok(editor.includes('data-testid="deck-copy-to-kind"'), '🔴デッキ設定にコピーのボタンが無い');
 }));
 
 test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ばす（メインフェイズは行う・CPU も同じ）', () => withSavedCursor(() => {

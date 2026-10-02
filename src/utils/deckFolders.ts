@@ -106,3 +106,17 @@ export function folderThumbnailCandidates(
   const nums = [...new Set(folder.decks.flatMap(d => [...d.lrigDeck, ...d.mainDeck]))];
   return nums.map(n => cardMap.get(n)).filter((c): c is CardData => !!c);
 }
+
+/**
+ * 🆕**デッキを別の種類（自分のデッキ ⇄ CPU デッキ）へコピーするときの名前**（2026-10-02 ユーザー要望）。
+ * 既定は `<名前>コピー`。**コピー先の種類に同じ名前があれば** `<名前>コピー(1)`・`(2)`… と空いている番号を使う。
+ */
+export function copyDeckName(baseName: string, existingNames: Iterable<string>): string {
+  const taken = new Set(existingNames);
+  const plain = `${baseName}コピー`;
+  if (!taken.has(plain)) return plain;
+  for (let n = 1; ; n++) {
+    const numbered = `${plain}(${n})`;
+    if (!taken.has(numbered)) return numbered;
+  }
+}

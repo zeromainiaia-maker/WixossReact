@@ -12,7 +12,7 @@ import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
 import SpectateScreen from './screens/SpectateScreen';
 import { SPECTATE_ACTIVE_KEY } from './utils/spectateStore';
-import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
+import { copyDeckName, deckFolderOf, deckKindOf, DECK_KIND_JA, folderThumbKey, type DeckKind } from './utils/deckFolders';
 import { deckFromRow } from './utils/deckRow';
 import { fetchCardCsvTexts } from './data/cardDataFetch';
 import { shouldGoToStartOnSignIn } from './utils/authNav';
@@ -184,6 +184,29 @@ export default function App() {
     setViewMode('DECK_EDITOR');
   };
 
+  // 🆕2026-10-02＝デッキを別の種類（自分のデッキ ⇄ CPU デッキ）へコピーする（デッキ設定のボタン）。
+  //   名前は `<名前>コピー`、コピー先の種類に同名があれば `(1)`… を付ける（`copyDeckName`）。
+  //   🔑元のデッキは変えない・編集画面も元のデッキのまま（コピー先は一覧の該当タブに並ぶ）。
+  const handleCopyDeckToKind = async (src: Deck, kind: DeckKind) => {
+    if (!user) return;
+    const name = copyDeckName(src.name, decks.filter(d => deckKindOf(d) === kind).map(d => d.name));
+    const nextOrder = decks.length;
+    // CPU の作戦は CPU デッキだけが持つ（自分のデッキへは持ち込まない＝`handleUpdateDeck` と同じ規約）。
+    const cpuPlan = kind === 'cpu' ? src.cpuPlan : undefined;
+    const { data, error } = await supabase
+      .from('decks')
+      .insert([{
+        user_id: user.id, name, main_deck: src.mainDeck, lrig_deck: src.lrigDeck, sort_order: nextOrder, deck_kind: kind,
+        thumbnail_card_num: src.thumbnailCardNum ?? null, art_overrides: src.artOverrides ?? {},
+        center_lrig: src.centerLrig ?? null, assist_lrig_l: src.assistLrigL ?? null, assist_lrig_r: src.assistLrigR ?? null,
+        deck_format: src.format ?? null, cpu_plan: cpuPlan ?? null,
+      }])
+      .select().single();
+    if (error || !data) { alert('デッキのコピーに失敗しました: ' + (error?.message ?? '不明')); return; }
+    setDecks(prev => [...prev, deckFromRow(data)]);
+    alert(`${DECK_KIND_JA[kind]}に「${name}」としてコピーしました`);
+  };
+
   const handleSetFolderThumbnail = async (kind: DeckKind, folderName: string, cardNum: string) => {
     if (!user) return;
     const { error } = await supabase.from('deck_folders').upsert(
@@ -281,6 +304,7 @@ export default function App() {
           tkCards={tkCards}
           onUpdate={handleUpdateDeck}
           onDelete={handleDeleteDeck}
+          onCopyToKind={kind => handleCopyDeckToKind(currentDeck, kind)}
           onBack={() => {
             setDeckListView({ kind: deckKindOf(currentDeck), openFolder: deckFolderOf(currentDeck, new Map(cards.map(c => [c.CardNum, c] as const))) });
             setViewMode('DECK_LIST');
