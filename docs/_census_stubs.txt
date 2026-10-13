@@ -1,19 +1,19 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 3801 件）
+live JSON の STUB id 種類 : 596（総ノード 3800 件）
 逆翻訳シートの [STUB:…] 総数: 275  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 10 種 / 10 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 10 種 / 10 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 7 種 / 7 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 7 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 41 種 / 129 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 588 種
+  D 健全（実装あり＋日本語表示）                          : 589 種
   E 表示だけの穴（条件側 `[条件:…]` の生ID露出）          : 0 種 / 0 箇所
   F 表示だけの穴（STUB ラベルに内部実装の識別子）          : 0 種 / 0 箇所
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 374 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 375 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -22,15 +22,9 @@ live JSON の STUB id 種類 : 598（総ノード 3801 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
-     1件   1枚  DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT
-        カード: WX26-P1-048
-        生成: src\data\manualEffects.ts:12927
      1件   1枚  DEFERRED_ASSIST_GROW_TO_LV3
         カード: WX26-P1-049
-        生成: src\data\manualEffects.ts:12931
-     1件   1枚  DEFERRED_CRAFT_ACCE_CHOICE
-        カード: WX26-P1-030
-        生成: src\data\manualEffects.ts:12923
+        生成: src\data\manualEffects.ts:12942
      1件   1枚  DEFERRED_GAIN_HOLOGRAPH_MARKER
         カード: WX26-P1-026
         生成: src\data\manualEffects.ts:12771
@@ -45,13 +39,10 @@ live JSON の STUB id 種類 : 598（総ノード 3801 件）
         生成: src\data\manualEffects.ts:12770
      1件   1枚  DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS
         カード: WX26-P1-018
-        生成: src\data\manualEffects.ts:12919
+        生成: src\data\manualEffects.ts:12922
      1件   1枚  DEFERRED_REVEAL_TOP_CHOOSE_THRICE
         カード: WX26-P1-007
-        生成: src\data\manualEffects.ts:12915
-     1件   1枚  DEFERRED_UNDER_SIGNI_TO_FIELD
-        カード: WX26-P1-102
-        生成: src\data\manualEffects.ts:12957
+        生成: src\data\manualEffects.ts:12918
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -91,7 +82,7 @@ live JSON の STUB id 種類 : 598（総ノード 3801 件）
         消費: src\screens\battle\guard.ts:19
      3件   3枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WX19-002, WXK03-002, WXK11-020
-        消費: src\engine\execUtils.ts:2586 / src\screens\battle\costs.ts:1391
+        消費: src\engine\execUtils.ts:2589 / src\screens\battle\costs.ts:1391
      3件   3枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-004, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8617 / src\engine\effectEngine.ts:8635 / src\engine\effectEngine.ts:8648
@@ -127,16 +118,16 @@ live JSON の STUB id 種類 : 598（総ノード 3801 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1829
+        消費: src\engine\execUtils.ts:1832
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:8428
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:11408
+        消費: src\engine\effectExecutor.ts:11448
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:11410
+        消費: src\engine\effectExecutor.ts:11450
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
@@ -175,7 +166,7 @@ live JSON の STUB id 種類 : 598（総ノード 3801 件）
         消費: src\engine\effectExecutor.ts:1360
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:2486
+        消費: src\engine\execUtils.ts:2489
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

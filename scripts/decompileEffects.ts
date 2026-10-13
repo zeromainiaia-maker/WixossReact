@@ -169,6 +169,8 @@ const REF_NOUN_JA: Record<string, string> = {
   assist_lrig_level_sum: 'あなたのアシストルリグのレベルの合計',
   self_hand_over_five: 'あなたの手札が5枚を超えている分の枚数',
   seven_minus_self_life_count: '7からあなたのライフクロスの枚数を引いた数',
+  // 🆕§5.3 `O-543`＝`WX26-P1-048-E1`②（台帳はクラッシュだけ＝原文の「他の領域に移動した」より狭い）。
+  self_life_crashed_by_opp_effect_this_turn: 'このターンに対戦相手の効果によってクラッシュされたあなたのライフクロスの枚数',
   bet_coins_paid: 'あなたがベットしたコインの枚数',
   bet_coins_minus_declared_choose: 'あなたがベットしたコインのうち宣言しなかった枚数',
   source_effective_power: 'このシグニのパワー',
@@ -264,6 +266,8 @@ function refCountJa(ref: string): string {
     bet_coins_paid: 'ベットした《コイン》1枚',
     // 🆕§5.3 `O-259` 第11バッチ＝ベットしたコインのうち「①（コスト軽減）に回さなかった」枚数。
     bet_coins_minus_declared_choose: 'ベットした《コイン》のうち使用コストの軽減に使わなかった1枚',
+    // 🆕§5.3 `O-543`＝台帳はクラッシュだけを数える（原文の「他の領域に移動した」より狭い）＝そう読めるように書く。
+    self_life_crashed_by_opp_effect_this_turn: 'このターンに対戦相手の効果によってクラッシュされたあなたのライフクロス1枚',
   };
   return m[ref] ?? `［${ref}］`;
 }
@@ -382,6 +386,8 @@ function filterJa(f?: any): string {
   if (f.powerEqTrigger) parts.push('そのシグニと同じパワーの');
   if (f.classMatchesAnyFieldSigni) parts.push('あなたの場のいずれかのシグニと共通するクラスを持つ');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
+  // 🆕§5.3 `O-543`＝場を離れたカード基準（`triggerCollect` の収集時に解決）＝【自】場を離れたとき の「このシグニより低いレベル」。
+  if (f.levelBelowLeftCard) parts.push('場を離れたこのシグニより低いレベルを持つ');
   if (f.levelEqTrigger) parts.push('そのシグニと同じレベルの');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
   if (f.levelLtOppLrig) parts.push('対戦相手のセンタールリグより低いレベルを持つ');
@@ -1692,6 +1698,11 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
     // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
     case 'ATTACH_ACCE': {
+      // 🆕§5.3 `O-543`＝ゲーム外のクラフトから選ぶ形（`craftNames`）。
+      if (a.craftNames?.length) {
+        const hostCF = a.targetFilter ? filterJa(a.targetFilter) : '';
+        return `あなたの${hostCF}シグニ1体を対象とし、クラフトの${a.craftNames.map((n: string) => `《${n}》`).join('か')}1枚をそれの【アクセ】にする`;
+      }
       // 🆕§5.3 `O-285`（2026-09-08）＝`fromLrigDeck` を描く。落とすと「エナゾーンから」と**嘘の逆翻訳**になる
       //   （既定の else が 'エナゾーン' なので、新しい発生元は必ずここへ足すこと）。
       const srcJaAA = a.fromLrigDeck ? 'ルリグデッキ' : a.fromHand ? '手札' : 'エナゾーン';
@@ -2462,6 +2473,10 @@ function actionJa(a?: Action, effectType?: string): string {
           : a.trigger?.refreshedOwner === 'self' ? 'あなた' : 'いずれかのプレイヤー';
         const effIDT = a.effect?.type === 'FORCE_END_TURN' ? 'このターンを終了する' : actionJa(a.effect);
         return `このターン、${whoIDT}が次にリフレッシュをした場合、その後で${effIDT}`;
+      }
+      // 🆕§5.3 `O-543`＝「次の対戦相手のアタックフェイズの間、…」（`onOpponentTurn`＝相手ターンのフェイズ境界で発火）。
+      if (a.trigger?.onOpponentTurn && a.trigger.timing === 'ON_ATTACK_PHASE_START') {
+        return `次の対戦相手のアタックフェイズの間（開始時に適用）、${actionJa(a.effect)}`;
       }
       // 🆕ON_BANISH（2026-09-01 続き760・`WX15-006-E1`）＝「このターン、あなたのシグニ1体が
       //   （あなたの効果以外によって）バニッシュされたとき、…」。原因の除外を落とすと
@@ -3664,7 +3679,7 @@ function actionJa(a?: Action, effectType?: string): string {
       //   ⚠逆翻訳は原文照合の主計器なので、engine の内部語彙が混ざると照合の目が鈍る。
       const tuCnt = a.count === 'ALL' ? '好きな枚数'
         : a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
-      const tuDest: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', trash: 'トラッシュに置く' };
+      const tuDest: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', trash: 'トラッシュに置く', field: '場に出す' };
       // `asCost` は OPTIONAL_COST が runtime で生成する支払い印。通常アクションとの意味差も描く。
       return `${a.asCost ? 'コストとして' : ''}${tuFrom}${a.filter ? filterJa(a.filter) : ''}${tuNoun}を${tuCnt}${tuDest[a.destination] ?? `${a.destination}へ置く`}`;
     }
@@ -5759,10 +5774,7 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_GAIN_HOLOGRAPH_MARKER: 'あなたは【ホログラフ】1つを得る（未実装）',
         DEFERRED_REVEAL_TOP_CHOOSE_THRICE: 'デッキをシャッフルし、一番上を公開して「公開したシグニのパワー以下の相手シグニをバニッシュ」か「1枚引いて【エナチャージ１】」を選ぶ、を3回行う（未実装）',
         DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS: '対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、このターンと次のターンの間、それらと名前の異なるアーツとピースを使用できない（未実装）',
-        DEFERRED_CRAFT_ACCE_CHOICE: 'あなたの＜調理＞のシグニ1体に、クラフトの《コードイート　マヨネーズ》《コードイート　ステーキソース》《コードイート　チョコスプレー》のいずれか1枚を【アクセ】として付ける（未実装）',
-        DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT: '①ルリグデッキからアーツ1枚をルリグトラッシュに置いたら、デッキをシャッフルし一番上をライフクロスに加える／②このターンに相手の効果で動いたライフクロス1枚につき次のダメージを1回防ぐ、から2つまで（未実装）',
         DEFERRED_ASSIST_GROW_TO_LV3: 'センタールリグがレベル3以上なら、レベル2のアシストルリグ1体をルリグデッキのレベル3のルリグへグロウさせ、このゲームの間センタールリグのリミットを＋1する（未実装）',
-        DEFERRED_UNDER_SIGNI_TO_FIELD: 'このシグニの下からシグニ1枚を場に出す（未実装）',
         // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
         PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
         // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと

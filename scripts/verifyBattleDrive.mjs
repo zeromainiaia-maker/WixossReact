@@ -62938,6 +62938,154 @@ order.push('v295AssassinFrontHigh', 'v295AssassinFrontLow', 'v295LancerSamePower
   'v295MonblancUnder', 'v295MonblancNoUnder', 'v295MagicBoxFromHand', 'v295SelfPlaceBanByEffect',
   'v295LrigNegateImmune', 'v295LrigNegateControl');
 
+// ── 🆕§5.1 `V-296`（2026-10-14）＝§5.3 `O-543` 第2巡（BUGFIXES 第517バッチ）の実機 ──
+// ①「次の対戦相手のアタックフェイズの間」（`WX26-P1-034-E2`）＝**相手（CPU）のターン**のアタックフェイズ開始時に、
+//   設置者（人間）側の遅延トリガーが発火して自分のシグニが【シャドウ】を得る。
+//   🔴旧＝フェイズ境界の遅延トリガーはターンプレイヤー側の設置しか拾わない。対照＝`onOpponentTurn` が無ければ発火しない。
+// ②`WX26-P1-102-E2`【起】《ダウン》＝このシグニの下からシグニ1枚を場に出す。
+// ③`WX26-P1-030-E1`【起】＝クラフト3種から1枚を選んで＜調理＞のシグニのアクセにする（ゲーム外から生成）。
+const v296DelayedShadow = (flagged) => ({
+  title: `V-296① 次の相手のアタックフェイズの間【シャドウ】＝${flagged ? 'CPU のアタックフェイズ開始時に人間側の遅延トリガーが発火' : '相手ターン用の印が無ければ発火しない（対照）'}`,
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX26-P1-034#l296'], 'field.lrig_down': false,
+      'field.signi': [['WD01-013#s296'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'keyword_grants': {}, 'actions_done': [], 'hand': [],
+      'delayed_triggers': [{
+        type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+        trigger: { timing: 'ON_ATTACK_PHASE_START', ...(flagged ? { onOpponentTurn: true } : {}) },
+        effect: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'シャドウ', duration: 'UNTIL_END_OF_TURN' },
+        sourceCardNum: 'WX26-P1-034#l296',
+      }],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#g296'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    let granted = false, sawAttackPhase = false, last = null;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(900);
+      last = await H.queryState();
+      const g = (last?.host?.keywordGrants ?? []).some(x => x.startsWith('WD01-013#s296:') && x.includes('シャドウ'));
+      if (g) granted = true;
+      if (/ATTACK|END/.test(last?.turnPhase ?? '')) sawAttackPhase = true;
+      H.log(`  v296sh${flagged ? '' : 'Ctl'}[${s}] phase=${last?.turnPhase} active=${String(last?.activeUser).slice(0, 8)} grants=${JSON.stringify(last?.host?.keywordGrants)} pEff=${last?.pendingEffect ?? '-'}`);
+      if (!last?.pendingEffect) await H.clickTextOrBtn(['ガードしない', 'しない', '決定', 'OK']);
+      if (flagged && granted) return { pass: true, detail: `CPU のターン（phase=${last?.turnPhase}）に人間のシグニが【シャドウ】を得た：${JSON.stringify(last?.host?.keywordGrants)}` };
+      if (!flagged && sawAttackPhase && /END/.test(last?.turnPhase ?? '') && s >= 6) break;
+    }
+    if (flagged) return { pass: false, detail: `🔴相手ターンのアタックフェイズで発火しない（sawAttackPhase=${sawAttackPhase} phase=${last?.turnPhase} grants=${JSON.stringify(last?.host?.keywordGrants)}）` };
+    return sawAttackPhase && !granted
+      ? { pass: true, detail: `相手ターン用の印が無い遅延トリガーは相手ターンに発火しない（phase=${last?.turnPhase}）` }
+      : { pass: false, detail: `${granted ? '🔴印が無いのに発火した' : '前提崩れ＝CPU のアタックフェイズまで進まなかった'}（phase=${last?.turnPhase} grants=${JSON.stringify(last?.host?.keywordGrants)}）` };
+  },
+});
+scenarios.v296DelayedShadowOppTurn = v296DelayedShadow(true);
+scenarios.v296DelayedShadowControl = v296DelayedShadow(false);
+// ② 102-E2＝ゾーン1 の [ククリ（下）, モンブラン] から【起】《ダウン》→ ククリを空きゾーンへ。
+scenarios.v296UnderSigniToField = {
+  title: 'V-296② WX26-P1-102【起】《ダウン》＝このシグニの下からシグニ1枚を場に出す',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#r296'], 'field.lrig_down': false,
+      'field.signi': [['WD01-013#u296', 'WX26-P1-102#m296'], null, null], 'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#g296'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let activated = false, fired = false, zoneOpened = false, last = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!activated) {
+        const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click({ timeout: 1200 }).catch(() => {}); activated = true; did = 'btn:【起】'; }
+        else if (!zoneOpened) { await H.clickTestId('my-signi-zone-0'); zoneOpened = true; did = 'zone0'; }
+        else zoneOpened = false;
+      } else if (!fired) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click({ timeout: 1200 }).catch(() => {}); fired = true; did = 'btn:発動'; }
+        else if (last?.pendingEffect) fired = true;
+      }
+      if (!did && activated) did = await H.clickZone() ?? await H.stdStep();
+      last = await H.queryState();
+      const f = last?.host?.fieldSigni ?? [];
+      H.log(`  v296under[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(f)} down=${JSON.stringify(last?.host?.signiDown)} pEff=${last?.pendingEffect ?? '-'}`);
+      const placed = f.some((z, i) => i > 0 && (z ?? []).at(-1) === 'WD01-013#u296');
+      if (placed && !last?.pendingEffect) {
+        const stackOk = JSON.stringify(f[0]) === JSON.stringify(['WX26-P1-102#m296']);
+        const downOk = last?.host?.signiDown?.[0] === true;
+        return { pass: stackOk && downOk, detail: `${stackOk && downOk ? '' : '🔴'}下のククリが空きゾーンへ・モンブランは下が抜けてダウン：field=${JSON.stringify(f)} down=${JSON.stringify(last?.host?.signiDown)}` };
+      }
+    }
+    return { pass: false, detail: `未完了（activated=${activated} fired=${fired} field=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'}）` };
+  },
+};
+// ③ 030-E1＝センタールリグ《メル＝エンゼルキス》の【起】でクラフトをアクセに。ゾーン1 に＜調理＞（コードイート　タコス）。
+scenarios.v296CraftAcce = {
+  title: 'V-296③ WX26-P1-030【起】＝クラフト3種から選んだ1枚を＜調理＞のシグニのアクセにする',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX26-P1-030#r296'], 'field.lrig_down': false,
+      'field.signi': [['WX26-P1-098#c296'], null, null], 'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+      'game_actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#g296'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false, activated = false, fired = false, sawCraftChoice = false, last = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      const craftBtn = page.getByRole('button', { name: /マヨネーズ/ }).first();
+      // ⚠押すのは1回だけ（毎ティック押すと選択がトグルして決定に進めない＝初回に踏んだ・DRIVE_TRAPS §4.4-2c）。
+      if (!sawCraftChoice && await craftBtn.count() && await craftBtn.isVisible().catch(() => false)) {
+        const names = await page.getByRole('button').evaluateAll(els => els.map(e => (e.textContent ?? '').trim()).filter(Boolean)).catch(() => []);
+        H.log(`  PROBE buttons=${JSON.stringify(names.slice(0, 30))}`);
+        await page.screenshot({ path: `${SHOT}/v296craft-choose.png`, fullPage: false }).catch(() => {});
+        sawCraftChoice = true; await craftBtn.click({ timeout: 1200 }).catch(() => {}); did = 'btn:マヨネーズ';
+      } else if (sawCraftChoice) {
+        did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      } else if (!activated) {
+        const btns = page.getByRole('button', { name: /^【起】/ });
+        if (await btns.count()) { await btns.first().click({ timeout: 1200 }).catch(() => {}); activated = true; did = 'btn:【起】'; }
+        else if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); opened = !!did; }
+        else opened = false;
+      } else if (!fired) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click({ timeout: 1200 }).catch(() => {}); fired = true; did = 'btn:発動'; }
+        else if (last?.pendingEffect) fired = true;
+      }
+      if (!did && activated) did = await H.stdStep();
+      last = await H.queryState();
+      const acce = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key)); const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+        const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+        const roomId = (await r1.json())?.[0]?.id;
+        const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+        return (await r2.json())?.[0]?.host_state?.field?.signi_acce ?? null;
+      }, { SUPA_URL, ANON });
+      H.log(`  v296craft[${s}] -> ${did ?? 'なし'} | acce=${JSON.stringify(acce)} pEff=${last?.pendingEffect ?? '-'}`);
+      const z0 = acce?.[0] ?? [];
+      if (z0.some(n => String(n).startsWith('WX26-P1-TK01A')) && !last?.pendingEffect) {
+        return { pass: sawCraftChoice, detail: `${sawCraftChoice ? '' : '🔴'}クラフトの選択が出て、《マヨネーズ》が＜調理＞のアクセになった：acce=${JSON.stringify(acce)}` };
+      }
+    }
+    return { pass: false, detail: `未完了（activated=${activated} fired=${fired} sawCraftChoice=${sawCraftChoice} pEff=${last?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v296DelayedShadowOppTurn', 'v296DelayedShadowControl', 'v296UnderSigniToField', 'v296CraftAcce');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：

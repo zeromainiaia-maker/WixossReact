@@ -3172,6 +3172,12 @@ export interface InstallDelayedTriggerAction {
   sourceCardNum?: string;         // 設置元カード番号。executor が設置時の ExecCtx から焼き込み、発火時の sourceCardNum を復元する
   trigger: {
     timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED' / 'ON_REFRESH'）
+    /**
+     * 🆕§5.3 `O-543`（`WX26-P1-034-E2`／`030-E2`「**次の対戦相手のアタックフェイズの間**、…」）＝
+     * **対戦相手のターン**のフェイズ境界（`ON_ATTACK_PHASE_START` ほか）で発火する。`duration:'NEXT_TURN'` と組で使う。
+     * 🔴無いとフェイズ境界の遅延トリガーは**ターンプレイヤー側の設置しか**拾われない（`collectTurnTriggers`）。
+     */
+    onOpponentTurn?: true;
     crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（設置者から見て）。省略=any。WX11-024=opponent
     leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
@@ -5008,6 +5014,13 @@ export interface AttachAcceAction {
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
   _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー
   _pickedAcceCard?: string;         // 内部: fromHand step1で選んだアクセカード（step2ホスト選択のthenActionへ引き渡す）
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-030-E1`「クラフトの《A》か《B》か《C》１枚をそれの【アクセ】にする」）＝
+   * **ゲーム外から生成する**クラフトの候補名。1つ選ばせて個体番号を振り、`fromHand` と同じ段2（ホスト選択）へ渡す。
+   */
+  craftNames?: string[];
+  /** 内部: `craftNames` で生成したクラフト＝取り出し元が無い（エナ/手札/ルリグデッキの除去を飛ばす）。 */
+  _mintedCraft?: boolean;
 }
 
 // 場のシグニを別のシグニの【アクセ】にする。
@@ -7537,7 +7550,11 @@ export interface ReplaceNextDamageWithMillAction {
 
 export interface TakeFromUnderSigniAction {
   type: 'TAKE_FROM_UNDER_SIGNI';
-  destination: 'hand' | 'energy' | 'trash';
+  /**
+   * 🆕`'field'`（§5.3 `O-543`・`WX26-P1-102-E2`「このシグニの下からシグニ１枚を場に出す」）＝選んだあと
+   * `ADD_TO_FIELD` へ渡す（ゾーン選択・【出】・配置制限の関門はそちらに揃っている）。
+   */
+  destination: 'hand' | 'energy' | 'trash' | 'field';
   /**
    * 🆕`'ALL'`＝「下からカードを**好きな枚数**」（2026-08-31・`WXDi-P11-077-E1`）。
    * 🔴固定数で近似すると**上限が原文に無い数字で決まる**（旧 live は 9 枚固定＝10枚積んだら1枚取り残す）。

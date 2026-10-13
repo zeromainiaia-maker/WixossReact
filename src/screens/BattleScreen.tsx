@@ -872,6 +872,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WX25-P1-TK3');   // ダーク・アナライズ（ヤミノアーツ③）
     nums.add('WX25-P1-TK4');   // 闇気揚々（ヤミノアーツ④）
     nums.add('WX25-P1-TK5');   // ダーク・アウト（ヤミノアーツ⑤）
+    // 🆕§5.3 `O-543`（2026-10-14・実機 `V-296` で発見）＝《メル＝エンゼルキス》（`WX26-P1-030-E1`）がアクセにするクラフト。
+    //   🔴ここに無いと cardMap に載らず、クラフトの選択肢が**全部押せない**（`available:false`）まま止まる。
+    nums.add('WX26-P1-TK01A');   // コードイート　マヨネーズ
+    nums.add('WX26-P1-TK02A');   // コードイート　ステーキソース
+    nums.add('WX26-P1-TK03A');   // コードイート　チョコスプレー
     // シグニトークン（ADD_TO_FIELD cardName指定で生成されるゲーム外カード）
     nums.add('WX25-CP1-TK1A');   // 雷ちゃん
     nums.add('WX24-P3-TK1A');    // ママ勇者

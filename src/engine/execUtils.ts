@@ -216,6 +216,9 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   if (typeof n === 'number') return n;
   if (n.$ref === 'seven_minus_self_life_count') return Math.max(0, 7 - ctx.ownerState.life_cloth.length);
+  // 🆕§5.3 `O-543`（`WX26-P1-048-E1`②「このターンに対戦相手の効果によって他の領域に移動したあなたのライフクロス１枚につき」）。
+  //   ⚠台帳は**相手の効果によるクラッシュ**だけを数える（`execLifeCrash`）＝クラッシュ以外の移動（手札へ戻す等）は数えない近似。
+  if (n.$ref === 'self_life_crashed_by_opp_effect_this_turn') return ctx.ownerState.life_crashed_by_opp_effect_this_turn ?? 0;
   // 「あなたの手札が５枚より多い場合、**その差の分だけ**手札からカードをエナゾーンに置く」（`WDK08-Y08-E1`・§6.4 O-11）。
   // 原文の括弧書きが「７枚になった場合は２枚」と明示している＝手札枚数−5（下限0）。
   if (n.$ref === 'self_hand_over_five') return Math.max(0, ctx.ownerState.hand.length - 5);

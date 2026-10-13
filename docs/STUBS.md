@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 598 |
-| 　└ ハンドラ実装あり | 545 |
-| 　└ フォールバック（execStub 未処理） | 53 |
-| 総 STUB ノード件数 | 3801 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 375 |
+| JSON で使用中の STUB id 種類 | 596 |
+| 　└ ハンドラ実装あり | 546 |
+| 　└ フォールバック（execStub 未処理） | 50 |
+| 総 STUB ノード件数 | 3800 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 376 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -51,15 +51,12 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT` | 1 | 1 | WX26-P1-048 |  |
 | `DEFERRED_ASSIST_GROW_TO_LV3` | 1 | 1 | WX26-P1-049 |  |
-| `DEFERRED_CRAFT_ACCE_CHOICE` | 1 | 1 | WX26-P1-030 |  |
 | `DEFERRED_GAIN_HOLOGRAPH_MARKER` | 1 | 1 | WX26-P1-026 |  |
 | `DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL` | 1 | 1 | WX26-P1-002 |  |
 | `DEFERRED_GUARD_ALT_COST_UNKNOWN` | 1 | 1 | WX26-P1-073 |  |
 | `DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE` | 1 | 1 | WX26-P1-026 |  |
 | `DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS` | 1 | 1 | WX26-P1-018 |  |
 | `DEFERRED_REVEAL_TOP_CHOOSE_THRICE` | 1 | 1 | WX26-P1-007 |  |
-| `DEFERRED_UNDER_SIGNI_TO_FIELD` | 1 | 1 | WX26-P1-102 |  |
-| `DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE` | 1 | 1 | WX26-P1-063 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF` | 1 | 1 | WXEX2-28 |  |
 | `ENERGY_COST_SUBSTITUTE_WHOLE` | 1 | 1 | WX09-032 |  |
@@ -384,7 +381,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
-### execStubPart3.ts（258 種）
+### execStubPart3.ts（259 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -437,6 +434,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ALL_COLOR` | 2 | 2 | WX22-025, WXK05-029 | このシグニはすべての色を得る |
 | `ARTS_SELF_RECYCLE_ON_TRIGGER` | 2 | 2 | WX10-015, WX10-027 | ルリグトラッシュのアーツがトリガー時に自己回収 |
 | `BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN` | 2 | 2 | WX15-003, WX25-P1-050 | 次のターンの間、対戦相手はアーツとスペルと【起】能力を使用できない |
+| `BLOCK_OPP_SIGNI_AUTO_THIS_TURN` | 2 | 2 | WX26-P1-006, WX26-P1-030 | このターン、対戦相手のシグニの【自】能力は発動しない |
 | `CENTER_LRIG_DISMOUNT` | 2 | 2 | WXK03-036, WXK10-063 | センタールリグがすべての乗機シグニから降りる（ドライブ解除・任意） |
 | `CENTER_LRIG_RIDES_ON_SIGNI` | 2 | 2 | WDK01-008, SPK01-01 | センタールリグが選択した1体の乗機シグニに乗る（乗り換え可） |
 | `COIN_USE_RESTRICTION` | 2 | 2 | WXDi-P15-008, WXDi-P15-009 | コイン使用先をスペルとシグニに限定（ゲーム中永続） |
@@ -498,7 +496,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `BLOCK_NON_WHITE_SPELL` | 1 | 1 | WXDi-P03-052 |  |
 | `BLOCK_OPP_AUTO_ABILITY_EXTENDED` | 1 | 1 | WXDi-P13-006 | このターンと次のターン、相手シグニの【自】能力は発動しない |
 | `BLOCK_OPP_DECK_TO_ENERGY` | 1 | 1 | WXK11-068 |  |
-| `BLOCK_OPP_SIGNI_AUTO_THIS_TURN` | 1 | 1 | WX26-P1-006 | このターン、対戦相手のシグニの【自】能力は発動しない |
 | `BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT` | 1 | 1 | WXK11-042 |  |
 | `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` | 1 | 1 | WXK10-013 | このターン、対戦相手はシグニを新たに場に出せない |
 | `BLOCK_OPP_SPELL_ACT_NEXT_TURN` | 1 | 1 | WXDi-P09-007 | 次の対戦相手のターン中、スペルと起動能力を使用できない |
@@ -626,6 +623,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SELF_SIGNI_ATTACK_NEGATE_IMMUNITY` | 1 | 1 | WX24-P4-016 | このターン、あなたの効果によってシグニのアタックは無効にならない |
 | `SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 | このシグニは色を失い、宣言した色を得る（ターン終了時まで） |
 | `SET_CANCEL_OPP_ATTACK_FLAG` | 1 | 1 | WX15-016 | 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。 |
+| `SET_LAST_PROCESSED_OTHER_OWN_SIGNI` | 1 | 1 | WX26-P1-063 | あなたの場にある他のシグニ（対象にはしない） |
 | `SET_STORED_BASE_LEVEL` | 1 | 1 | WXK08-002 | この方法で対象にしたシグニの基本レベルを記録して参照する |
 | `SIGNI_GAIN_ONE_LRIG_COLOR` | 1 | 1 | WXDi-P03-074 | このシグニがルリグの色を1つ得る（ターン終了時まで） |
 | `SIGNI_LOSE_COLOR` | 1 | 1 | WX25-P1-063 | 対戦相手のシグニ1体が色を失う（ターン終了時まで） |
@@ -650,7 +648,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 375 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 376 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -805,6 +803,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_LEAVE_TO_TRASH` | 0 | 0 |  | 選択シグニをトラッシュに置く |
 | `INTERNAL_LIFE_TO_HAND_DO` | 0 | 0 |  |  |
 | `INTERNAL_LOOKED_CARD_UNDER_APPLY` | 0 | 0 |  |  |
+| `INTERNAL_LRIG_DECK_TO_LRIG_TRASH` | 0 | 0 |  |  |
 | `INTERNAL_LRIG_PILE_PICK_ARTS` | 0 | 0 |  | 選んだ束を見て、その中からアーツ1枚を対戦相手のルリグトラッシュに置く（O-307 の3段目） |
 | `INTERNAL_LRIG_PILES_CHOOSE` | 0 | 0 |  | 対戦相手が分けた2つの束のどちらを見るかを効果使用者が選ぶ（O-307 の2段目） |
 | `INTERNAL_LRIG_UNDER_TRASH_SELECTED` | 0 | 0 |  |  |
@@ -943,6 +942,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LEVEL_BASED_CONDITIONAL` | 0 | 0 |  | 公開したシグニのレベルN枚だけ手札を捨てる |
 | `LIFE_CLOTH_LOOK_TRASH_REFILL` | 0 | 0 |  | 全ライフクロスを見て好きな枚数トラッシュ→同数デッキ上から補充（WX05-010） |
 | `LOSE_LRIG_BARRIER` | 0 | 0 |  | 対戦相手は【○バリア】Nつを失う |
+| `LRIG_DECK_ARTS_TO_LRIG_TRASH` | 0 | 0 |  | あなたのルリグデッキからアーツ1枚をルリグトラッシュに置いてもよい |
 | `LRIG_GAIN_ABILITY` | 0 | 0 |  | ルリグシステム（未実装残） |
 | `LRIG_LEVEL_RESTRICT` | 0 | 0 |  | その他ゾーン/レベル/フェイズ制限 |
 | `LRIG_ZONE_RESTRICT` | 0 | 0 |  | その他ゾーン/レベル/フェイズ制限 |
@@ -1009,7 +1009,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SET_DECLARED_NUMBER` | 0 | 0 |  | DECLARE_NUMBER の宣言値を PlayerState に格納する。 🔴**2026-08-22（§6.4 O-41）まで `declared_guard_restrict_level` へ書いており、宣言しただけで   「対… |
 | `SET_DECLARED_NUMBER_PLAIN` | 0 | 0 |  |  |
 | `SET_DECLARED_PARITY` | 0 | 0 |  |  |
-| `SET_LAST_PROCESSED_OTHER_OWN_SIGNI` | 0 | 0 |  | あなたの場にある他のシグニ（対象にはしない） |
 | `SHUFFLE_DECK_POWER_HALF` | 0 | 0 |  | シャッフル後に全シグニのパワーを半減 |
 | `SHUFFLE_REMAINDER_INTO_DECK` | 0 | 0 |  | 「残りをデッキに加えてシャッフルする」 |
 | `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` | 0 | 0 |  | 引用【常】能力の付与（**構造化できなかったときの残余**）。 |

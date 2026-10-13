@@ -120,6 +120,7 @@ import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess, planRestri
 import { deployLimitBlockReason, deployLimitLogMessage } from '../src/engine/deployLimit';
 import { centerLrigLevelOf, signiPlaceableByLevel } from '../src/engine/placeLevelGate';
 import { collectRiseBanishSubstitutes } from '../src/engine/effectEngine';
+import { resolveLeaveFieldDynamicFilters } from '../src/engine/triggerCollect';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
@@ -94255,6 +94256,124 @@ test('§5.3 O-543 WX26-P1-063-E1＝このシグニのパワーを、他の自分
   eq(mods.reduce((sum, m) => sum + m.delta, 0), -12000, '🔴他のシグニの（実効）パワー合計だけ下がっていない');
   ok(!(r.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === a || m.cardNum === b), '他のシグニのパワーまで動かした');
 }));
+
+test('§5.3 O-543 WX26-P1-034-E2／030-E2＝「次の対戦相手のアタックフェイズの間」は相手ターンのアタックフェイズ開始時に設置者側で発火', () => withSavedCursor(() => {
+  // 🔴旧＝フェイズ境界の遅延トリガーは**ターンプレイヤー側の設置しか**拾われない＝相手ターン用の設置は発火しなかった。
+  const live = (effectsMap.get('WX26-P1-034') ?? []).find(e => e.effectId === 'WX26-P1-034-E2')!;
+  const installed = run(live.action, mkCtx({}, {}, 'WX26-P1-034')).ownerState;   // 自分（HOST）のメインフェイズで設置
+  eq((installed.delayed_triggers ?? []).length, 1, '遅延トリガーが設置されていない');
+  const opp = mkState({});
+  // ① 設置したターン（自分のアタックフェイズ開始時）には発火しない。
+  eq(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', installed, opp).filter(e => e.effectId === 'DELAYED_TRIGGER').length, 0,
+    '🔴設置したターンの自分のアタックフェイズで発火した');
+  // ② ターン終了で持ち越し → 次の相手ターン（GUEST がターンプレイヤー）のアタックフェイズ開始時に、設置者（HOST）側で発火。
+  const carried = clearEndOfTurnDelayedTriggers(installed);
+  const fired = cttEntries(trigCtx(GUEST, GUEST), 'ON_ATTACK_PHASE_START', opp, carried).filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(fired.length, 1, '🔴次の相手ターンのアタックフェイズ開始時に発火しない');
+  eq(fired[0]?.playerId, HOST, '発火した効果の持ち主が設置者でない');
+  // ③ 相手ターン用の設置は、自分のターンのアタックフェイズ開始時には発火しない（反転）。
+  eq(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', carried, opp).filter(e => e.effectId === 'DELAYED_TRIGGER').length, 0,
+    '🔴相手ターン用の遅延トリガーが自分のターンで発火した');
+  // ④ 次のターンが終われば消える。
+  eq((clearEndOfTurnDelayedTriggers(carried).delayed_triggers ?? []).length, 0, '2ターン残った');
+  // 030-E2 も同じ形（【自】封じ＋強制アタック）。
+  const e030 = (effectsMap.get('WX26-P1-030') ?? []).find(e => e.effectId === 'WX26-P1-030-E2')!;
+  ok(JSON.stringify(e030.action).includes('"onOpponentTurn":true') && JSON.stringify(e030.action).includes('BLOCK_OPP_SIGNI_AUTO_THIS_TURN'),
+    '🔴030-E2 が相手のアタックフェイズの遅延トリガーになっていない');
+}));
+
+test('§5.3 O-543 WX26-P1-102-E2＝このシグニの下からシグニ1枚を場に出す（下のカードから抜けて場へ）', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-102') ?? []).find(e => e.effectId === 'WX26-P1-102-E2')!;
+  const under = `${SIGNI_L1}#u102`, spell = `${findCard(c => c.Type === 'スペル')}#s102`;   // ⚠個体番号つき（素の番号はデッキにも居て、そちらが抜ける）
+  const base = mkCtx({ lrig: [LRIG_BY_LV('3')] }, {}, 'WX26-P1-102');
+  const ctx = { ...base, ownerState: { ...base.ownerState,
+    field: { ...base.ownerState.field, signi: [[spell, under, 'WX26-P1-102'], null, null] } } } as ExecCtx;
+  const first = executeEffect({ effectId: 't', effectType: 'ACTIVATED', action: live.action, duration: 'INSTANT', mandatory: false } as CardEffect, ctx);
+  eq(JSON.stringify((first as { pending?: { candidates?: string[] } }).pending?.candidates), JSON.stringify([under]), '候補は下の**シグニ**だけ（スペルは出せない）');
+  const r = run(live.action, ctx);
+  const tops = r.ownerState.field.signi.map(st => st?.at(-1) ?? null);
+  ok(tops.includes(under), '🔴下のシグニが場に出ていない');
+  eq(JSON.stringify(r.ownerState.field.signi[0]), JSON.stringify([spell, 'WX26-P1-102']), '🔴下のカードから抜けていない（複製）');
+}));
+
+test('§5.3 O-543 WX26-P1-053-E1＝《ドーナ SUNNY》がいるかぎり＜怪異＞に「場を離れたとき、手札からより低いレベルの＜怪異＞をダウンで出す」を付与', () => withSavedCursor(() => {
+  const kaii3 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異') && c.Level === '3' && c.CardNum !== 'WX26-P1-053');
+  const sunny = findCard(c => c.CardName === 'ドーナ　SUNNY');
+  const withSunny = mkState({ lrig: [sunny], signi: ['WX26-P1-053', kaii3, null] });
+  const granted = collectGrantedFromLayer(withSunny, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  const g = (granted.get(kaii3) ?? []).find(e => e.effectId === 'WX26-P1-053-E1-G');
+  ok(!!g, '🔴＜怪異＞に【自】が付与されていない');
+  eq((collectGrantedFromLayer(mkState({ lrig: [LRIG_BY_LV('3')], signi: ['WX26-P1-053', kaii3, null] }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>)
+    .get(kaii3) ?? []).filter(e => e.effectId === 'WX26-P1-053-E1-G').length, 0, '《ドーナ SUNNY》がいないのに付与された');
+  // 離れたカード（Lv3）基準で「より低いレベル」＝level.max 2 に解決される。
+  const resolved = resolveLeaveFieldDynamicFilters(cardMap as Map<string, CardData>, g!, cardMap.get(kaii3), []);
+  const src = ((resolved.action as Extract<EffectAction, { type: 'ADD_TO_FIELD' }>).source as { filter?: TargetFilter }).filter;
+  eq(JSON.stringify(src?.level), JSON.stringify({ max: 2 }), '🔴離れたカードより低いレベルに解決されない');
+  const act = resolved.action as Extract<EffectAction, { type: 'ADD_TO_FIELD' }>;
+  ok(act.asDown === true && act.suppressOnPlay === true, 'ダウン状態・【出】を発動しない が無い');
+}));
+
+test('§5.3 O-543 WX26-P1-030-E1＝クラフト3種から1枚を選んで＜調理＞のシグニのアクセにする（ゲーム外から生成）', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-030') ?? []).find(e => e.effectId === 'WX26-P1-030-E1')!;
+  const cook = `${findCard(c => isSigni(c) && (c.CardClass ?? '').includes('調理'))}#c030`;
+  const other = `${findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理'))}#o030`;
+  const base = mkCtx({ lrig: [LRIG_BY_LV('3')] }, {}, 'WX26-P1-030');
+  const ctx = { ...base, ownerState: { ...base.ownerState,
+    field: { ...base.ownerState.field, signi: [[other], [cook], null], signi_acce: [null, null, null] } } } as ExecCtx;
+  const first = executeEffect({ effectId: 't', effectType: 'ACTIVATED', action: live.action, duration: 'INSTANT', mandatory: false } as CardEffect, ctx);
+  const opts = ((first as { pending?: { options?: { label: string; available?: boolean }[] } }).pending?.options ?? []);
+  eq(opts.length, 3, '🔴クラフト3種の選択肢が出ない');
+  ok(opts.every(o => o.available !== false), 'クラフトのカードデータが引けない（選べない選択肢がある）');
+  const r = run(live.action, ctx);
+  const acce = r.ownerState.field.signi_acce ?? [];
+  eq(JSON.stringify(acce[1]), JSON.stringify(['WX26-P1-TK01A#1']), '🔴＜調理＞のシグニにクラフトのアクセが付いていない');
+  ok(!acce[0]?.length, '＜調理＞でないシグニに付いた');
+}));
+
+test('§5.3 O-543 WX26-P1-048-E1＝①アーツをルリグトラッシュに置いたらライフ+1／②相手の効果でクラッシュされた枚数ぶん次のダメージを防ぐ', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-048') ?? []).find(e => e.effectId === 'WX26-P1-048-E1')!;
+  const ch = live.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const arts = `${findCard(c => c.Type === 'アーツ')}#a048`;
+  const base = mkCtx({}, {}, 'WX26-P1-048');
+  const ctx1 = { ...base, ownerState: { ...base.ownerState, lrig_deck: [arts], lrig_trash: [], life_cloth: [fresh()], deck: [fresh(), fresh()] } } as ExecCtx;
+  const r1 = run(ch.choices[0].action, ctx1);
+  ok((r1.ownerState.lrig_trash ?? []).includes(arts) && !(r1.ownerState.lrig_deck ?? []).includes(arts), '🔴アーツがルリグトラッシュへ移っていない');
+  eq(r1.ownerState.life_cloth.length, 2, '🔴置いたのにライフクロスが増えていない');
+  const r1none = run(ch.choices[0].action, { ...ctx1, ownerState: { ...ctx1.ownerState, lrig_deck: [] } } as ExecCtx);
+  eq(r1none.ownerState.life_cloth.length, 1, '🔴アーツを置いていないのにライフが増えた（「そうした場合」が効いていない）');
+  const r2 = run(ch.choices[1].action, { ...base, ownerState: { ...base.ownerState, life_crashed_by_opp_effect_this_turn: 2 } } as ExecCtx);
+  const r0 = run(ch.choices[1].action, { ...base, ownerState: { ...base.ownerState, life_crashed_by_opp_effect_this_turn: 0 } } as ExecCtx);
+  ok(JSON.stringify(r2.ownerState) !== JSON.stringify(r0.ownerState), '🔴2枚クラッシュされても何も予約されない');
+  eq(JSON.stringify(r0.ownerState), JSON.stringify(base.ownerState === undefined ? {} : { ...base.ownerState, life_crashed_by_opp_effect_this_turn: 0 }), '0枚なら何も予約しない');
+}));
+
+test('§5.3 O-543 ゲーム外から生成するクラフト・トークンは BattleScreen の常時読み込みに載っている', () => {
+  // 🔴2026-10-14 実機 `V-296` で発見＝実戦の cardMap は「対戦に出ているカード」だけに絞られる（`battleCardNums`）。
+  //   ゲーム外から生成するカードはそこに無いので、手書きの常時読み込みリストに載せないと**cardMap から引けず**、
+  //   `WX26-P1-030-E1` のクラフト選択肢が**全部押せない**（`available:false`）まま止まっていた。golden は全カード入りの
+  //   cardMap なので緑だった。⇒ 生成する名前（`ADD_TO_FIELD.cardName`／`ATTACH_ACCE.craftNames`）を全数で照合する。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const always = new Set([...src.matchAll(/nums\.add\('([^']+)'\)/g)].map(m => m[1]));
+  const norm = (x: string) => x.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+  const tokensByName = new Map<string, string[]>();
+  for (const [num, c] of cardMap) if (/TK/.test(num)) {
+    const k = norm(c.CardName ?? ''); tokensByName.set(k, [...(tokensByName.get(k) ?? []), num]);
+  }
+  const missing = new Set<string>();
+  const walk = (o: unknown, id: string): void => {
+    if (Array.isArray(o)) { o.forEach(x => walk(x, id)); return; }
+    if (!o || typeof o !== 'object') return;
+    const a = o as { type?: string; cardName?: string; source?: unknown; craftNames?: string[] };
+    const names = [...(a.type === 'ADD_TO_FIELD' && a.cardName && !a.source ? [a.cardName] : []), ...(a.craftNames ?? [])];
+    for (const n of names) {
+      const toks = tokensByName.get(norm(n)) ?? [];
+      if (toks.length && !toks.some(t => always.has(t))) missing.add(`${n}（${toks.join('/')}・${id}）`);
+    }
+    Object.values(o).forEach(v => walk(v, id));
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e, e.effectId);
+  eq([...missing].join(' / '), '', '🔴常時読み込みに無いクラフト・トークンを生成する効果がある（実機で押せない／空のカードになる）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

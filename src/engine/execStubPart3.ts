@@ -4416,6 +4416,21 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOSP } },
       '相手はシグニを配置できない'));
   }
+  // 表示: あなたのルリグデッキからアーツ1枚をルリグトラッシュに置いてもよい
+  // 🆕§5.3 `O-543`（`WX26-P1-048-E1`①）＝選んだ札を `lastProcessedCards` に載せる（後段の「そうした場合」が読む）。
+  if (stub.id === 'LRIG_DECK_ARTS_TO_LRIG_TRASH') {
+    const artsLDA = (ctx.ownerState.lrig_deck ?? []).filter(n => ctx.cardMap.get(getCardNum(n))?.Type === 'アーツ');
+    if (artsLDA.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, 'ルリグデッキにアーツがない'));
+    return selectOrInteract(artsLDA, 1, true, 'self_lrig_deck',
+      ({ type: 'STUB', id: 'INTERNAL_LRIG_DECK_TO_LRIG_TRASH' } as StubAction) as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_LRIG_DECK_TO_LRIG_TRASH') {
+    const cnLDT = ctx.lastProcessedCards?.[0];
+    if (!cnLDT || !(ctx.ownerState.lrig_deck ?? []).includes(cnLDT)) return done({ ...ctx, lastProcessedCards: [] });
+    return done(addLog({ ...ctx, lastProcessedCards: [cnLDT], ownerState: { ...ctx.ownerState,
+      lrig_deck: ctx.ownerState.lrig_deck.filter(n => n !== cnLDT), lrig_trash: [...(ctx.ownerState.lrig_trash ?? []), cnLDT] } },
+      `${ctx.cardMap.get(getCardNum(cnLDT))?.CardName ?? cnLDT}をルリグデッキからルリグトラッシュに置いた`));
+  }
   // 表示: あなたの場にある他のシグニ（対象にはしない）
   // 🆕§5.3 `O-543`（`WX26-P1-063-E1`「このシグニのパワーをあなたの場にある**他のシグニのパワーの合計と同じだけ**－する」）＝
   //   自分の場の効果元以外のシグニを `lastProcessedCards` に載せるだけ（対象に取らない・盤面は動かさない）。

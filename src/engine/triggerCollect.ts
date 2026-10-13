@@ -5587,12 +5587,16 @@ export function collectTurnTriggers(
   // 遅延は parser 側で遅延句が落ちて**即時実行**になっていた（＝アタックフェイズを待たずにその場で発動する過剰効果）。
   // ON_TURN_END は相手ターン中に非ターンプレイヤーが設置する場合もあるため両 state を読む。
   // 他のフェイズ timing は従来どおりターンプレイヤー側だけ（既存の近似と発火範囲を変えない）。
-  const delayedHolders = timing === 'ON_TURN_END'
-    ? [[meId, myState], [opId, opState]] as const
-    : [[meId, myState]] as const;
+  // 🆕§5.3 `O-543`＝`trigger.onOpponentTurn` は**非ターンプレイヤー（設置者）側**で拾う（「次の対戦相手のアタックフェイズの間」）。
+  //   ⚠`duration:'NEXT_TURN'` は**設置したターンには発火しない**（ターン終了時に `THIS_TURN` へ降格してから効く）。
+  //   ON_TURN_END は相手ターン中に非ターンプレイヤーが設置する場合もあるので、onOpponentTurn を問わず両者を見る。
+  const delayedHolders = [[meId, myState], [opId, opState]] as const;
   for (const [holderId, holderState] of delayedHolders) {
+    const isTurnPlayer = holderId === meId;
     for (const dt of holderState.delayed_triggers ?? []) {
       if (dt.trigger?.timing !== timing) continue;
+      if (dt.duration === 'NEXT_TURN') continue;
+      if (timing !== 'ON_TURN_END' && (dt.trigger?.onOpponentTurn === true) === isTurnPlayer) continue;
       entries.push({
         id: ctx.genId(), playerId: holderId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
         label: `このターンの遅延トリガー（${labelSuffix}）`,

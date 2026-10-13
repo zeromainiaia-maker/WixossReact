@@ -9886,7 +9886,7 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
     if (zoneIdx !== -1) {
       const stack = stacksTFU[zoneIdx]!;
       // under-cards = all except the last (top) card
-      cands = stack.slice(0, -1).filter(cn => !a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter));
+      cands = stack.slice(0, -1).filter(cn => !a.filter || matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.filter));
     } else {
       // ON_LEAVE_FIELD では発火元は既に場を離れ、直前の下カードはルール処理でトラッシュにある。
       // StackEntry→ExecCtx で運ばれた既存スナップショットとの積集合だけを候補にする。
@@ -9900,13 +9900,19 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
       if (!stack || stack.length <= 1) return;
       if (a.hostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(stack.at(-1)!)), a.hostFilter)) return;
       stack.slice(0, -1).forEach(cn => {
-        if (!a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter)) cands.push(cn);
+        if (!a.filter || matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.filter)) cands.push(cn);
       });
     });
   }
   if (cands.length === 0) return done(ctx);
   // 🆕`count:'ALL'`＝「下からカードを**好きな枚数**」（`WXDi-P11-077-E1`）＝候補全部を上限にする。
   const takeCount = a.count === 'ALL' ? cands.length : a.count;
+  // 🆕§5.3 `O-543`＝行き先が場（`WX26-P1-102-E2`）＝選んだ札を `ADD_TO_FIELD` へ渡す
+  //   （`ADD_TO_FIELD` は下のカードからも取り除く・`unplaceableCards` の印もそちらで付く）。
+  if (a.destination === 'field') {
+    return selectOrInteract(cands, takeCount, a.upToCount ?? false, scope,
+      { type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction, undefined, ctx);
+  }
   // 🆕`selectionConstraint`（2026-09-14・§5.3 `O-372` 第4バッチ）＝「それぞれレベルの異なる」等。
   //   ⚠渡さないと同じレベルの札でも払えてしまう（原文より緩い）。
   return selectOrInteract(cands, takeCount, a.upToCount ?? false, scope, a, undefined, ctx, false,
@@ -10934,6 +10940,40 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   const tgtOther = a.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
   const isTgtTurn = a.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
 
+  // 🆕§5.3 `O-543`＝ゲーム外のクラフトから選んでアクセにする（`WX26-P1-030-E1`）。
+  //   段1＝クラフト名の CHOOSE（候補が1つなら省く）→ 個体番号を振る → 段2＝ホスト選択（`_selectingAcceFromHand` の分岐を再利用）。
+  if (a.craftNames?.length) {
+    const resolveCraft = (name: string): string | null => {
+      const norm = (s: string) => s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+      for (const [num, cd] of ctx.cardMap) {
+        if (norm(cd.CardName ?? '') === norm(name) && (cd.Type ?? '').includes('クラフト')) return getCardNum(num);
+      }
+      return null;
+    };
+    if (a.craftNames.length > 1) {
+      return needsInteraction(addLog(ctx, 'アクセにするクラフトを選択'), {
+        type: 'CHOOSE', count: 1,
+        options: a.craftNames.map((name, i) => ({
+          id: `craft_${i}`, label: `《${name}》`, available: !!resolveCraft(name),
+          action: { ...a, craftNames: [name] } as import('../types/effects').EffectAction,
+        })),
+      });
+    }
+    const base = resolveCraft(a.craftNames[0]);
+    if (!base) return done(addLog(ctx, `クラフト《${a.craftNames[0]}》が見つからない`));
+    let maxIdx = 0;
+    const scan = (arr: (string | null | undefined)[] | null | undefined) => arr?.forEach(n => {
+      if (n && getCardNum(n) === base) maxIdx = Math.max(maxIdx, parseInt(n.slice(base.length + 1), 10) || 0);
+    });
+    for (const st of [ctx.ownerState, ctx.otherState]) {
+      scan(st.deck); scan(st.hand); scan(st.trash); scan(st.energy); scan(st.excluded); scan(st.lrig_deck); scan(st.lrig_trash);
+      st.field.signi.forEach(z => scan(z));
+      (st.field.signi_acce ?? []).forEach(z => scan(z as string[] | null));
+    }
+    const minted = `${base}#${maxIdx + 1}`;
+    const pickHost: AttachAcceAction = { ...a, craftNames: undefined, _mintedCraft: true, _selectingAcceFromHand: true };
+    return applyDirectAction(pickHost as import('../types/effects').EffectAction, minted, ctx);
+  }
   // romHand
    if (a.fromHand) {
     const handCands = srcState.hand.filter(cn => {
@@ -14365,6 +14405,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               newS = { ...newS, field: { ...newS.field, check: null } };
             } else if ((newS.field.check_rest ?? []).includes(cardNum)) {
               newS = { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== cardNum) } };
+            } else {
+              // 🆕§5.3 `O-543`＝**シグニの下**（`TAKE_FROM_UNDER_SIGNI{destination:'field'}`・`WX26-P1-102-E2`）。
+              //   ⚠一番上（＝場のシグニ自身）は対象にしない。チアゾーンの下（`cheer_under`）も同じ扱い。
+              const ziU = newS.field.signi.findIndex(st => !!st && st.slice(0, -1).includes(cardNum));
+              if (ziU >= 0) {
+                const sigU = [...newS.field.signi];
+                const stU = [...sigU[ziU]!]; stU.splice(stU.indexOf(cardNum), 1); sigU[ziU] = stU;
+                newS = { ...newS, field: { ...newS.field, signi: sigU } };
+              } else if ((newS.field.cheer_under ?? []).includes(cardNum)) {
+                newS = { ...newS, field: { ...newS.field, cheer_under: (newS.field.cheer_under ?? []).filter(x => x !== cardNum) } };
+              }
             }
           }
         }
@@ -14424,7 +14475,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           if (!stack || stack.length === 0) return [];
           const top = stack[stack.length - 1];
           if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
-          if (acceAction.targetFilter && !matchesFilter(ctx.cardMap.get(top), acceAction.targetFilter)) return [];
+          if (acceAction.targetFilter && !matchesFilter(ctx.cardMap.get(getCardNum(top)), acceAction.targetFilter)) return [];
           return [top];
         });
         if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
@@ -14456,6 +14507,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       //   ⚠列挙側（`execAttachAcce` の `fromLrigDeck`）と対で足す＝落とすとカードが複製される。
       } else if ((newSrc.lrig_deck ?? []).includes(acceCardNum)) {
         newSrc = { ...newSrc, lrig_deck: newSrc.lrig_deck.filter(n => n !== acceCardNum) };
+      } else if (acceAction._mintedCraft) {
+        // 🆕§5.3 `O-543`＝ゲーム外から生成したクラフト（`craftNames`）＝取り除く元が無い。
       } else {
         return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札/ルリグデッキにない`));
       }

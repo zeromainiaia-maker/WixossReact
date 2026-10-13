@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-14（第517バッチ）§5.3 `O-543` 第2巡＝WX26-P1 の受け皿待ち6効果＋実機で見つけた常時読み込みの漏れ
+
+- **実装した6効果**＝034-E2／030-E2「**次の対戦相手のアタックフェイズの間**」（遅延トリガーに `trigger.onOpponentTurn` を足し、相手ターンのアタックフェイズ開始時に**設置者側**で発火＝【シャドウ】付与／【自】封じ＋強制アタック）・102-E2（下からシグニを場に出す＝`TAKE_FROM_UNDER_SIGNI{destination:'field'}`→`ADD_TO_FIELD`、`ADD_TO_FIELD` が下のカードからも抜く）・053-E1（《ドーナ SUNNY》がいるかぎり＜怪異＞に「場を離れたとき、手札から離れたシグニより低いレベルの＜怪異＞をダウンで出す・【出】は発動しない」＝`levelBelowLeftCard`＋`suppressOnPlay`）・030-E1（クラフト3種から選んでアクセ＝`ATTACH_ACCE.craftNames` でゲーム外から生成）・048（①ルリグデッキのアーツをルリグトラッシュに置いたらライフ+1＝`LRIG_DECK_ARTS_TO_LRIG_TRASH`／②相手の効果でクラッシュされた枚数ぶん次のダメージを防ぐ＝`REPEAT{countRef}`。⚠②の台帳はクラッシュだけ＝原文「他の領域に移動した」より狭い近似）。
+- 🔴**フェイズ境界の遅延トリガーは `duration:'NEXT_TURN'` でも設置したターンに発火しえた**（`collectTurnTriggers` が期間を見ていなかった）＝NEXT_TURN は降格後だけ拾うように直した（既存の NEXT_TURN は `ON_ATTACK_SIGNI` の1件だけ＝影響なし）。
+- 🔴**実機で発見＝ゲーム外から生成するクラフトが常時読み込みリスト（`BattleScreen.tsx` の `battleCardNums`）に無いと、実戦の cardMap から引けず選択肢が全部押せない**（030-E1 が CHOOSE のまま止まった。golden は全カード入りの cardMap なので緑）。WX26-P1 のクラフト3種を足し、**生成する名前を全数で照合する golden** を足した（現状 漏れ0）。
+- **ついでに**＝`execTakeFromUnderSigni` と `ATTACH_ACCE` のホスト絞り込みが `cardMap.get(個体番号)` を素で引いていた（実戦の `InstanceMap` は剥がすので実害なし・同じ関数の他分岐に揃えて `getCardNum` を通した）。
+- **検証**＝golden 新規8本・`npm run gates` 全緑・**実機 `V-296` 4本 PASS**（相手ターンのアタックフェイズで【シャドウ】が付く／印が無ければ付かない・下のククリが空きゾーンへ出てモンブランはダウン・クラフトの選択が出てマヨネーズがアクセに）＋`verifyFullMatch cpu` PASS。⚠初回の `v296CraftAcce` はシナリオ側も腐っていた（選択肢を毎ティック押してトグル）＝1回だけ押す形へ直した。
+
 ## 2026-10-14（第516バッチ）§5.3 `O-543`＝WX26-P1 の受け皿待ち14効果を実装＋同じ形の既存バグ3系統
 
 - **実装した14効果**（各カードの直前コメントに読みを書いた）＝005「レベルの合計が6以下になるように好きな数デッキの一番下へ・置いた数だけ相手が引く」（`TRANSFER_TO_DECK` に `totalLevelMax` の選択を足した＝`execBanish` と同じ形）／006②「次とその次のダメージを手札1枚捨てで置換」（強制の `LIFE_CRASH_REPLACE{pay_cost}`×2）／008①「ルリグかシグニ」・リコレクト（《無》払いの任意置換）／010②（下記）／022-E2（ルリグのアタックが相手の効果で無効にならない＝新フラグ `lrig_attack_negate_immune_this_turn`）／034-E1（感染状態のシグニだけパワーマイナス2倍＝新フラグ `double_power_minus_infected_this_turn`・`calcFieldPowers` の3経路）／052-E1（中央のシグニゾーンへの配置禁止＝`zoneBlockSource:'center'`）／058-E2（【マジックボックス】を3つまで手札に戻す＝`MAGIC_BOX_TO_HAND`）／063-E1（他の自分のシグニの実効パワー合計だけマイナス）／063-E2・105-E2（下記）／072-E2（エナの＜調理＞を下に置いたら同じレベルの相手シグニが能力を失う＝コスト未表現を解消）／098-E1（下の＜調理＞をエナへ＝既存 `TAKE_FROM_UNDER_SIGNI`）／102-E1（下を全部トラッシュの離場置換を**バトルでも**＝`leaveUnderCardsTrash.includeBattle`）。
