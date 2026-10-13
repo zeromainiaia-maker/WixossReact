@@ -212,7 +212,7 @@ import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '.
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection, resonaPaymentOptions } from '../src/screens/battle/resonaSummon';
-import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, keywordDisplayLabel, normalizeKeywordName, parseAssassinScopeText, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
+import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, underSigniPrintedPowers, hasBanishResist, hasKeyword, keywordDisplayLabel, normalizeKeywordName, parseAssassinScopeText, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
@@ -6232,7 +6232,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 63, 'PlayerState の命名規約由来フィールド数（🆕63＝2026-09-14 §5.3 `O-372` で card_identity_overrides_this_turn を追加。62＝同日 `O-362` 時点）');
+  eq(convention.length, 65, 'PlayerState の命名規約由来フィールド数（🆕65＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も追加。64＝同日 double_power_minus_infected_this_turn を追加。63＝2026-09-14 `O-372` 時点）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -6247,7 +6247,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 41, '命名規約外のターン限定フィールド数（🆕 41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 104, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 106, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -36768,7 +36768,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   **ピースの正準形 `ACTIVATED/['MAIN']` へ直した**ぶんの1減（旧＝`AUTO/['ON_PLAY']`・mandatory）。
     //   ⚠**発火は減っていない**＝`queueCardEffects` はピースに `['AUTO','ACTIVATED']` を積むので同じく走る。
     //   この集合から抜けたのは「AUTO の【出】watcher ではなくピース本体だから」＝**分類の是正**。
-    eq(eligible.length, 1474, '段階2 mandatory集合'); // 1465→1474（2026-10-03 WX26-P1 追加で+9）
+    eq(eligible.length, 1475, '段階2 mandatory集合'); // 1474→1475（2026-10-14 §5.3 `O-543`＝`WX26-P1-072-E2` を「1枚まで下に置く」強制【出】で表した）／1465→1474（2026-10-03 WX26-P1 追加で+9）
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -36791,7 +36791,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   （`WDK05-T14-E1` / `WX03-034-E1` / `WX09-025-E1` / `WX21-051-E1` / `WX21-Re06-E2` / `WX22-048-E1` /
     //   `WXK02-095-E1` / `WXK07-088-E1` / `WXK08-027-E1` のうち ON_PLAY mandatory のもの）の条件を
     //   **効果レベルから宣言の後ろ（木の中）へ移した**＝**較正**（条件は消えていない・集合の総数も不変）。
-    eq(eligible.length - conditional.length, 1420, // 1411→1420（2026-10-03 WX26-P1 追加で+9）
+    eq(eligible.length - conditional.length, 1421, // 1420→1421（2026-10-14 `O-543`＝`WX26-P1-072-E2`）／1411→1420（2026-10-03 WX26-P1 追加で+9）
       '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 54, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
@@ -36804,7 +36804,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕20→18＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
     //   costUnparsed を解いた分（cost あり側へ移動）。
     // 🆕18→17＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` も cost あり側へ移動。
-    eq(optionalNoCost.length, 18, '任意costなし（-O-68① の1効果＝costUnparsed を解いて cost あり側へ移動）'); // 17→18（2026-10-03 WX26-P1 追加で+1）
+    eq(optionalNoCost.length, 17, '任意costなし（-O-68① の1効果＝costUnparsed を解いて cost あり側へ移動）'); // 18→17（2026-10-14 `O-543`＝`WX26-P1-072-E2` が強制側へ移動）／17→18（2026-10-03 WX26-P1 追加で+1）
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -36995,7 +36995,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1→0＝同日（索引 B 第2巡・§5.3 `O-68`①）で最後の1件 `WXDi-P03-019-E1` も解いた
     //   （`fieldTrashAll` を新設）＝**任意【出】で明示保留している cost 未表現はゼロになった**。
     // 🆕0→1（2026-10-03）＝`WX26-P1-072-E2`（コスト「エナの＜調理＞をこのシグニの下に置く」が未表現）。本体は `DEFERRED_*`＝何もしないので踏み倒しは起きない。
-    eq(deferred, 1, '据え置き＝明示保留した cost 未表現は1件（WX26-P1-072-E2＝本体も未実装）');
+    // 🆕1→0（2026-10-14・§5.3 `O-543`）＝`WX26-P1-072-E2` を「1枚まで下に置く（0枚＝払わない）→置いたら」で表した。
+    eq(deferred, 0, '据え置き＝明示保留した cost 未表現は0件');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -94016,6 +94017,244 @@ test('2026-10-01 シグニのスワイプ画面＝シグニ → アクセ → �
   ok(/const view = signiStackView\(stack, acceCardNums\);\s*return <CardStackModal stack=\{view\.stack\} labels=\{view\.labels\}/.test(src),
     '🔴シグニをタップしたスワイプ画面にアクセが入っていない（ACE の印だけで中身が見えない）');
 });
+
+test('§5.3 O-543 条件付き【アサシン（X）】は正面のシグニで判定する＋「このシグニと同じパワー」', () => withSavedCursor(() => {
+  // 🔑注釈文「正面のシグニがパワー5000以下の場合、バトルをせず対戦相手にダメージを与える」。
+  // 🔴旧実装は相手の場の**どれか1体**が条件に合えば成立していた（正面 6000・側面 5000 で通っていた）。
+  const p5000 = findCard(c => isSigni(c) && c.Power === '5000');
+  const p6000 = findCard(c => isSigni(c) && c.Power === '6000');
+  const opp = mkState({ signi: [p5000, p6000, null] });
+  const kw = ['アサシン:{"powerLte":5000}'];
+  ok(hasApplicableAssassin(kw, opp, cardMap, undefined, undefined, p5000), '正面が 5000 なら成立');
+  ok(!hasApplicableAssassin(kw, opp, cardMap, undefined, undefined, p6000), '🔴正面が 6000 なのに側面の 5000 で成立している');
+  ok(!hasApplicableAssassin(kw, opp, cardMap, undefined, undefined, null), '正面が空なら条件付きは成立しない');
+  ok(hasApplicableAssassin(['アサシン'], opp, cardMap, undefined, undefined, p6000), '無条件アサシンは正面に依らない');
+  // 実機の入口（getSigniAttackKeywordState）も正面を渡す。
+  const atk = fresh();
+  const me = { ...mkState({ signi: [atk, null, null] }), keyword_grants: { [atk]: kw } } as PlayerState;
+  ok(!getSigniAttackKeywordState(atk, me, opp, cardMap, new Map(), [], p6000).isAssassin, '🔴入口が正面を見ていない');
+  ok(getSigniAttackKeywordState(atk, me, opp, cardMap, new Map(), [], p5000).isAssassin, '入口：正面 5000 で成立');
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  ok(/getSigniAttackKeywordState\(myTopNum, myS, opS, battleCardMap, effectivePowers, contGrantedKeywords,\s*isSideAttack \? undefined : opTopCardNum\)/.test(src),
+    '🔴バトル解決がアサシン判定に正面のシグニを渡していない');
+  // 【アサシン（このシグニと同じパワーのシグニ）】（`WX26-P1-063-E2`）。
+  const eqKw = parseAssassinScopeText('このシグニと同じパワーのシグニ');
+  eq(JSON.stringify(eqKw), '{"selfPowerEq":true}', '原文の括弧内を読めていない');
+  const kwEq = ['アサシン:{"selfPowerEq":true}'];
+  const powers = new Map<string, number>([[atk, 6000]]);
+  ok(hasApplicableAssassin(kwEq, opp, cardMap, powers, undefined, p6000, atk), '正面とパワーが同じなら成立');
+  ok(!hasApplicableAssassin(kwEq, opp, cardMap, powers, undefined, p5000, atk), '正面とパワーが違えば不成立');
+  ok(!hasApplicableAssassin(kwEq, opp, cardMap, powers, undefined, p6000), 'アタック側が分からなければ掛からない');
+  eq(keywordDisplayLabel(kwEq[0]), 'アサシン（このシグニと同じパワーのシグニ）', '表示ラベル');
+  const live = (effectsMap.get('WX26-P1-063') ?? []).find(e => e.effectId === 'WX26-P1-063-E2')!;
+  eq((live.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>).keyword, kwEq[0], '🔴live に限定つきアサシンが載っていない');
+}));
+
+test('§5.3 O-543 【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】', () => withSavedCursor(() => {
+  const p5000 = findCard(c => isSigni(c) && c.Power === '5000');
+  const kw = ['ランサー:{"underSigniPowerEq":true}'];
+  ok(hasApplicableLancer(kw, 5000, [3000, 5000]), '下のシグニのどれかと同じパワーなら成立');
+  ok(!hasApplicableLancer(kw, 6000, [3000, 5000]), '同じでなければ不成立');
+  ok(!hasApplicableLancer(kw, 5000), '下にシグニが無ければ不成立');
+  const top = fresh();
+  const st = mkState({});
+  const withStack = { ...st, field: { ...st.field, signi: [[p5000, top], null, null] } } as PlayerState;
+  eq(JSON.stringify(underSigniPrintedPowers(withStack, top, cardMap)), '[5000]', '下のシグニの印刷パワー');
+  eq(keywordDisplayLabel(kw[0]), 'ランサー（このシグニの下にあるシグニと同じパワーのシグニ）', '表示ラベル');
+  const live = (effectsMap.get('WX26-P1-105') ?? []).find(e => e.effectId === 'WX26-P1-105-E2')!;
+  eq((live.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>).keyword, kw[0], '🔴live に限定つきランサーが載っていない');
+}));
+
+test('§5.3 O-543 WX26-P1-102-E1＝原因を限定しない「下を全部トラッシュ」の離場置換はバトルでも効く', () => withSavedCursor(() => {
+  const mkField = (stack: string[]): PlayerState => {
+    const st = mkState({});
+    return { ...st, field: { ...st.field, signi: [stack, null, null] } } as PlayerState;
+  };
+  const other = mkState({});
+  const subs = collectRiseBanishSubstitutes(mkField([fresh(), fresh(), 'WX26-P1-102']), cardMap, effectsMap, other, false);
+  eq(subs.length, 1, '🔴バトルのバニッシュで置換候補が出ない');
+  eq(subs[0].count, 2, '「すべて」なのに下を全部落とさない');
+  eq(subs[0].optional, true, '「置いてもよい」なのに強制');
+  eq(collectRiseBanishSubstitutes(mkField([fresh(), 'WX26-P1-102']), cardMap, effectsMap, other, true).length, 0,
+    '《相手ターン》限定なのに自分のターンで成立している');
+  eq(collectRiseBanishSubstitutes(mkField(['WX26-P1-102']), cardMap, effectsMap, other, false).length, 0,
+    '下にカードが無いのに成立している（コスト0で離場を無効化できてしまう）');
+  // 「対戦相手の効果によって」限定の宣言（`WXDi-P05-038`）はバトルでは効かない（反転）。
+  eq(collectRiseBanishSubstitutes(mkField([fresh(), 'WXDi-P05-038']), cardMap, effectsMap, other, false).length, 0,
+    '🔴「対戦相手の効果によって」限定の置換がバトルで効いている');
+}));
+
+test('§5.3 O-543 WX26-P1-034-E1＝感染状態のシグニだけパワーマイナスが2倍（発生源は絞らない）', () => withSavedCursor(() => {
+  // 🔴旧＝parser の `DOUBLE_OWN_POWER_MINUS` が相手シグニを**1体選ばせて**それだけを倍にしていた。
+  const live = (effectsMap.get('WX26-P1-034') ?? []).find(e => e.effectId === 'WX26-P1-034-E1')!;
+  const steps = (live.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  const dpm = steps[1] as StubAction;
+  eq(dpm.id, 'DOUBLE_POWER_MINUS', '🔴live が「1体を選ぶ」版のまま');
+  eq(dpm.doublePowerMinus?.infectedOnly, true, '🔴感染状態の限定が live に無い');
+  const flagged = run(dpm, mkCtx({}, {}, 'WX26-P1-034'));
+  eq(flagged.ownerState.double_power_minus_infected_this_turn, true, 'ターンフラグを立てる');
+  eq(flagged.ownerState.double_power_minus_this_turn, undefined, '感染限定でない2倍フラグは立てない');
+  const inf = fresh(), clean = fresh();
+  const base = mkState({ signi: [inf, clean, null] });
+  const opp = { ...base, field: { ...base.field, signi_virus: [1, 0, 0] },
+    temp_power_mods: [{ cardNum: inf, delta: -3000 }, { cardNum: clean, delta: -3000 }] } as PlayerState;
+  const before = calcFieldPowers(mkState({}), opp, true, effectsMap, cardMap);
+  const after = calcFieldPowers({ ...mkState({}), double_power_minus_infected_this_turn: true } as PlayerState, opp, true, effectsMap, cardMap);
+  eq(after.get(inf)! - before.get(inf)!, -3000, '🔴感染状態のシグニへの －3000 が2倍になっていない');
+  eq(after.get(clean), before.get(clean), '感染していないシグニまで倍にしている');
+}));
+
+test('§5.3 O-543 【マジックボックス】＝「手札から1枚まで設置」と「N つまで手札に戻す」', () => withSavedCursor(() => {
+  // 🔴旧＝素の `PLACE_MAGIC_BOX` は**直前に処理したカード**を置く＝「カードを1枚引き、手札から〜設置」は
+  //   **引いたカードを問答無用で置き**、直前の処理が無い【起】（`WX26-P1-090`）は**何も置かなかった**。
+  for (const id of ['WX26-P1-040-E1', 'WX26-P1-058-E2', 'WX26-P1-089-E1', 'WX26-P1-090-E1', 'WX26-P1-093-E1', 'WX26-P1-096-E1', 'WX26-P1-097-E1']) {
+    const card = id.split('-').slice(0, 3).join('-');
+    const s = JSON.stringify((effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action ?? {});
+    ok(s.includes('"id":"PLACE_MAGIC_BOX","magicBoxSource":"hand"'), `🔴${id}: 手札から設置する出所が live に無い`);
+  }
+  for (const id of ['WX24-P3-067-E1', 'WX24-P4-064-E1']) {   // 反転＝「その中から／そのカードを」は出所なしのまま
+    const card = id.split('-').slice(0, 3).join('-');
+    ok(!JSON.stringify((effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action ?? {}).includes('magicBoxSource'),
+      `${id}: 「そのカード」の文型に手札の出所が付いた`);
+  }
+  const drawn = fresh(), h1 = fresh();
+  const base = mkCtx({}, {}, 'WX26-P1-097');
+  const ctx = { ...base, lastProcessedCards: [drawn], ownerState: { ...base.ownerState, hand: [h1, drawn] } } as ExecCtx;
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_MAGIC_BOX', magicBoxSource: 'hand' } as EffectAction } as CardEffect, ctx);
+  const pend = (res as { pending?: { type?: string; candidates?: string[]; optional?: boolean } }).pending;
+  eq(pend?.type, 'SELECT_TARGET', '🔴手札から選ばせずに直前のカードを置いている');
+  eq(JSON.stringify(pend?.candidates), JSON.stringify([h1, drawn]), '候補は手札全部');
+  eq(pend?.optional, true, '「1枚まで」なのに選ばないことができない');
+  const empty = run({ type: 'STUB', id: 'PLACE_MAGIC_BOX', magicBoxSource: 'hand' } as EffectAction,
+    { ...base, lastProcessedCards: [drawn], ownerState: { ...base.ownerState, hand: [] } } as ExecCtx);
+  eq((empty.ownerState.field.signi_magic_boxes ?? []).filter(Boolean).length, 0, '手札が無ければ何も置かない（直前のカードを置かない）');
+  // MAGIC_BOX_TO_HAND（`WX26-P1-058-E2`）
+  const mbA = fresh(), mbB = fresh();
+  const mbBase = mkCtx({}, {}, 'WX26-P1-058');
+  const mbCtx = { ...mbBase, ownerState: { ...mbBase.ownerState,
+    field: { ...mbBase.ownerState.field, signi_magic_boxes: [mbA, null, mbB] } } } as ExecCtx;
+  const ask = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'MAGIC_BOX_TO_HAND', magicBoxToHandCount: 3 } as EffectAction } as CardEffect, mbCtx);
+  const opts = ((ask as { pending?: { options?: { id: string; label: string }[] } }).pending?.options ?? []);
+  eq(JSON.stringify(opts.map(o => o.id)), JSON.stringify(['zone_0', 'zone_2', 'stop']), 'MB のあるゾーンと「終わる」だけ');
+  ok(!opts.some(o => o.label.includes(cardMap.get(mbA)?.CardName ?? ' ')), '🔴裏向きの中身の名前を選択肢に出している');
+  const one = run({ type: 'STUB', id: 'INTERNAL_MAGIC_BOX_TO_HAND', value: 2 } as EffectAction, mbCtx);
+  ok(one.ownerState.hand.includes(mbB), 'MB が手札に入る');
+  eq(one.ownerState.field.signi_magic_boxes?.[2], null, 'MB がゾーンから消える');
+  eq(one.ownerState.field.signi_magic_boxes?.[0], mbA, '選ばなかった MB は残る');
+}));
+
+test('§5.3 O-543 WX26-P1-052-E1＝このターンと次のターンの間、相手は中央のシグニゾーンに配置できない', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-052') ?? []).find(e => e.effectId === 'WX26-P1-052-E1')!;
+  const act = live.action as StubAction;
+  eq(act.id, 'BLOCK_OPP_ZONE_PLACEMENT', '🔴live が未実装 STUB のまま');
+  const r = run(act, mkCtx({}, {}, 'WX26-P1-052'));
+  eq(JSON.stringify((r.otherState.signi_zone_blocks ?? []).map(b => b.zone)), '[1]', '🔴このターンの中央の禁止が無い');
+  eq(JSON.stringify((r.otherState.signi_zone_blocks_next_turn ?? []).map(b => b.zone)), '[1]', '🔴次のターンの中央の禁止が無い');
+}));
+
+test('§5.3 O-543 WX26-P1-005-E1＝レベルの合計が6以下になるように好きな数デッキの一番下へ・置いた数だけ相手が引く', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-005') ?? []).find(e => e.effectId === 'WX26-P1-005-E1')!;
+  const steps = (live.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  const ttd = steps.find(s => s.type === 'TRANSFER_TO_DECK') as Extract<EffectAction, { type: 'TRANSFER_TO_DECK' }>;
+  eq(ttd.source.totalLevelMax, 6, '🔴live にレベル合計の制限が無い');
+  const l3a = SIGNI_L3, l3b = findCard(c => isSigni(c) && c.Level === '3' && c.CardNum !== SIGNI_L3), l2 = SIGNI_L2;
+  const base = mkCtx({}, { signi: [l3a, l3b, l2] }, 'WX26-P1-005');
+  const ctx = { ...base, otherState: { ...base.otherState, deck: [fresh(), fresh(), fresh()], hand: [] } } as ExecCtx;
+  const first = executeEffect({ effectId: 't', effectType: 'ACTIVATED', action: ttd as EffectAction, duration: 'INSTANT', mandatory: false } as CardEffect, ctx);
+  const pend = (first as { pending?: { type?: string; totalLevelMax?: number; candidates?: string[] } }).pending;
+  eq(pend?.type, 'SELECT_TARGET', '🔴選ばせずに置いている（count:ALL の分岐へ落ちて全部置く）');
+  eq(pend?.totalLevelMax, 6, '選択にレベル合計の上限が渡っていない');
+  const r = run(live.action, ctx);
+  const moved = [l3a, l3b, l2].filter(n => !r.otherState.field.signi.some(st => st?.at(-1) === n));
+  ok(moved.length >= 1, '1体も置いていない');
+  ok(moved.reduce((sum, n) => sum + parseInt(cardMap.get(n)?.Level ?? '0', 10), 0) <= 6, '🔴レベル合計が6を超えて置いた');
+  eq(r.otherState.hand.length, moved.length, '🔴置いた数だけ相手が引いていない');
+}));
+
+test('§5.3 O-543 「自分の効果によってシグニを場に出せない」（WX26-P1-010-E1 ②／WXK10-013-E1 ①）に読み手がある', () => withSavedCursor(() => {
+  // 🔴旧＝`blocked_actions:'PLACE_SIGNI'` を書くだけで読み手が無く、どちらも無言 no-op だった。
+  const lowSigni = SIGNI_L1;
+  const placing = { ...mkState({ lrig: [LRIG_BY_LV('3')], signi: [null, null, null] }), blocked_actions: ['PLACE_SIGNI'] } as PlayerState;
+  const reason = (src: 'normal_summon' | 'other_effect' | 'signi_or_spell_effect', st: PlayerState = placing) => deployLimitBlockReason({
+    placingState: st, opponentState: mkState({}), cardNum: lowSigni, cardMap: cardMap as Map<string, CardData>, placementSource: src,
+  });
+  eq(reason('other_effect'), 'SOURCE_BAN', '🔴効果で出すのに塞がれていない');
+  eq(reason('signi_or_spell_effect'), 'SOURCE_BAN', '🔴シグニ・スペルの効果で出すのに塞がれていない');
+  eq(reason('normal_summon'), null, '通常の召喚まで塞いでいる（原文は「効果によって」だけ）');
+  eq(reason('other_effect', { ...placing, blocked_actions: [] } as PlayerState), null, '封じが無いのに塞いでいる');
+  const self = run({ type: 'STUB', id: 'BLOCK_SELF_SIGNI_PLAY_BY_EFFECT' } as EffectAction, mkCtx({}, {}, 'WX26-P1-010'));
+  ok((self.ownerState.blocked_actions ?? []).includes('PLACE_SIGNI'), '自分側に封じを張る');
+  ok(!(self.otherState.blocked_actions ?? []).includes('PLACE_SIGNI'), '相手側に張っている');
+  ok(JSON.stringify((effectsMap.get('WX26-P1-010') ?? [])[0]?.action ?? {}).includes('BLOCK_SELF_SIGNI_PLAY_BY_EFFECT'), '🔴live の②に封じが無い');
+}));
+
+test('§5.3 O-543 WX26-P1-006 ②／008 リコレクト＝ダメージ置換の宣言を積む', () => withSavedCursor(() => {
+  // 006 ②「次とその次にダメージを受ける場合、代わりに手札を１枚捨てる」＝**強制**の pay_cost を2つ。
+  const e006 = (effectsMap.get('WX26-P1-006') ?? [])[0]!;
+  const c006 = ((e006.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps[0] as Extract<EffectAction, { type: 'CHOOSE' }>).choices[1].action;
+  const r006 = run(c006, mkCtx({}, {}, 'WX26-P1-006'));
+  const decl006 = r006.ownerState.life_crash_replacements ?? [];
+  eq(decl006.length, 2, '🔴「次とその次」＝2回ぶんの置換が積まれていない');
+  ok(decl006.every(d => d.kind === 'pay_cost' && d.once && !d.optional && d.payOptions?.[0]?.handDiscard === 1),
+    '🔴強制・1回限り・手札1枚の置換になっていない');
+  // 008 リコレクト「シグニによってダメージを受ける場合、代わりに《無》を支払ってもよい。そうした場合、この能力を失う」。
+  const e008 = (effectsMap.get('WX26-P1-008') ?? [])[0]!;
+  const steps008 = (e008.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  const r008 = run(steps008[2], mkCtx({}, {}, 'WX26-P1-008'));
+  const d008 = (r008.ownerState.life_crash_replacements ?? [])[0];
+  ok(!!d008 && d008.kind === 'pay_cost' && d008.optional === true && d008.once === true && d008.damageSource === 'signi'
+    && JSON.stringify(d008.payOptions) === '[{"costColors":["無"]}]', '🔴008 のリコレクトの置換が原文どおりでない');
+  const neg = ((steps008[0] as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action) as Extract<EffectAction, { type: 'NEGATE_ATTACK' }>;
+  eq(neg.target.type, 'CENTER_LRIG_OR_SIGNI', '🔴①の対象が「ルリグかシグニ」でない');
+}));
+
+test('§5.3 O-543 WX26-P1-022-E2＝ルリグのアタックは対戦相手の効果によって無効にならない', () => withSavedCursor(() => {
+  const lrig = LRIG_BY_LV('3');
+  const r = run({ type: 'STUB', id: 'LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN' } as EffectAction, mkCtx({ lrig: [lrig] }, {}, 'WX26-P1-022'));
+  eq(r.ownerState.lrig_attack_negate_immune_this_turn, true, 'フラグを立てる');
+  // ① 宣言時の事前登録（「次にそれがアタックしたとき、そのアタックを無効にする」）。
+  const pre = { ...r.ownerState, negated_attacks: [lrig] } as PlayerState;
+  eq(getTargetedAttackNegation(pre, lrig).negated, false, '🔴事前登録の無効化で止まっている');
+  eq(getTargetedAttackNegation({ ...pre, lrig_attack_negate_immune_this_turn: undefined } as PlayerState, lrig).negated, true, '反転：耐性が無ければ止まる');
+  // ② その場の無効化（相手の効果＝相手から見た opponent）。
+  const oppCtx = mkCtx({}, { lrig: [lrig] }, SIGNI);
+  const immuneCtx = { ...oppCtx, otherState: { ...oppCtx.otherState, lrig_attack_negate_immune_this_turn: true } } as ExecCtx;
+  const neg = { type: 'NEGATE_ATTACK', target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 } } as EffectAction;
+  const after = run(neg, immuneCtx);
+  ok(!(after.otherState.negated_attacks ?? []).includes(lrig), '🔴耐性があるのに相手の効果で無効化を登録した');
+  const plain = run(neg, oppCtx);
+  ok((plain.otherState.negated_attacks ?? []).includes(lrig) || !!plain.otherState.cancel_current_lrig_attack, '反転：耐性が無ければ無効化される');
+  ok(JSON.stringify((effectsMap.get('WX26-P1-022') ?? []).find(e => e.effectId === 'WX26-P1-022-E2')?.action ?? {}).includes('LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN'), '🔴live に耐性が無い');
+}));
+
+test('§5.3 O-543 WX26-P1-072-E2＝エナの＜調理＞を下に置いたら、そのシグニと同じレベルの相手シグニが能力を失う', () => withSavedCursor(() => {
+  const cook2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('調理') && c.Level === '2' && c.CardNum !== 'WX26-P1-072');
+  const opp2 = SIGNI_L2, opp3 = SIGNI_L3;
+  const live = (effectsMap.get('WX26-P1-072') ?? []).find(e => e.effectId === 'WX26-P1-072-E2')!;
+  ok(!(live as { costUnparsed?: boolean }).costUnparsed, '🔴コスト未表現の印が残っている');
+  const base = mkCtx({ signi: ['WX26-P1-072', null, null] }, { signi: [opp2, opp3, null] }, 'WX26-P1-072');
+  const ctx = { ...base, ownerState: { ...base.ownerState, energy: [cook2] } } as ExecCtx;
+  const r = run(live.action, ctx);
+  eq(JSON.stringify(r.ownerState.field.signi[0]), JSON.stringify([cook2, 'WX26-P1-072']), 'エナの＜調理＞が下に置かれる');
+  ok((r.otherState.abilities_removed ?? []).includes(opp2), '🔴同じレベル（2）の相手シグニが能力を失っていない');
+  ok(!(r.otherState.abilities_removed ?? []).includes(opp3), '🔴違うレベルの相手シグニまで能力を失った（旧＝無料で全シグニ）');
+  // 払わない（エナに＜調理＞が無い）なら何も起きない。
+  const none = run(live.action, { ...base, ownerState: { ...base.ownerState, energy: [] } } as ExecCtx);
+  eq((none.otherState.abilities_removed ?? []).length, 0, '🔴下に置かずに能力を消した（コストの踏み倒し）');
+}));
+
+test('§5.3 O-543 WX26-P1-063-E1＝このシグニのパワーを、他の自分のシグニの実効パワーの合計だけマイナス', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-063') ?? []).find(e => e.effectId === 'WX26-P1-063-E1')!;
+  const a = fresh(), b = fresh();
+  const base = mkCtx({ signi: ['WX26-P1-063', a, b] }, {}, 'WX26-P1-063');
+  const ctx = { ...base, effectivePowers: new Map<string, number>([['WX26-P1-063', 30000], [a, 7000], [b, 5000]]) } as ExecCtx;
+  const r = run(live.action, ctx);
+  const mods = [...(r.ownerState.power_mods_until_opp_turn ?? [])].filter(m => m.cardNum === 'WX26-P1-063');
+  eq(mods.reduce((sum, m) => sum + m.delta, 0), -12000, '🔴他のシグニの（実効）パワー合計だけ下がっていない');
+  ok(!(r.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === a || m.cardNum === b), '他のシグニのパワーまで動かした');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

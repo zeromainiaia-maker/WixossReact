@@ -14,6 +14,8 @@ export function getTargetedAttackNegation(
   attackerCardNum: string | undefined,
 ): { negated: boolean; escapeDiscard?: number } {
   if (!attackerCardNum || !(attackerState.negated_attacks ?? []).includes(attackerCardNum)) return { negated: false };
+  // 🆕§5.3 `O-543`（`WX26-P1-022-E2`）＝センタールリグのアタックは対戦相手の効果によって無効にならない。
+  if (attackerState.lrig_attack_negate_immune_this_turn && attackerState.field.lrig.at(-1) === attackerCardNum) return { negated: false };
   const escapeDiscard = attackerState.negated_attacks_escape?.[attackerCardNum];
   return { negated: true, ...(escapeDiscard ? { escapeDiscard } : {}) };
 }

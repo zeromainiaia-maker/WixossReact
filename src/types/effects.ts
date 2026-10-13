@@ -5309,6 +5309,19 @@ export interface StubAction {
   magicBoxReveal?: { count: number; filter?: TargetFilter };
   /** `MAGIC_BOX_REVEAL` の選択確定後に、表向きにするシグニゾーン番号を内部actionへ渡す。 */
   magicBoxRevealZones?: number[];
+  /**
+   * 🆕§5.3 `O-543`＝`PLACE_MAGIC_BOX` で**置くカードの出所**。`'hand'`＝「あなたの手札からカードを１枚まで
+   * 【マジックボックス】として…設置する」＝手札から1枚まで選ばせてから設置する。
+   * 🔴省略＝直前に処理したカード（`lastProcessedCards[0]`＝「その中から〜を設置」「そのカードを設置」）。
+   *   手札の文型をこれで書くと**直前に引いたカードを問答無用で置く**（`DRAW` の直後）か、
+   *   **何も置かない**（直前の処理が無い）＝WX26-P1 の7効果がそうだった。
+   */
+  magicBoxSource?: 'hand';
+  /**
+   * 🆕§5.3 `O-543`＝`MAGIC_BOX_TO_HAND`（「あなたの【マジックボックス】をN つまで手札に戻す」・`WX26-P1-058-E2`）の
+   * 残り個数。1つずつゾーンを選び、選ぶたびに減らして再入する（「やめる」で打ち切り）。
+   */
+  magicBoxToHandCount?: number;
   /** COPY_TARGET_POWER の修正を次の対戦相手のターン終了時まで保持する。省略時は従来どおりターン終了時まで。 */
   copyTargetPowerUntilOppTurnEnd?: boolean;
   /**
@@ -6377,6 +6390,11 @@ export interface StubAction {
     duration: 'this_turn' | 'continuous';
     /** 原文が「あなたの**シグニの**効果によって」と発生源を絞っているか（表示用・engine は既にシグニ限定）。 */
     sourceSigniOnly?: boolean;
+    /**
+     * 🆕§5.3 `O-543`（`WX26-P1-034-E1`）＝「対戦相手の**感染状態の**シグニの」＝感染状態のシグニだけを倍にし、
+     * 発生源は絞らない（`PlayerState.double_power_minus_infected_this_turn`）。`this_turn` のときだけ。
+     */
+    infectedOnly?: true;
   };
   underCardOp?: {
     /**
@@ -6636,6 +6654,12 @@ export interface StubAction {
     victimFilter?: TargetFilter;
     /** 支払いが成立した後、場に残った victim 自身をダウンする。 */
     thenDownVictim?: boolean;
+    /**
+     * 🆕§5.3 `O-543`（`WX26-P1-102-E1`）＝原文が離場の原因を限定しない（「場を離れる場合」）＝
+     * **バトルによるバニッシュでも**置換できる（`collectRiseBanishSubstitutes` が読む）。
+     * 省略＝「対戦相手の効果によって」だけ（`WXDi-P05-038`）。
+     */
+    includeBattle?: true;
   };
   /**
    * 🆕`EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF`（§5.3 `O-202`・2026-09-02・`WXEX2-28-E1`）＝
@@ -7033,8 +7057,9 @@ export interface StubAction {
    * - `'vacated'`＝「**それがあった**シグニゾーン」＝直前に場を離れたシグニのゾーン（`WX08-032-E1`）。
    *   `signi_zone_vacated_just` を読む＝**直前ステップが場からの除去であること**が前提。
    * - `'virus'`＝「**【ウィルス】がある**シグニゾーン」＝該当ゾーンすべて（`WXEX1-24-E1` ③）。**複数ゾーン**。
+   * - 🆕`'center'`＝「**中央の**シグニゾーン」（§5.3 `O-543`・`WX26-P1-052-E1`）＝添字 1 固定。
    */
-  zoneBlockSource?: 'designated' | 'vacated' | 'virus';
+  zoneBlockSource?: 'designated' | 'vacated' | 'virus' | 'center';
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

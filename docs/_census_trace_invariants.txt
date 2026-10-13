@@ -212,7 +212,7 @@ WX26-CP1-010-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ 
 WX26-CP1-055-E1	base/both	選択肢なし・差分: 自トラッシュ対象3: 自トラッシュ → 自デッキ[12] ; 自S対象0: パワー+5000
 WX26-CP1-101-E1	base/both	選択肢なし・差分: 自制限: [なし]→[力を貸して！]
 WX26-P1-001-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; WX26-CP1-TK01#1: (不在) → 自フリー
-WX26-P1-005-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相デッキ[11] ; 相デッキ上1: 相デッキ[0] → 相手札
+WX26-P1-005-E1	base/both	選択肢なし・差分: 相S乙: 相シグニ1(上) → 相デッキ[10] ; 相S対象0: 相シグニ0(上) → 相デッキ[9] ; 相S丙: 相シグニ2(上) → 相デッキ[11]
 WX26-P1-060-E2	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX26-P1-060:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WXK01-037-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自エナ ; 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札
 WXK01-055-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WXK01-055:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
@@ -331,7 +331,7 @@ WX26-CP1-006-E1	base/both	失敗ログ「リコレクト条件未達（アーツ
 WX26-CP1-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自エナ青: 自エナ → 自手札 ; 自エナ白: 自エナ → 自手札 ; 相状態 negated_attacks: なし → ["相S対象0"]
 WX26-CP1-010-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自S源: 自トラッシュ → 自手札
 WX26-CP1-036-E2	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札 ; 自デッキ上3: 自デッキ[2] → 自手札
-WX26-P1-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相状態 negated_attacks: なし → ["相S対象0"]
+WX26-P1-008-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相状態 negated_attacks: なし → ["WD01-001"]
 WX26-P1-010-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自状態 life_crash_replacements: なし → [{"kind":"mill","count":3,"once":true,"sourceCardNum":"自S源"}]
 WX26-P1-083-E1	base/decline	辞退・差分: 相状態 suppress_life_burst: なし → "once"
 WX26-P1-086-E1	base/decline	辞退・差分: 相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
@@ -358,7 +358,7 @@ WD23-039-A-TRAP	full/accept	失敗ログ「空きシグニゾーンなし（カ�
 WDK07-Y20-E1	base/both	失敗ログ「SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シードなし」・差分: 自S対象1: 自シグニ1(上) → 自トラッシュ
 SP07-009-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自ライフ
 
-## I4（132効果）
+## I4（135効果）
 WX01-080-E1	empty/both	ドロー: ログ1枚／移動0件
 WX01-084-E1	empty/both	ドロー: ログ1枚／移動0件
 WX02-058-E1	empty/both	ドロー: ログ1枚／移動0件
@@ -463,6 +463,9 @@ WX26-CP1-005-E1	empty/both	ドロー: ログ1枚／移動0件
 WX26-CP1-006-E1	base/both	ドロー: ログ2枚／移動4件
 WX24-D4-04-E2	empty/both	エナチャージ: ログ1枚／移動0件
 WX24-D4-25-BURST	empty/both	エナチャージ: ログ1枚／移動0件
+WX26-P1-005-E1	empty/both	ドロー: ログ3枚／移動1件
+WX26-P1-096-E1	empty/accept	ドロー: ログ1枚／移動0件
+WX26-P1-097-E1	empty/accept	ドロー: ログ1枚／移動0件
 WX26-P1-106-BURST	empty/both	エナチャージ: ログ1枚／移動0件
 WXK01-013-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK01-078-E1	empty/both	ドロー: ログ1枚／移動0件

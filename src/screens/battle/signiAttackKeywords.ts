@@ -21,6 +21,11 @@ export function getSigniAttackKeywordState(
   cardMap: Map<string, CardData>,
   effectivePowers: Map<string, number>,
   continuousKeywords: Iterable<string> = [],
+  /**
+   * 🆕§5.3 `O-543`＝正面のシグニ（条件付き【アサシン（X）】は**正面**が X のときだけ成立）。
+   * 省略＝従来どおり場全体（正面を知らない呼び出し元の互換）。`null`＝正面が空。
+   */
+  defenderFrontNum?: string | null,
 ): SigniAttackKeywordState {
   const activeFieldKeywords = activeFieldGrantKeywordsForSigni(attacker, defender, cardNum, cardMap);
   const continuous = [...continuousKeywords]
@@ -45,7 +50,7 @@ export function getSigniAttackKeywordState(
   return {
     isAssassin: !attacker.abilities_removed?.includes(cardNum)
       // ⚠`attacker` も渡す＝「あなたの手札がN枚以下であるかぎり」（`selfHandLte`）は**アタック側**の条件（§6.4 O-28）。
-      && hasApplicableAssassin(attackKeywords, defender, cardMap, effectivePowers, attacker),
+      && hasApplicableAssassin(attackKeywords, defender, cardMap, effectivePowers, attacker, defenderFrontNum, cardNum),
     isLancer: has('ランサー'),
     lancerKeywords: [...attackKeywords].filter(keyword => keyword === 'ランサー' || keyword.startsWith('ランサー:')),
     isSLancer: has('Sランサー'),

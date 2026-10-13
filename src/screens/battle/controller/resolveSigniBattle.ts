@@ -11,7 +11,7 @@ import {SIGNI_BARRIER_CARD, countBarrierTokens, removeOneBarrierToken, sweepPupp
 import {initStack, pushToStack} from '../../../engine/effectStack';
 import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, battleBanisherMatchesTrigger} from '../../../engine/triggerCollect';
 import {detectLeftFieldSigni, detectLeftFieldSigniToTrash, countCharmsToTrash} from '../../../engine/boardDiff';
-import {hasApplicableLancer, hasBanishResist} from '../../../utils/keywords';
+import {hasApplicableLancer, hasBanishResist, underSigniPrintedPowers} from '../../../utils/keywords';
 import {acceCardsAt, cloneAcceSlots, hasAcceAt} from '../../../utils/acce';
 import {consumeNextDamagePrevention, type DamageSourceContext} from '../damagePrevention';
 import {pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, consumeLifeCrashReplacement, consumeLifeCrashReplaceDecision, lifeCrashReplaceAskOptions, lifeCrashReplaceLog} from '../lifeCrashReplace';
@@ -440,7 +440,8 @@ export async function resolvePendingSigniBattleFor(
         }
       }
       const { isAssassin, isLancer, lancerKeywords, isSLancer, isTripleCrush, isDoubleCrush, isShoot } =
-        getSigniAttackKeywordState(myTopNum, myS, opS, battleCardMap, effectivePowers, contGrantedKeywords);
+        getSigniAttackKeywordState(myTopNum, myS, opS, battleCardMap, effectivePowers, contGrantedKeywords,
+          isSideAttack ? undefined : opTopCardNum);
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       // NO_BATTLE_DEFENDER: 防御シグニが「バトルしない」CONTINUOUS効果を持つ場合もライフへ直接アタック
@@ -940,7 +941,7 @@ export async function resolvePendingSigniBattleFor(
           // 🔴§5.6 `C-9`＝**バニッシュが置換されたら割らない**（公式ルール＝`lancerCrushTriggers` に引用）。
           //   旧実装は置換 ladder のどの分岐を通っても割っていた＝シグニが場に残ったのにライフが割れた。
           const lancerApplies = lancerCrushTriggers(
-            isSLancer || (isLancer && hasApplicableLancer(lancerKeywords, opPower)), defenderResolution);
+            isSLancer || (isLancer && hasApplicableLancer(lancerKeywords, opPower, underSigniPrintedPowers(myS, myTopNum, battleCardMap))), defenderResolution);
           if (lancerApplies && cannotDealDamageToOpp) {
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {

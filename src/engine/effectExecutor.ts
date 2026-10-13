@@ -8649,6 +8649,21 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
     }
 
+    // 🆕§5.3 `O-543`（`WX26-P1-005-E1`）＝「**レベルの合計が６以下になるように**対戦相手のシグニを好きな数対象とし、
+    //   それらをデッキの一番下に置く」＝レベル合計制限つきの複数選択（`execBanish` の同名分岐と同じ形）。
+    //   🔴無いと `count:'ALL'` の分岐が**相手の全シグニ**を置いていた（parser は1体だけにしていた＝過少）。
+    //   ⚠「置く順番は対戦相手が決める」は選択後の一括適用では表せない（順は選んだ順）。
+    if (src.totalLevelMax !== undefined) {
+      if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+      const candidateLevels: Record<string, number> = {};
+      for (const n of cands) candidateLevels[n] = parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0;
+      const maxPick = typeof src.count === 'number' ? src.count : cands.length;
+      return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
+        totalLevelMax: src.totalLevelMax,
+        candidateLevels,
+      });
+    }
+
     if (src.count === 'ALL') {
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
       //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
@@ -14558,6 +14573,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const s = ownerState(tgtOwner, ctx);
       if (tgtOwner === 'opponent' && ctx.otherAttackNegationProtectedNums?.has(cardNum)) {
         return done(addLog(ctx, 'このシグニのアタックは対戦相手の効果によって無効にならない'));
+      }
+      // 🆕§5.3 `O-543`（`WX26-P1-022-E2`）＝センタールリグのアタックは対戦相手の効果によって無効にならない。
+      if (tgtOwner === 'opponent' && s.lrig_attack_negate_immune_this_turn && s.field.lrig.at(-1) === cardNum) {
+        return done(addLog(ctx, 'このルリグのアタックは対戦相手の効果によって無効にならない'));
       }
       // 対象が**いま宣言中のアタッカー**なら、事前登録（negated_attacks＝アタック宣言時に見る）では止まらない。
       // 進行中のアタックは Phase2（resolvePendingSigniBattleFor）が見る cancel_current_signi_attack で落とす（Opusタスク12(cx)）。

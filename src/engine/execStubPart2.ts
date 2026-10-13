@@ -3707,6 +3707,9 @@ export function execStubPart2(
         ? (ctx.otherState.signi_zone_vacated_just ?? [])
         : stub.zoneBlockSource === 'virus'
           ? [0, 1, 2].filter(zi => (ctx.otherState.field.signi_virus?.[zi] ?? 0) > 0)
+          // 🆕§5.3 `O-543`＝「中央のシグニゾーン」（`WX26-P1-052-E1`）＝中央は添字 1（`centerZoneOnly` と同じ規約）。
+          : stub.zoneBlockSource === 'center'
+          ? [1]
           // §6.4 O-16: 指定ゾーンの読みは `designatedZones` へ一本化（複数指定＋旧セーブの単一値を吸収）。
           // ⚠旧実装の `?? 0` は**未指定のときゾーン1を問答無用で禁止する**過剰実行だった。
           //   空配列なら直後の早期 return で「禁止するゾーンがない」に落ちる。

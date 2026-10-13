@@ -1561,6 +1561,13 @@ export function execStubPart3(
   // PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
   // 表示: この方法で処理したカードを【マジックボックス】として設置する
   if (stub.id === 'PLACE_MAGIC_BOX') {
+    // 🆕§5.3 `O-543`＝「あなたの**手札から**カードを１枚まで【マジックボックス】として設置する」。
+    //   手札から1枚まで選ばせ、選んだカードを `lastProcessedCards` に載せて出所なしの本処理へ戻る。
+    if (stub.magicBoxSource === 'hand') {
+      if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '【マジックボックス】設置：手札なし'));
+      const placeFromPicked: StubAction = { type: 'STUB', id: 'PLACE_MAGIC_BOX' };
+      return selectOrInteract(ctx.ownerState.hand, 1, true, 'self_hand', placeFromPicked as EffectAction, undefined, ctx);
+    }
     const cardPMB = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardPMB) return done(addLog(ctx, '【マジックボックス】設置：カードなし'));
     const zoneLabelsPMB = [0, 1, 2].map(zi => {
@@ -1582,6 +1589,38 @@ export function execStubPart3(
     return needsInteraction(addLog(ctx, '【マジックボックス】を設置するゾーンを選択'), {
       type: 'CHOOSE', options: [...zoneLabelsPMB, skipPMB], count: 1,
     });
+  }
+  // 表示: あなたの【マジックボックス】を指定の数まで手札に戻す
+  // 🆕§5.3 `O-543`（`WX26-P1-058-E2`「あなたの【マジックボックス】を３つまで手札に戻す」）。
+  //   【マジックボックス】を選ぶ選択範囲は無い＝ゾーンを1つずつ CHOOSE で選ばせ、残り個数を減らして再入する。
+  //   🔑**ラベルに中身の名前を書かない**（裏向き＝相手に見せない・`V-286`）。手札に戻した後も公開しない。
+  if (stub.id === 'MAGIC_BOX_TO_HAND') {
+    const leftMBH = stub.magicBoxToHandCount ?? 1;
+    const mbsMBH = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
+    const zonesMBH = [0, 1, 2].filter(zi => !!mbsMBH[zi]);
+    if (leftMBH <= 0 || zonesMBH.length === 0) return done(ctx);
+    const optsMBH = zonesMBH.map(zi => ({
+      id: `zone_${zi}`, label: `ゾーン${zi + 1}の【マジックボックス】を手札に戻す`,
+      action: ({ type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'INTERNAL_MAGIC_BOX_TO_HAND', value: zi },
+        { type: 'STUB', id: 'MAGIC_BOX_TO_HAND', magicBoxToHandCount: leftMBH - 1 },
+      ] } as unknown) as EffectAction,
+      available: true,
+    }));
+    const stopMBH = { id: 'stop', label: '戻さない（終わる）', action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction, available: true };
+    return needsInteraction(addLog(ctx, `手札に戻す【マジックボックス】を選択（あと${leftMBH}つまで）`), {
+      type: 'CHOOSE', options: [...optsMBH, stopMBH], count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_MAGIC_BOX_TO_HAND') {
+    const ziMBH = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '-1'), 10);
+    const mbsIMBH = [...(ctx.ownerState.field.signi_magic_boxes ?? [null, null, null])] as (string | null)[];
+    const cardIMBH = mbsIMBH[ziMBH];
+    if (!cardIMBH) return done(ctx);
+    mbsIMBH[ziMBH] = null;
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand: [...ctx.ownerState.hand, cardIMBH],
+      field: { ...ctx.ownerState.field, signi_magic_boxes: mbsIMBH } } },
+      `ゾーン${ziMBH + 1}の【マジックボックス】を手札に戻した`));
   }
   // INTERNAL_SET_MAGIC_BOX: ゾーン確定後の実設置処理
   if (stub.id === 'INTERNAL_SET_MAGIC_BOX') {
@@ -4376,6 +4415,28 @@ export function execStubPart3(
     const newBlockedBOSP = [...(ctx.otherState.blocked_actions ?? []), 'PLACE_SIGNI'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOSP } },
       '相手はシグニを配置できない'));
+  }
+  // 表示: あなたの場にある他のシグニ（対象にはしない）
+  // 🆕§5.3 `O-543`（`WX26-P1-063-E1`「このシグニのパワーをあなたの場にある**他のシグニのパワーの合計と同じだけ**－する」）＝
+  //   自分の場の効果元以外のシグニを `lastProcessedCards` に載せるだけ（対象に取らない・盤面は動かさない）。
+  //   後段の `POWER_MODIFY{perLastProcessed:{unit:'power_sum'}}` が**実効パワー**（`ctx.effectivePowers`）で合計する。
+  if (stub.id === 'SET_LAST_PROCESSED_OTHER_OWN_SIGNI') {
+    const othersSLP = fieldSigniStacks(ctx.ownerState)
+      .flatMap(st => (st?.at(-1) && st.at(-1) !== ctx.sourceCardNum ? [st.at(-1)!] : []));
+    return done({ ...ctx, lastProcessedCards: othersSLP });
+  }
+  // 表示: このターン、このルリグのアタックは対戦相手の効果によって無効にならない
+  // 🆕§5.3 `O-543`（`WX26-P1-022-E2`）＝読み手は `NEGATE_ATTACK` と `getTargetedAttackNegation`。
+  if (stub.id === 'LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_negate_immune_this_turn: true } },
+      'このターン、このルリグのアタックは対戦相手の効果によって無効にならない'));
+  }
+  // 表示: このターン、あなたは自分の効果によってシグニを場に出せない
+  // 🆕§5.3 `O-543`（`WX26-P1-010-E1` ②）＝上の相手版の自分側。読み手は `deployLimitBlockReason`（効果で出すときだけ塞ぐ）。
+  if (stub.id === 'BLOCK_SELF_SIGNI_PLAY_BY_EFFECT') {
+    const blockedBSSP = [...new Set([...(ctx.ownerState.blocked_actions ?? []), 'PLACE_SIGNI'])];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: blockedBSSP } },
+      'このターン、自分の効果によってシグニを場に出せない'));
   }
   // PREVENT_OPP_UPKEEP: 相手のアップキープ（アップ）を防ぐ
   if (stub.id === 'PREVENT_OPP_UPKEEP') {

@@ -4037,11 +4037,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-60` 第5バッチ（2026-08-26）＝**寿命を payload から描く**
       //   （旧表示「対戦相手の場のシグニ数に応じて…」は engine の regex の話で、**原文と無関係**だった）。
       if (a.id === 'DOUBLE_POWER_MINUS') {
-        const dpm = (a as { doublePowerMinus?: { duration: string; sourceSigniOnly?: boolean } }).doublePowerMinus;
+        const dpm = (a as { doublePowerMinus?: { duration: string; sourceSigniOnly?: boolean; infectedOnly?: true } }).doublePowerMinus;
         if (dpm) {
           const who = dpm.sourceSigniOnly ? 'あなたのシグニの効果' : 'あなたの効果';
           const when = dpm.duration === 'this_turn' ? 'このターン、' : '';
-          return `${when}${who}によって対戦相手のシグニのパワーが－される場合、代わりに2倍－される`;
+          return `${when}${who}によって対戦相手の${dpm.infectedOnly ? '感染状態の' : ''}シグニのパワーが－される場合、代わりに2倍－される`;
         }
         return '【※ペイロード欠落】2倍マイナスの寿命が未指定（engine は何もしない）';
       }
@@ -5161,7 +5161,8 @@ function actionJa(a?: Action, effectType?: string): string {
         const payBZP = a.zoneBlockColorless ? `《無》×${a.zoneBlockColorless}を支払わないかぎり` : '';
         // ゾーンの供給源（タスク12(lxxvi)）＝取り違えると別ゾーンを禁止するので逆翻訳でも書き分ける。
         const zoneBZP = a.zoneBlockSource === 'vacated' ? 'それがあった'
-          : a.zoneBlockSource === 'virus' ? '【ウィルス】がある' : '指定された';
+          : a.zoneBlockSource === 'virus' ? '【ウィルス】がある'
+          : a.zoneBlockSource === 'center' ? '中央の' : '指定された';
         return `${spanBZP}、対戦相手は${payBZP}${zoneBZP}シグニゾーンにシグニを新たに配置できない`;
       }
       // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）。期間は parser の payload から描く。
@@ -5562,8 +5563,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // マジックボックス設置（PLACE_MAGIC_BOX）＝「そのカードを【マジックボックス】としてあなたのシグニゾーンに設置してもよい(。（補足）)」を原文抽出。
       if (a.id === 'PLACE_MAGIC_BOX') {
+        // 🆕§5.3 `O-543`＝出所（`magicBoxSource`）を描く＝「そのカード」と「手札から」を取り違えたら原文照合で見える。
+        if (a.magicBoxSource === 'hand') return 'あなたの手札からカードを1枚まで【マジックボックス】としてあなたのシグニゾーン1つに設置する（すでにあるゾーンを選ぶと上書き）';
         return 'そのカードを【マジックボックス】としてあなたのシグニゾーン1つに設置してもよい（すでにあるゾーンを選ぶと上書き）';
       }
+      if (a.id === 'MAGIC_BOX_TO_HAND') return `あなたの【マジックボックス】を${a.magicBoxToHandCount ?? 1}つまで手札に戻す`;
       // 引用能力付与（GRANT_QUOTED_ACTIVATE_ABILITY＝引用【起】／SIGNI_GRANT_QUOTED_CONSTANT_ABILITY＝引用【常】）
       // ＝「…は「【起】/【常】：…」を得る(。（補足）)」を原文抽出。主語は直近の。／：以降、引用内は「」を得る の最初の閉じまで。
       if (a.id === 'GRANT_QUOTED_ACTIVATE_ABILITY' || a.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
@@ -5752,20 +5756,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const miscStubMap: Record<string, string> = {
         // 🆕2026-10-03（WX26-P1）＝受け皿待ちの明示 defer（ハンドラ無し＝engine は何もしない）。
         DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE: 'アタックしたシグニの正面の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効にする（未実装）',
-        DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE: 'このターン、次とその次にダメージを受ける場合、代わりに手札を1枚捨てる（未実装）',
         DEFERRED_GAIN_HOLOGRAPH_MARKER: 'あなたは【ホログラフ】1つを得る（未実装）',
         DEFERRED_REVEAL_TOP_CHOOSE_THRICE: 'デッキをシャッフルし、一番上を公開して「公開したシグニのパワー以下の相手シグニをバニッシュ」か「1枚引いて【エナチャージ１】」を選ぶ、を3回行う（未実装）',
         DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS: '対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、このターンと次のターンの間、それらと名前の異なるアーツとピースを使用できない（未実装）',
         DEFERRED_CRAFT_ACCE_CHOICE: 'あなたの＜調理＞のシグニ1体に、クラフトの《コードイート　マヨネーズ》《コードイート　ステーキソース》《コードイート　チョコスプレー》のいずれか1枚を【アクセ】として付ける（未実装）',
         DEFERRED_ARTS_TO_LRIG_TRASH_OR_LIFE_MOVED_PREVENT: '①ルリグデッキからアーツ1枚をルリグトラッシュに置いたら、デッキをシャッフルし一番上をライフクロスに加える／②このターンに相手の効果で動いたライフクロス1枚につき次のダメージを1回防ぐ、から2つまで（未実装）',
         DEFERRED_ASSIST_GROW_TO_LV3: 'センタールリグがレベル3以上なら、レベル2のアシストルリグ1体をルリグデッキのレベル3のルリグへグロウさせ、このゲームの間センタールリグのリミットを＋1する（未実装）',
-        DEFERRED_MAGIC_BOX_TO_HAND: 'あなたの【マジックボックス】を3つまで手札に戻す（未実装）',
-        DEFERRED_ASSASSIN_SAME_POWER: 'ターン終了時まで、このシグニは【アサシン（このシグニと同じパワーのシグニ）】を得る（未実装）',
-        DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE: 'エナゾーンから＜調理＞のシグニ1枚をこのシグニの下に置いてもよい。そうした場合、ターン終了時まで、それと同じレベルの対戦相手のすべてのシグニは能力を失う（未実装）',
-        DEFERRED_UNDER_COOKING_TO_ENA: 'このシグニの下にある＜調理＞のシグニを1枚までエナゾーンに置く（未実装）',
-        DEFERRED_LEAVE_REPLACE_TRASH_UNDER: '対戦相手のターンの間、下にカードがあるこのシグニが場を離れる場合、代わりにこのシグニの下のカードをすべてトラッシュに置いてもよい（未実装）',
         DEFERRED_UNDER_SIGNI_TO_FIELD: 'このシグニの下からシグニ1枚を場に出す（未実装）',
-        DEFERRED_LANCER_SAME_POWER_AS_UNDER: 'ターン終了時まで、このシグニは【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】を得る（未実装）',
         // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
         PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
         // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと
@@ -6244,7 +6241,7 @@ function actionJa(a?: Action, effectType?: string): string {
         const owner = spec.victimScope === 'self'
           ? `${needUnder}このシグニ` : `${needUnder}${filterJa(spec.victimFilter)}あなたのシグニ1体`;
         const under = spec.count === 'ALL' ? 'すべてのカード' : `カード${spec.count}枚`;
-        return `${owner}が対戦相手の効果によって場を離れる場合、代わりに${spec.victimScope === 'self' ? 'このシグニ' : 'そのシグニ'}の下から${under}をトラッシュに置いてもよい${spec.thenDownVictim ? '。そうした場合、そのシグニをダウンする' : ''}`;
+        return `${owner}が${spec.includeBattle ? '' : '対戦相手の効果によって'}場を離れる場合、代わりに${spec.victimScope === 'self' ? 'このシグニ' : 'そのシグニ'}の下から${under}をトラッシュに置いてもよい${spec.thenDownVictim ? '。そうした場合、そのシグニをダウンする' : ''}`;
       }
       if (a.id === 'CHARM_POWER_MINUS_MULTIPLIER') {
         return `それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、代わりに${typeof a.value === 'number' ? a.value : 3}倍－される`;

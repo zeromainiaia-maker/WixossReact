@@ -92,6 +92,12 @@ export interface AssassinScope {
    * 🔴従来はこの節が丸ごと `GRANT_KEYWORD.keyword` に文字列として入り、一度も効かなかった。
    */
   selfHandLte?: number;
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-063-E2`）＝【アサシン（このシグニと同じパワーのシグニ）】＝
+   * 正面のシグニのパワーがアタックしたシグニ自身のパワーと等しい。
+   * ⚠アタック側の番号（`attackerNum`）を渡さない呼び出し元では判定できない＝掛からない（過少側）。
+   */
+  selfPowerEq?: true;
 }
 
 const ASSASSIN_PREFIX = 'アサシン:';
@@ -118,6 +124,15 @@ export function hasApplicableAssassin(
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
   attackerState?: PlayerState,
+  /**
+   * 🆕§5.3 `O-543`＝**正面のシグニ**（注釈文「正面のシグニがパワーN以下の場合」）。
+   * 🔴旧実装は相手の場の**どれか1体**が条件に合えば成立していた（正面が 12000 でも側面に 3000 がいれば
+   *   【アサシン（パワー5000以下）】が通った＝過剰）。`null`＝正面が空（条件付きは成立しない）。
+   *   省略（`undefined`）だけは従来どおり場全体を見る（正面を知らない呼び出し元の互換）。
+   */
+  frontCardNum?: string | null,
+  /** 🆕§5.3 `O-543`＝アタックしたシグニ（`selfPowerEq` の基準）。 */
+  attackerNum?: string,
 ): boolean {
   const baseCardNum = (cardNum: string) => cardNum.includes('#') ? cardNum.slice(0, cardNum.indexOf('#')) : cardNum;
   for (const keyword of keywords) {
@@ -133,6 +148,7 @@ export function hasApplicableAssassin(
     const matches = opponentState.field.signi.some((stack, zoneIdx) => {
       const cardNum = stack?.at(-1);
       if (!cardNum) return false;
+      if (frontCardNum !== undefined && cardNum !== frontCardNum) return false;
       if (scope.isFrozen && !(isZoneFrozen(opponentState, zoneIdx))) return false;
       const power = effectivePowers?.get(cardNum) ?? parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Power ?? '', 10);
       if (scope.powerLte !== undefined && (!Number.isFinite(power) || power > scope.powerLte)) return false;
@@ -140,6 +156,11 @@ export function hasApplicableAssassin(
       if (scope.levelLte !== undefined) {
         const level = parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Level ?? '', 10);
         if (!Number.isFinite(level) || level > scope.levelLte) return false;
+      }
+      if (scope.selfPowerEq) {
+        if (!attackerNum) return false;
+        const own = effectivePowers?.get(attackerNum) ?? parseInt((cardMap.get(attackerNum) ?? cardMap.get(baseCardNum(attackerNum)))?.Power ?? '', 10);
+        if (!Number.isFinite(power) || !Number.isFinite(own) || power !== own) return false;
       }
       return true;
     });
@@ -165,6 +186,7 @@ export function parseAssassinScopeText(inner: string): AssassinScope | null {
   if (!isFrozen && (m = rest.match(/^レベル([０-９\d]+)以下のシグニ$/))) {
     return { levelLte: parseInt(half(m[1]), 10) };
   }
+  if (!isFrozen && rest === 'このシグニと同じパワーのシグニ') return { selfPowerEq: true };
   return null;
 }
 
@@ -178,6 +200,11 @@ export function encodeAssassinScopesInText(text: string): string {
 
 export interface LancerScope {
   powerLte?: number;
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-105-E2`）＝【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】。
+   * 下のシグニの**印刷パワー**（下のカードは場のシグニではない）のどれかと等しい。
+   */
+  underSigniPowerEq?: true;
 }
 
 const LANCER_PREFIX = 'ランサー:';
@@ -224,7 +251,8 @@ export function keywordDisplayLabel(kw: string): string {
   }
   if (kw.startsWith(LANCER_PREFIX)) {
     const scope = decodeLancerKeyword(kw);
-    const inner = scope?.powerLte !== undefined ? `パワー${scope.powerLte}以下` : '';
+    const inner = scope?.powerLte !== undefined ? `パワー${scope.powerLte}以下`
+      : scope?.underSigniPowerEq ? 'このシグニの下にあるシグニと同じパワーのシグニ' : '';
     return inner ? `ランサー（${inner}）` : 'ランサー';
   }
   return kw;
@@ -267,23 +295,47 @@ function describeAssassinScope(s: AssassinScope): string {
   // ⚠`selfHandLte` は**アタック側の状態条件**（原文「あなたの手札がN枚以下であるかぎり」）＝
   //   相手シグニの絞り込みではないので `parseAssassinScopeText` には逆向きの規則が無い。
   if (s.selfHandLte !== undefined) return `あなたの手札が${s.selfHandLte}枚以下`;
+  if (s.selfPowerEq) return 'このシグニと同じパワーのシグニ';
   return s.isFrozen ? '凍結状態のシグニ' : '';
 }
 
 /** バトルでバニッシュした相手シグニに対して、いずれかのランサー制限が適用されるか。 */
-export function hasApplicableLancer(keywords: Iterable<string>, defenderPower: number): boolean {
+export function hasApplicableLancer(
+  keywords: Iterable<string>,
+  defenderPower: number,
+  /** 🆕§5.3 `O-543`＝アタックしたシグニの下にあるシグニの印刷パワー（`underSigniPowerEq` の基準）。 */
+  underSigniPowers: number[] = [],
+): boolean {
   for (const keyword of keywords) {
     const scope = decodeLancerKeyword(keyword);
     if (scope === null) continue;
     if (Object.keys(scope).length === 0) return true;
     if (scope.powerLte !== undefined && Number.isFinite(defenderPower) && defenderPower <= scope.powerLte) return true;
+    if (scope.underSigniPowerEq && Number.isFinite(defenderPower) && underSigniPowers.includes(defenderPower)) return true;
   }
   return false;
+}
+
+/**
+ * 🆕§5.3 `O-543`＝アタックしたシグニの**下にあるシグニ**の印刷パワー（`LancerScope.underSigniPowerEq` の基準）。
+ * ⚠下のカードは場のシグニではない＝修正は掛からないので印刷値を読む。シグニ以外（スペル等）は除く。
+ */
+export function underSigniPrintedPowers(state: PlayerState, topNum: string, cardMap: Map<string, CardData>): number[] {
+  const base = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  const stack = state.field.signi.find(st => st?.at(-1) === topNum);
+  if (!stack) return [];
+  return stack.slice(0, -1).flatMap(n => {
+    const card = cardMap.get(n) ?? cardMap.get(base(n));
+    if (card?.Type !== 'シグニ') return [];
+    const p = parseInt(card.Power ?? '', 10);
+    return Number.isFinite(p) ? [p] : [];
+  });
 }
 
 /** 「【ランサー（X）】」の括弧内テキスト X を LancerScope に変換する。 */
 export function parseLancerScopeText(inner: string): LancerScope | null {
   const half = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  if (inner.trim() === 'このシグニの下にあるシグニと同じパワーのシグニ') return { underSigniPowerEq: true };
   const match = inner.trim().match(/^パワー([０-９\d]+)以下のシグニ$/);
   return match ? { powerLte: parseInt(half(match[1]), 10) } : null;
 }

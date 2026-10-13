@@ -203,6 +203,11 @@ export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason |
     cardId: p.cardNum, placing: p.placingState, opponent: p.opponentState, cardMap: p.cardMap,
     effectsMap: p.effectsMap, isPlacingOwnerTurn: p.isPlacingOwnerTurn, limit: p.lrigLimit,
   })) return 'LIMIT_OVER';
+  // 🆕§5.3 `O-543`＝「このターン、あなたは**自分の効果によって**シグニを場に出せない」（`WX26-P1-010-E1` ②）／
+  //   「対戦相手は自分の効果によってシグニを新たに場に出せない」（`WXK10-013-E1` ①）＝`blocked_actions:'PLACE_SIGNI'`。
+  //   🔴旧＝フラグを書くだけで**読み手が無く**、どちらも無言 no-op だった。
+  //   ⚠効果で出すときだけ（通常の召喚は塞がない）＝`LIMIT_OVER` と同じ判定。
+  if (p.placementSource !== 'normal_summon' && (p.placingState.blocked_actions ?? []).includes('PLACE_SIGNI')) return 'SOURCE_BAN';
   // 出撃元の効果を名前で限定する自身出撃制限（`O-74`/`O-79`）。ライズ（上乗せ）も「場に出す」なので対象にする。
   if (blockedByOnlyByNamedEffect(p)) return 'ONLY_BY_NAMED_EFFECT';
   // ゾーン＋レベル指定の配置禁止（`O-94`②）。`zoneIndex` を渡した呼び出し元だけが受ける。

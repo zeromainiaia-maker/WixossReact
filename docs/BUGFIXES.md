@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-14（第516バッチ）§5.3 `O-543`＝WX26-P1 の受け皿待ち14効果を実装＋同じ形の既存バグ3系統
+
+- **実装した14効果**（各カードの直前コメントに読みを書いた）＝005「レベルの合計が6以下になるように好きな数デッキの一番下へ・置いた数だけ相手が引く」（`TRANSFER_TO_DECK` に `totalLevelMax` の選択を足した＝`execBanish` と同じ形）／006②「次とその次のダメージを手札1枚捨てで置換」（強制の `LIFE_CRASH_REPLACE{pay_cost}`×2）／008①「ルリグかシグニ」・リコレクト（《無》払いの任意置換）／010②（下記）／022-E2（ルリグのアタックが相手の効果で無効にならない＝新フラグ `lrig_attack_negate_immune_this_turn`）／034-E1（感染状態のシグニだけパワーマイナス2倍＝新フラグ `double_power_minus_infected_this_turn`・`calcFieldPowers` の3経路）／052-E1（中央のシグニゾーンへの配置禁止＝`zoneBlockSource:'center'`）／058-E2（【マジックボックス】を3つまで手札に戻す＝`MAGIC_BOX_TO_HAND`）／063-E1（他の自分のシグニの実効パワー合計だけマイナス）／063-E2・105-E2（下記）／072-E2（エナの＜調理＞を下に置いたら同じレベルの相手シグニが能力を失う＝コスト未表現を解消）／098-E1（下の＜調理＞をエナへ＝既存 `TAKE_FROM_UNDER_SIGNI`）／102-E1（下を全部トラッシュの離場置換を**バトルでも**＝`leaveUnderCardsTrash.includeBattle`）。
+- 🔴**同じ形の既存バグ①＝条件付き【アサシン（X）】が相手の場のどれか1体で成立していた**（注釈文は「**正面の**シグニが X の場合」）。正面 6000・側面 5000 で【アサシン（パワー5000以下）】がライフへ通っていた（live の条件付きアサシン 約20枚）。`hasApplicableAssassin` に正面を渡す。あわせて `AssassinScope.selfPowerEq`（063-E2）・`LancerScope.underSigniPowerEq`（105-E2）を足し、parser の括弧解釈も広げた＝**手書きが parser と同一になったので削除して parser に任せた**（`census:orphanmanual --unfreeze A` で刻印も戻した）。
+- 🔴**同じ形の既存バグ②＝手札から【マジックボックス】を設置する7効果**（040・058・089・090・093・096・097）が素の `PLACE_MAGIC_BOX`（直前に処理したカードを置く）だった＝「カードを1枚引き、手札から〜設置」は**引いたカードを問答無用で置き**、直前の処理が無い【起】（090）は**何も置かなかった**。parser が `magicBoxSource:'hand'` を刻み、engine が手札から1枚まで選ばせる。（10/03 の照合で見落としていた）
+- 🔴**同じ形の既存バグ③＝`blocked_actions:'PLACE_SIGNI'` に読み手が無かった**＝`WXK10-013-E1` ①「対戦相手は自分の効果によってシグニを新たに場に出せない」が無言 no-op。`deployLimitBlockReason`（効果で出すときの全経路の関門）と対象選択の「出せない」印に足し、010② の自分側版 `BLOCK_SELF_SIGNI_PLAY_BY_EFFECT` を新設。
+- **錨の較正**（退化ではない）＝ターン限定フィールド 63→65／104→106（新フラグ2つ）・段階2 mandatory 1474→1475・条件なし 1420→1421・任意costなし 18→17・明示保留の cost 未表現 1→0（どれも 072-E2 を強制【出】で表した分）。
+- **検証**＝golden 新規11本（反転つき＝正面が違えばアサシン不成立・違うレベルは能力を失わない・下に置かなければ消さない・耐性が無ければ無効化される ほか）。`npm run golden` 4466/4466・`npm run gates` の他ゲート全緑。⑤**実機**（`src/screens/` の `resolveSigniBattle.ts`／`signiAttackKeywords.ts`／`attackNegation.ts`／`turnScopedState.ts` を触った）＝**`V-295` 10本 PASS**（アサシン 正面7000/側面3000＝バトル・正面5000＝ライフへ／ランサー 同じパワー＝クラッシュ・違う＝しない／102 下2枚トラッシュで残る・下なし＝バニッシュ／090 手札から選んだ札が MB／封じ下で「決定 (0/0)」のみ／ルリグ 耐性あり＝ダメージ・なし＝無効化）＋`verifyFullMatch cpu` PASS（6ターン/150手）。⚠初回は `v295LrigNegateImmune` が FAIL＝**ルリグアタックは相手のガード確認を挟むので宣言直後はライフが動かない**のにそこで判定していた（シナリオの腐り・ライフが減るまで待つ形へ直して PASS）。
+
 ## 2026-10-03（第515バッチ）追加パック WX26-P1 の取り込み（97枚＋トークン3＋Variants 55）と効果の原文照合
 
 - **取り込みの道具**＝`incoming-cards/pack|token/` に CSV を置き、`scripts/uploadCardImages.mjs --incoming`（ImageKit・155枚）→ `scripts/importNewCards.mjs --apply`（同名は Variants・本体は CSV の並びで最初・トークンはトークン内だけで照合・同名で本文が違えば停止）。🔴**`uploadCardImages.mjs` は 10/01 の再編後も旧 `public/data/CardData_*.csv` を読んでおり0枚だった**（`scripts/archive/` から現役へ移した）。ヘッダ無しの CSV にも対応（初回の CSV がそうで、1行目が黙って捨てられるところだった）。`decompileEffects.ts --pack <パック番号>` を追加。

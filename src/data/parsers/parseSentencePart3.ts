@@ -1911,6 +1911,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- マジックボックス/トラップ設置 ----
   if (t.match(/【マジックボックス】として.*シグニゾーンに設置/)) {
+    // 🆕§5.3 `O-543`＝「あなたの**手札から**カードを１枚まで【マジックボックス】として」＝出所を刻む。
+    //   🔴刻まないと engine は直前に処理したカード（`DRAW` 直後なら引いたカード）を置く／何も置かない。
+    if (/手札からカードを[１1]枚まで【マジックボックス】として/.test(t)) {
+      return { type: 'STUB', id: 'PLACE_MAGIC_BOX', magicBoxSource: 'hand' } as StubAction;
+    }
     return { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as StubAction;
   }
   if (t.match(/【マジックボックス】.*表向きにし.*トラッシュに置いてもよい/)) {

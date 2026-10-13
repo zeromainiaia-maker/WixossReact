@@ -65,6 +65,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   // パワーマイナス倍化は、付与されたターンだけ有効。
   double_power_minus_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'power-minus multiplier granted for the current turn' },
   // 対象単位のパワーマイナス2倍化も、付与されたターンだけ有効。
+  // 感染状態のシグニだけのパワーマイナス2倍化（§5.3 `O-543`）も、付与されたターンだけ有効。
+  // ルリグのアタックが対戦相手の効果で無効にならない（§5.3 `O-543`）も、付与されたターンだけ有効。
+  lrig_attack_negate_immune_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'lrig attack negation immunity granted for the current turn' },
+  double_power_minus_infected_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'infected-only power-minus multiplier granted for the current turn' },
   double_power_minus_targets_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'target-scoped power-minus multiplier granted for the current turn' },
   // ホログラフ公開置換は、付与されたターンだけ有効。
   holograph_reveal_replace_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'holograph reveal replacement for the current turn' },

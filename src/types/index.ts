@@ -836,6 +836,20 @@ export interface PlayerState {
   power0_banish_to_trash_opp_only?: boolean;
   // このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
   double_power_minus_this_turn?: boolean;
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-034-E1`）＝「このターン、あなたの効果によって対戦相手の**感染状態の**シグニのパワーが
+   * －される場合、代わりに２倍－される」。上の `double_power_minus_this_turn` と違い**発生源を絞らず**
+   * （あなたの効果＝シグニ・ルリグ・アーツ全部）、**修正を受けた時点で感染状態のシグニ**だけを倍にする
+   * （`calcFieldPowers` が適用のたびにゾーンのウィルスを見る＝あとから感染したシグニにも掛かる）。
+   */
+  double_power_minus_infected_this_turn?: boolean;
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-022-E2`「このターン、次にこのルリグがアタックしたとき、そのアタックは対戦相手の効果によって
+   * 無効にならず」）＝**センタールリグのアタック**は対戦相手の効果で無効にならない。
+   * 読み手＝`NEGATE_ATTACK`（その場の無効化）と `getTargetedAttackNegation`（宣言時の事前登録）。
+   * ⚠「次の1回」ではなく**ターン終了まで**の近似（同じターンにルリグが2回アタックする盤面だけ広い）。
+   */
+  lrig_attack_negate_immune_this_turn?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   /**
    * 「対戦相手はこのアタックフェイズの間、**無色のカードで**エナコストを支払えず」

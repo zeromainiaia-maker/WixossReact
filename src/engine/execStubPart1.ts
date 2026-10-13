@@ -2041,6 +2041,10 @@ export function execStubPart1(
     if (specDPM.duration === 'continuous') {
       return done(addLog(ctx, '【常】対戦相手のシグニへのパワーマイナスが2倍（常在・effectEngine処理）'));
     }
+    if (specDPM.infectedOnly) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, double_power_minus_infected_this_turn: true } },
+        'このターン、あなたの効果による相手の感染状態のシグニへのパワーマイナスが2倍'));
+    }
     const newOwnerDPM: PlayerState = { ...ctx.ownerState, double_power_minus_this_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerDPM },
       `このターン、${specDPM.sourceSigniOnly ? 'あなたのシグニの効果' : 'あなたの効果'}による相手へのパワーマイナスが2倍`));

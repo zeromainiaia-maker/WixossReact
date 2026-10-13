@@ -12758,10 +12758,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX26-P1-022: E1＝「このルリグをアップし、ターン終了時まで、このルリグはこの能力を失う」＝parser は**自分のシグニの能力を消していた**。
   //    ⚠「この能力を失う」を【自】で表す受け皿が無い＝ターン1回で近似（差は《赤》を払わなかったときにも1回分を使い切る点だけ）。
   // WX26-P1-022: E2＝「次にこのルリグがアタックしたとき」の付与にした（parser はメインフェイズで即座にガード封じを立てていた）。
-  //    ⚠「そのアタックは対戦相手の効果によって無効にならず」はルリグのアタックに受け皿が無い＝PARTIAL。
+  //    「そのアタックは対戦相手の効果によって無効にならず」＝`LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN`（§5.3 `O-543`・ターン終了までの近似）。
   "WX26-P1-022": [
     {"effectId":"WX26-P1-022-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"story":"乗機"},"usageLimit":"once_per_turn"},
-    {"effectId":"WX26-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-022-E2-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+    {"effectId":"WX26-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN"},{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-022-E2-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   // WX26-P1-026: E1＝「アタックしたシグニの正面の、中身が＜トリック＞の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効」。
   //    🔴受け皿が無い（`OPEN_MAGIC_BOX` は**効果元シグニと同じゾーン**しか開けない）＝新機構待ち。parser は**自分のシグニの能力を消していた**ので、まず害を消す。
@@ -12817,18 +12817,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX26-P1-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"explicitTarget":true},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-003-E1-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"opponent","operator":"gte","value":3},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":3},"opponentSelects":true,"bestEffort":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-006: ①「このターン、対戦相手のシグニの【自】能力は発動しない」＝`BLOCK_OPP_SIGNI_AUTO_THIS_TURN`（2026-10-03 新設）。
-  // WX26-P1-006: ②「次とその次にダメージを受ける場合、代わりに手札を１枚捨てる」＝**強制の置換**の受け皿が無い（既存 `DAMAGE_REPLACE_BY_COST` は任意かつ能力喪失つき）＝PARTIAL。
+  // WX26-P1-006: ②「次とその次にダメージを受ける場合、代わりに手札を１枚捨てる（手札が捨てられない場合は置き換えられない）」＝
+  //    **強制の** `LIFE_CRASH_REPLACE{pay_cost, handDiscard:1, once}` を2つ積む（§5.3 `O-543`。払えなければダメージが通る）。
   "WX26-P1-006": [
-    {"effectId":"WX26-P1-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"BLOCK_OPP_SIGNI_AUTO_THIS_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"STUB","id":"DEFERRED_DAMAGE_REPLACE_DISCARD_TWICE"}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"DRAW","owner":"self","count":3}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"BLOCK_OPP_SIGNI_AUTO_THIS_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH_REPLACE","replaceKind":"pay_cost","count":1,"payOptions":[{"handDiscard":1}],"once":true},{"type":"LIFE_CRASH_REPLACE","replaceKind":"pay_cost","count":1,"payOptions":[{"handDiscard":1}],"once":true}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"DRAW","owner":"self","count":3}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-009: parser が文全体を UNKNOWN にしていた。③「このターンと次のターンの間」＝自分のターンに使うアーツなので次の相手ターン終了時まで。
   "WX26-P1-009": [
     {"effectId":"WX26-P1-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1},"until":"UNTIL_END_OF_TURN"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsLastProcessed":true}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"シャドウ:{\"powerLte\":10000}","duration":"UNTIL_OPP_TURN_END"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-010: ②の帰結は「**それの**パワーを－12000」（対象にした相手シグニ）＝parser は `targetsTriggerSource` を立て、期間も落としていた。
-  //    ⚠②の「このターン、あなたは自分の効果によってシグニを場に出せない」は受け皿が無い（`PLACE_SIGNI` の封じは読む側が無い）＝PARTIAL。
+  //    ②の「このターン、あなたは自分の効果によってシグニを場に出せない」＝`BLOCK_SELF_SIGNI_PLAY_BY_EFFECT`（§5.3 `O-543`。読み手は `deployLimitBlockReason`）。
   "WX26-P1-010": [
-    {"effectId":"WX26-P1-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"REPLACE_NEXT_DAMAGE_WITH_MILL","millCount":3}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","fieldTrash":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"REPLACE_NEXT_DAMAGE_WITH_MILL","millCount":3}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","fieldTrash":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-12000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}},{"type":"STUB","id":"BLOCK_SELF_SIGNI_PLAY_BY_EFFECT"}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-036: ②「この方法で捨てたカード１枚につき【エナチャージ１】」は parser に規則を足した（2026-10-03）＝手書き不要。
   // WX26-P1-043: ①の対象は「パワー15000以下」（parser は落としていた）。②は parser の新規則と同じ形。
@@ -12850,17 +12851,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // WX26-P1-089: ②＝「このシグニと同じシグニゾーンに【マジックボックス】がある場合」の条件が落ちていた。
   "WX26-P1-089": [
-    {"effectId":"WX26-P1-089-E1","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"PLACE_MAGIC_BOX"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"DRAW","owner":"self","count":1}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX26-P1-089-E1","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"PLACE_MAGIC_BOX","magicBoxSource":"hand"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},"then":{"type":"DRAW","owner":"self","count":1}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-100: E1＝「このシグニと同じシグニゾーンに【マジックボックス】があるかぎり」の条件が落ちていた。
   "WX26-P1-100": [
     {"effectId":"WX26-P1-100-E1","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"TURN_OWNER","owner":"self"},{"type":"SAME_ZONE_HAS_MAGIC_BOX"}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-105: E1＝「トラッシュから**緑の**シグニを**２枚まで**」（parser は1枚・色なし）。
-  // WX26-P1-105: E2＝【ランサー（このシグニの下にあるシグニと同じパワーのシグニ）】＝限定つきの受け皿が無い（parser は**限定なし**の【ランサー】を与えていた）。
   "WX26-P1-105": [
     {"effectId":"WX26-P1-105-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PLACE_UNDER_SIGNI","source":"trash","count":2,"filter":{"cardType":"シグニ","color":"緑"},"upToCount":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
-    {"effectId":"WX26-P1-105-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"STUB","id":"DEFERRED_LANCER_SAME_POWER_AS_UNDER"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL"},
   ],
   // WX26-P1-106: 「それに【アクセ】が付いている場合、**代わりに**【ランサー（10000以下）】」＝parser は無関係に【アクセ】を与えていた。
   "WX26-P1-106": [
@@ -12875,8 +12874,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX26-P1-TK03A-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_ACCE_HOST_ABILITY","filter":{"cardType":"シグニ"},"abilities":[{"effectId":"WX26-P1-TK03A-E1-G","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-034: E2＝「次の対戦相手のアタックフェイズの間」＝parser は**期間なし（永続）**で【シャドウ】を与えていた。
-  //    ⚠アタックフェイズ単位の期間が無い＝次の相手ターン終了時までで近似（自分のターンの残りにも付く分だけ広い）。E1 の「２倍－」は受け皿が無い（PARTIAL）。
+  //    ⚠アタックフェイズ単位の期間が無い＝次の相手ターン終了時までで近似（自分のターンの残りにも付く分だけ広い）。
+  // WX26-P1-034: E1＝「このターン、あなたの効果によって対戦相手の**感染状態の**シグニのパワーが－される場合、代わりに２倍」＝
+  //    `doublePowerMinus.infectedOnly`（§5.3 `O-543`）。parser の `DOUBLE_OWN_POWER_MINUS` は**相手シグニ1体を選ばせて**それだけを倍にしていた。
   "WX26-P1-034": [
+    {"effectId":"WX26-P1-034-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"PLACE_VIRUS","targetOwner":"opponent","zoneCount":1,"virusCount":1},{"type":"STUB","id":"DOUBLE_POWER_MINUS","doublePowerMinus":{"duration":"this_turn","infectedOnly":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"story":"微菌"},"triggerCondition":{"turnOwner":"self"},"usageLimit":"once_per_turn"},
     {"effectId":"WX26-P1-034-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   // WX26-P1-053: E1＝「《ドーナ　SUNNY》がいるかぎり、あなたの＜怪異＞のシグニのパワーを＋2000し、それらは『場を離れたとき〜』を得る」。
@@ -12928,32 +12930,56 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX26-P1-049": [
     {"effectId":"WX26-P1-049-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"STUB","id":"DEFERRED_ASSIST_GROW_TO_LV3"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
-  // WX26-P1-058: E2＝「あなたの【マジックボックス】を3つまで手札に戻す」は受け皿が無い（parser は**自分のシグニ**を手札に戻していた）。後半の設置は既存の受け皿。
+  // WX26-P1-058: E2＝「あなたの【マジックボックス】を3つまで手札に戻す」＝`MAGIC_BOX_TO_HAND`（§5.3 `O-543`。parser は**自分のシグニ**を手札に戻していた）。
+  //    後半「あなたの手札からカードを1枚まで【マジックボックス】として設置」＝`magicBoxSource:'hand'`。
   "WX26-P1-058": [
-    {"effectId":"WX26-P1-058-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DEFERRED_MAGIC_BOX_TO_HAND"},{"type":"STUB","id":"PLACE_MAGIC_BOX"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","onPlayIcon":true},
-  ],
-  // WX26-P1-063: E2＝【アサシン（このシグニと同じパワーのシグニ）】＝限定つきの受け皿が無い（parser は**限定なし**の【アサシン】を与えていた）。
-  "WX26-P1-063": [
-    {"effectId":"WX26-P1-063-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"STUB","id":"DEFERRED_ASSASSIN_SAME_POWER"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-058-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"MAGIC_BOX_TO_HAND","magicBoxToHandCount":3},{"type":"STUB","id":"PLACE_MAGIC_BOX","magicBoxSource":"hand"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
   ],
   // WX26-P1-072: E2＝コスト「エナゾーンから＜調理＞のシグニ1枚をこのシグニの下に置く」と「下に置いたシグニと同じレベルの」限定が無い＝parser は**無料で相手の全シグニの能力を消していた**。
+  //    §5.3 `O-543`＝`PLACE_UNDER_SIGNI{energy, 1枚まで}`（0枚＝払わない）→ 置いたら `BAKE_LAST_PROCESSED_REFS` で
+  //    置いたシグニのレベルを焼き込み → `REMOVE_ABILITIES{levelEqLastProcessed}`（同型 `WDK14-008` の書き方）。
   "WX26-P1-072": [
-    {"effectId":"WX26-P1-072-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"DEFERRED_ENA_UNDER_COST_SAME_LEVEL_LOSE"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL","onPlayIcon":true,"costUnparsed":true},
+    {"effectId":"WX26-P1-072-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"PLACE_UNDER_SIGNI","source":"energy","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"調理"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"STUB","id":"BAKE_LAST_PROCESSED_REFS","bakeThen":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","levelEqLastProcessed":true}},"until":"UNTIL_END_OF_TURN"}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
   ],
   // WX26-P1-071: 付与する【自】＝「デッキの上から３枚見て１枚まで手札、残りを好きな順番で一番下」＝parser は「見る」と「公開して加える」を二重に出していた。
   "WX26-P1-071": [
     {"effectId":"WX26-P1-071-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX26-P1-071-E1-G","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"怪異","count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"pickUpTo":true,"then":"hand","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"outsideMainPhase":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
-  // WX26-P1-098: E1＝「このシグニの下にある＜調理＞のシグニを1枚までエナゾーンに置く」＝受け皿が無い（parser も UNKNOWN）。
+  // WX26-P1-098: E1＝「このシグニの下にある＜調理＞のシグニを1枚までエナゾーンに置く」＝既存の `TAKE_FROM_UNDER_SIGNI`（§5.3 `O-543`。parser は UNKNOWN）。
   "WX26-P1-098": [
-    {"effectId":"WX26-P1-098-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"DEFERRED_UNDER_COOKING_TO_ENA"},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"self"},
+    {"effectId":"WX26-P1-098-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"TAKE_FROM_UNDER_SIGNI","destination":"energy","count":1,"upToCount":true,"fromThis":true,"filter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
-  // WX26-P1-102: E1（場を離れる代わりに下のカードを全部トラッシュ）・E2（下からシグニを場に出す）は受け皿が無い（parser はどちらも壊れた形）。
+  // WX26-P1-102: E1（場を離れる代わりに下のカードを全部トラッシュ）＝既存の `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER`＋`includeBattle`（原因を限定しない＝バトルでも効く・§5.3 `O-543`）。
+  // WX26-P1-102: E2（下からシグニを場に出す）は受け皿が無い（parser は壊れた形）。
   // WX26-P1-102: E3＝「エナゾーンから＜調理＞のシグニを1枚までこのシグニの下に置く」は既存の `PLACE_UNDER_SIGNI`。
   "WX26-P1-102": [
-    {"effectId":"WX26-P1-102-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"DEFERRED_LEAVE_REPLACE_TRASH_UNDER"},"duration":"PERMANENT","mandatory":true,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-102-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER","leaveUnderCardsTrash":{"victimScope":"self","count":"ALL","minUnderCards":1,"includeBattle":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX26-P1-102-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"STUB","id":"DEFERRED_UNDER_SIGNI_TO_FIELD"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
     {"effectId":"WX26-P1-102-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PLACE_UNDER_SIGNI","source":"energy","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+  // WX26-P1-052: E1＝「このターンと次のターンの間、対戦相手は中央のシグニゾーンに新たにシグニを配置できない」＝
+  //    既存の `BLOCK_OPP_ZONE_PLACEMENT` ＋ `zoneBlockSource:'center'`（§5.3 `O-543`。parser は未実装 STUB）。
+  "WX26-P1-052": [
+    {"effectId":"WX26-P1-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"BLOCK_OPP_ZONE_PLACEMENT","zoneBlockSource":"center","zoneBlockThisTurn":true,"zoneBlockNextTurn":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+  // WX26-P1-005: 「**レベルの合計が６以下になるように**対戦相手のシグニを好きな数対象とし、それらをデッキの一番下に置く。
+  //    この方法でデッキの一番下に置いたカード１枚につき対戦相手はカードを１枚引く」＝`TRANSFER_TO_DECK.source.totalLevelMax`
+  //    ＋`DRAW{count:last_processed_count}`（§5.3 `O-543`。parser は1体だけ・1枚固定）。
+  //    ⚠「置く順番は対戦相手が決める」は表せない（選んだ順）。
+  "WX26-P1-005": [
+    {"effectId":"WX26-P1-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"},{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":"ALL","upToCount":true,"totalLevelMax":6,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom"},{"type":"DRAW","owner":"opponent","count":{"$ref":"last_processed_count"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-008: ①「対戦相手の**ルリグかシグニ**１体を対象とし、このターン、次にそれがアタックしたとき無効」＝`CENTER_LRIG_OR_SIGNI`
+  //    （同型 `WX25-CD1-06`／`WX25-CP1-030` と同じ。parser はシグニだけ）。
+  //    リコレクト「ターン終了時まで、あなたは『シグニによってダメージを受ける場合、代わりに《無》を支払ってもよい。
+  //    そうした場合、この能力を失う』を得る」＝`LIFE_CRASH_REPLACE{pay_cost, 無, damageSource:signi, once, optional}`（§5.3 `O-543`）。
+  "WX26-P1-008": [
+    {"effectId":"WX26-P1-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}]}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"LIFE_CRASH_REPLACE","replaceKind":"pay_cost","count":1,"payOptions":[{"costColors":["無"]}],"damageSource":"signi","once":true,"optional":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-063: E1＝「次の対戦相手のターン終了時まで、このシグニのパワーをあなたの場にある他のシグニのパワーの合計と同じだけ－する」＝
+  //    `SET_LAST_PROCESSED_OTHER_OWN_SIGNI` → `POWER_MODIFY{perLastProcessed:power_sum}`（実効パワーで合計・§5.3 `O-543`。parser は未実装 STUB）。
+  "WX26-P1-063": [
+    {"effectId":"WX26-P1-063-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SET_LAST_PROCESSED_OTHER_OWN_SIGNI"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":-1,"deltaPerLastProcessedCount":true,"perLastProcessed":{"unit":"power_sum"},"duration":"UNTIL_OPP_TURN_END"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
   // ── WX26-P1 END ──
 };

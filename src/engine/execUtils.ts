@@ -1580,6 +1580,8 @@ function unplaceableCardsFor(pending: PendingInteractionDef, ctx: ExecCtx): stri
   const opponent = owner === 'opponent' ? ctx.ownerState : ctx.otherState;
   const placingTurn = ctx.isOwnerTurn === undefined ? undefined : (owner === 'opponent' ? !ctx.isOwnerTurn : ctx.isOwnerTurn);
   const placingLimit = owner === 'opponent' ? ctx.lrigLimitOpponent : ctx.lrigLimitSelf;
+  // 🆕§5.3 `O-543`＝「自分の効果によってシグニを場に出せない」（`blocked_actions:'PLACE_SIGNI'`）＝全候補が出せない。
+  if ((placing.blocked_actions ?? []).includes('PLACE_SIGNI')) return [...cands];
   return cands.filter(n => !signiPlaceableByLevel(n, placing, ctx.cardMap)
     || !signiPlaceableByLimit({ cardId: n, placing, opponent, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap, isPlacingOwnerTurn: placingTurn, limit: placingLimit }));
 }

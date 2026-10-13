@@ -62726,6 +62726,218 @@ scenarios.v294SigniStackSwipeShowsAcce = {
 };
 order.push('v294SigniStackSwipeShowsAcce');
 
+// ── 🆕§5.1 `V-295`（2026-10-14）＝§5.3 `O-543`（BUGFIXES 第516バッチ）の実機 ──
+// ①条件付き【アサシン（パワー5000以下）】は**正面**で判定（🔴旧＝相手の場のどれか1体で成立）
+// ②【ランサー（下のシグニと同じパワー）】（`WX26-P1-105`）③`WX26-P1-102` の「下を全部トラッシュ」をバトルでも
+// ④手札からの【マジックボックス】設置（`WX26-P1-090`）⑤「自分の効果によってシグニを場に出せない」（010②）
+// ⑥ルリグのアタックが相手の効果で無効にならない（022-E2）。どれも反転の対照つき。
+// 共通＝host zone0 のシグニで正面（guest zone2）へアタックし、盤面が落ち着いたら `judge(st0, st)` で判定する。
+async function v295DriveSigniAttack(page, H, tag, judge) {
+  const st0 = await H.queryState();
+  H.log(`開始 hField=${JSON.stringify(st0?.host?.fieldSigni)} gField=${JSON.stringify(st0?.guest?.fieldSigni)} gLife=${st0?.guest?.life}`);
+  let attacked = false, modalOpened = false, settled = 0, last = st0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(900);
+    let did = null;
+    if (!attacked) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !attacked && !modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; modalOpened = true; } }
+    if (!did && attacked) did = await H.clickTextOrBtn(['ガードしない', 'しない', '決定', 'OK', 'はい', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(last?.guest?.fieldSigni)} gLife=${last?.guest?.life} gTrash=${JSON.stringify(last?.guest?.trashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !((last?.stackLen ?? 0) > 0)) ? settled + 1 : 0;
+    if (settled >= 3) return judge(st0, last);
+  }
+  return { pass: false, detail: `未完了（attacked=${attacked} gLife=${last?.guest?.life} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'}）` };
+}
+const v295AttackSpec = (hostSigni, hostGrants, guestSigni) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#r295'], 'field.lrig_down': false,
+    'field.signi': [hostSigni, null, null], 'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null], 'field.signi_acce': [null, null, null],
+    'field.check': null, 'keyword_grants': hostGrants, 'actions_done': [], 'hand': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#g295'], 'field.signi': guestSigni, 'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null], 'field.signi_acce': [null, null, null],
+    'field.check': null, 'hand': [], 'trash': [],
+    'life_cloth': ['WD01-014#gl1', 'WD01-014#gl2', 'WD01-014#gl3'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+// ① アサシン＝正面 7000（範囲外）・側面 3000（範囲内）→ **バトル**（ライフは減らず正面がバニッシュ）／対照＝正面 5000 → ライフへ。
+const v295Assassin = (frontLow) => ({
+  title: `V-295① 【アサシン（パワー5000以下）】は正面で判定＝${frontLow ? '正面 5000 ならライフへ（対照）' : '正面 7000・側面 3000 ならバトルになる'}`,
+  spec: v295AttackSpec(['WD03-009#a295'], { 'WD03-009#a295': ['アサシン:{"powerLte":5000}'] },
+    [['WD05-013#s295'], null, [frontLow ? 'WD01-016#f295' : 'WD05-012#f295']]),
+  async drive(page, H) {
+    return v295DriveSigniAttack(page, H, frontLow ? 'v295asLow' : 'v295asHigh', (st0, st) => {
+      const lifeDown = (st?.guest?.life ?? 9) < (st0?.guest?.life ?? 0);
+      const frontStays = (st?.guest?.fieldSigni?.[2] ?? []).length > 0;
+      const detail = `gLife ${st0?.guest?.life}→${st?.guest?.life} 正面残る=${frontStays} gField=${JSON.stringify(st?.guest?.fieldSigni)}`;
+      return frontLow
+        ? { pass: lifeDown && frontStays, detail: `${lifeDown && frontStays ? '' : '🔴'}正面 5000＝アサシンで正面を無視してライフへ：${detail}` }
+        : { pass: !lifeDown && !frontStays, detail: `${!lifeDown && !frontStays ? '' : '🔴旧挙動＝側面の 3000 でアサシンが成立した／'}正面 7000＝バトル：${detail}` };
+    });
+  },
+});
+scenarios.v295AssassinFrontHigh = v295Assassin(false);
+scenarios.v295AssassinFrontLow = v295Assassin(true);
+// ② ランサー（下のシグニと同じパワー）＝下に 5000 の WD01-016。正面 5000 → バニッシュ＋クラッシュ／対照＝正面 3000 → クラッシュしない。
+const v295Lancer = (same) => ({
+  title: `V-295② WX26-P1-105【ランサー（下のシグニと同じパワー）】＝${same ? '正面 5000（同じ）をバニッシュしたらクラッシュ' : '正面 3000（違う）ならクラッシュしない（対照）'}`,
+  spec: v295AttackSpec(['WD01-016#u295', 'WX26-P1-105#l295'], { 'WX26-P1-105#l295': ['ランサー:{"underSigniPowerEq":true}'] },
+    [null, null, [same ? 'WD01-016#f295' : 'WD05-013#f295']]),
+  async drive(page, H) {
+    return v295DriveSigniAttack(page, H, same ? 'v295lanSame' : 'v295lanDiff', (st0, st) => {
+      const lifeDown = (st?.guest?.life ?? 9) < (st0?.guest?.life ?? 0);
+      const banished = (st?.guest?.fieldSigni?.[2] ?? []).length === 0;
+      const detail = `gLife ${st0?.guest?.life}→${st?.guest?.life} 正面バニッシュ=${banished}`;
+      if (!banished) return { pass: false, detail: `前提崩れ＝正面をバニッシュしていない：${detail}` };
+      return same
+        ? { pass: lifeDown, detail: `${lifeDown ? '' : '🔴'}同じパワー＝クラッシュ：${detail}` }
+        : { pass: !lifeDown, detail: `${!lifeDown ? '' : '🔴'}違うパワー＝クラッシュしない：${detail}` };
+    });
+  },
+});
+scenarios.v295LancerSamePower = v295Lancer(true);
+scenarios.v295LancerDiffPower = v295Lancer(false);
+// ③ 102＝相手（CPU）の 102 を host のターンにバトルでバニッシュ＝「下を全部トラッシュ」で場に残る／対照＝下が無ければバニッシュされる。
+const v295Monblanc = (withUnder) => ({
+  title: `V-295③ WX26-P1-102「下を全部トラッシュ」の離場置換はバトルでも効く＝${withUnder ? '下2枚をトラッシュして場に残る' : '下が無ければバニッシュ（対照）'}`,
+  spec: v295AttackSpec(['WD03-009#a295'], {},
+    [null, null, withUnder ? ['WD01-013#gu1', 'WD01-014#gu2', 'WX26-P1-102#m295'] : ['WX26-P1-102#m295']]),
+  async drive(page, H) {
+    return v295DriveSigniAttack(page, H, withUnder ? 'v295monUnder' : 'v295monNone', (st0, st) => {
+      const zone = st?.guest?.fieldSigni?.[2] ?? [];
+      const stays = zone.at(-1) === 'WX26-P1-102#m295';
+      const trash = (st?.guest?.trashCards ?? []).map(String);
+      const detail = `zone=${JSON.stringify(zone)} gTrash=${JSON.stringify(trash)} gLife ${st0?.guest?.life}→${st?.guest?.life}`;
+      if (!withUnder) return { pass: !stays, detail: `${!stays ? '' : '🔴'}下が無い＝置換できずバニッシュ：${detail}` };
+      const underTrashed = trash.includes('WD01-013#gu1') && trash.includes('WD01-014#gu2');
+      return { pass: stays && underTrashed && zone.length === 1,
+        detail: `${stays && underTrashed ? '' : '🔴バトルで置換が効いていない／'}下を全部トラッシュして場に残る：${detail}` };
+    });
+  },
+});
+scenarios.v295MonblancUnder = v295Monblanc(true);
+scenarios.v295MonblancNoUnder = v295Monblanc(false);
+// ④ 手札から【マジックボックス】設置（`WX26-P1-090`【起】《青×0》）＝手札の選択が出て、選んだ札が MB になる。
+scenarios.v295MagicBoxFromHand = {
+  title: 'V-295④ WX26-P1-090【起】＝手札から1枚選んで【マジックボックス】に（🔴旧＝何も置かなかった）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#r295'], 'field.lrig_down': false,
+      'field.signi': [['WX26-P1-090#b295'], null, null], 'field.signi_magic_boxes': [null, null, null],
+      'field.check': null, 'hand': ['WD01-013#h295', 'WD01-014#h296'], 'energy': [], 'trash': [],
+      'deck': ['WD01-016#d1', 'WD01-016#d2', 'WD01-016#d3'], 'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD03-002#g295'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} mb=${JSON.stringify(st0?.host?.magicBoxes)}`);
+    let activated = false, fired = false, zoneOpened = false, sawHandPick = false, chosen = false, last = st0;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      const btnNames = await page.getByRole('button').evaluateAll(els => els.map(e => (e.textContent ?? '').trim())).catch(() => []);
+      const zoneChoice = btnNames.some(n => /^ゾーン\d/.test(n) && /設置|上書き/.test(n));
+      if (zoneChoice && !chosen) {
+        await page.getByRole('button', { name: /^ゾーン1/ }).first().click({ timeout: 1200 }).catch(() => {}); did = 'btn:ゾーン1'; chosen = true;
+      } else if (!activated) {
+        const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click({ timeout: 1200 }).catch(() => {}); activated = true; did = 'btn:【起】'; }
+        else if (!zoneOpened) { await H.clickTestId('my-signi-zone-0'); zoneOpened = true; did = 'zone0'; }
+        else zoneOpened = false;
+      } else if (!fired) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click({ timeout: 1200 }).catch(() => {}); fired = true; did = 'btn:発動'; }
+        else if (last?.pendingEffect) fired = true;
+      }
+      if (!did && activated && !chosen) {
+        if (last?.pendingEffect === 'SELECT_TARGET') sawHandPick = true;
+        did = await H.stdStep();
+      }
+      last = await H.queryState();
+      H.log(`  v295mb[${s}] -> ${did ?? 'なし'} | pEff=${last?.pendingEffect ?? '-'} hand=${JSON.stringify(last?.host?.handCards)} mb=${JSON.stringify(last?.host?.magicBoxes)}`);
+      if (chosen && !last?.pendingEffect && !((last?.stackLen ?? 0) > 0)) {
+        const mb = (last?.host?.magicBoxes ?? []).filter(Boolean);
+        const fromHand = mb.length === 1 && (st0?.host?.handCards ?? []).includes(mb[0]) && !(last?.host?.handCards ?? []).includes(mb[0]);
+        const detail = `手札選択を見た=${sawHandPick} mb=${JSON.stringify(last?.host?.magicBoxes)} hand ${JSON.stringify(st0?.host?.handCards)}→${JSON.stringify(last?.host?.handCards)}`;
+        return { pass: fromHand && sawHandPick, detail: `${fromHand && sawHandPick ? '' : '🔴'}手札から選んだ札が【マジックボックス】になる：${detail}` };
+      }
+    }
+    return { pass: false, detail: `未完了（activated=${activated} fired=${fired} chosen=${chosen} pEff=${last?.pendingEffect ?? '-'} mb=${JSON.stringify(last?.host?.magicBoxes)}）` };
+  },
+};
+// ⑤ 「このターン、自分の効果によってシグニを場に出せない」（010②）＝`V-293` の対照盤面（Lv3 のルリグ・空の場）に封じだけを足す。
+//   🔑同じ盤面で封じが無ければ出せる（`placeLevelTrashWithin` が対照）。
+{
+  const base = mkPlaceLevelTrashAct(true);
+  scenarios.v295SelfPlaceBanByEffect = {
+    ...base,
+    title: 'V-295⑤ 「このターン、自分の効果によってシグニを場に出せない」＝Lv3 のルリグの空の場でも、トラッシュから出す【起】で出せない',
+    spec: { ...base.spec, hostSet: { ...base.spec.hostSet, 'field.lrig': ['WD05-002#r1'], 'blocked_actions': ['PLACE_SIGNI'] } },
+  };
+}
+// ⑥ ルリグのアタックが相手の効果で無効にならない（022-E2）＝「次にアタックしたとき無効」（事前登録）を受けていても通る／対照＝耐性なしなら無効。
+const v295LrigImmune = (immune) => ({
+  title: `V-295⑥ ルリグのアタックは対戦相手の効果によって無効にならない＝${immune ? '事前登録の無効化を受けていてもダメージが通る' : '耐性が無ければ無効化される（対照）'}`,
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-002#l295'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+      'negated_attacks': ['WD02-002#l295'], 'lrig_attack_negate_immune_this_turn': immune ? true : null,
+      'energy': [], 'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#g295'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [],
+      'field.lrig_attacked': false, 'life_cloth': ['WD01-014#gl1', 'WD01-014#gl2', 'WD01-014#gl3'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    let opened = false, clicked = false, settled = 0, last = st0;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!clicked) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click({ timeout: 1200 }).catch(() => {}); clicked = true; did = 'btn:アタック'; }
+        else if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); opened = !!did; }
+        else opened = false;
+      } else did = await H.clickTextOrBtn(['ガードしない', 'しない', '決定', 'OK', 'はい', 'スキップ']);
+      last = await H.queryState();
+      H.log(`  v295lrig${immune ? 'Imm' : 'Neg'}[${s}] -> ${did ?? 'なし'} | gLife=${last?.guest?.life}(開始${st0?.guest?.life}) negated=${JSON.stringify(last?.host?.negatedAttacks)} pEff=${last?.pendingEffect ?? '-'}`);
+      settled = (clicked && !last?.pendingEffect && !((last?.stackLen ?? 0) > 0)) ? settled + 1 : 0;
+      // ⚠ルリグアタックは相手のガード確認を挟む＝宣言直後はまだライフが動かない（初回はここで早く判定して FAIL した）。
+      //   耐性側は**ライフが減るまで**待ち、無効化のログが出たらそこで止める。
+      const negLog = (last?.logTail ?? []).some(l => /アタックは無効化された/.test(l));
+      const lifeNow = (last?.guest?.life ?? 9) < (st0?.guest?.life ?? 0);
+      if (settled >= (immune && !lifeNow && !negLog ? 12 : 3)) {
+        const lifeDown = (last?.guest?.life ?? 9) < (st0?.guest?.life ?? 0);
+        const detail = `gLife ${st0?.guest?.life}→${last?.guest?.life} logs=${JSON.stringify((last?.logTail ?? []).slice(-3))}`;
+        return immune
+          ? { pass: lifeDown, detail: `${lifeDown ? '' : '🔴耐性があるのに無効化された／'}ダメージが通る：${detail}` }
+          : { pass: !lifeDown, detail: `${!lifeDown ? '' : '🔴'}耐性なし＝無効化されてダメージなし：${detail}` };
+      }
+    }
+    return { pass: false, detail: `未完了（clicked=${clicked} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'}）` };
+  },
+});
+scenarios.v295LrigNegateImmune = v295LrigImmune(true);
+scenarios.v295LrigNegateControl = v295LrigImmune(false);
+order.push('v295AssassinFrontHigh', 'v295AssassinFrontLow', 'v295LancerSamePower', 'v295LancerDiffPower',
+  'v295MonblancUnder', 'v295MonblancNoUnder', 'v295MagicBoxFromHand', 'v295SelfPlaceBanByEffect',
+  'v295LrigNegateImmune', 'v295LrigNegateControl');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
@@ -66990,6 +67202,8 @@ try {
         nextCoinAbilityCostReduction: s.next_coin_ability_cost_reduction ?? null,
         coinAbilityExtraGameUses: s.coin_ability_extra_game_uses ?? null,
         fieldSigni: s.field?.signi ?? null,
+        // 🆕§5.1 `V-295`（2026-10-14）＝【マジックボックス】（手札から設置する経路の観測点）。
+        magicBoxes: s.field?.signi_magic_boxes ?? [null, null, null],
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
         fieldCharms: s.field?.signi_charms ?? null,   // 任意【出】の【チャーム】付与を見る（タスク12(lv)③）

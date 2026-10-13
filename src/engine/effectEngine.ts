@@ -2585,7 +2585,11 @@ export function calcFieldPowers(
       // DOUBLE_POWER_MINUS「あなたのシグニの効果で」: 発生元（topNum）がシグニ（レゾナ含む）のときのみ相手への負デルタを2倍化
       const srcTypeDbl = cardMap.get(topNum)?.Type ?? '';
       const srcIsSigniDbl = srcTypeDbl.includes('シグニ') || srcTypeDbl.includes('レゾナ');
-      const dblOtherMult = (hasDoublePowerMinus && srcIsSigniDbl) ? 2 : 1;
+      const dblOtherBase = (hasDoublePowerMinus && srcIsSigniDbl) ? 2 : 1;
+      // 🆕§5.3 `O-543`＝「感染状態のシグニ」だけの2倍（発生源は絞らない）＝ゾーンごとに倍率が変わる。
+      const dblOtherMult: NegMultiplier = ownerState.double_power_minus_infected_this_turn === true
+        ? (zi: number) => Math.max(dblOtherBase, (otherState.field.signi_virus?.[zi] ?? 0) > 0 ? 2 : 1)
+        : dblOtherBase;
 
       // クロス状態を一度だけ計算（crossOnly効果の判定用）
       let crossStatesCache: boolean[] | null = null;
@@ -3224,8 +3228,11 @@ export function calcFieldPowers(
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
   // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
-  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = []) => {
+  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = [], doubleInfected = false) => {
     const doublers = state.double_power_minus_targets_this_turn ?? [];
+    // 🆕§5.3 `O-543`＝感染状態のシグニ（いまウィルスのあるゾーンの一番上）だけ2倍。
+    const infectedTop = (cardNum: string) => doubleInfected
+      && state.field.signi.some((st, zi) => st?.at(-1) === cardNum && (state.field.signi_virus?.[zi] ?? 0) > 0);
     const multipliers = state.power_minus_multipliers_this_turn ?? {};
     // 🆕**`UNTIL_NEXT_OWN_TURN_END` の分も足す**（§5.3 `O-186`）＝ここへ足さないと JSON に載るだけの死フラグ。
     for (const mod of [
@@ -3239,7 +3246,7 @@ export function calcFieldPowers(
         const fromSigni = mod.srcType === undefined || mod.srcType.includes('シグニ') || mod.srcType.includes('レゾナ');
         // §6.4 O-10: 倍率つき（「代わりに３倍－される」）は 2倍軸と**大きい方**を採る（二重掛けしない）。
         const mult = Math.max(
-          doublers.includes(mod.cardNum) || (mod.srcCardNum != null && sourceDoublers.includes(mod.srcCardNum)) || (doubleNeg && fromSigni) ? 2 : 1,
+          doublers.includes(mod.cardNum) || (mod.srcCardNum != null && sourceDoublers.includes(mod.srcCardNum)) || (doubleNeg && fromSigni) || infectedTop(mod.cardNum) ? 2 : 1,
           multipliers[mod.cardNum] ?? 1,
         );
         let delta = mod.delta < 0 && mult > 1 ? mod.delta * mult : mod.delta;
@@ -3257,8 +3264,10 @@ export function calcFieldPowers(
   for (const stack of fieldSigniStacks(opState)) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
   const negateForOp = myState.replace_opp_power_plus ? opSigniNums : undefined;
   // 各プレイヤーのシグニへの負デルタは、その対戦相手が「このターン2倍－」を持つ場合に倍化する
-  applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true, opState.double_power_minus_sources);
-  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true, myState.double_power_minus_sources);
+  applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true, opState.double_power_minus_sources,
+    opState.double_power_minus_infected_this_turn === true);
+  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true, myState.double_power_minus_sources,
+    myState.double_power_minus_infected_this_turn === true);
 
   // 場レベル power grant は active 中の盤面へ毎回適用する。cardNum スナップショットではないため、
   // 予約後に場へ出たシグニも filter/zone/condition が一致すれば対象になる。
@@ -3280,7 +3289,10 @@ export function calcFieldPowers(
         const fromSigni = grant.srcType === undefined || grant.srcType.includes('シグニ') || grant.srcType.includes('レゾナ');
         const doubled = targetDoublers.includes(cardNum)
           || (grant.srcCardNum != null && sourceDoublers.includes(grant.srcCardNum))
-          || (otherState.double_power_minus_this_turn === true && fromSigni);
+          || (otherState.double_power_minus_this_turn === true && fromSigni)
+          // 🆕§5.3 `O-543`＝感染状態のシグニだけ2倍（発生源は絞らない）。
+          || (otherState.double_power_minus_infected_this_turn === true
+            && state.field.signi.some((st, zi) => st?.at(-1) === cardNum && (state.field.signi_virus?.[zi] ?? 0) > 0));
         // §6.4 O-10: 倍率つき（「代わりに３倍－される」）＝2倍軸と大きい方を採る。
         const mult = scaledDelta < 0
           ? Math.max(doubled ? 2 : 1, (state.power_minus_multipliers_this_turn ?? {})[cardNum] ?? 1)
@@ -3366,6 +3378,9 @@ function applyDeltaToCard(
   powers.set(cardNum, (powers.get(cardNum) ?? 0) + delta);
 }
 
+/** 負のデルタに掛ける倍率。関数ならシグニゾーンの添字ごとに決める（§5.3 `O-543`＝感染状態だけ2倍）。 */
+type NegMultiplier = number | ((zoneIdx: number) => number);
+
 function applyDeltaToState(
   state: PlayerState,
   delta: number,
@@ -3373,7 +3388,7 @@ function applyDeltaToState(
   cardMap: Map<string, CardData>,
   powers: Map<string, number>,
   powerProtection?: PowerDeltaProtection | Set<string>,
-  negMultiplier?: number,
+  negMultiplier?: NegMultiplier,
   excludeNum?: string, // excludeSelf: 効果元カード自身を除外
   /**
    * 適用先のシグニゾーンを限定する（省略＝全ゾーン）。`adjacentToSelf`（「このシグニの隣にある」）専用。
@@ -3388,12 +3403,13 @@ function applyDeltaToState(
    */
   perTargetLevel?: boolean,
 ) {
-  const effectiveDelta = (negMultiplier !== undefined && delta < 0) ? delta * negMultiplier : delta;
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
   const seen = new Set<string>();
   for (let zoneIdx = 0; zoneIdx < state.field.signi.length; zoneIdx++) {
     const stack = state.field.signi[zoneIdx];
     if (!stack || stack.length === 0) continue;
+    const mult = typeof negMultiplier === 'function' ? negMultiplier(zoneIdx) : negMultiplier;
+    const effectiveDelta = (mult !== undefined && delta < 0) ? delta * mult : delta;
     if (onlyZones && !onlyZones.has(zoneIdx)) continue;
     const topNum = stack[stack.length - 1];
     if (seen.has(topNum)) continue;
@@ -7394,6 +7410,26 @@ export function collectRiseBanishSubstitutes(
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
       push(topNum, act);
       break;
+    }
+    // (a') 🆕§5.3 `O-543`（`WX26-P1-102-E1`）＝「下にカードが1枚以上あるこのシグニが場を離れる場合、代わりに
+    //   下からすべてのカードをトラッシュに置いてもよい」＝**原因を限定しない**離場置換はバトルでも効く。
+    //   効果による離場は `applyEffectLeaveUnderCardsTrashSubstitute` が同じ payload で担う。
+    //   ⚠`includeBattle` の無い宣言（`WXDi-P05-038`＝「対戦相手の効果によって」）はバトルでは効かない。
+    if (!result.some(r => r.zoneIndex === zi)) {
+      for (const eff of (effectsMap.get(topNum) ?? effectsMap.get(base(topNum)) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER') continue;
+        const spec = act.leaveUnderCardsTrash;
+        if (!spec?.includeBattle || spec.victimScope !== 'self') continue;
+        if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+        const minimum = spec.minUnderCards ?? (spec.count === 'ALL' ? 1 : spec.count);
+        if (under < minimum) continue;
+        const count = spec.count === 'ALL' ? under : spec.count;
+        if (under < count) continue;
+        result.push({ cardNum: topNum, zoneIndex: zi, count, optional: true, sourceNum: topNum });
+        break;
+      }
     }
     // (b) ルリグの宣言（`RISE_BANISH_SUBSTITUTE`）＝《ライズアイコン》を持つ自分のシグニが対象。
     if (!hasRiseIcon(topNum)) continue;
