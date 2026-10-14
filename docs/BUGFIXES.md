@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-14（第518バッチ）§5.3 `O-543` 第3巡＝WX26-P1 の残り7効果を実装してクローズ＋トークン【ホログラフ】の取り込み
+
+- **実装した7効果**＝007（`REPEAT{3}` の中で `REVEAL_DECK_TOP`→2択。①は `RESTORE_REVEALED_DECK_CARDS` で公開札を参照し直して「パワー以下」）／018-E2（`OPP_REVEAL_ARTS_PIECE_WHITELIST`＝相手が自分のルリグデッキからアーツ・ピースを3枚まで選んで公開、このターンと次のターンそれ以外を使えない＝新 whitelist `arts_piece_name_whitelist_this_turn`/`_next_turn`）／022-E1・026-E1 の「ターン終了時まで、この能力を失う」（`LOSE_THIS_ABILITY_THIS_TURN`＝`effects_lost_this_turn`・読み手は `executeEffect` の入口。022 の《ターン1回》近似を解消）／026-E1（`MB_FRONT_OF_ATTACKER_NEGATE`＝アタッカーの正面＝`2-zi` の＜トリック＞【マジックボックス】を開き、ライフバーストの有無が揃えば無効）／026-E2（ユーザー提供の `WX26-P1-TK01B`【ホログラフ】を `_TK.csv` へ取り込み＋画像を ImageKit へ。`GAIN_HOLOGRAPH_TOKEN` でフリーゾーンへ、【自】は `collectLrigAttackDefenderTriggers` が拾う）／002・073（何も捨てないガード代替＝`guard_alt_lose_ability_this_turn`／`guardAltCost{kind:'trash_self_signi'}`＋`GuardResponseDialog` のボタン2種）／049（`ASSIST_GROW_TO_LV3`＝ユーザー提供の Q&A どおりグロウコストを払い・タイプ一致・センターのリミット＋1。配置と【出】は予約 `pending_effect_assist_grow` を `performAssistGrow` が消費）。
+- 🔴**同じ形の既存バグ2つ**＝①`powerLteLastProcessed` は参照した札にパワーが無い（スペルを公開）と**絞り込みが外れて何でもバニッシュできた**＝空ヒットへ（参照そのものが無いときは従来どおり）。②**ピースの使用ゲート（`checkKeyPieceUse`）がカード名の使用禁止を一度も読んでいなかった**（アーツ・スペルだけ）＝`cardNameUseBlocked` を通した。
+- 🔴**実機で発見**＝「この能力を失う」ガードはボタンが出るのに押しても何も起きなかった（登録表に `consume` が無く `consumeField` が例外）。golden に消費の検査を足した。
+- **影響**＝WX26-P1 の7効果＋トークン1枚（＋上の既存2系統）。
+- **検証**＝golden 新規7本（全件 **4479** PASS）・`npm run gates` 全緑・**実機 `V-297` 5本 PASS**＋`verifyFullMatch cpu` PASS（`v297GuardLoseAbility`／`v297GuardTrashSelfSigni`／`v297EffectAssistGrow`／`v297HolographNegate`／`v297HolographControl`＝反転込み）。⚠実機の判定理由＝`src/screens/` を触り新しい機構を足した回。
+
 ## 2026-10-14（第517バッチ）§5.3 `O-543` 第2巡＝WX26-P1 の受け皿待ち6効果＋実機で見つけた常時読み込みの漏れ
 
 - **実装した6効果**＝034-E2／030-E2「**次の対戦相手のアタックフェイズの間**」（遅延トリガーに `trigger.onOpponentTurn` を足し、相手ターンのアタックフェイズ開始時に**設置者側**で発火＝【シャドウ】付与／【自】封じ＋強制アタック）・102-E2（下からシグニを場に出す＝`TAKE_FROM_UNDER_SIGNI{destination:'field'}`→`ADD_TO_FIELD`、`ADD_TO_FIELD` が下のカードからも抜く）・053-E1（《ドーナ SUNNY》がいるかぎり＜怪異＞に「場を離れたとき、手札から離れたシグニより低いレベルの＜怪異＞をダウンで出す・【出】は発動しない」＝`levelBelowLeftCard`＋`suppressOnPlay`）・030-E1（クラフト3種から選んでアクセ＝`ATTACH_ACCE.craftNames` でゲーム外から生成）・048（①ルリグデッキのアーツをルリグトラッシュに置いたらライフ+1＝`LRIG_DECK_ARTS_TO_LRIG_TRASH`／②相手の効果でクラッシュされた枚数ぶん次のダメージを防ぐ＝`REPEAT{countRef}`。⚠②の台帳はクラッシュだけ＝原文「他の領域に移動した」より狭い近似）。

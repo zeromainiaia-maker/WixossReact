@@ -68,6 +68,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   // 感染状態のシグニだけのパワーマイナス2倍化（§5.3 `O-543`）も、付与されたターンだけ有効。
   // ルリグのアタックが対戦相手の効果で無効にならない（§5.3 `O-543`）も、付与されたターンだけ有効。
   lrig_attack_negate_immune_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'lrig attack negation immunity granted for the current turn' },
+  // 「ターン終了時まで、このルリグはこの能力を失う」（§5.3 `O-543`）も、そのターンだけ。
+  effects_lost_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'single abilities lost until end of turn' },
+  // 「ターン終了時まで、【ガード】する際…代わりにこの能力を失ってもよい」（§5.3 `O-543`・`WX26-P1-002`）。
+  guard_alt_lose_ability_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'one-shot free guard ability gained until end of turn' },
   double_power_minus_infected_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'infected-only power-minus multiplier granted for the current turn' },
   double_power_minus_targets_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'target-scoped power-minus multiplier granted for the current turn' },
   // ホログラフ公開置換は、付与されたターンだけ有効。
@@ -164,6 +168,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   extra_attack_phases_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'extra attack phases queued for the current turn' },
   // 「宣言したカード名以外のアーツを使用できない」の whitelist は、課されたターンだけ有効（§6.4 O-3）。
   arts_name_whitelist_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'declared-arts-name whitelist imposed for the current turn' },
+  // 「公開したカードと名前の異なるアーツとピースを使用できない」（§5.3 `O-543`）も、課されたターンだけ（次のターン分は予約から昇格）。
+  arts_piece_name_whitelist_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'revealed arts/piece name whitelist imposed for the current turn' },
   // 🆕「このターン、あなたのシグニは新たに能力を得られない」（§5.3 `O-159`・2026-08-30）。
   // ⚠`*_this_turn` 命名なので**規約テーブル側**に置く（IRREGULAR 側に書くと `satisfies` が落ちる）。
   ability_gain_blocked_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'one-shot ability-gain lockout for the current turn (O-159)' },
@@ -588,6 +594,10 @@ export function activateTurnStartScopedState(state: PlayerState): PlayerState {
     // 「次の対戦相手のターンの間、〜のスペルを使用できない」の予約→active 昇格（§6.4 O-3・`PR-K046-E1`）。
     blocked_card_names: [...(state.blocked_card_names ?? []), ...(state.blocked_card_names_next_turn ?? [])],
     blocked_card_names_next_turn: undefined,
+    // 「このターンと次のターンの間、〜と名前の異なるアーツとピースを使用できない」の次ターン分（§5.3 `O-543`）。
+    ...(state.arts_piece_name_whitelist_next_turn
+      ? { arts_piece_name_whitelist_this_turn: state.arts_piece_name_whitelist_next_turn, arts_piece_name_whitelist_next_turn: undefined }
+      : {}),
     // 「次のあなたのターン終了時、〜」の予約→active 昇格（§6.4 O-4）。
     // ⚠ここで昇格させないと `ON_TURN_END` が**予約したそのターン**で拾ってしまう。
     pending_own_turn_end_effects: [
@@ -669,6 +679,11 @@ export function clearMainPhaseScopedState(state: PlayerState): PlayerState {
 /** 無料グロウを実行した時点で権利を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */
 export function consumeFreeGrowThisTurn(state: PlayerState): PlayerState {
   return consumeField(state, 'free_grow_this_turn');
+}
+
+/** 🆕§5.3 `O-543`＝「代わりにこの能力を失う」で【ガード】した時点で消費する（`WX26-P1-002`）。 */
+export function consumeGuardAltLoseAbility(state: PlayerState): PlayerState {
+  return consumeField(state, 'guard_alt_lose_ability_this_turn');
 }
 
 /** 対象スペルを打ち消した時点で予約を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */

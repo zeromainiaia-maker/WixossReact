@@ -6539,7 +6539,10 @@ export interface StubAction {
   guardAltCost?:
     | { kind: 'energy_trash_class'; signiClass: string }
     | { kind: 'hand_or_energy_trash_class'; signiClass: string }
-    | { kind: 'colorless_and_collab'; colorless: number; collab: number };
+    | { kind: 'colorless_and_collab'; colorless: number; collab: number }
+    // 🆕§5.3 `O-543`（`WX26-P1-073-E1` が付与する能力）＝「代わりに**このシグニを場からトラッシュに置いて**もよい」。
+    //   ⚠能力を持つシグニ**自身**を置く＝候補は `collectGuardTrashSelfSigni`（`collectGuardAlternativeCost` は返さない）。
+    | { kind: 'trash_self_signi' };
   /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
   carriedTargetNum?: string;
   /**

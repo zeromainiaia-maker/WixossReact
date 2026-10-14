@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
-import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
+import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, collectGuardTrashSelfSigni, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from '../guard';
 import type { BattleModalCtx } from './types';
@@ -25,11 +25,15 @@ interface GuardResponseDialogProps {
   handleGuardWithCollabAlternative: (colorless: number, collab: number) => void;
   /** 🆕§5.3 `O-266`＝ガード代替「エナN枚＋《ガードアイコン》M枚をトラッシュ」（`WX25-P2-007-E1`）。 */
   handleGuardWithEnergyAndGuardCard: () => void;
+  /** 🆕§5.3 `O-543`＝「代わりにこの能力を失う」（`WX26-P1-002`）。 */
+  handleGuardWithLoseAbility: () => void;
+  /** 🆕§5.3 `O-543`＝「代わりにこのシグニを場からトラッシュに置く」（`WX26-P1-073-E1` が付与）。 */
+  handleGuardWithTrashSelfSigni: (signiNum: string) => void;
 }
 
 export function GuardResponseDialog(p: GuardResponseDialogProps) {
   const { bs, user, my, op, isMyTurn, loading, battleCardMap, effectsMap } = p.ctx;
-  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithClassHandAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard } = p;
+  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithClassHandAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard, handleGuardWithLoseAbility, handleGuardWithTrashSelfSigni } = p;
   return (
     <>
       {/* ⚠🆕§5.3 `O-414`＝ダメージ置換の問い（【ガードしない】の続き）が出ている間は隠す＝
@@ -93,6 +97,9 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const guardAltEnaGuardOk = !!guardAltEnaGuard
                 && my.energy.length >= guardAltEnaGuard.energyCount
                 && guardCardCountInHand >= guardAltEnaGuard.guardCardCount;
+              // 🆕§5.3 `O-543`＝何も捨てない代替2種（能力を失う／能力を持つシグニを場からトラッシュ）。
+              const guardAltLoseAbility = !guardDisabledByOpp && !!my.guard_alt_lose_ability_this_turn;
+              const guardAltTrashSigni = !guardDisabledByOpp ? collectGuardTrashSelfSigni(my, effectsMap) : [];
               // 🔑§5.6 `C-2`＝**ガードに使える手札は `guardableHandIndices` 1本**（CPU も同じ関数を見る）。
               const guardCards = guardableHandIndices({
                 responder: my, attacker: op, cardMap: battleCardMap, effectsMap,
@@ -148,6 +155,24 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                       代替ガード：《無》×{guardAltCollab.colorless}を支払いコラボライバー{guardAltCollab.collab}人とコラボ
                     </button>
                   )}
+                  {guardAltLoseAbility && (
+                    <button onClick={handleGuardWithLoseAbility} disabled={loading}
+                      data-testid="guard-alt-lose-ability"
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #7cb9e8',
+                        backgroundColor: 'rgba(124,185,232,0.15)', color: '#7cb9e8', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：この能力を失う（ガードアイコン不要）
+                    </button>
+                  )}
+                  {guardAltTrashSigni.map(n => (
+                    <button key={`trash-self-${n}`} onClick={() => handleGuardWithTrashSelfSigni(n)} disabled={loading}
+                      data-testid="guard-alt-trash-self-signi" data-card-num={n}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
+                        backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：{battleCardMap.get(n)?.CardName ?? n}を場からトラッシュに置く
+                    </button>
+                  ))}
                   {guardAltEnaGuard && guardAltEnaGuardOk && (
                     <button onClick={handleGuardWithEnergyAndGuardCard} disabled={loading}
                       data-testid="guard-alt-energy-guardcard"

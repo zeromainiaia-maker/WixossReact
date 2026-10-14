@@ -8521,10 +8521,33 @@ export function collectGuardAlternativeCost(
       //     別の言い回し（`WXDi-CP01-005-E1`＝「《無》を支払いコラボライバー1人とコラボしてもよい」）は
       //     **1本も当たらず黙って「代替コスト無し」**に落ちていた。
       //   ⚠**payload が無ければ代替コスト無し**（fail-closed）＝原文に無い代替を勝手に生やさない。
-      if (act.guardAltCost) return { spec: act.guardAltCost, sourceCardNum: top };
+      // ⚠`trash_self_signi` は**能力を持つシグニごと**に別の候補＝下の `collectGuardTrashSelfSigni` が返す。
+      if (act.guardAltCost && act.guardAltCost.kind !== 'trash_self_signi') return { spec: act.guardAltCost, sourceCardNum: top };
     }
   }
   return null;
+}
+
+/**
+ * 🆕§5.3 `O-543`＝「【ガード】する際、…代わりに**このシグニを場からトラッシュに置いて**もよい」を持つ自分のシグニ
+ * （`WX26-P1-073-E1` が場のシグニへ付与する能力）。🔑**effectsMap はレイヤー付与を合成済み**（`battleMaterials`）なので
+ *   付与された能力もここで見える＝付与元が場を離れれば候補も消える。
+ */
+export function collectGuardTrashSelfSigni(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): string[] {
+  const out: string[] = [];
+  for (const top of fieldSigniStacks(ownerState).map(s => s?.at(-1))) {
+    if (!top) continue;
+    const has = [...(effectsMap.get(top) ?? []), ...grantedEffectsOf(ownerState, top)].some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      return act.type === 'STUB' && act.id === 'GUARD_ALTERNATIVE_COST' && act.guardAltCost?.kind === 'trash_self_signi';
+    });
+    if (has) out.push(top);
+  }
+  return out;
 }
 
 /**

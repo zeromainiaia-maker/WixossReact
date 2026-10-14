@@ -63086,6 +63086,145 @@ scenarios.v296CraftAcce = {
 };
 order.push('v296DelayedShadowOppTurn', 'v296DelayedShadowControl', 'v296UnderSigniToField', 'v296CraftAcce');
 
+// ── 🆕§5.1 `V-297`（2026-10-14）＝§5.3 `O-543` 第3巡（BUGFIXES 第518バッチ）の実機 ──
+// ①`WX26-P1-002` のリコレクトで得る「代わりにこの能力を失う」＝《ガードアイコン》無しで【ガード】できる（1回きり）。
+// ②`WX26-P1-073-E1` が付与する「代わりにこのシグニを場からトラッシュ」＝選んだシグニがトラッシュへ・ライフは減らない。
+// ③`WX26-P1-049` の予約（`pending_effect_assist_grow`）＝正規のアシストグロウ経路で左アシストがレベル3へ。
+// ④【ホログラフ】（`WX26-P1-TK01B`）＝CPU のルリグアタックで両者のデッキトップのライフバーストが揃えば無効＋取り除く。
+const v297GuardBase = (extraHost) => ({
+  hostSet: {
+    'field.lrig': ['WD01-004#l297'], 'field.lrig_down': false, 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_attacked': true, hand: [], energy: [], trash: [], lrig_deck: [], lrig_trash: [], coins: 0,
+    actions_done: [], game_actions_done: [],
+    life_cloth: ['WD01-013#lf1', 'WD01-013#lf2'], deck: ['WD01-013#dk1', 'WD01-013#dk2'],
+    ...extraHost,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#g297'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], deck: ['WD01-013#gd1', 'WD01-013#gd2'],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+const v297PressGuardAlt = async (page, H, id, testId, cardNum) => {
+  let labels = null;
+  for (let s = 0; s < 14 && labels === null; s++) {
+    await page.waitForTimeout(600);
+    const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+    if (btns.some(b => b.includes('ガード'))) labels = btns;
+  }
+  H.log(`  ${id}: ダイアログのボタン=${JSON.stringify(labels)}`);
+  if (labels === null) return { labels, clicked: false };
+  const sel = cardNum ? `[data-testid="${testId}"][data-card-num="${cardNum}"]` : `[data-testid="${testId}"]`;
+  const loc = page.locator(sel).first();
+  const clicked = await loc.count() ? (await loc.click({ timeout: 1500 }).then(() => true).catch(() => false)) : false;
+  return { labels, clicked };
+};
+scenarios.v297GuardLoseAbility = {
+  title: 'V-297① WX26-P1-002 リコレクト＝《ガードアイコン》を捨てる代わりに「この能力を失う」で【ガード】',
+  spec: v297GuardBase({ 'field.signi': [null, null, null], guard_alt_lose_ability_this_turn: true }),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const { labels, clicked } = await v297PressGuardAlt(page, H, 'v297lose', 'guard-alt-lose-ability');
+    if (!clicked) return { pass: false, detail: `🔴代替ボタン（この能力を失う）が出ない／押せない。ボタン=${JSON.stringify(labels)}` };
+    let st = before;
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(600);
+      await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v297lose[${s}] flag=${st?.host?.guardAltLoseAbility} life=${st?.host?.life} hand=${st?.host?.hand}`);
+      if (!st?.host?.guardAltLoseAbility) break;
+    }
+    const ok = !st?.host?.guardAltLoseAbility && st?.host?.life === before?.host?.life;
+    return { pass: ok, detail: `${ok ? '' : '🔴'}何も捨てずに【ガード】し、能力は消えた：flag ${before?.host?.guardAltLoseAbility}→${st?.host?.guardAltLoseAbility} life ${before?.host?.life}→${st?.host?.life}` };
+  },
+};
+scenarios.v297GuardTrashSelfSigni = {
+  title: 'V-297② WX26-P1-073-E1 の付与＝《ガードアイコン》を捨てる代わりにこのシグニを場からトラッシュ',
+  spec: v297GuardBase({ 'field.signi': [['WX26-P1-073#y297'], ['WD01-013#s297'], null], 'field.signi_down': [false, false, false] }),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const { labels, clicked } = await v297PressGuardAlt(page, H, 'v297trash', 'guard-alt-trash-self-signi', 'WD01-013#s297');
+    const twoOffered = (labels ?? []).filter(b => b.includes('場からトラッシュに置く')).length >= 2;
+    if (!clicked) return { pass: false, detail: `🔴代替ボタン（場からトラッシュ）が出ない／押せない。ボタン=${JSON.stringify(labels)}` };
+    let st = before;
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(600);
+      await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v297trash[${s}] field=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trashCards)} life=${st?.host?.life}`);
+      if ((st?.host?.trashCards ?? []).includes('WD01-013#s297')) break;
+    }
+    const trashed = (st?.host?.trashCards ?? []).includes('WD01-013#s297');
+    const ok = trashed && st?.host?.life === before?.host?.life && twoOffered;
+    return { pass: ok, detail: `${ok ? '' : '🔴'}付与された2体とも候補（${twoOffered}）・選んだシグニがトラッシュ（${trashed}）・ライフ ${before?.host?.life}→${st?.host?.life}` };
+  },
+};
+scenarios.v297EffectAssistGrow = {
+  title: 'V-297③ WX26-P1-049 の予約＝左のアシストルリグ（レベル2）がルリグデッキのレベル3へグロウする',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-002#c297'], 'field.lrig_down': false, 'field.check': null,
+      'field.assist_lrig_l': ['WX24-P1-037#a297'], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], lrig_deck: ['WD02-002#t297'], hand: [], energy: [], actions_done: [],
+      pending_effect_assist_grow: { side: 'l', instanceId: 'WD02-002#t297' },
+    },
+    guestSet: { 'field.lrig': ['WD03-002#g297'], 'field.signi': [null, null, null], 'field.check': null, hand: [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    let st = null;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(800);
+      await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v297assist[${s}] assistL=${JSON.stringify(st?.host?.assistL)} lrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (JSON.stringify(st?.host?.assistL ?? '').includes('WD02-002#t297')) break;
+    }
+    const grown = JSON.stringify(st?.host?.assistL ?? '').includes('WD02-002#t297');
+    const left = !(st?.host?.lrigDeckCards ?? []).includes('WD02-002#t297');
+    return { pass: grown && left, detail: `${grown && left ? '' : '🔴'}予約が消費され、左のアシストがレベル3へ：assistL=${JSON.stringify(st?.host?.assistL)} lrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)}` };
+  },
+};
+const v297Holograph = (match) => ({
+  title: `V-297④ 【ホログラフ】＝CPU のルリグアタックで両者のデッキトップを公開し、${match ? 'ライフバーストが揃えば無効＋取り除く' : '揃わなければ無効にならず残る（対照）'}`,
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-004#l297h'], 'field.lrig_down': false, 'field.check': null,
+      'field.signi': [null, null, null], 'field.free_zone': ['WX26-P1-TK01B#1'], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], actions_done: [], game_actions_done: [],
+      life_cloth: ['WD01-013#hl1', 'WD01-013#hl2', 'WD01-013#hl3'],
+      deck: ['WD01-009#hd1', 'WD01-013#hd2', 'WD01-013#hd3'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-004#g297h'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+      hand: [], energy: [], trash: [], deck: [match ? 'WD01-011#gd1' : 'WD01-013#gd1', 'WD01-013#gd2'],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 3, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let st = before, sawResolved = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(800);
+      await H.stdStep(['ガードしない', '発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v297holo${match ? '' : 'Ctl'}[${s}] phase=${st?.turnPhase} freeZone=${JSON.stringify(st?.host?.freeZone)} life=${st?.host?.life} log=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+      if ((st?.logTail ?? []).some(l => /ライフバーストの有無が揃わない|【ホログラフ】を取り除いた/.test(l))) sawResolved = true;
+      if (sawResolved && !st?.pendingEffect && (match || s > 12)) break;
+    }
+    const tokenGone = !(st?.host?.freeZone ?? []).some(n => String(n).startsWith('WX26-P1-TK01B'));
+    const lifeKept = st?.host?.life === before?.host?.life;
+    if (match) return { pass: sawResolved && tokenGone && lifeKept, detail: `${sawResolved && tokenGone && lifeKept ? '' : '🔴'}アタック無効＋取り除く：resolved=${sawResolved} freeZone=${JSON.stringify(st?.host?.freeZone)} life ${before?.host?.life}→${st?.host?.life}` };
+    return { pass: sawResolved && !tokenGone, detail: `${sawResolved && !tokenGone ? '' : '🔴'}揃わないので残る：resolved=${sawResolved} freeZone=${JSON.stringify(st?.host?.freeZone)} life ${before?.host?.life}→${st?.host?.life}` };
+  },
+});
+scenarios.v297HolographNegate = v297Holograph(true);
+scenarios.v297HolographControl = v297Holograph(false);
+order.push('v297GuardLoseAbility', 'v297GuardTrashSelfSigni', 'v297EffectAssistGrow', 'v297HolographNegate', 'v297HolographControl');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
@@ -67217,6 +67356,9 @@ try {
         // 🆕§5.3 `O-542`＝チアゾーンのシグニとその下のカード（DRIVE_TRAPS 128＝見たい state は queryState に足す）。
         cheer: s.field?.cheer ?? null,
         cheerUnder: s.field?.cheer_under ?? [],
+        // 🆕§5.3 `O-543`＝フリーゾーンのトークン（【ホログラフ】）と「代わりにこの能力を失う」のガード代替。
+        freeZone: s.field?.free_zone ?? [],
+        guardAltLoseAbility: s.guard_alt_lose_ability_this_turn ?? null,
         energy: (s.energy ?? []).length,
         // 🆕§5.3 `O-147`（2026-09-05）＝【ライズ】の材料をエナから引く形（`WXK05-035`）の観測点。
         //   枚数だけだと「どの札が下へ重なったか」が見えない。

@@ -2101,6 +2101,9 @@ export function createTokenInstanceId(
 // field.free_zone にトークンカードのインスタンス（CardNum#N）として置く。
 export const LRIG_BARRIER_CARD = 'WX24-P1-TK2A';   // 【ルリグバリア】
 export const SIGNI_BARRIER_CARD = 'WX26-CP1-TK01'; // 【シグニバリア】
+// 🆕§5.3 `O-543`＝【ホログラフ】（`WX26-P1-026-E2` で得る）。持ち主のフリーゾーンに置き、自身の【自】
+//   （対戦相手のルリグがアタックしたとき）は `collectLrigAttackDefenderTriggers` が拾う。
+export const HOLOGRAPH_TOKEN_CARD = 'WX26-P1-TK01B';
 
 export function countBarrierTokens(freeZone: string[] | undefined, base: string): number {
   return (freeZone ?? []).filter(n => getCardNum(n) === base).length;

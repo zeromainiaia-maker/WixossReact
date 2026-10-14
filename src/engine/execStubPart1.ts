@@ -2996,6 +2996,30 @@ export function execStubPart1(
   // ⚠**ctx の視点は反転しない**＝`opponentResponds` は「誰がクリックするか」だけを変えるので、
   //   候補も適用先も `ctx.otherState`（＝効果コントローラーから見た対戦相手）のまま扱う。
   // ⚠行先は `trash` ではなく **`lrig_trash`**（ルリグデッキのカードはルリグトラッシュへ行く）。
+  // 表示: 対戦相手はルリグデッキからアーツとピースを合計3枚まで公開する。このターンと次のターンの間、対戦相手はそれらとカード名の異なる、アーツとピースを使用できない
+  // 🆕§5.3 `O-543`（`WX26-P1-018-E2`）＝選ぶのは持ち主＝対戦相手（`OPP_LRIG_DECK_TO_LRIG_TRASH` と同じ慣例）。
+  //   ⚠**問う前に空の whitelist を立てる**＝0枚公開（または候補なし）でも「すべてのアーツとピースが使えない」が成立する。
+  //   読み手は `cardNameUseBlocked`（アーツ・スペル・キー/ピースの入口）。次のターン分は持ち主のターン開始時に昇格。
+  if (stub.id === 'OPP_REVEAL_ARTS_PIECE_WHITELIST') {
+    const candsORA = (ctx.otherState.lrig_deck ?? []).filter(n =>
+      /^(アーツ|ピース|リレーピース)/.test(ctx.cardMap.get(getCardNum(n))?.Type ?? ''));
+    // ⚠空の whitelist＝「すべて使えない」（クリアではない）。
+    const noneRevealedORA: string[] = [];
+    const lockedORA: ExecCtx = { ...ctx, otherState: { ...ctx.otherState,
+      arts_piece_name_whitelist_this_turn: noneRevealedORA, arts_piece_name_whitelist_next_turn: noneRevealedORA } };
+    if (candsORA.length === 0) {
+      return done(addLog({ ...lockedORA, lastProcessedCards: [] },
+        '対戦相手のルリグデッキにアーツもピースもない（このターンと次のターン、アーツとピースを使用できない）'));
+    }
+    const applyORA: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_REVEAL_ARTS_PIECE_WHITELIST_APPLY' };
+    return selectOrInteract(candsORA, Math.min(3, candsORA.length), true, 'opp_lrig_deck', applyORA, undefined, lockedORA, true);
+  }
+  if (stub.id === 'INTERNAL_OPP_REVEAL_ARTS_PIECE_WHITELIST_APPLY') {
+    const namesORA = [...new Set((ctx.lastProcessedCards ?? []).map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n))];
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState,
+      arts_piece_name_whitelist_this_turn: namesORA, arts_piece_name_whitelist_next_turn: namesORA } },
+    `対戦相手が公開：${namesORA.join('、') || 'なし'}（このターンと次のターン、これら以外のアーツとピースを使用できない）`));
+  }
   if (stub.id === 'OPP_LRIG_DECK_TO_LRIG_TRASH') {
     const candsOLD = ctx.otherState.lrig_deck ?? [];
     if (candsOLD.length === 0) {

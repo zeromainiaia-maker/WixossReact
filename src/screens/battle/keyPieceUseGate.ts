@@ -9,6 +9,7 @@ import {
   computeArtsEffectiveCost, costReplacementOf, costScalingOf, keyPlaceCoinCostOf,
 } from './costs';
 import { energyPoolCardNums } from './energyPaySource';
+import { cardNameUseBlocked } from './cardNameUseBlock';
 
 /**
  * キーを場に出す／ピースを使う**提示ゲート**（§5.6 `C-7`・2026-09-17）。
@@ -137,6 +138,9 @@ export function checkKeyPieceUse(p: KeyPieceUseGateInput): KeyPieceUseCheck {
   const cost = keyPieceCostOf(p);
   const none = { ...cost, usable: false, isPiece, placeable: false, affordable: false, conditionOk: false };
   if (card.Type !== 'キー' && !isPiece) return none;
+  // 🆕§5.3 `O-543`＝カード名の使用禁止／whitelist（`WX26-P1-018-E2`「〜と名前の異なる、アーツとピース」）。
+  //   🔴旧はアーツ・スペルの入口だけが `cardNameUseBlocked` を読み、**ピースはカード名で封じても使えた**。
+  if (cardNameUseBlocked(my, card.CardName, card.Type)) return none;
   // 🔴**ピースはキーゾーンを占有しない**（§3 (cxxiii)・続き475g）＝キーの枠でピースを絞らない。
   if (!isPiece && keysOnFieldOf(my) >= keyCapacityOf(my, effectsMap)) return none;
   // 🔴**CSV の空欄は `'-'`**（空文字ではない）＝`!timing` で判定すると全80枚のキーが出せなかった（§5.3 `O-200`）。

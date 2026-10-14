@@ -4119,9 +4119,12 @@ function resolveDynamicFilter(
     const { powerLteLastProcessed: _p, ...rest } = result;
     const ref = lastProcessedCards?.[0];
     const pw = ref ? (effectivePowers?.get(ref) ?? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '0', 10)) : undefined;
+    // 🆕§5.3 `O-543`（`WX26-P1-007`）＝**参照した札にパワーが無い**（公開したのがスペル等＝Power '-'）なら空ヒット。
+    //   旧は NaN を「絞り込み無し」に倒しており、スペルを公開すると**どのパワーの相手シグニでも**バニッシュできた。
+    //   ⚠参照そのものが無いとき（`ref` 無し）は従来どおり絞り込み無し。
     result = (pw !== undefined && !isNaN(pw))
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw } }
-      : rest;
+      : pw !== undefined ? { ...rest, powerRange: { min: 1, max: 0 } } : rest;
   }
   // 🆕`powerLteLastProcessedHalf`（2026-09-11・§5.3 `O-320`・`WDK10-015-E1`）＝
   //   「パワーが**この方法で捨てたシグニのパワーの半分以下**の対戦相手のシグニ」。
@@ -12368,6 +12371,10 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
       && ctx.sourceCardNum
       && ctx.ownerState.energy.includes(ctx.sourceCardNum)) {
     return done(addLog(ctx, 'エナゾーンのカードは能力を失っているため効果は発動しない'));
+  }
+  // 🆕§5.3 `O-543`＝「ターン終了時まで、この能力を失う」（`LOSE_THIS_ABILITY_THIS_TURN`）で失った能力は解決しない。
+  if (ctx.ownerState.effects_lost_this_turn?.includes(effect.effectId)) {
+    return done(addLog(ctx, 'この能力は失われているため何もしない'));
   }
   // 「ホログラフの効果によって〜する場合、代わりに」（WX16-004-E1）の発動元判定。
   // 判定は **データ側の CardEffect.holograph**（parser がコスト表記「ホログラフ」から立て、

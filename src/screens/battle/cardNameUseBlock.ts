@@ -14,7 +14,7 @@ import type { PlayerState } from '../../types';
  *   （その一覧＝旧 ArtsModal Phase1 は到達不能な死にコードとして削除済み。§6.4 `O-19b`）
  */
 export function cardNameUseBlocked(
-  state: Pick<PlayerState, 'blocked_card_names' | 'blocked_card_names_game' | 'arts_name_whitelist_this_turn'>,
+  state: Pick<PlayerState, 'blocked_card_names' | 'blocked_card_names_game' | 'arts_name_whitelist_this_turn' | 'arts_piece_name_whitelist_this_turn'>,
   cardName: string | undefined,
   cardType: string | undefined,
 ): boolean {
@@ -25,5 +25,8 @@ export function cardNameUseBlocked(
   // ⚠空配列（＝何も宣言できなかった）は「すべてのアーツが使えない」＝undefined と区別する。
   const whitelist = state.arts_name_whitelist_this_turn;
   if (whitelist && (cardType ?? '').startsWith('アーツ') && !whitelist.includes(name)) return true;
+  // 🆕§5.3 `O-543`＝「公開したカードと名前の異なる、アーツとピース」＝アーツ**と**ピースに掛かる whitelist。
+  const artsPiece = state.arts_piece_name_whitelist_this_turn;
+  if (artsPiece && /^(アーツ|ピース)/.test(cardType ?? '') && !artsPiece.includes(name)) return true;
   return false;
 }

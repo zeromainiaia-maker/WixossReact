@@ -9,7 +9,8 @@ import {
   done, addLog, addPrivateLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination, banishRedirectOpts,
   getCardNum, shuffle, addToBeatZone,
-  LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
+  LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, HOLOGRAPH_TOKEN_CARD, addBarrierTokens,
+  resolveOptionalCostSpec, canAffordOptionalCostSpec,
   isOwnTrashMoveLocked,
   matchesFilter,
   resolveHandCardPick, handCardPickLabel,
@@ -4439,6 +4440,138 @@ export function execStubPart3(
     const othersSLP = fieldSigniStacks(ctx.ownerState)
       .flatMap(st => (st?.at(-1) && st.at(-1) !== ctx.sourceCardNum ? [st.at(-1)!] : []));
     return done({ ...ctx, lastProcessedCards: othersSLP });
+  }
+  // 表示: ターン終了時まで、このルリグはこの能力を失う
+  // 🆕§5.3 `O-543`（`WX26-P1-022-E1`／`026-E1`）＝**解決中の能力1つ**を失う。読み手は `executeEffect` の入口。
+  //   🔴旧は《ターン1回》で近似しており、`022` は**《赤》を払わなかった回も**使い切っていた。
+  if (stub.id === 'LOSE_THIS_ABILITY_THIS_TURN') {
+    const lostId = ctx.sourceEffectId;
+    if (!lostId) return done(addLog(ctx, '失う能力が特定できない'));
+    const lost = ctx.ownerState.effects_lost_this_turn ?? [];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState,
+      effects_lost_this_turn: lost.includes(lostId) ? lost : [...lost, lostId] } },
+    'ターン終了時まで、この能力を失う'));
+  }
+  // 表示: ターン終了時まで、あなたは「【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりにこの能力を失ってもよい。」を得る
+  // 🆕§5.3 `O-543`（`WX26-P1-002` のリコレクト）＝読み手は `GuardResponseDialog`（使うと消える1回きり）。
+  if (stub.id === 'GAIN_GUARD_ALT_LOSE_ABILITY_THIS_TURN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, guard_alt_lose_ability_this_turn: true } },
+      'ターン終了時まで、【ガード】する際《ガードアイコン》を持つカードを捨てる代わりにこの能力を失ってもよい'));
+  }
+  // 表示: あなたのセンタールリグがレベル3以上の場合、あなたのレベル2のアシストルリグ1体はルリグデッキのレベル3のルリグ1枚にグロウする（グロウコストを支払う）。そうした場合、このゲームの間、センタールリグのリミットを＋1する
+  // 🆕§5.3 `O-543`（`WX26-P1-049`・Q&A）＝**グロウコストは払う**／**グロウ可能なルリグタイプ**（重なり1つ）に限る。
+  //   グロウ先の元のリミットは無視される（リミットはセンターの値＋補正だけで決まる＝`lrigLimit.ts`）。
+  //   アタック不可・自身ダウンの【起】不可は「アシストルリグである」ことから既存の判定がそのまま効く。
+  //   🔑払ってから予約＝実際の配置と【出】は `performAssistGrow`（`BattleScreen` が予約を消費）。
+  if (stub.id === 'ASSIST_GROW_TO_LV3') {
+    const st = ctx.ownerState;
+    const centerLv = parseInt(ctx.cardMap.get(getCardNum(st.field.lrig.at(-1) ?? ''))?.Level ?? '', 10) || 0;
+    if (centerLv < 3) return done(addLog(ctx, 'センタールリグがレベル3未満（グロウしない）'));
+    const classes = (s: string | undefined) => (s ?? '').split(/[/／]/).map(x => x.trim()).filter(Boolean);
+    const options: { id: string; label: string; action: EffectAction; available: boolean; costColors?: string[] }[] = [];
+    for (const side of ['l', 'r'] as const) {
+      const top = (side === 'l' ? st.field.assist_lrig_l : st.field.assist_lrig_r)?.at(-1);
+      const topCard = top ? ctx.cardMap.get(getCardNum(top)) : undefined;
+      if (!topCard || topCard.Type !== 'アシストルリグ' || topCard.Level !== '2') continue;
+      const from = new Set(classes(topCard.CardClass));
+      const seen = new Set<string>();
+      for (const inst of st.lrig_deck) {
+        const c = ctx.cardMap.get(getCardNum(inst));
+        if (!c || c.Type !== 'ルリグ' || c.Level !== '3' || seen.has(c.CardNum)) continue;
+        if (!classes(c.CardClass).some(x => from.has(x))) continue;
+        seen.add(c.CardNum);
+        const costColors = [...(c.GrowCost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)].flatMap(m =>
+          m[1].startsWith('コイン') ? [] : Array.from({ length: parseInt(m[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10) || 0 }, () => m[1]));
+        const spec = resolveOptionalCostSpec({ type: 'STUB', id: 'OPTIONAL_COST', costColors } as StubAction, ctx);
+        options.push({
+          id: `${side}:${inst}`,
+          label: `${side === 'l' ? '左' : '右'}の《${topCard.CardName}》→《${c.CardName}》（${costColors.length ? costColors.map(x => `《${x}》`).join('') : 'コストなし'}）`,
+          // 🔑支払いは選択肢の `costColors`＝UI／CPU がエナを選び `resumeOptionalCost` が払ってから本体へ進む。
+          action: { type: 'STUB', id: 'INTERNAL_ASSIST_GROW_TO_LV3_DO', value: side, value2: inst } as StubAction as EffectAction,
+          available: canAffordOptionalCostSpec(spec, ctx),
+          ...(costColors.length ? { costColors } : {}),
+        });
+      }
+    }
+    if (!options.some(o => o.available)) return done(addLog(ctx, 'グロウできるアシストルリグとルリグの組がない（またはグロウコストを払えない）'));
+    return needsInteraction(addLog(ctx, 'グロウするアシストルリグとグロウ先を選ぶ'), { type: 'CHOOSE', count: 1, options });
+  }
+  if (stub.id === 'INTERNAL_ASSIST_GROW_TO_LV3_DO') {
+    const side = stub.value === 'r' ? 'r' : 'l';
+    const inst = String(stub.value2 ?? '');
+    if (!ctx.ownerState.lrig_deck.includes(inst)) return done(addLog(ctx, 'グロウ先がルリグデッキにない'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState,
+      pending_effect_assist_grow: { side, instanceId: inst },
+      game_lrig_limit_bonus: (ctx.ownerState.game_lrig_limit_bonus ?? 0) + 1 } },
+    `${side === 'l' ? '左' : '右'}のアシストルリグを《${ctx.cardMap.get(getCardNum(inst))?.CardName ?? inst}》にグロウする（このゲームの間、センタールリグのリミット＋1）`));
+  }
+  // 表示: あなたは【ホログラフ】1つを得る
+  // 🆕§5.3 `O-543`（`WX26-P1-026-E2`）＝トークン（`WX26-P1-TK01B`）をフリーゾーンへ。【自】は `collectLrigAttackDefenderTriggers`。
+  if (stub.id === 'GAIN_HOLOGRAPH_TOKEN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field,
+      free_zone: addBarrierTokens(ctx.ownerState.field.free_zone, HOLOGRAPH_TOKEN_CARD, 1) } } }, '【ホログラフ】1つを得た'));
+  }
+  // 表示: あなたと対戦相手は自分のデッキの一番上を公開する。どちらも【ライフバースト】を持つか、どちらも持たない場合、そのアタックを無効にし、この【ホログラフ】を取り除く
+  // 🆕§5.3 `O-543`（`WX26-P1-TK01B`）＝自分側は `REVEAL_DECK_TOP`（ホログラフの公開＝`WX16-004` の置換が掛かる）→ 比較。
+  if (stub.id === 'HOLOGRAPH_TOKEN_REVEAL_NEGATE') {
+    return exec({ type: 'SEQUENCE', steps: [
+      { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+      { type: 'STUB', id: 'INTERNAL_HOLOGRAPH_TOKEN_COMPARE' },
+    ] } as EffectAction, ctx);
+  }
+  if (stub.id === 'INTERNAL_HOLOGRAPH_TOKEN_COMPARE') {
+    const mine = ctx.ownerState.deck[0];
+    const theirs = ctx.otherState.deck[0];
+    if (!mine || !theirs) return done(addLog(ctx, 'デッキが空で公開できない（アタックは無効にならない）'));
+    const nm = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+    const lb = (n: string) => matchesFilter(ctx.cardMap.get(getCardNum(n)), { hasLifeBurst: true });
+    const logged = addLog(ctx, `対戦相手のデッキの一番上を公開：${nm(theirs)}`);
+    if (lb(mine) !== lb(theirs)) return done(addLog(logged, 'ライフバーストの有無が揃わない（アタックは無効にならない）'));
+    const tok = ctx.sourceCardNum;
+    const negated = exec({ type: 'NEGATE_ATTACK', target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as EffectAction, logged);
+    if (!negated.done) return negated;
+    const fz = negated.ownerState.field.free_zone ?? [];
+    const idx = tok ? fz.indexOf(tok) : -1;
+    const removedFz = idx >= 0 ? fz.filter((_, i) => i !== idx) : fz;
+    return done(addLog({ ...ctx, ownerState: { ...negated.ownerState, field: { ...negated.ownerState.field, free_zone: removedFz } },
+      otherState: negated.otherState, logs: negated.logs }, 'アタックを無効にし、【ホログラフ】を取り除いた'));
+  }
+  // 表示: アタックしたシグニの正面の、中身が＜トリック＞のシグニである【マジックボックス】を表向きにしトラッシュに置いてもよい。それとアタックしたシグニのライフバーストの有無が揃えば、そのアタックを無効にし、ターン終了時まで、この能力を失う
+  // 🆕§5.3 `O-543`（`WX26-P1-026-E1`）＝正面は `2 - アタッカーのゾーン`（`BANISH_ATTACKER_IF_WEAKER_THAN_FRONT` と同じ）。
+  //   ⚠中身を知っているのは持ち主だけ＝条件に合わない【マジックボックス】は選ばせない（問い自体を出さない）。
+  if (stub.id === 'MB_FRONT_OF_ATTACKER_NEGATE') {
+    const attacker = ctx.triggeringCardNum;
+    const zi = attacker ? ctx.otherState.field.signi.findIndex(s => s?.at(-1) === attacker) : -1;
+    if (!attacker || zi < 0) return done(addLog(ctx, 'アタックしたシグニが場にいない'));
+    const fz = 2 - zi;
+    const mb = (ctx.ownerState.field.signi_magic_boxes ?? [null, null, null])[fz] ?? null;
+    const mbCard = mb ? ctx.cardMap.get(getCardNum(mb)) : undefined;
+    if (!mb || !mbCard || !matchesFilter(mbCard, { cardType: 'シグニ', story: 'トリック' })) {
+      return done(addLog(ctx, '正面に中身が＜トリック＞の【マジックボックス】がない'));
+    }
+    return needsInteraction(addPrivateLog(addLog(ctx, '正面の【マジックボックス】を表向きにしますか？'), `【マジックボックス】の中身: ${mbCard.CardName}`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'open', label: '表向きにしてトラッシュへ',
+          action: ({ type: 'STUB', id: 'INTERNAL_MB_FRONT_OF_ATTACKER_DO', value: fz } as StubAction) as EffectAction, available: true },
+        { id: 'skip', label: 'しない', action: ({ type: 'STUB', id: 'INTERNAL_OPEN_MB_SKIP' } as StubAction) as EffectAction, available: true },
+      ],
+    });
+  }
+  // 表示: 正面の【マジックボックス】を表向きにしてトラッシュへ置き、ライフバーストの有無が揃えばアタックを無効にする
+  if (stub.id === 'INTERNAL_MB_FRONT_OF_ATTACKER_DO') {
+    const opened = exec({ type: 'STUB', id: 'INTERNAL_OPEN_MB_DO', value: stub.value } as StubAction as EffectAction, ctx);
+    if (!opened.done) return opened;
+    const mb = opened.lastProcessedCards?.[0];
+    const attacker = ctx.triggeringCardNum;
+    const after: ExecCtx = { ...ctx, ownerState: opened.ownerState, otherState: opened.otherState, logs: opened.logs, lastProcessedCards: opened.lastProcessedCards };
+    if (!mb || !attacker) return done(after);
+    const lb = (n: string) => matchesFilter(ctx.cardMap.get(getCardNum(n)), { hasLifeBurst: true });
+    if (lb(mb) !== lb(attacker)) return done(addLog(after, 'ライフバーストの有無が揃わない（アタックは無効にならない）'));
+    return exec({ type: 'SEQUENCE', steps: [
+      { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true },
+      { type: 'STUB', id: 'LOSE_THIS_ABILITY_THIS_TURN' },
+    ] } as EffectAction, after);
   }
   // 表示: このターン、このルリグのアタックは対戦相手の効果によって無効にならない
   // 🆕§5.3 `O-543`（`WX26-P1-022-E2`）＝読み手は `NEGATE_ATTACK` と `getTargetedAttackNegation`。

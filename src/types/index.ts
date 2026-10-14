@@ -449,6 +449,11 @@ export interface PlayerState {
   // ⚠blacklist ではなく **whitelist**＝空配列は「すべてのアーツが使えない」（undefined＝制限なしと区別する）。
   // 読みは `cardNameUseBlocked` の1点。
   arts_name_whitelist_this_turn?: string[];
+  // 🆕§5.3 `O-543`（`WX26-P1-018-E2`）「このターンと次のターンの間、対戦相手はこの方法で公開したカードと
+  //   カード名の異なる、**アーツとピース**を使用できない」＝アーツ**と**ピースに掛かる whitelist（空配列＝全部使えない）。
+  //   次のターン分は `_next_turn` に予約し、持ち主のターン開始時に昇格する（`blocked_card_names_next_turn` と同じ2スロット）。
+  arts_piece_name_whitelist_this_turn?: string[];
+  arts_piece_name_whitelist_next_turn?: string[];
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
   acce_choice?: Record<string, number>;     // アクセCardNum -> 装着時に選んだ付与能力のインデックス（SPK01-11 ラズベリー）
   // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）
@@ -850,6 +855,12 @@ export interface PlayerState {
    * ⚠「次の1回」ではなく**ターン終了まで**の近似（同じターンにルリグが2回アタックする盤面だけ広い）。
    */
   lrig_attack_negate_immune_this_turn?: boolean;
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-022-E1`／`026-E1`「ターン終了時まで、このルリグはこの能力を失う」）＝
+   * **能力1つ単位**で失った effectId。読み手＝`executeEffect` の入口（積まれていても解決時に何もしない）。
+   * ⚠カード丸ごとの能力喪失（`abilities_removed`）とは別＝同じルリグの他の能力は失わない。
+   */
+  effects_lost_this_turn?: string[];
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   /**
    * 「対戦相手はこのアタックフェイズの間、**無色のカードで**エナコストを支払えず」
@@ -1375,6 +1386,11 @@ export interface PlayerState {
    *   ターン全体のフラグ（`suppress_center_on_play`）へ倒すと、同じターンの別のグロウまで黙って抑制する。
    */
   /**
+   * 🆕§5.3 `O-543`（`WX26-P1-049`）＝**効果によるアシストルリグのグロウ**の予約。engine はグロウコストを払い終えてから積み、
+   * 実際の配置は `performAssistGrow`（正規経路＝【出】・コイン獲得）が行う（`pending_flip_grow_card` と同じ分担）。
+   */
+  pending_effect_assist_grow?: { side: 'l' | 'r'; instanceId: string };
+  /**
    * 効果によるその場グロウの予約（§5.3 `O-83`／`O-345`）。engine は予約だけを積み、
    * **実際のグロウは `BattleScreen.executeGrow`（正規経路）**が行う＝【出】・リミット再計算・コイン獲得が落ちない。
    * - `suppressOnPlay`＝「この方法でグロウしたルリグの【出】能力は発動しない」（そのグロウ1回だけ）。
@@ -1583,6 +1599,9 @@ export interface PlayerState {
   coins_gained_this_game?: boolean;
   game_opp_extra_guard_hand_or_colorless?: number; // WXDi-P05-005: 相手ガード時追加コスト（手札N枚か《無》）
   game_guard_alt_hand?: number;                    // WXDi-P06-006: ガード代替（手札N枚捨て）
+  // 🆕§5.3 `O-543`（`WX26-P1-002` のリコレクト）「ターン終了時まで、あなたは『【ガード】する際、《ガードアイコン》を持つ
+  //   カードを1枚捨てる代わりに**この能力を失って**もよい』を得る」＝1回だけ、何も捨てずに【ガード】できる（使うと消える）。
+  guard_alt_lose_ability_this_turn?: boolean;
   guard_alt_hand_until_opp_turn?: number;           // WX24-P4-026: 次の対戦相手ターン終了時までのガード代替
   game_turn_end_trash_to_hand?: { class: string; count: number }; // WXDi-P04-006: ターン終了時トラッシュ→手札
   game_grow_phase_limit_plus?: number;             // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）

@@ -10,7 +10,7 @@
  */
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner, TriggerOriginZone } from '../types/effects';
-import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
+import { evalUseCondition, matchesFilter, getCardNum, HOLOGRAPH_TOKEN_CARD } from './execUtils';
 import { normalizeKeywordName, keywordDisplayLabel } from '../utils/keywords';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
@@ -937,6 +937,18 @@ export function collectLrigAttackDefenderTriggers(
 ): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
   const usedIds: string[] = [];
+  // 🆕§5.3 `O-543`＝フリーゾーンの【ホログラフ】（プレイヤーが得た印＝ルリグの能力ではない）。
+  //   ⚠ルリグの能力喪失（`lrig_abilities_disabled`）の影響を受けないので、その早期 return より前で拾う。
+  for (const tok of defenderState.field.free_zone ?? []) {
+    if (getCardNum(tok) !== HOLOGRAPH_TOKEN_CARD) continue;
+    for (const eff of effsOf(ctx, HOLOGRAPH_TOKEN_CARD) ?? []) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
+      entries.push({
+        id: ctx.genId(), playerId: defenderId, cardNum: tok, effectId: eff.effectId,
+        label: '【ホログラフ】の【自】効果（対戦相手のルリグアタック時）', effect: eff,
+      });
+    }
+  }
   if (defenderState.lrig_abilities_disabled) return { entries, usedIds };
   const limitOk = mkLimitOk(defenderState.actions_done, usedIds);
   const defLrigNum = defenderState.field.lrig.at(-1) ?? '';

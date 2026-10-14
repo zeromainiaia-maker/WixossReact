@@ -1,9 +1,9 @@
 # 実行結果の不変条件センサス（R6-1）
-# トレース: node_modules\.tmp\traceinv_traces.json（効果 9544件）
+# トレース: node_modules\.tmp\traceinv_traces.json（効果 9545件）
 
 ## I1（0効果）
 
-## I2（270効果）
+## I2（271効果）
 WX01-028-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 WX02-073-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-073:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX04-015-E1	base/both	選択肢なし・差分: 相デッキの並びが変わった（残り12枚）
@@ -235,6 +235,7 @@ WXK08-017-E1	base/both	選択肢なし・差分: 自状態 prevent_next_damage: 
 WXK08-022-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WXK08-059-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-081:hand"]
 WXK09-097-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
+WXK10-051-E1	empty/both	選択肢なし・差分: 自S源: 自トラッシュ → 自デッキ[1] ; 自状態 deck_shuffled_count: なし → 1
 WXK10-055-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自トラッシュ ; 自トラッシュ対象: 自トラッシュ → 自手札
 WXK10-055-E2	nofield/both	選択肢なし・差分: ⚠側跨ぎ 相トラッシュ1: 相トラッシュ → 自シグニ1(上)
 WXK10-057-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自シグニ0(上) ; 自デッキ上1: 状態[なし]→[ダウン]
@@ -474,10 +475,10 @@ WXK01-102-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK02-089-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK03-022-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK04-051-E1	empty/both	ドロー: ログ1枚／移動0件
-WXK05-005-E1	base/decline	ドロー: ログ3枚／移動0件
+WXK05-005-E1	base/decline	ドロー: ログ3枚／移動1件
 WXK05-025-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK05-045-E1	empty/both	ドロー: ログ1枚／移動0件
-WXK06-028-E2	base/decline	ドロー: ログ5枚／移動4件
+WXK06-028-E2	base/decline	ドロー: ログ5枚／移動3件
 WXK06-047-E1	empty/decline	ドロー: ログ1枚／移動0件
 WXK07-066-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK11-025-BURST	empty/both	エナチャージ: ログ1枚／移動0件

@@ -5752,6 +5752,9 @@ function actionJa(a?: Action, effectType?: string): string {
         if (spec.kind === 'hand_or_energy_trash_class') {
           return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、手札から＜${spec.signiClass}＞のシグニを1枚捨てるかあなたのエナゾーンから＜${spec.signiClass}＞のシグニ1枚をトラッシュに置いてもよい`;
         }
+        if (spec.kind === 'trash_self_signi') {
+          return 'あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、このシグニを場からトラッシュに置いてもよい';
+        }
         const colorless = spec.colorless === 1 ? '《無》' : `《無×${spec.colorless}》`;
         return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、${colorless}を支払いコラボライバー${numJa(spec.collab)}人とコラボしてもよい`;
       }
@@ -5770,11 +5773,6 @@ function actionJa(a?: Action, effectType?: string): string {
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
         // 🆕2026-10-03（WX26-P1）＝受け皿待ちの明示 defer（ハンドラ無し＝engine は何もしない）。
-        DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE: 'アタックしたシグニの正面の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効にする（未実装）',
-        DEFERRED_GAIN_HOLOGRAPH_MARKER: 'あなたは【ホログラフ】1つを得る（未実装）',
-        DEFERRED_REVEAL_TOP_CHOOSE_THRICE: 'デッキをシャッフルし、一番上を公開して「公開したシグニのパワー以下の相手シグニをバニッシュ」か「1枚引いて【エナチャージ１】」を選ぶ、を3回行う（未実装）',
-        DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS: '対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、このターンと次のターンの間、それらと名前の異なるアーツとピースを使用できない（未実装）',
-        DEFERRED_ASSIST_GROW_TO_LV3: 'センタールリグがレベル3以上なら、レベル2のアシストルリグ1体をルリグデッキのレベル3のルリグへグロウさせ、このゲームの間センタールリグのリミットを＋1する（未実装）',
         // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
         PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
         // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと

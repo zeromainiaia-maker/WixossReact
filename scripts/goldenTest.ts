@@ -25,7 +25,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { fillSourceTextPayloads } from '../src/data/sourceTextPayloads';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums, collectGuardAlternativeCost } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums, collectGuardAlternativeCost, collectGuardTrashSelfSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
@@ -219,7 +219,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { applyForcedTurnEnd, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { applyForcedTurnEnd, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn, consumeGuardAltLoseAbility } from '../src/screens/battle/turnScopedState';
 import { consumeActivateCostZero } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
@@ -6233,7 +6233,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 65, 'PlayerState の命名規約由来フィールド数（🆕65＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も追加。64＝同日 double_power_minus_infected_this_turn を追加。63＝2026-09-14 `O-372` 時点）');
+  eq(convention.length, 68, 'PlayerState の命名規約由来フィールド数（🆕68＝2026-10-14 §5.3 `O-543` 第3巡で effects_lost_this_turn / arts_piece_name_whitelist_this_turn / guard_alt_lose_ability_this_turn を追加。65＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も追加。64＝同日 double_power_minus_infected_this_turn を追加。63＝2026-09-14 `O-372` 時点）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -6248,7 +6248,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 41, '命名規約外のターン限定フィールド数（🆕 41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 106, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 109, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 109＝2026-10-14 §5.3 `O-543` 第3巡で3件登録。106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -40306,7 +40306,8 @@ test('task12(l) B群: ホログラフ判定は live データの CardEffect.holo
     for (const e of mergeManualEffects(cardNum, effs)) if (e.holograph) holoCards.add(cardNum);
   }
   // 🆕2026-10-03＝`WX26-P1-026`（【起】ホログラフ《青×0》）を追加。
-  eq([...holoCards].sort().join(','), 'WX15-002,WX26-P1-026,WXEX2-15', 'holograph が立つのはホログラフ表記のある3カードだけ');
+  // 🆕2026-10-14（§5.3 `O-543`）＝トークン【ホログラフ】（`WX26-P1-TK01B`）の公開も「ホログラフの効果」＝`WX16-004` の置換が掛かる。
+  eq([...holoCards].sort().join(','), 'WX15-002,WX26-P1-026,WX26-P1-TK01B,WXEX2-15', 'holograph が立つのはホログラフ表記のある3カード＋トークン【ホログラフ】だけ');
 });
 
 test('task12(l) B群: WX15-002-E2 の公開は3枚を非公開で並べ替え、戻したトップだけ公開', () => {
@@ -94374,6 +94375,199 @@ test('§5.3 O-543 ゲーム外から生成するクラフト・トークンは B
   for (const effs of effectsMap.values()) for (const e of effs) walk(e, e.effectId);
   eq([...missing].join(' / '), '', '🔴常時読み込みに無いクラフト・トークンを生成する効果がある（実機で押せない／空のカードになる）');
 });
+
+test('§5.3 O-543 WX26-P1-007＝デッキの一番上を公開して2択を3回（①は公開したシグニのパワー以下）', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX26-P1-007') ?? []).find(e => e.effectId === 'WX26-P1-007-E1')!;
+  ok(!JSON.stringify(live.action).includes('DEFERRED_'), '🔴live が未実装 STUB のまま');
+  const rep = (live.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps[1] as Extract<EffectAction, { type: 'REPEAT' }>;
+  eq(rep.type, 'REPEAT', '3回くり返しになっていない');
+  eq(rep.count, 3, '回数');
+  const once = { ...rep, count: 1 } as EffectAction;   // シャッフルを外して1周だけ回す（autopilot は①を選ぶ）
+  const ref = findCard(c => isSigni(c) && c.Power === '5000');
+  const low = findCard(c => isSigni(c) && c.Power === '3000');
+  const high = findCard(c => isSigni(c) && c.Power === '12000');
+  const hit = run(once, mkCtx({ deckTop: [ref] }, { signi: [low, high, null] }, 'WX26-P1-007'));
+  const left = hit.otherState.field.signi.map(st => st?.at(-1) ?? null);
+  ok(!left.includes(low), '公開したシグニ(5000)以下の 3000 はバニッシュされる');
+  ok(left.includes(high), '12000 は残る');
+  eq(hit.ownerState.deck.at(-1), ref, '①は公開したカードをデッキの一番下に置く');
+  // 🔴公開したのがスペル（パワー無し）なら①の対象は無い（旧＝絞り込み無しでどのシグニでもバニッシュできた）。
+  const spell = findCard(c => c.Type === 'スペル');
+  const miss = run(once, mkCtx({ deckTop: [spell] }, { signi: [low, high, null] }, 'WX26-P1-007'));
+  const left2 = miss.otherState.field.signi.map(st => st?.at(-1) ?? null);
+  ok(left2.includes(low) && left2.includes(high), '🔴パワーの無いカードを公開したのにバニッシュできている');
+  eq(miss.ownerState.deck.at(-1), spell, '対象が無くても公開したカードは下へ');
+}));
+
+test('§5.3 O-543 WX26-P1-026-E1＝正面の＜トリック＞【マジックボックス】を開き、ライフバーストの有無が揃えばアタック無効＋この能力を失う', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX26-P1-026') ?? []).find(x => x.effectId === 'WX26-P1-026-E1')!;
+  eq((e.action as StubAction).id, 'MB_FRONT_OF_ATTACKER_NEGATE', '🔴live が未実装 STUB のまま');
+  const hasLB = (c: CardData) => !!c.BurstText && c.BurstText !== '-';
+  const trickLB = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('トリック') && hasLB(c));
+  const trickNoLB = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('トリック') && !hasLB(c));
+  const nonTrick = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('トリック'));
+  const atkLB = findCard(c => isSigni(c) && hasLB(c) && c.CardNum !== trickLB);
+  // アタッカーは相手のゾーン0＝正面は自分のゾーン2。
+  const mk = (mb: string, fz = 2): ExecCtx => {
+    const ctx = mkCtx({}, { signi: [atkLB, null, null] }, 'WX26-P1-026');
+    const boxes: (string | null)[] = [null, null, null]; boxes[fz] = mb;
+    return { ...ctx, sourceEffectId: 'WX26-P1-026-E1', triggeringCardNum: atkLB,
+      ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_magic_boxes: boxes } },
+      otherState: { ...ctx.otherState, pending_signi_battle: { zoneIndex: 0 } } } as unknown as ExecCtx;
+  };
+  const go = (ctx: ExecCtx) => finish(executeEffect(e, ctx), ctx);   // autopilot は「表向きにする」を選ぶ
+  const hit = go(mk(trickLB));
+  ok(hit.otherState.cancel_current_signi_attack, '🔴どちらもライフバーストを持つのにアタックが無効にならない');
+  ok(hit.ownerState.trash.includes(trickLB), '開いた【マジックボックス】はトラッシュへ');
+  eq(hit.ownerState.field.signi_magic_boxes?.[2] ?? null, null, '正面の【マジックボックス】が残っている');
+  ok((hit.ownerState.effects_lost_this_turn ?? []).includes('WX26-P1-026-E1'), '🔴無効にしたのに能力を失っていない');
+  const miss = go(mk(trickNoLB));
+  ok(!miss.otherState.cancel_current_signi_attack, '🔴ライフバーストの有無が揃わないのに無効になった');
+  ok(miss.ownerState.trash.includes(trickNoLB), '揃わなくても開いた【マジックボックス】はトラッシュ');
+  ok(!(miss.ownerState.effects_lost_this_turn ?? []).length, '無効にしていないのに能力を失った');
+  // 反転＝中身が＜トリック＞でない／正面でないゾーンの【マジックボックス】は開けない。
+  const notTrick = go(mk(nonTrick));
+  eq(notTrick.ownerState.field.signi_magic_boxes?.[2], nonTrick, '＜トリック＞でない中身を開いた');
+  const side = go(mk(trickLB, 0));
+  eq(side.ownerState.field.signi_magic_boxes?.[0], trickLB, '🔴正面でないゾーンの【マジックボックス】を開いた');
+  // 失った能力は同じターンにもう一度積まれても何もしない（ターン終了で消える）。
+  const again = go({ ...mk(trickLB), ownerState: { ...mk(trickLB).ownerState, effects_lost_this_turn: ['WX26-P1-026-E1'] } } as ExecCtx);
+  ok(!again.otherState.cancel_current_signi_attack, '🔴失った能力が解決された');
+  eq(again.ownerState.field.signi_magic_boxes?.[2], trickLB, '失った能力で【マジックボックス】が開いた');
+}));
+
+test('§5.3 O-543 WX26-P1-022-E1＝《赤》を払ってアップしたときだけ「この能力を失う」（払わなければ失わない）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX26-P1-022') ?? []).find(x => x.effectId === 'WX26-P1-022-E1')!;
+  eq(e.usageLimit, undefined, '🔴《ターン1回》の近似が残っている（払わなかった回も使い切る）');
+  ok(JSON.stringify(e.action).includes('LOSE_THIS_ABILITY_THIS_TURN'), '🔴「この能力を失う」が live に無い');
+  const sub = ((e.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).then;
+  const ctx = { ...mkCtx({}, {}, 'WX26-P1-022'), sourceEffectId: 'WX26-P1-022-E1' } as ExecCtx;
+  const r = run(sub, ctx);
+  ok((r.ownerState.effects_lost_this_turn ?? []).includes('WX26-P1-022-E1'), 'アップしたら能力を失う');
+}));
+
+test('§5.3 O-543 WX26-P1-018-E2＝相手が公開したアーツ/ピースと名前の異なるアーツとピースを、このターンと次のターン使用できない', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX26-P1-018') ?? []).find(x => x.effectId === 'WX26-P1-018-E2')!;
+  eq((e.action as StubAction).id, 'OPP_REVEAL_ARTS_PIECE_WHITELIST', '🔴live が未実装 STUB のまま');
+  const arts1 = findCard(c => c.Type === 'アーツ');
+  const arts2 = findCard(c => c.Type === 'アーツ' && c.CardName !== cardMap.get(arts1)!.CardName);
+  const piece = findCard(c => c.Type === 'ピース');
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const base = mkCtx({}, {}, 'WX26-P1-018');
+  const ctx = { ...base, otherState: { ...base.otherState, lrig_deck: [lrig, arts1, arts2, piece] } } as ExecCtx;
+  const r = executeAction(e.action, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '公開の選択窓が出る');
+  const pend = r.pending as { candidates: string[]; count: number; opponentResponds?: boolean };
+  eq(pend.candidates.join(','), [arts1, arts2, piece].join(','), '候補はアーツとピースだけ（ルリグは出ない）');
+  eq(pend.count, 3, '合計3枚まで');
+  ok(pend.opponentResponds, '🔴選ぶのが対戦相手になっていない');
+  ok(!!r.otherState.arts_piece_name_whitelist_this_turn, '問う前に（0枚公開でも）制限が立つ');
+  const fin = finish(resumeSelectTarget([arts1], r.pending as never, ctxAfter(r, ctx)), ctx);
+  const opp = fin.otherState;
+  const nm = (n: string) => cardMap.get(n)!;
+  ok(!cardNameUseBlocked(opp, nm(arts1).CardName, 'アーツ'), '公開したアーツは使える');
+  ok(cardNameUseBlocked(opp, nm(arts2).CardName, 'アーツ'), '🔴公開していないアーツが使える');
+  ok(cardNameUseBlocked(opp, nm(piece).CardName, 'ピース'), '🔴公開していないピースが使える');
+  ok(!cardNameUseBlocked(opp, 'なにかのスペル', 'スペル'), 'スペルは制限の外');
+  // 次のターン：このターン分はターン終了で消え、予約が持ち主のターン開始時に昇格する。
+  const next = activateTurnStartScopedState(clearTurnEndScopedState(opp));
+  ok(cardNameUseBlocked(next, nm(arts2).CardName, 'アーツ'), '🔴次のターンに制限が残っていない');
+  const after = activateTurnStartScopedState(clearTurnEndScopedState(next));
+  ok(!cardNameUseBlocked(after, nm(arts2).CardName, 'アーツ'), '次の次のターンまで制限が残っている');
+  // ピースの使用ゲートもカード名の制限を読む（旧はアーツとスペルの入口だけ）。
+  const gateSrc = fs.readFileSync(join(root, 'src/screens/battle/keyPieceUseGate.ts'), 'utf8');
+  ok(/if \(cardNameUseBlocked\(my, card\.CardName, card\.Type\)\) return none;/.test(gateSrc), '🔴ピースの使用ゲートがカード名の制限を読んでいない');
+}));
+
+test('§5.3 O-543 WX26-P1-002／073＝何も捨てない【ガード】の代替（この能力を失う／このシグニを場からトラッシュ）', () => withSavedCursor(() => {
+  // 002＝リコレクトで「代わりにこの能力を失う」を得る（ターン終了まで・使うと消える）。
+  const e2 = (effectsMap.get('WX26-P1-002') ?? []).find(x => x.effectId === 'WX26-P1-002-E1')!;
+  ok(JSON.stringify(e2.action).includes('GAIN_GUARD_ALT_LOSE_ABILITY_THIS_TURN'), '🔴002 の付与が live に無い');
+  ok(!JSON.stringify(e2.action).includes('DEFERRED_'), '002 に未実装 STUB が残っている');
+  const gained = run({ type: 'STUB', id: 'GAIN_GUARD_ALT_LOSE_ABILITY_THIS_TURN' } as EffectAction, mkCtx({}, {}, 'WX26-P1-002'));
+  eq(gained.ownerState.guard_alt_lose_ability_this_turn, true, 'フラグが立つ');
+  eq(clearTurnEndScopedState(gained.ownerState).guard_alt_lose_ability_this_turn, undefined, 'ターン終了で消える');
+  // 🔴実機で発見＝消費（ガードに使う）が登録表に無いと `consumeField` が例外を投げ、ボタンを押しても何も起きなかった。
+  eq(consumeGuardAltLoseAbility(gained.ownerState).guard_alt_lose_ability_this_turn, undefined, 'ガードに使うと消える（例外を投げない）');
+  // 073＝場のシグニ全員に「代わりにこのシグニを場からトラッシュ」を付与（付与元が場にいる間だけ）。
+  const a = fresh(), b = fresh();
+  const st = mkState({ signi: ['WX26-P1-073', a, null] });
+  const grantMap = new Map(effectsMap);
+  const granted = collectGrantedFromLayer(st, mkState({}), false, grantMap, cardMap as Map<string, CardData>);
+  for (const [n, extra] of granted) grantMap.set(n, [...(grantMap.get(n) ?? []), ...extra]);
+  eq(collectGuardTrashSelfSigni(st, grantMap).join(','), ['WX26-P1-073', a].join(','), '🔴付与された全シグニが代替の候補に出ない');
+  eq(collectGuardAlternativeCost(st, cardMap as Map<string, CardData>, grantMap), null, '「このシグニを置く」を単一の代替として返している（候補はシグニごと）');
+  const noSrc = mkState({ signi: [a, b, null] });
+  eq(collectGuardTrashSelfSigni(noSrc, effectsMap).length, 0, '付与元がいないのに代替が出る');
+  // 画面側の配線（何も捨てない代替2種がダイアログと処理に載っている）。
+  const dlg = fs.readFileSync(join(root, 'src/screens/battle/modals/GuardResponseDialog.tsx'), 'utf8');
+  ok(dlg.includes('guard-alt-lose-ability') && dlg.includes('guard-alt-trash-self-signi'), '🔴ダイアログに代替ボタンが無い');
+  const bsSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/fieldTrashCostCards: \[trashedFromField\]/.test(bsSrc), '🔴場からトラッシュに置いた誘発（場を離れたとき等）を拾っていない');
+}));
+
+test('§5.3 O-543 WX26-P1-026-E2／TK01B＝【ホログラフ】を得て、相手のルリグアタック時に両者のデッキトップのライフバーストが揃えば無効＋取り除く', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX26-P1-026') ?? []).find(x => x.effectId === 'WX26-P1-026-E2')!;
+  eq((e.action as StubAction).id, 'GAIN_HOLOGRAPH_TOKEN', '🔴live が未実装 STUB のまま');
+  const got = run(e.action, mkCtx({}, {}, 'WX26-P1-026'));
+  const tok = (got.ownerState.field.free_zone ?? []).find(n => n.split('#')[0] === 'WX26-P1-TK01B');
+  ok(!!tok, '🔴【ホログラフ】がフリーゾーンに置かれていない');
+  // 防御側（＝持ち主）の収集にトークンの【自】が載る。ルリグ能力の喪失には左右されない。
+  const def = { ...got.ownerState, lrig_abilities_disabled: true } as PlayerState;
+  const col = collectLrigAttackDefenderTriggers(trigCtx(HOST), def, GUEST);
+  ok(col.entries.some(en => en.cardNum === tok && en.effectId === 'WX26-P1-TK01B-E1'), '🔴相手のルリグアタックで【ホログラフ】が誘発しない');
+  const hasLB = (c: CardData) => !!c.BurstText && c.BurstText !== '-';
+  const lb1 = findCard(c => isSigni(c) && hasLB(c));
+  const lb2 = findCard(c => isSigni(c) && hasLB(c));
+  const nolb = findCard(c => isSigni(c) && !hasLB(c));
+  const tokEff = (effectsMap.get('WX26-P1-TK01B') ?? [])[0];
+  const mk = (mine: string, theirs: string): ExecCtx => {
+    const c = mkCtx({ deckTop: [mine] }, { deckTop: [theirs] }, tok!);
+    const atk = c.otherState.field.lrig.at(-1) ?? fresh();
+    return { ...c, ownerState: { ...c.ownerState, field: { ...c.ownerState.field, free_zone: [tok!] } },
+      otherState: { ...c.otherState, pending_lrig_attack: true, pending_lrig_attack_num: atk,
+        field: { ...c.otherState.field, lrig: [atk] } } } as unknown as ExecCtx;
+  };
+  const hit = finish(executeEffect(tokEff, mk(lb1, lb2)), mk(lb1, lb2));
+  ok(hit.otherState.cancel_current_lrig_attack, '🔴どちらもライフバーストを持つのにアタックが無効にならない');
+  eq((hit.ownerState.field.free_zone ?? []).length, 0, '🔴無効にしたのに【ホログラフ】が残っている');
+  const miss = finish(executeEffect(tokEff, mk(lb1, nolb)), mk(lb1, nolb));
+  ok(!miss.otherState.cancel_current_lrig_attack, '揃わないのに無効になった');
+  eq((miss.ownerState.field.free_zone ?? []).length, 1, '無効にしていないのに【ホログラフ】が消えた');
+}));
+
+test('§5.3 O-543 WX26-P1-049＝レベル2のアシストをルリグデッキのレベル3のルリグへ（グロウコストを払い・タイプ一致）＋リミット＋1', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX26-P1-049') ?? []).find(x => x.effectId === 'WX26-P1-049-E1')!;
+  eq((e.action as StubAction).id, 'ASSIST_GROW_TO_LV3', '🔴live が未実装 STUB のまま');
+  const all = [...cardMap.values()];
+  const assist = all.find(c => c.Type === 'アシストルリグ' && c.Level === '2'
+    && all.some(t => t.Type === 'ルリグ' && t.Level === '3' && t.CardClass === c.CardClass && /《[白赤青緑黒無]》×/.test(t.GrowCost ?? '')))!;
+  const target = all.find(t => t.Type === 'ルリグ' && t.Level === '3' && t.CardClass === assist.CardClass && /《[白赤青緑黒無]》×/.test(t.GrowCost ?? ''))!;
+  const other = all.find(t => t.Type === 'ルリグ' && t.Level === '3' && !t.CardClass.split('/').some(x => assist.CardClass.split('/').includes(x)))!;
+  const center3 = all.find(c => c.Type === 'ルリグ' && c.Level === '3')!.CardNum;
+  const center2 = all.find(c => c.Type === 'ルリグ' && c.Level === '2')!.CardNum;
+  const colors = [...(target.GrowCost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)]
+    .flatMap(m => Array.from({ length: parseInt(m[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10) }, () => m[1]));
+  const ena = colors.map(col => findCard(c => isSigni(c) && (col === '無' || c.Color === col)));
+  const mk = (center: string): ExecCtx => {
+    const c = mkCtx({}, {}, 'WX26-P1-049');
+    return { ...c, ownerState: { ...c.ownerState, energy: ena, lrig_deck: [other.CardNum, target.CardNum],
+      field: { ...c.ownerState.field, lrig: [center], assist_lrig_l: [assist.CardNum] } } } as ExecCtx;
+  };
+  const r = executeAction(e.action, mk(center3));
+  ok(!r.done && r.pending.type === 'CHOOSE', 'グロウ先の選択が出る');
+  const opts = (r.pending as { options: { id: string }[] }).options;
+  eq(opts.map(o => o.id.split(':')[1]).join(','), target.CardNum, '🔴ルリグタイプの合わないルリグがグロウ先に出ている');
+  const fin = finish(resumeOptionalCost(opts[0].id, ena, r.pending as never, ctxAfter(r, mk(center3))), mk(center3));
+  eq(JSON.stringify(fin.ownerState.pending_effect_assist_grow), JSON.stringify({ side: 'l', instanceId: target.CardNum }), '🔴グロウの予約が積まれない');
+  eq(fin.ownerState.game_lrig_limit_bonus, 1, '🔴センタールリグのリミット＋1が無い');
+  eq(fin.ownerState.energy.length, 0, '🔴グロウコストを払っていない');
+  const no = run(e.action, mk(center2));
+  eq(no.ownerState.pending_effect_assist_grow, undefined, 'センターがレベル3未満なのにグロウした');
+  const bsSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/pending_effect_assist_grow: undefined/.test(bsSrc) && bsSrc.indexOf('const effectAssistGrowRef') > bsSrc.indexOf('const flipGrowRef') && bsSrc.indexOf('const effectAssistGrowRef') < bsSrc.indexOf('const effectGrowRef'),
+    '🔴予約を消費する hook が無い／flip グロウの hook と同じ区画（早期 return より前）に無い');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

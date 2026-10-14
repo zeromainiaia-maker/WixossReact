@@ -12756,19 +12756,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX26-P1-014-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"怪異"},"explicitTarget":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["白"],"handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"explicitTarget":true},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
   // WX26-P1-022: E1＝「このルリグをアップし、ターン終了時まで、このルリグはこの能力を失う」＝parser は**自分のシグニの能力を消していた**。
-  //    ⚠「この能力を失う」を【自】で表す受け皿が無い＝ターン1回で近似（差は《赤》を払わなかったときにも1回分を使い切る点だけ）。
+  //    「この能力を失う」＝`LOSE_THIS_ABILITY_THIS_TURN`（§5.3 `O-543`）＝《赤》を払ってアップしたときだけ失う。
   // WX26-P1-022: E2＝「次にこのルリグがアタックしたとき」の付与にした（parser はメインフェイズで即座にガード封じを立てていた）。
   //    「そのアタックは対戦相手の効果によって無効にならず」＝`LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN`（§5.3 `O-543`・ターン終了までの近似）。
   "WX26-P1-022": [
-    {"effectId":"WX26-P1-022-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"story":"乗機"},"usageLimit":"once_per_turn"},
+    {"effectId":"WX26-P1-022-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}},{"type":"STUB","id":"LOSE_THIS_ABILITY_THIS_TURN"}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"story":"乗機"}},
     {"effectId":"WX26-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_ATTACK_NEGATE_IMMUNE_THIS_TURN"},{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_END_OF_TURN","abilities":[{"effectId":"WX26-P1-022-E2-next-attack","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","consumeOnTrigger":true}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   // WX26-P1-026: E1＝「アタックしたシグニの正面の、中身が＜トリック＞の【マジックボックス】を表向きにし、ライフバーストの有無が揃えばアタックを無効」。
-  //    🔴受け皿が無い（`OPEN_MAGIC_BOX` は**効果元シグニと同じゾーン**しか開けない）＝新機構待ち。parser は**自分のシグニの能力を消していた**ので、まず害を消す。
-  // WX26-P1-026: E2＝「あなたは【ホログラフ】１つを得る」（プレイヤーが得る印）＝受け皿が無い。parser はシグニにキーワード【ホログラフ】を与えていた。起動名の「ホログラフ」は `holograph` 印のまま。
+  //    `MB_FRONT_OF_ATTACKER_NEGATE`（§5.3 `O-543`）＝`OPEN_MAGIC_BOX` は**効果元シグニと同じゾーン**しか開けないので別の入口。正面は `2 - アタッカーのゾーン`。
+  // WX26-P1-026: E2＝「あなたは【ホログラフ】１つを得る」＝トークン `WX26-P1-TK01B` をフリーゾーンへ（`GAIN_HOLOGRAPH_TOKEN`・§5.3 `O-543`）。parser はシグニにキーワード【ホログラフ】を与えていた。起動名の「ホログラフ」は `holograph` 印のまま。
   "WX26-P1-026": [
-    {"effectId":"WX26-P1-026-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"DEFERRED_MB_FRONT_OF_ATTACKER_NEGATE"},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"any_opp"},
-    {"effectId":"WX26-P1-026-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"STUB","id":"DEFERRED_GAIN_HOLOGRAPH_MARKER"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","holograph":true,"usageLimit":"once_per_game"},
+    {"effectId":"WX26-P1-026-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"MB_FRONT_OF_ATTACKER_NEGATE"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"},
+    {"effectId":"WX26-P1-026-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"STUB","id":"GAIN_HOLOGRAPH_TOKEN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","holograph":true,"usageLimit":"once_per_game"},
   ],
   // WX26-P1-056: E1＝「あなたの場に他の＜乗機＞のシグニがある場合」の条件が落ちていた／②は「あなたのアップ状態の《レイラ＝デッドヒート》をダウン」（parser は自分のシグニをダウン）。
   "WX26-P1-056": [
@@ -12913,13 +12913,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX26-P1-115": [
     {"effectId":"WX26-P1-115-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"微菌"}}},{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"duration":"UNTIL_END_OF_TURN","targetsLastProcessed":true,"effect":{"effectId":"WX26-P1-115-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"delta":-2000,"duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
-  // WX26-P1-007: 「デッキをシャッフルし、デッキの一番上を公開して2択を3回」＝受け皿が無い（parser も UNKNOWN）。
+  // WX26-P1-007: 「デッキをシャッフルし、デッキの一番上を公開して2択を3回」＝`REPEAT` の中で `REVEAL_DECK_TOP` → 2択。
+  //   ①は選んだ後に `RESTORE_REVEALED_DECK_CARDS` で公開した札を参照し直してから「パワー以下」を解く（2択の対話を跨ぐため）。
+  //   ⚠公開したのがシグニでなければ①の対象は無い（`powerLteLastProcessed` は参照先にパワーが無ければ空ヒット）。
   "WX26-P1-007": [
-    {"effectId":"WX26-P1-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"STUB","id":"DEFERRED_REVEAL_TOP_CHOOSE_THRICE"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}],"betOptions":{"options":[3],"variable":false},"costReplacement":[{"when":{"kind":"betting"},"mode":"reduce","cost":[{"color":"無","count":1}],"stopIfUnmet":true}]},"action":{"type":"SEQUENCE","steps":[{"type":"SHUFFLE_DECK","owner":"self"},{"type":"REPEAT","count":3,"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_DECK_TOP","owner":"self","count":1},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"公開したシグニのパワー以下の相手シグニをバニッシュし、公開したカードをデッキの一番下へ","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"RESTORE_REVEALED_DECK_CARDS"},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerLteLastProcessed":true}}},{"type":"STUB","id":"INTERNAL_TOP_TO_BOTTOM"}]}},{"choiceId":"c1","label":"カードを1枚引き【エナチャージ１】","action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}]}}]}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
-  // WX26-P1-018: E2＝「対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、それ以外を使用できない」＝受け皿が無い。
+  // WX26-P1-018: E2＝「対戦相手はルリグデッキからアーツとピースを合計3枚まで公開し、それ以外を使用できない」＝`OPP_REVEAL_ARTS_PIECE_WHITELIST`（§5.3 `O-543`）。
   "WX26-P1-018": [
-    {"effectId":"WX26-P1-018-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"STUB","id":"DEFERRED_OPP_REVEAL_ARTS_PIECE_BAN_OTHERS"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+    {"effectId":"WX26-P1-018-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"STUB","id":"OPP_REVEAL_ARTS_PIECE_WHITELIST"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   // WX26-P1-030: E1＝「クラフトの《マヨネーズ》《ステーキソース》《チョコスプレー》から1枚を＜調理＞のシグニのアクセにする」＝
   //    `ATTACH_ACCE{craftNames}`（§5.3 `O-543`。parser は手札からアクセする別の処理を出していた）。
@@ -12937,9 +12939,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX26-P1-048": [
     {"effectId":"WX26-P1-048-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_DECK_ARTS_TO_LRIG_TRASH"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEQUENCE","steps":[{"type":"SHUFFLE_DECK","owner":"self"},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"REPEAT","count":0,"countRef":{"$ref":"self_life_crashed_by_opp_effect_this_turn"},"action":{"type":"PREVENT_NEXT_DAMAGE","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
-  // WX26-P1-049: レベル2のアシストルリグをルリグデッキのレベル3へグロウさせる＝受け皿が無い。parser は**グロウせずにリミットだけ＋1**し、無関係にシグニをダウンしていた。
+  // WX26-P1-049: レベル2のアシストルリグをルリグデッキのレベル3へグロウさせる＝`ASSIST_GROW_TO_LV3`（§5.3 `O-543`）。parser は**グロウせずにリミットだけ＋1**し、無関係にシグニをダウンしていた。
+  //    Q&A＝グロウコストは払う／グロウ可能なルリグタイプに限る／アシストなのでアタック不可／元のリミットは無視しセンター＋1／自身ダウンの【起】は使えない。
   "WX26-P1-049": [
-    {"effectId":"WX26-P1-049-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"STUB","id":"DEFERRED_ASSIST_GROW_TO_LV3"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX26-P1-049-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"STUB","id":"ASSIST_GROW_TO_LV3"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WX26-P1-058: E2＝「あなたの【マジックボックス】を3つまで手札に戻す」＝`MAGIC_BOX_TO_HAND`（§5.3 `O-543`。parser は**自分のシグニ**を手札に戻していた）。
   //    後半「あなたの手札からカードを1枚まで【マジックボックス】として設置」＝`magicBoxSource:'hand'`。
@@ -12991,6 +12994,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //    `SET_LAST_PROCESSED_OTHER_OWN_SIGNI` → `POWER_MODIFY{perLastProcessed:power_sum}`（実効パワーで合計・§5.3 `O-543`。parser は未実装 STUB）。
   "WX26-P1-063": [
     {"effectId":"WX26-P1-063-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SET_LAST_PROCESSED_OTHER_OWN_SIGNI"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":-1,"deltaPerLastProcessedCount":true,"perLastProcessed":{"unit":"power_sum"},"duration":"UNTIL_OPP_TURN_END"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // WX26-P1-002: リコレクトの「ターン終了時まで、あなたは『【ガード】する際…代わりにこの能力を失ってもよい』を得る」＝`GAIN_GUARD_ALT_LOSE_ABILITY_THIS_TURN`（§5.3 `O-543`）。①②は parser どおり。
+  "WX26-P1-002": [
+    {"effectId":"WX26-P1-002-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"白","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":12000}}},"optional":false}},{"choiceId":"c1","label":"選択肢2","action":{"type":"REMOVE_ABILITIES","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true},"until":"UNTIL_END_OF_TURN"},"condition":{"type":"TURN_OWNER","owner":"opponent"}}]},{"type":"RECOLLECT_GATE","minArts":4},{"type":"STUB","id":"GAIN_GUARD_ALT_LOSE_ABILITY_THIS_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-073: E1＝場のシグニへ「代わりにこのシグニを場からトラッシュに置いてもよい」を付与＝`GUARD_ALTERNATIVE_COST{trash_self_signi}`（§5.3 `O-543`）。E2 は parser どおり（E1 だけ手書き）。
+  "WX26-P1-073": [
+    {"effectId":"WX26-P1-073-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ"},"abilities":[{"effectId":"WX26-P1-073-E1-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"GUARD_ALTERNATIVE_COST","guardAltCost":{"kind":"trash_self_signi"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // WX26-P1-TK01B【ホログラフ】（トークン）: 「対戦相手のルリグ１体がアタックしたとき、両者デッキの一番上を公開し、ライフバーストの有無が揃えばアタックを無効にし、これを取り除く」。
+  //   自分側の公開はホログラフの公開（`holograph:true`＝`WX16-004` の置換が掛かる）。収集は `collectLrigAttackDefenderTriggers`（フリーゾーン）。
+  "WX26-P1-TK01B": [
+    {"effectId":"WX26-P1-TK01B-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"STUB","id":"HOLOGRAPH_TOKEN_REVEAL_NEGATE"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp","holograph":true},
   ],
   // ── WX26-P1 END ──
 };

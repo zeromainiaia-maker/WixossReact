@@ -5,7 +5,7 @@ import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectGuardTrashSelfSigni, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
 import {getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
@@ -24,7 +24,8 @@ import {payMultiZoneExileCost} from './battle/multiZoneExileCost';
 import {payFieldToDeckTopCost} from './battle/fieldToDeckTopCost';
 import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
 import {isEnergyAcceActivated, listOffFieldActivatableEffects, offFieldActivateTiming} from './battle/offFieldActivateGate';
-import {isTrashImmuneByOpponent} from '../engine/execUtils';
+import {isTrashImmuneByOpponent, removeFromField} from '../engine/execUtils';
+import {consumeGuardAltLoseAbility} from './battle/turnScopedState';
 import {collectCutinCandidates} from './battle/cutinCandidates';
 import {performCutinUse} from './battle/controller/performCutinUse';
 import {payUnderAnySigniTrash} from './battle/underAnySigniCost';
@@ -2179,6 +2180,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.host_state?.pending_flip_grow_card, bs?.guest_state?.pending_flip_grow_card,
+      bs?.active_user_id, loading, bs?.global_phase]);
+
+  /**
+   * 🆕§5.3 `O-543`（`WX26-P1-049`）＝効果によるアシストルリグのグロウの予約（`pending_effect_assist_grow`）を消費して
+   * **正規のアシストグロウ経路**（`performAssistGrow`＝【出】・コイン獲得）で配置する。
+   * ⚠グロウコストは engine が払い終えている＝ここは `costIndices` 空（支払いなし）。
+   * ⚠🔴この hook も `if (!bs) return` より前（上の `flipGrowRef` と同じ理由＝React #310）。
+   */
+  const effectAssistGrowRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy = localIsHost ? bs.host_state : bs.guest_state;
+    const localOp = localIsHost ? bs.guest_state : bs.host_state;
+    const req = localMy?.pending_effect_assist_grow;
+    if (!req) { effectAssistGrowRef.current = null; return; }
+    if (bs.active_user_id !== user.id || loading || !localOp) return;
+    if (effectAssistGrowRef.current === req.instanceId) return;
+    const card = battleCardMap.get(getCardNum(req.instanceId));
+    if (!card) return;
+    effectAssistGrowRef.current = req.instanceId;
+    void performAssistGrow(card, req.side, new Set(), {
+      owner: { ...localMy, pending_effect_assist_grow: undefined }, other: localOp,
+      ownerId: user.id, ownerKey: localIsHost ? 'host_state' : 'guest_state', energyPayPool: [],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.host_state?.pending_effect_assist_grow, bs?.guest_state?.pending_effect_assist_grow,
       bs?.active_user_id, loading, bs?.global_phase]);
 
   /**
@@ -4468,6 +4496,66 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally { setLoading(false); }
   };
 
+  /**
+   * 🆕§5.3 `O-543`＝何も捨てずに【ガード】を成立させる代替2種の共通部（`ON_GUARD` 等の誘発・攻撃側の後始末は既存の代替と同じ）。
+   * `trashedFromField` は**コストとして場からトラッシュに置いた**シグニ＝場を離れた誘発は盤面差分で拾う。
+   */
+  const commitAltGuardNoDiscard = async (paid: PlayerState, log: string, trashedFromField?: string) => {
+    const stateKey = isHost ? 'host_state' : 'guest_state';
+    const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+      collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+    const attackerId = isHost ? bs.guest_id : bs.host_id;
+    const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
+    guardTriggers.push(...attackGuard.entries);
+    let newMyState: PlayerState = {
+      ...paid,
+      field: { ...paid.field, lrig_attacked: false },
+      actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+        ? [...(paid.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+        : paid.actions_done,
+    };
+    let newOpState: PlayerState = attackGuard.usedOncePerTurnIds.length > 0
+      ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+      : clearEndOfAttackEffects(op);
+    if (trashedFromField) {
+      const bd = collectBoardDiffTriggers(isHost ? newMyState : newOpState, isHost ? newOpState : newMyState, {
+        causeOwnerId: user.id, causeSourceCardNum: trashedFromField, fieldTrashCostCards: [trashedFromField],
+      });
+      newMyState = isHost ? bd.hostState : bd.guestState;
+      newOpState = isHost ? bd.guestState : bd.hostState;
+      guardTriggers.push(...bd.entries);
+    }
+    appendBattleLogs([log]);
+    const opKey = isHost ? 'guest_state' : 'host_state';
+    const existingStack = bs.effect_stack ?? null;
+    await persist.commit(reduceBattle(bs, {
+      type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOpState },
+      effectStack: guardTriggers.length > 0
+        ? (existingStack ? pushToStack(existingStack, guardTriggers) : initStack(bs.active_user_id ?? user.id, guardTriggers))
+        : undefined,
+    }));
+  };
+  // 🆕§5.3 `O-543`（`WX26-P1-002` のリコレクト）＝「《ガードアイコン》を持つカードを捨てる代わりにこの能力を失う」。
+  const handleGuardWithLoseAbility = async () => {
+    if (!my.field.lrig_attacked || loading || !my.guard_alt_lose_ability_this_turn) return;
+    setLoading(true);
+    try {
+      await commitAltGuardNoDiscard(consumeGuardAltLoseAbility(my),
+        'ガード代替：《ガードアイコン》を持つカードを捨てる代わりにこの能力を失う');
+    } finally { setLoading(false); }
+  };
+  // 🆕§5.3 `O-543`（`WX26-P1-073-E1` が付与する能力）＝「代わりにこのシグニを場からトラッシュに置く」。
+  const handleGuardWithTrashSelfSigni = async (signiNum: string) => {
+    if (!my.field.lrig_attacked || loading) return;
+    if (!collectGuardTrashSelfSigni(my, effectsMap).includes(signiNum)) return;
+    setLoading(true);
+    try {
+      const removed = removeFromField(signiNum, my);
+      await commitAltGuardNoDiscard({ ...removed, trash: [...removed.trash, signiNum] },
+        `ガード代替：${battleCardMap.get(signiNum)?.CardName ?? signiNum}を場からトラッシュに置く`, signiNum);
+    } finally { setLoading(false); }
+  };
+
   // 🆕§5.7 `S-5c` 第2段＝本体は `controller/performGuardResponse.ts`（I/O 注入）。ここは材料を渡すだけ。
   const performGuardResponse = (a0: Parameters<typeof performGuardResponseImpl>[0], a1: Parameters<typeof performGuardResponseImpl>[1]) => performGuardResponseImpl(a0, a1, performCtx());
 
@@ -5761,7 +5849,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
-      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithClassHandAlternative={handleGuardWithClassHandAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} />
+      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithClassHandAlternative={handleGuardWithClassHandAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} handleGuardWithLoseAbility={handleGuardWithLoseAbility} handleGuardWithTrashSelfSigni={handleGuardWithTrashSelfSigni} />
 
       {/* リムーブ選択モーダル */}
       <LimitExcessModal ctx={modalCtx} plan={limitExcessAsk} onPick={handleLimitExcessPick} />
