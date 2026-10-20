@@ -171,6 +171,7 @@ import { createHeadlessBattle } from '../src/screens/battle/controller/headlessB
 import { performAssistGrow } from '../src/screens/battle/controller/performAssistGrow';
 import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
 import { mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
+import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
 import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
@@ -49333,7 +49334,8 @@ test('§5.3 O-373: 使用条件「このカードがトラッシュにある」�
   const paid = payTrashActivateCost(eff, four, mkState({}), sel([0, 2, 3, 4]), cardMap, undefined, 'WX13-038')!;
   ok(!!paid, '《イフリード》4枚を選べば払える');
   eq(paid.my.trash.join(','), other, 'トラッシュには名前違いの1枚だけ残る');
-  eq(paid.my.lrig_trash.filter(n => n === 'WX13-038').length, 4, '除外置き場（lrig_trash）へ4枚');
+  eq((paid.my.excluded ?? []).filter(n => n === 'WX13-038').length, 4, '🔴除外置き場（excluded）へ4枚（2026-10-20 まで lrig_trash で近似＝シグニがルリグトラッシュに入っていた）');
+  eq(paid.my.lrig_trash.filter(n => n === 'WX13-038').length, 0, '🔴ルリグトラッシュへは入らない');
   ok(trashActivateCostLabels(eff, four, mkState({})).some(s => s.includes('《千夜の夜王　イフリード》4枚をゲームから除外')), 'コスト行に除外枚数が出る');
   // 🔴ラベルの嘘＝旧は既定が「トラッシュから出す」で、カード自身がトラッシュに残る【起】にも「場に出す」と予告していた。
   const labelOf = (num: string, id: string) => trashActivateVerbLabel(effectsMap.get(num)!.find(x => x.effectId === id)!);
@@ -49363,7 +49365,7 @@ test('§5.3 O-262: トラッシュ自己除外【起】は「トラッシュか�
   const paid = payTrashActivateCost(eff, inTrash, mkState({}),
     { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap, undefined, 'WX19-070')!;
   ok(!paid.my.trash.includes('WX19-070'), 'トラッシュから抜ける');
-  ok(paid.my.lrig_trash.includes('WX19-070'), '除外置き場（lrig_trash）へ入る＝シグニ【起】経路と同じゾーン');
+  ok((paid.my.excluded ?? []).includes('WX19-070') && !paid.my.lrig_trash.includes('WX19-070'), '🔴除外置き場（excluded）へ入る＝シグニ【起】経路と同じゾーン（ルリグトラッシュではない）');
   // 🔴効果元を渡さない／トラッシュに無いときは**支払い不能へ倒す**（踏み倒しを構造で塞ぐ）
   eq(payTrashActivateCost(eff, inTrash, mkState({}),
     { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
@@ -72060,6 +72062,46 @@ test('§5.3 O-60 第57: ルリグトラッシュ→センター下はレベル�
   eq(none.ownerState.field.lrig.length, 1, '候補ゼロなら盤面は動かない');
 }));
 
+test('2026-10-20 自己対戦: バニッシュされないパワー0以下のシグニが居ても CPU のターンが止まらない', () => withSavedCursor(() => {
+  // 🔴旧＝CPU の1手（`cpuTurn.ts`）がパワーだけで「0以下が居る」と判定し、ルール処理（何もしない）を呼んで毎回 return
+  //   ＝`WD20-011`（英知=7：バニッシュされない）が −16000 を受けた試合で **CPU が4000手空回り**した。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  const blk = src.slice(src.indexOf('─── パワー0以下シグニのバニッシュ'), src.indexOf('if (!isCpuTurnNow) return;'));
+  ok(blk.length > 0, '前提崩れ＝分岐が見つからない');
+  ok(/collectPowerZeroBanishCandidates\(bs\.host_state, bs\.guest_state\)\.length > 0/.test(blk),
+    '🔴CPU 手番の判定がルール処理と同じ候補関数を通っていない（保護を見ない判定に戻ると空回りする）');
+  ok(!/power <= 0/.test(blk), '🔴パワーだけの判定が残っている');
+  // 候補関数そのもの＝「バニッシュされない」はパワー0以下でも候補にしない（ルール処理と同じ）。
+  const sig = [...cardMap.values()].find(c => c.Type === 'シグニ' && /^\d+$/.test(c.Power ?? '') && !/バニッシュされない/.test(c.EffectText ?? ''))!;
+  const host = mkState({ signi: [`${sig.CardNum}#1`, null, null] });
+  const hostDown = { ...host, temp_power_mods: [{ cardNum: `${sig.CardNum}#1`, delta: -999999 }] } as PlayerState;
+  const row = { host_id: 'H', guest_id: 'G', active_user_id: 'G', turn_phase: 'MAIN' } as unknown as BattleStateRow;
+  eq(powerZeroBanishCandidates(row, hostDown, mkState({}), effectsMap, cardMap).length, 1, '前提＝パワー0以下は候補になる');
+  const resist = { ...hostDown, keyword_grants: { [`${sig.CardNum}#1`]: ['バニッシュされない'] } } as PlayerState;
+  eq(powerZeroBanishCandidates(row, resist, mkState({}), effectsMap, cardMap).length, 0, '🔴バニッシュされないシグニは候補にならない');
+}));
+
+test('2026-10-20 自己対戦: トラッシュから除外するコスト（trashExile）はルリグトラッシュではなく excluded へ', () => {
+  // 🔴旧＝4経路とも `lrig_trash` で近似＝除外したシグニがルリグトラッシュに入っていた（`WX13-038-E2` で検出）。
+  for (const f of ['src/screens/battle/controller/performSigniActivated.ts', 'src/screens/battle/controller/performLrigActivated.ts', 'src/screens/battle/trashActivateCost.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    ok(!/lrig_trash: \[\.\.\.paid\.lrig_trash, \.\.\.(lgExiledNums|exiledNums)\]|lrig_trash: \[\.\.\.paid\.lrig_trash, (cardNum|sourceCardNum)\]|\.\.\.my\.lrig_trash, \.\.\.exiledFromTrash/.test(src),
+      `🔴${f} の除外コストがルリグトラッシュへ積んでいる`);
+  }
+});
+
+test('2026-10-20 自己対戦: 「このカードをセンタールリグの下に置く」はルリグトラッシュから移る（WD21-006）', () => withSavedCursor(() => {
+  // 原文＝「…それをバニッシュする。そうした場合、このカードをあなたのセンタールリグの下に置く。」
+  // 🔴旧＝ルリグデッキへ足し、手札からしか取り除かなかった＝使用済みアーツがルリグトラッシュとルリグデッキに二重存在。
+  const top = fresh();
+  const ctx = mkCtx({ lrig: [top] }, {}, 'WD21-006#1');
+  ctx.ownerState.lrig_trash = ['WD21-006#1'];
+  const r = run({ type: 'STUB', id: 'SOUL_OP', soulOp: { kind: 'self_to_under_center' } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.join(','), `WD21-006#1,${top}`, '🔴センタールリグの最下に入る（トップは現ルリグのまま）');
+  eq(r.ownerState.lrig_trash.includes('WD21-006#1'), false, '🔴ルリグトラッシュから消える');
+  eq((r.ownerState.lrig_deck ?? []).includes('WD21-006#1'), false, '🔴ルリグデッキへは入らない');
+}));
+
 test('§5.3 O-60 第57: SOUL_OP のコスト先取り（ソウル消費）は撤去した', () => withSavedCursor(() => {
   // 🔴旧＝`SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を見つけると
   //   「ソウルを使用して発動しますか？」を出し、**効果元シグニの下のカード**を探していた。
@@ -75094,6 +75136,12 @@ test('意味照合 段2 O-271: 「シグニを３体まで場からトラッシ�
   eq(paid.state.last_cost_field_trash_count, 2, '体数が state に載る');
   eq(paid.state.field.signi.filter(Boolean).length, 1, '場から2体消えた');
   eq(paid.state.trash.length, ftState.trash.length + 2, 'トラッシュへ2枚入った');
+  // 🆕2026-10-20＝**置き場へはインスタンス ID のまま**（自己対戦の不変条件走査で発見・`WD23-033-A` の【起】）。
+  //   🔴番号化すると同名2枚が同じ文字列になり、リフレッシュ後に「デッキとトラッシュに同時に居る」になった。
+  const iidState = mkState({ signi: ['WX03-035#1', 'WX03-035#2', null] });
+  const paidIid = payFieldTrashCost({ state: iidState, zones: [0, 1], cost: { fieldTrash: upTo }, cardMap });
+  eq(paidIid.state.trash.slice(-2).join(','), 'WX03-035#1,WX03-035#2', '🔴トラッシュへはインスタンス ID のまま入る');
+  eq((paidIid.state.last_cost_trashed_cards ?? []).join(','), 'WX03-035,WX03-035', '記録（last_cost_trashed_cards）はカード番号');
 
   // 帰結＝その体数だけトラッシュから場に出す（0体なら何も出ない）。
   const runAdd = (count: number) => {
@@ -88249,7 +88297,7 @@ test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッ�
   ok(!!paid, '＜悪魔＞2体を選んでも払えない');
   eq(JSON.stringify(paid!.my.hand), JSON.stringify(['WX18-036#h1']), '🔴「公開」なのにこのカードを手札から捨てた（旧実装）');
   eq(JSON.stringify(paid!.my.field.signi), JSON.stringify([null, null, null]), '🔴場の＜悪魔＞2体がトラッシュに置かれていない');
-  eq(JSON.stringify([...paid!.my.trash].sort()), JSON.stringify(['WD05-009', 'WD05-011']), 'トラッシュの中身が違う');
+  eq(JSON.stringify([...paid!.my.trash].sort()), JSON.stringify(['WD05-009#f0', 'WD05-011#f1']), 'トラッシュの中身が違う（🆕2026-10-20＝置き場はインスタンス ID のまま）');
   eq(JSON.stringify([...(paid!.my.last_cost_trashed_cards ?? [])].sort()), JSON.stringify(['WD05-009', 'WD05-011']),
     '🔴コストによる離場として記録していない（中央 diff が効果による離場と誤認する）');
   eq(paid!.discardedCards.length, 0, '捨てていないのに手札を捨てたトリガーの対象にした');
@@ -94375,7 +94423,7 @@ test('§5.3 O-543 ゲーム外から生成するクラフト・トークンは B
   for (const effs of effectsMap.values()) for (const e of effs) walk(e, e.effectId);
   eq([...missing].join(' / '), '', '🔴常時読み込みに無いクラフト・トークンを生成する効果がある（実機で押せない／空のカードになる）');
 });
-
+
 test('§5.3 O-543 WX26-P1-007＝デッキの一番上を公開して2択を3回（①は公開したシグニのパワー以下）', () => withSavedCursor(() => {
   const live = (effectsMap.get('WX26-P1-007') ?? []).find(e => e.effectId === 'WX26-P1-007-E1')!;
   ok(!JSON.stringify(live.action).includes('DEFERRED_'), '🔴live が未実装 STUB のまま');

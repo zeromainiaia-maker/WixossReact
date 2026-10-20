@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-20（第519バッチ）新しい発見器＝自己対戦の不変条件走査（`npm run selfplay:inv`）と、それが拾った4系統
+
+- **発見器**＝`scripts/selfPlayInvariants.ts`。ユーザー作の全デッキ（40）で CPU 同士の通し対戦（実オーケストレーション＝`createHeadlessMatch`）を回し、**1手ごとに**カード保存則（二重存在／出所不明の ID／消滅）・置き場と種別・**空回り（盤面もログも変わらない手が30続く）**を検査する。**人の手のプレイでは踏まない「試合の流れの中でしか起きない」形**を狙う。実測＝**315戦（シード1〜8）・8並列で1シード（40戦）約2.5分**。golden・smoke・fuzz・traceinv が全部緑のまま下の4系統を拾った。
+- 🔴**①CPU のターンが永久に止まる**（`cpuTurn.ts`）＝CPU の1手が「パワー0以下のシグニが居る」を**パワーだけ**で判定してルール処理を呼び `return` していた。**「バニッシュされない」シグニ**（`WD20-011` 英知=7）がパワー0以下で場に残ると、ルール処理は正しく何もしないのに CPU は毎回ここで戻る＝**実機なら CPU 戦がそこで固まる**（3戦で再現・`WD20`×`WD11`／`WD16`×`ウリス`）。⇒ 同じファイルに在ったルール処理と同じ候補関数 `powerZeroBanishCandidates` に揃えた。
+- 🔴**②場のシグニをコストでトラッシュに置くとインスタンス ID が剥がれる**（`fieldTrashCost.ts`）＝置き場へ `getCardNum` を掛けていた＝**同名2枚が同じ文字列**になり、リフレッシュ後に「デッキとトラッシュに同時に居る」になった（`WD23-033-A` の【起】ほか `fieldTrash` コスト全部）。エンジン本体の TRASH コスト（`effectExecutor.ts`）と同じく、置き場は ID のまま・`last_cost_trashed_cards` だけカード番号に。⚠既存 golden `O-533` が**番号化された中身を期待値に焼き込んでいた**ので直した。
+- 🔴**③「このカードをあなたのセンタールリグの下に置く」**（`SOUL_OP{self_to_under_center}`・`WD21-006` 霹靂閃炎）＝**ルリグデッキへ足し、手札からしか取り除かなかった**＝使用済みのアーツがルリグトラッシュとルリグデッキに二重存在（3シード全部で再現）。⇒ センタールリグのスタックの最下へ（ルリグトラッシュ・手札・ルリグデッキから取り除く）。
+- 🔴**④トラッシュから除外するコスト（`trashExile`）がルリグトラッシュへ入れていた**（`trashActivateCost.ts`／`performSigniActivated.ts`／`performLrigActivated.ts` の4経路）＝`excluded` が無かった頃の「除外置き場＝`lrig_trash`」近似が残っていた（エンジン本体の除外は `excluded`）＝**除外したシグニがルリグトラッシュに居た**（`WX13-038-E2` で検出）。既存 golden `O-373`／`O-262` の期待値（lrig_trash）を直した。⚠フェゾーネマジックの「使用後は lrig_trash へ近似」は**ルール解釈が要る**ので触っていない。
+- **影響**＝①実機 CPU 戦の停止（バニッシュされないシグニがパワー0以下になる全試合）②`fieldTrash` コスト全部（同名カードの重複）③1枚（`WD21-006`）④`trashExile` コスト全部。
+- **検証**＝golden 新規4本＋既存3本の期待値訂正（全件 **4482** PASS・**4本とも修正を戻すと FAIL を確認**）・`npm run gates` 全緑・**実機 `verifyFullMatch cpu` PASS**（`src/screens/` を触ったため）・`selfplay:inv` で該当試合が決着まで進むことを確認（①は修正を戻すと `STALL` で即検出）。
+
 ## 2026-10-14（第518バッチ）§5.3 `O-543` 第3巡＝WX26-P1 の残り7効果を実装してクローズ＋トークン【ホログラフ】の取り込み
 
 - **実装した7効果**＝007（`REPEAT{3}` の中で `REVEAL_DECK_TOP`→2択。①は `RESTORE_REVEALED_DECK_CARDS` で公開札を参照し直して「パワー以下」）／018-E2（`OPP_REVEAL_ARTS_PIECE_WHITELIST`＝相手が自分のルリグデッキからアーツ・ピースを3枚まで選んで公開、このターンと次のターンそれ以外を使えない＝新 whitelist `arts_piece_name_whitelist_this_turn`/`_next_turn`）／022-E1・026-E1 の「ターン終了時まで、この能力を失う」（`LOSE_THIS_ABILITY_THIS_TURN`＝`effects_lost_this_turn`・読み手は `executeEffect` の入口。022 の《ターン1回》近似を解消）／026-E1（`MB_FRONT_OF_ATTACKER_NEGATE`＝アタッカーの正面＝`2-zi` の＜トリック＞【マジックボックス】を開き、ライフバーストの有無が揃えば無効）／026-E2（ユーザー提供の `WX26-P1-TK01B`【ホログラフ】を `_TK.csv` へ取り込み＋画像を ImageKit へ。`GAIN_HOLOGRAPH_TOKEN` でフリーゾーンへ、【自】は `collectLrigAttackDefenderTriggers` が拾う）／002・073（何も捨てないガード代替＝`guard_alt_lose_ability_this_turn`／`guardAltCost{kind:'trash_self_signi'}`＋`GuardResponseDialog` のボタン2種）／049（`ASSIST_GROW_TO_LV3`＝ユーザー提供の Q&A どおりグロウコストを払い・タイプ一致・センターのリミット＋1。配置と【出】は予約 `pending_effect_assist_grow` を `performAssistGrow` が消費）。

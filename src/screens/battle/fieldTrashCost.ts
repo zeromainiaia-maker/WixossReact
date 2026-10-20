@@ -49,10 +49,10 @@ export function payFieldTrashCost(p: {
     if (stack.some(iid => puppetSet.has(iid))) trashedPuppet = true;
     removedIids.push(...stack);
     if (p.cost?.fieldToLrigTrash) {
-      toLrigTrash.push(getCardNum(stack.at(-1)!));
-      toTrash.push(...stack.slice(0, -1).map(getCardNum));
+      toLrigTrash.push(stack.at(-1)!);
+      toTrash.push(...stack.slice(0, -1));
     } else {
-      toTrash.push(...stack.map(getCardNum));
+      toTrash.push(...stack);
     }
     if (newCharms[zi]) { toTrash.push(newCharms[zi]!); newCharms[zi] = null; }
     if (newAcce[zi])   { toTrash.push(...newAcce[zi]!); newAcce[zi] = null; }
@@ -70,7 +70,9 @@ export function payFieldTrashCost(p: {
     lrig_trash: destination === 'lrig_trash' ? [...st.lrig_trash, ...toLrigTrash] : st.lrig_trash,
     last_field_trash_level: trashedSigniLevel,
     last_cost_trashed_puppet: trashedPuppet,
-    last_cost_trashed_cards: [...(st.last_cost_trashed_cards ?? []), ...toTrash],
+    // ⚠**置き場へはインスタンス ID のまま**・記録だけカード番号（`effectExecutor` の TRASH コストと同じ形）。
+    //   2026-10-20 まで置き場にも `getCardNum` を掛けており、同名2枚が同じ文字列になってリフレッシュ後に二重存在していた。
+    last_cost_trashed_cards: [...(st.last_cost_trashed_cards ?? []), ...toTrash.map(getCardNum)],
     last_cost_field_trash_count: trashedCount,
   };
   const log = toTrash.length + toLrigTrash.length > 0

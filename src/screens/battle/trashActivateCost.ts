@@ -329,8 +329,9 @@ export function payTrashActivateCost(
     ...my,
     hand: my.hand.filter((_, i) => !selections.handDiscard.has(i)),
     trash: [...my.trash.filter((_, i) => !trashExileSel.has(i)), ...energyPaid, ...discardedCards],
-    // ⚠行き先は `lrig_trash`（＝除外置き場）＝シグニ【起】経路（`BattleScreen` の `trashExileIndices`）と同じゾーン。
-    lrig_trash: exiledFromTrash.length > 0 ? [...my.lrig_trash, ...exiledFromTrash] : my.lrig_trash,
+    // 🆕2026-10-20＝行き先は `excluded`（ゲームから除外の置き場）。旧＝`lrig_trash` で近似しており、
+    //   除外したシグニがルリグトラッシュに入っていた（自己対戦の不変条件走査で発見・`WX13-038-E2`）。
+    excluded: exiledFromTrash.length > 0 ? [...(my.excluded ?? []), ...exiledFromTrash] : my.excluded,
     coins: coinPaid > 0 ? Math.max(0, (my.coins ?? 0) - coinPaid) : my.coins,
     coins_paid_this_turn: coinPaid > 0 ? (my.coins_paid_this_turn ?? 0) + coinPaid : my.coins_paid_this_turn,
     last_cost_trashed_cards: [...energyPaid, ...discardedCards],
@@ -383,14 +384,13 @@ export function payTrashActivateCost(
   }
 
   // 🆕**§5.3 `O-262`＝トラッシュにあるこのカード自身をゲームから除外する。**
-  //   ⚠行き先は `lrig_trash`（＝除外置き場）＝シグニ【起】経路（`BattleScreen` の
-  //   `effect.cost?.trashExile?.self` 分岐）と**同じゾーン**に揃える。
+  //   ⚠行き先は `excluded`＝シグニ【起】経路（`performSigniActivated` の `trashExile.self` 分岐）と同じ（2026-10-20 まで `lrig_trash` で近似）。
   //   ⚠`trash` に残すと解決中に自分自身をもう一度参照できてしまう（「トラッシュから」系の filter）。
   if (cost?.trashExile?.self && sourceCardNum) {
     paid = {
       ...paid,
       trash: paid.trash.filter(cn => cn !== sourceCardNum),
-      lrig_trash: [...paid.lrig_trash, sourceCardNum],
+      excluded: [...(paid.excluded ?? []), sourceCardNum],
     };
   }
   // 🆕**§5.7 `S-31` 残り（2026-09-22）＝入口がその置き場であるコスト2形の支払い。**

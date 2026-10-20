@@ -1,7 +1,7 @@
 {
   "name": "wixossreact",
   "private": true,
-  "version": "0.626",
+  "version": "0.627",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "reports": "node scripts/fetchReports.mjs",
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
     "selfplay": "tsx scripts/headlessSelfPlay.ts",
+    "selfplay:inv": "tsx scripts/selfPlayInvariants.ts",
     "selfplay:ab": "tsx scripts/headlessSelfPlay.ts --jobs 8",
     "census:weights": "tsx scripts/headlessSelfPlay.ts --census-moves --weight-effect",
     "selfplay:scan": "tsx scripts/headlessSelfPlay.ts --diverge --jobs 8",

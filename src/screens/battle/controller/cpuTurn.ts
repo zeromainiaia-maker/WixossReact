@@ -768,19 +768,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
 
   // ─── パワー0以下シグニのバニッシュ（バースト後パワーダウンで発生）───
   // useEffectのチェックはCPUターン中（active_user_id !== user.id）をスキップするためここで補完
+  // 🔴2026-10-20＝判定は**ルール処理と同じ候補関数**（`powerZeroBanishCandidates`＝「バニッシュされない」を除く）。
+  //   旧＝パワーだけを見ていた＝`WD20-011`（英知=7：バニッシュされない）がパワー0以下で場に残ると、
+  //   ルール処理は何もしないのに CPU は毎回ここで return し、**CPU のターンが永久に止まった**（自己対戦で発見）。
   if (!bs.effect_stack && !bs.pending_effect) {
-    const isCpuHostLocal = bs.active_user_id === bs.host_id;
-    const powersCpu = calcFieldPowers(bs.host_state, bs.guest_state, isCpuHostLocal, effectsMap, battleCardMap, bs.turn_phase);
-    const hasPowerZero = [bs.host_state, bs.guest_state].some(st =>
-      st.field.signi.some(stack => {
-        if (!stack?.length) return false;
-        const topNum = stack[stack.length - 1];
-        const rawPower = battleCardMap.get(topNum)?.Power;
-        const power = powersCpu.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
-        return !isNaN(power) && power <= 0;
-      })
-    );
-    if (hasPowerZero) {
+    if (collectPowerZeroBanishCandidates(bs.host_state, bs.guest_state).length > 0) {
       await checkPowerZeroBanishRef.current?.();
       return;
     }

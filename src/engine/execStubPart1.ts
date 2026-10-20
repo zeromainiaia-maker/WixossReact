@@ -4241,15 +4241,20 @@ export function execStubPart1(
         return done(addLog({ ...ctx, ownerState: newOwner }, `${toMove.map(nameOf).join('・')}をルリグデッキへ`));
       }
 
-      // 「このカードをあなたのセンタールリグの下に置く」＝効果元を手札からルリグスタックの下へ
+      // 「このカードをあなたのセンタールリグの下に置く」＝効果元をセンタールリグのスタックの最下へ（`WD21-006`）
+      // 🔴2026-10-20 まで**ルリグデッキ**へ足し、**手札からしか取り除いていなかった**＝使用済みのアーツは
+      //   ルリグトラッシュに居るので、ルリグトラッシュとルリグデッキに同時に居た（自己対戦の不変条件走査で発見）。
       case 'self_to_under_center': {
         if (!srcSO) return done(addLog(ctx, 'センタールリグ下に置く対象なし'));
-        const newOwner = {
-          ...ctx.ownerState,
-          hand: ctx.ownerState.hand.filter(cn => cn !== srcSO),
-          lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO],
+        const o = ctx.ownerState;
+        const newOwner: PlayerState = {
+          ...o,
+          hand: o.hand.filter(cn => cn !== srcSO),
+          lrig_trash: o.lrig_trash.filter(cn => cn !== srcSO),
+          lrig_deck: (o.lrig_deck ?? []).filter(cn => cn !== srcSO),
+          field: { ...o.field, lrig: [srcSO, ...o.field.lrig.filter(cn => cn !== srcSO)] },
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `${nameOf(srcSO)}をルリグデッキ（ルリグ下）へ`));
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${nameOf(srcSO)}をセンタールリグの下へ`));
       }
 
       // 「ルリグデッキの上からN枚をルリグトラッシュに置く」

@@ -240,12 +240,12 @@ export const performSigniActivated = async (
         last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...attachedPaid.moved],
       };
     }
-    // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
+    // trashExile: トラッシュからカードをゲームから除外（2026-10-20＝行き先は `excluded`。旧＝`lrig_trash` で近似し、除外したシグニがルリグトラッシュに入っていた）
     if (effect.cost?.trashExile?.self) {
-      paid = { ...paid, trash: paid.trash.filter(cn => cn !== cardNum), lrig_trash: [...paid.lrig_trash, cardNum] };
+      paid = { ...paid, trash: paid.trash.filter(cn => cn !== cardNum), excluded: [...(paid.excluded ?? []), cardNum] };
     } else if (trashExileIndices.size > 0) {
       const exiledNums = [...trashExileIndices].map(i => my.trash[i]);
-      paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), lrig_trash: [...paid.lrig_trash, ...exiledNums] };
+      paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), excluded: [...(paid.excluded ?? []), ...exiledNums] };
     }
     // trash_self: このシグニを場からトラッシュに置く（起動コスト）
     if (effect.cost?.trash_self) {

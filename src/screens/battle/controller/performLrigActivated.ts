@@ -228,10 +228,10 @@ export const performLrigActivated = async (
       ],
     });
     if (lgOverrideEnergy) paid = { ...paid, energy: lgOverrideEnergy };
-    // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
+    // trashExile: トラッシュからカードをゲームから除外（2026-10-20＝行き先は `excluded`。旧＝`lrig_trash` で近似し、除外したシグニがルリグトラッシュに入っていた）
     if (trashExileIndices.size > 0) {
       const lgExiledNums = [...trashExileIndices].map(i => my.trash[i]);
-      paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), lrig_trash: [...paid.lrig_trash, ...lgExiledNums] };
+      paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), excluded: [...(paid.excluded ?? []), ...lgExiledNums] };
     }
     // exileLrigFromLrigDeck: ルリグデッキの＜X＞のルリグN枚をゲームから除外（ルリグ起動コスト・PR-469）。
     // ⚠**行先は `excluded`**＝ルリグトラッシュではない（`trashArtsFromLrigDeck` と混ぜない）。

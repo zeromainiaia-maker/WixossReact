@@ -13,7 +13,7 @@ PlayerState のキー: 389
   1915 読 /  65 書  trash
    258 読 /  34 書  lrig_deck
     57 読 /  33 書  temp_power_mods
-   205 読 /  25 書  lrig_trash
+   201 読 /  25 書  lrig_trash
    105 読 /  19 書  blocked_actions
    311 読 /  18 書  actions_done
    172 読 /  17 書  life_cloth
