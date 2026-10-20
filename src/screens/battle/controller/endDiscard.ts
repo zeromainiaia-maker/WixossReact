@@ -10,13 +10,12 @@ import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
 import {resolveTurnEndFacedownReturns} from '../../../engine/facedownSigni';
 import {resolveTurnHandover} from '../turnHandover';
-import {clearAllZoneBurstGrantUntilOppTurn} from '../allZoneBurst';
 import type {PerformCtx} from './performCtx';
 import {reduceBattle} from './battleController';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
-import {clearUntilOppTurnEffects} from '../untilOppTurn';
+import {clearNextTurnPlayerState} from '../nextTurnPlayer';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {clearEndingPlayerTurnState, clearTurnEndScopedState} from '../turnScopedState';
 
@@ -245,13 +244,7 @@ export async function confirmEndDiscard(c: PerformCtx, ui: EndDiscardUi): Promis
     const upOpponentED = upPhaseRecipient(handoverED.keepTurn) === 'opponent';
     if (upOpponentED && opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
     const opFinalState = handoverED.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
-      ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
-      // 相手側も同じく clearTurnEndScopedState に集約（§6.4 O-3）。
-      signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-      turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
-      signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
-      banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
-      banish_redirect_battle_target_nums: undefined,
+      ...clearNextTurnPlayerState(opState), // 🆕2026-10-21＝相手側の後始末は3経路共通の1本（`nextTurnPlayer.ts`）
       field: upOpponentED
         ? applyUpPhaseToField(opState.field, opState.lrig_upkeep_condition !== undefined)
         : opState.field,

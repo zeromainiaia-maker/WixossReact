@@ -24,7 +24,7 @@ import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
 import {resolveTurnEndFacedownReturns} from '../../../engine/facedownSigni';
 import {resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, resolveNextPhaseAfterMain, isPhaseSkipped} from '../attackStepPhase';
 import {resolveTurnHandover} from '../turnHandover';
-import {allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, hasNativeLifeBurst} from '../allZoneBurst';
+import {allZoneBurstGrantMatches, hasNativeLifeBurst} from '../allZoneBurst';
 import {performAssistGrow as performAssistGrowImpl} from './performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './performLrigAttack';
 import {performLrigActivated as performLrigActivatedImpl} from './performLrigActivated';
@@ -56,7 +56,7 @@ import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
-import {clearUntilOppTurnEffects} from '../untilOppTurn';
+import {clearNextTurnPlayerState} from '../nextTurnPlayer';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard} from '../cpuBoardEval';
 import {pickCpuSigniActivated, type CpuActivatedChoice} from '../cpuActivate';
@@ -69,7 +69,7 @@ import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssis
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {drawPhaseDraw} from '../drawPhase';
-import {applyPhaseEntryState} from '../phaseEntry';
+import {applyPhaseEntryState, resolveMainEntryFacedown} from '../phaseEntry';
 import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearEndingPlayerTurnState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -843,9 +843,13 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   if ((phase === 'GROW' || phase === 'MAIN' || phase === 'ENERGY') && !bs.effect_stack && !bs.pending_effect
     && !(cpuSt.actions_done ?? []).includes(`__ENTER_${phase}__`)) {
     const entry = applyPhaseEntryState(cpuSt, phase);
-    if (entry.logs.length > 0) appendBattleLogs(entry.logs.map(l => `[CPU] ${l}`));
+    // メインフェイズ開始時の裏向き復帰（人間と同じ `resolveMainEntryFacedown`・表向きになった分だけ相手が手札を捨てる）。
+    const fd = phase === 'MAIN' ? resolveMainEntryFacedown(entry.state, CPU_PLAYER_ID) : { state: entry.state, logs: [] as string[], entries: [] as StackEntry[] };
+    const entryLogs = [...entry.logs, ...fd.logs];
+    if (entryLogs.length > 0) appendBattleLogs(entryLogs.map(l => `[CPU] ${l}`));
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state',
-      myState: { ...entry.state, actions_done: [...(entry.state.actions_done ?? []), `__ENTER_${phase}__`] } }));
+      myState: { ...fd.state, actions_done: [...(fd.state.actions_done ?? []), `__ENTER_${phase}__`] },
+      ...(fd.entries.length > 0 ? { effectStack: bs.effect_stack ? pushToStack(bs.effect_stack, fd.entries) : initStack(CPU_PLAYER_ID, fd.entries) } : {}) }));
     return;
   }
 
@@ -1690,11 +1694,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // CPUターン終了＝人間側から見た「次の相手ターン終了時」。PvP の doPhaseAdvance / confirmEndDiscard と同じく、
     // 次ターンプレイヤーが保持する UNTIL_OPP_TURN_END 状態をここで失効させる。
     const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
-      ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(huEndState)),
-      turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
-      signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
-      banish_redirect_power0_target_nums: undefined,
-      banish_redirect_battle_target_nums: undefined,
+      ...clearNextTurnPlayerState(huEndState), // 🆕2026-10-21＝相手側の後始末は人間の2経路と同じ1本（旧＝カウンタークラッシュ・出自の印を消していなかった）
     })).state));
     // 🆕2026-10-21＝エンドフェイズ①（「ターン終了時に」の予約）は人間と同じ1本（`turnEndStepOne.ts`）。
     //   🔴旧＝ここはドローとエナのトラッシュしか処理しておらず、ビートゾーン・ミル・コイン条件・「ターン終了時、このシグニをトラッシュ」・

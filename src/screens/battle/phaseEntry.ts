@@ -1,5 +1,9 @@
 import type { PlayerState, TurnPhase } from '../../types';
 import { recordEnergyPlacements } from '../../engine/energyPlacement';
+import { resolveSecondMainFacedownReturns } from '../../engine/facedownSigni';
+import type { CardEffect } from '../../types/effects';
+import type { StackEntry } from '../../types';
+import { generateUUID } from './battleUtils';
 
 /**
  * 🆕2026-10-21＝**フェイズに入るときの「このゲームの間」の処理**（ターンプレイヤーの state だけを書く）。
@@ -41,4 +45,27 @@ export function applyPhaseEntryState(state: PlayerState, entering: TurnPhase): {
     logs.push(`エナフェイズ開始【エナチャージ${charged.length}】（このゲーム）`);
   }
   return { state: s, logs };
+}
+
+/**
+ * 🆕2026-10-21＝**メインフェイズ開始時の「次の次のあなたのメインフェイズ開始時」の裏向き復帰**（§5.3 `O-299`・`WXDi-P00-038-E1`）。
+ * 人間の `phaseAdvance` と CPU の `cpuTurn` が同じ1本を呼ぶ（旧＝人間の進行にしか無く、CPU のターンでは予約が減らず表向きにならなかった）。
+ * ⚠**表向きになった分だけ**「対戦相手は手札を2枚捨てる」をスタックに積む（直接 state を書くと選択と【自】の誘発を飛ばす）。
+ */
+export function resolveMainEntryFacedown(state: PlayerState, playerId: string): { state: PlayerState; logs: string[]; entries: StackEntry[] } {
+  const r = resolveSecondMainFacedownReturns(state);
+  const logs = r.flipped.length > 0 ? [`裏向きシグニ${r.flipped.length}体を表向きにした`] : [];
+  const entries: StackEntry[] = r.discard > 0 ? [{
+    id: generateUUID(),
+    playerId,
+    cardNum: r.flipped[0] ?? 'WXDi-P00-038',
+    effectId: 'WXDi-P00-038-E1-FLIP',
+    label: '裏向きから戻ったシグニの効果（対戦相手は手札を2枚捨てる）',
+    effect: {
+      effectId: 'WXDi-P00-038-E1-FLIP', effectType: 'AUTO', timing: ['ON_MAIN_PHASE_START'],
+      action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: r.discard } },
+      duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+    } as CardEffect,
+  }] : [];
+  return { state: r.state, logs, entries };
 }

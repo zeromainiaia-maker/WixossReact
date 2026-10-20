@@ -1,6 +1,5 @@
 import type {BattleStateRow, PlayerState, StackEntry, EffectStack, TurnPhase} from '../../../types';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
-import type {CardEffect} from '../../../types/effects';
 import {calcContinuousBlockedActions, collectHandLimits} from '../../../engine/effectEngine';
 import {drawPhaseDraw} from '../drawPhase';
 import {getCardNum} from '../../../engine/effectExecutor';
@@ -10,19 +9,18 @@ import {collectDrawTriggers as pureCollectDrawTriggers, collectTurnTriggers as p
 import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {generateUUID, drawCards} from '../battleUtils';
-import {applyPhaseEntryState} from '../phaseEntry';
+import {applyPhaseEntryState, resolveMainEntryFacedown} from '../phaseEntry';
 import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
-import {resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns} from '../../../engine/facedownSigni';
+import {resolveTurnEndFacedownReturns} from '../../../engine/facedownSigni';
 import {PHASE_LABEL, PHASE_NEXT, NON_TURN_PLAYER_PHASES} from '../uiConstants';
 import {resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, resolveNextPhaseAfterMain} from '../attackStepPhase';
 import {resolveTurnHandover} from '../turnHandover';
-import {clearAllZoneBurstGrantUntilOppTurn} from '../allZoneBurst';
 import {reduceBattle, type PlayerStateKey} from './battleController';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
-import {clearUntilOppTurnEffects} from '../untilOppTurn';
+import {clearNextTurnPlayerState} from '../nextTurnPlayer';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {clearEndingPlayerTurnState, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import type { PerformCtx } from './performCtx';
@@ -387,13 +385,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
       // UPKEEP_OR_NO_UP: 条件あり→次ターンのUPフェーズで条件未達としてルリグをアップしない
       if (upOpponent && opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
       const opNextTurnState = handover.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
-        ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
-        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-        life_crash_counters: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
-        signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
-        banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
-        banish_redirect_battle_target_nums: undefined,
+        ...clearNextTurnPlayerState(opState), // 🆕2026-10-21＝相手側の後始末は3経路共通の1本（`nextTurnPlayer.ts`）
         field: upOpponent
           ? applyUpPhaseToField(opState.field, opState.lrig_upkeep_condition !== undefined)
           : opState.field,
@@ -564,32 +556,15 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
         //   既存 `INSTALL_DELAYED_TRIGGER` は「次の1回」までしか表せない（`O-314`）ので予約側で数える。
         // ⚠**表向きになった分だけ**「対戦相手は手札を2枚捨てる」を出す（ゾーンが埋まっていて
         //   表向きにできなかった予約では捨てさせない＝原文の条件）。
-        const smFacedown = resolveSecondMainFacedownReturns(newMyState);
-        if (smFacedown.flipped.length > 0 || smFacedown.state !== newMyState) {
-          newMyState = smFacedown.state;
-        }
-        if (smFacedown.flipped.length > 0) {
-          appendBattleLogs([`裏向きシグニ${smFacedown.flipped.length}体を表向きにした`]);
-        }
-        if (smFacedown.discard > 0) {
-          // 🔑**手札を捨てさせるのは effect_stack へ載せる**＝直接 state を書くと
-          //   「どれを捨てるか」の選択（相手の応答）と【自】の誘発を飛ばしてしまう。
-          const smEntry: StackEntry = {
-            id: crypto.randomUUID(),
-            playerId: bs.active_user_id ?? user.id,
-            cardNum: smFacedown.flipped[0] ?? 'WXDi-P00-038',
-            effectId: 'WXDi-P00-038-E1-FLIP',
-            label: '裏向きから戻ったシグニの効果（対戦相手は手札を2枚捨てる）',
-            effect: {
-              effectId: 'WXDi-P00-038-E1-FLIP', effectType: 'AUTO', timing: ['ON_MAIN_PHASE_START'],
-              action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: smFacedown.discard } },
-              duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
-            } as CardEffect,
-          };
+        // 🆕2026-10-21＝CPU と同じ1本（`phaseEntry.ts` の `resolveMainEntryFacedown`）。
+        const smFacedown = resolveMainEntryFacedown(newMyState, bs.active_user_id ?? user.id);
+        newMyState = smFacedown.state;
+        if (smFacedown.logs.length > 0) appendBattleLogs(smFacedown.logs);
+        if (smFacedown.entries.length > 0) {
           const baseStackSM = phaseStack ?? bs.effect_stack ?? null;
           phaseStack = baseStackSM
-            ? pushToStack(baseStackSM, [smEntry])
-            : initStack(bs.active_user_id ?? user.id, [smEntry]);
+            ? pushToStack(baseStackSM, smFacedown.entries)
+            : initStack(bs.active_user_id ?? user.id, smFacedown.entries);
         }
         const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op, 'MAIN');
         foldTurnUsed(mpsRes);

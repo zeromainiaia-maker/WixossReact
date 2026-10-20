@@ -196,6 +196,7 @@ import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostK
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { clearNextTurnPlayerState } from '../src/screens/battle/nextTurnPlayer';
 import { cardsForMatch } from '../src/screens/battle/matchCards';
 import { applyPhaseEntryState } from '../src/screens/battle/phaseEntry';
 import { resolveTurnEndStepOne } from '../src/screens/battle/turnEndStepOne';
@@ -402,6 +403,8 @@ function battleScreenSource(): string {
       .map(f => fs.readFileSync(join(controllerDir, f), 'utf8')),
     // 🆕§5.7 `S-15`（2026-09-20）＝CPU の候補列挙を `cpuTurn.ts` から `cpuMoves.ts` へ出した＝配線の検査はこちらも読む。
     fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf8'),
+    // 🆕2026-10-21＝相手側の後始末は3経路共通の `nextTurnPlayer.ts` へ出した（地点の数は 6→4＝較正であって退化ではない）。
+    fs.readFileSync(join(root, 'src/screens/battle/nextTurnPlayer.ts'), 'utf8'),
   ].join('\n');
 }
 
@@ -30358,8 +30361,8 @@ test('WX25-P3-104-E1: 選択対象でもバトル／効果バニッシュはエ�
 });
 test('WX25-P3-104-E1: 単体power0リストを全ターン境界・両プレイヤーでクリア', () => {
   const source = battleScreenSource();
-  eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 6,
-    'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
+  eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 4,
+    'human通常/手札超過/CPUの各ターン境界でターン側3箇所＋非ターン側（共通の nextTurnPlayer.ts）1箇所');
 });
 
 test('WXDi-P15-078-E2: バトル限定個体redirectはバトルだけtrash・効果と非対象はenergy（タスク12(xliv)(b2)）', () => {
@@ -30394,8 +30397,8 @@ test('WXDi-P15-078-E2: バトル限定個体redirectはバトルだけtrash・�
 
 test('WXDi-P15-078-E2: バトル限定個体リストを全ターン境界・両プレイヤーでクリア', () => {
   const source = battleScreenSource();
-  eq((source.match(/banish_redirect_battle_target_nums: undefined/g) ?? []).length, 6,
-    'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
+  eq((source.match(/banish_redirect_battle_target_nums: undefined/g) ?? []).length, 4,
+    'human通常/手札超過/CPUの各ターン境界でターン側3箇所＋非ターン側（共通の nextTurnPlayer.ts）1箇所');
 });
 
 test('WXDi-P14-053-E1: 白1体へ次の相手ターン終了まで常在redirectと+2000を付与しドーナを覚醒（タスク12(xliv)(b3)）', () => {
@@ -72192,6 +72195,16 @@ test('2026-10-21 自己対戦（生成デッキ）: REV は使ったスペル自
   ok(/cardsForMatch\(cards, used\)/.test(fs.readFileSync(join(root, 'src/screens/SpectateScreen.tsx'), 'utf8')), '🔴CPU観戦が共有の1本を使っていない');
 }));
 
+test('2026-10-21 ターン終了時の相手側の後始末は3経路共通の1本（clearNextTurnPlayerState）', () => withSavedCursor(() => {
+  // 🔴旧＝カウンタークラッシュ（防御側が立てる `life_crash_counters`）を消すのは通常の終了だけ＝手札を捨てる終了・CPU のターン終了では残った。
+  const st = { ...mkState(), life_crash_counters: [{ count: 1 }], signi_played_from_trash: ['X'] } as unknown as PlayerState;
+  const c = clearNextTurnPlayerState(st);
+  eq(c.life_crash_counters, undefined, '🔴カウンタークラッシュが消えない');
+  eq(c.signi_played_from_trash, undefined, '出自の印が消えない');
+  for (const f of ['phaseAdvance', 'endDiscard', 'cpuTurn'])
+    ok(/clearNextTurnPlayerState\(/.test(fs.readFileSync(join(root, `src/screens/battle/controller/${f}.ts`), 'utf8')), `🔴${f} の相手側の後始末が共通の1本を通らない`);
+}));
+
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
   // 🔴旧＝`phaseAdvance` にだけ書かれ、CPU のターンではリミット＋・リミット修正の予約・開始時ドロー／エナチャージが一度も起きなかった。
   const st = { ...mkState(), game_grow_phase_limit_plus: 1, pending_lrig_limit_mod: -1, game_main_draw: true, game_energy_phase_draw: true, game_energy_phase_charge: 1 } as unknown as PlayerState;
@@ -79640,7 +79653,7 @@ test('第276 §5.3 O-321① guard: ピース使用履歴はアーツ使用履歴
     clears++;
     if (!/turn_pieces_used_names:\s*undefined/.test(src[i])) bad.push(`L${i + 1}`);
   }
-  eq(clears, 6, 'アーツ使用履歴のクリア地点数（増減したら両方書けているか確かめる）');
+  eq(clears, 4, 'アーツ使用履歴のクリア地点数（🆕2026-10-21＝非ターン側3箇所を共通の nextTurnPlayer.ts 1箇所へ＝6→4。増減したら両方書けているか確かめる）');
   eq(bad.length, 0, `🔴ピース使用履歴を一緒にクリアしていない行: ${bad.join(', ')}`);
 });
 
@@ -80700,9 +80713,14 @@ test('§5.3 O-299 selfFacedown: 離場を裏向きで置換し、次の次の自
     // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8')
+    // 🆕2026-10-21＝人間・CPU 共通の `phaseEntry.ts`（`resolveMainEntryFacedown`）へ出した。
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/phaseEntry.ts'), 'utf8');
   ok(battleSrc.includes('resolveSecondMainFacedownReturns('), '🔴BattleScreen が復帰を解決していない');
   ok(battleSrc.includes("effectId: 'WXDi-P00-038-E1-FLIP'"), '手札を捨てさせる分が effect_stack へ載っていない');
+  // 🆕2026-10-21＝🔴旧＝CPU のメインフェイズ開始では一度も解決されなかった（予約が減らず表向きにならない）。
+  for (const f of ['src/screens/battle/controller/phaseAdvance.ts', 'src/screens/battle/controller/cpuTurn.ts'])
+    ok(/resolveMainEntryFacedown\(/.test(fs.readFileSync(join(root, f), 'utf8')), `🔴${f} のメインフェイズ開始が裏向き復帰を解決していない`);
 }));
 
 test('§5.3 O-299 selfDown: アップ状態なら効果離場をダウンで置換する（WXDi-CP02-TK01A）', () => withSavedCursor(() => {

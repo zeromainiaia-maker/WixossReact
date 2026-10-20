@@ -29,8 +29,6 @@ PlayerState のキー: 389
     10 読 /   9 書  card_class_overrides
      6 読 /   9 書  is_betting_this_effect
      9 読 /   8 書  pending_crash_causes
-     2 読 /   8 書  banish_redirect_battle_target_nums
-     2 読 /   8 書  banish_redirect_power0_target_nums
      4 読 /   8 書  prevent_defeat
      1 読 /   8 書  draw_limit
      5 読 /   8 書  signi_color_overrides
@@ -41,8 +39,10 @@ PlayerState のキー: 389
      3 読 /   7 書  turn_end_mill_count
      2 読 /   7 書  turn_end_return_to_lrig_deck
      3 読 /   7 書  last_summoned_resonas
-     4 読 /   7 書  signi_deploy_count_limit
      1 読 /   7 書  acce_just_done
      1 読 /   7 書  crash_to_trash_instead
-     7 読 /   7 書  turn_arts_used_names
-     4 読 /   7 書  turn_arts_used_colors
+    17 読 /   7 書  pending_signi_battle
+    19 読 /   7 書  lrig_upkeep_condition
+    30 読 /   6 書  granted_effects
+    65 読 /   6 書  abilities_removed
+     2 読 /   6 書  banish_redirect_battle_target_nums
