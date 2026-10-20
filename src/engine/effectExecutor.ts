@@ -18,7 +18,7 @@ import {
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, isImmovableArtsFromLrigDeck, hasNoAbility, lrigZoneTops, designatedZones,
   deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
-  trapIconEffectOf, resolveFrontOfSelfCardNum,
+  trapIconEffectOf, resolveFrontOfSelfCardNum, createTokenInstanceId,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -11181,7 +11181,16 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
     return done(addLog(ctx, `クラフトカード「${a.cardName}」が見つかりません`));
   }
   const s = ownerState(a.owner, ctx);
-  const additions = Array(a.count).fill(craftCard.CardNum);
+  // 🔴2026-10-20＝**1枚ずつ個体番号を振る**（`createTokenInstanceId`＝同じファイルの他のクラフト生成と同じ）。
+  //   旧＝カード番号そのまま（`Array(count).fill(CardNum)`）＝《改造素材》が何枚あっても同じ文字列になり、
+  //   使ったものと未使用のものがルリグトラッシュとルリグデッキに「同じカード」として並んだ（自己対戦の二重存在）。
+  let cur = s;
+  const additions: string[] = [];
+  for (let i = 0; i < a.count; i++) {
+    const inst = createTokenInstanceId(ctx.cardMap, craftCard.CardName, cur, a.owner === 'self' ? ctx.otherState : ctx.ownerState) ?? craftCard.CardNum;
+    additions.push(inst);
+    cur = { ...cur, lrig_deck: [inst, ...cur.lrig_deck] };
+  }
   const newState: PlayerState = {
     ...s,
     lrig_deck: [...additions, ...s.lrig_deck],

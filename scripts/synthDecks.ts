@@ -119,7 +119,8 @@ function buildLines(): Line[] {
         const atL = ups.filter(c => lv(c) === l);
         if (atL.length === 0) break;
         // 未発動を優先・同じチームを優先
-        atL.sort((a, b) => Number(isCovered(a)) - Number(isCovered(b)) || Number((b.Team ?? '-') === (z.Team ?? '-')) - Number((a.Team ?? '-') === (z.Team ?? '-')));
+        // 🔑**未発動かつ未予定**を優先（`want`）＝系統はデッキごとに組み直すので、同じレベルの別のルリグが順に選ばれる
+        atL.sort((a, b) => Number(want(b)) - Number(want(a)) || Number((b.Team ?? '-') === (z.Team ?? '-')) - Number((a.Team ?? '-') === (z.Team ?? '-')));
         line.push(atL[0]);
       }
       if (line.length < 2) continue;
@@ -161,17 +162,37 @@ function coresOf(lines: Line[]): Core[] {
   return out;
 }
 
+/**
+ * 🆕**コイン**＝《コイン》を要求する札（キーの大半・一部のアーツ/ピース）は、核のルリグが**グロウで得るコインの合計**（`Coin` 列）が
+ *   足りるときだけ入れる。🔴実測＝コインの無い核に入ったキー38枚中34枚が**一度も場に出なかった**（一生払えない）。
+ */
+// ⚠数字は**全角**（「《コイン》×１」）＝`d` では当たらない（初版はそれで要求0と数えていた）。
+const toAscii = (t: string) => t.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+const coinNeed = (c: CardData) => [...toAscii(c.Cost ?? '').matchAll(/《コイン(?:アイコン)?》×([0-9]+)/g)].reduce((t, m) => t + Number(m[1]), 0);
+const coreCoins = (core: Core) => [core.center, ...core.assists].flatMap(l => l.cards).reduce((t, c) => t + (parseInt(c.Coin ?? '', 10) || 0), 0);
+const coinOk = (c: CardData, core: Core) => coinNeed(c) <= coreCoins(core);
 const restrictionOk = (c: CardData, core: Core) => core.classes.some(cls => meetsRestriction(c.Restriction ?? '-', cls));
 const colorOk = (c: CardData, core: Core) => colorsOf(c).every(ch => core.colors.has(ch));
 const poolOk = (c: CardData, core: Core) => poolOf(c) === core.pool;
 const teamOk = (c: CardData, core: Core) => !c.Team || c.Team === '-' || c.Team === core.team;
-const fitsMain = (c: CardData, core: Core) => MAIN_TYPES.has(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core);
-const fitsLrigSide = (c: CardData, core: Core) => ['アーツ', 'ピース', 'キー', 'レゾナ'].includes(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core) && teamOk(c, core);
+const fitsMain = (c: CardData, core: Core) => MAIN_TYPES.has(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core) && coinOk(c, core);
+const fitsLrigSide = (c: CardData, core: Core) => ['アーツ', 'ピース', 'キー', 'レゾナ'].includes(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core) && teamOk(c, core) && coinOk(c, core);
 
 function buildDeck(core: Core, idx: number) {
   const lrigLines = [core.center, ...core.assists];
   const lrigDeck: string[] = [...new Set(lrigLines.flatMap(l => l.cards.map(c => c.CardNum)))];
   const lrigCap = lrigDeck.length + (core.assists.length ? 3 : 10 - lrigDeck.length);
+  // 🆕**同じ系統の未発動ルリグを別ルートのグロウ先として足す**（実際のデッキも同レベルを複数入れる）＝最大3枚・アーツの枠を残す
+  {
+    let extra = 0;
+    for (const l of lrigLines) {
+      const kind = l.cards.at(-1)!.Type;
+      for (const c of cards.filter(x => x.Type === kind && x.CardClass === l.cls && poolOf(x) === l.pool && lv(x) >= 1 && want(x) && !lrigDeck.includes(x.CardNum))) {
+        if (extra >= 3 || lrigDeck.length >= lrigCap - 2) break;
+        lrigDeck.push(c.CardNum); planned.add(c.CardNum); extra++;
+      }
+    }
+  }
   const main: string[] = [];
   const classDemand = new Map<string, number>();
   const count = (n: string) => main.filter(x => x === n).length;
@@ -259,12 +280,16 @@ function buildDeck(core: Core, idx: number) {
 }
 
 // ── 貪欲＝未発動を一番多く入れられる核から ──
-const lines = buildLines();
+/** 埋まらなかった系統（Lv0 と種別）＝組み直しても選ばない。 */
+const badLines = new Set<string>();
+const lineKey = (l: Line) => `${l.cards[0].CardNum}|${l.cards.at(-1)!.Type}`;
 const coreUses = new Map<string, number>();
 const coreKey = (c: Core) => [c.center, ...c.assists].map(l => l.cards[0].CardNum).join('+');
 const rows: unknown[] = [];
 let seedTotal = 0;
 for (let i = 0; i < MAX_DECKS; i++) {
+  // 🔑**系統はデッキごとに組み直す**（前のデッキで予定に入れた札を避けて、同じレベルの別のルリグを選ぶ）
+  const lines = buildLines().filter(l => !badLines.has(lineKey(l)));
   const cores = coresOf(lines);
   let best: { core: Core; gain: number } | null = null;
   for (const core of cores) {
@@ -280,7 +305,7 @@ for (let i = 0; i < MAX_DECKS; i++) {
   if (!d) {
     // 埋まらない核＝その系統を外してやり直す（入れたつもりの札は戻す）
     planned.clear(); before.forEach(n => planned.add(n));
-    for (const l of [best.core.center, ...best.core.assists]) { const k = lines.indexOf(l); if (k >= 0) lines.splice(k, 1); }
+    for (const l of [best.core.center, ...best.core.assists]) badLines.add(lineKey(l));
     i--; continue;
   }
   rows.push(d.row); seedTotal += d.seeds.length;

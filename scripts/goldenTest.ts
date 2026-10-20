@@ -26186,7 +26186,11 @@ test('ADD_CRAFT_TO_LRIG_DECK: 名前一致するクラフトカードを lrig_de
   const d0 = ctx.ownerState.lrig_deck.length;
   const r = run({ type: 'ADD_CRAFT_TO_LRIG_DECK', owner: 'self', cardName: '改造素材', count: 1 } as EffectAction, ctx);
   eq(r.ownerState.lrig_deck.length, d0 + 1, 'lrig_deck+1');
-  eq(r.ownerState.lrig_deck[0], 'WXK09-TK-01A', '追加したクラフトのCardNum');
+  // 🆕2026-10-20＝**個体番号つき**で作る（旧＝番号そのまま＝何枚作っても同じ文字列で、使った札と未使用の札が区別できなかった）。
+  eq(r.ownerState.lrig_deck[0].split('#')[0], 'WXK09-TK-01A', '追加したクラフトのCardNum');
+  ok(/#[0-9]+$/.test(r.ownerState.lrig_deck[0]), '🔴個体番号が振られている');
+  const r2 = run({ type: 'ADD_CRAFT_TO_LRIG_DECK', owner: 'self', cardName: '改造素材', count: 2 } as EffectAction, ctx);
+  eq(new Set(r2.ownerState.lrig_deck.slice(0, 2)).size, 2, '🔴2枚作れば2枚とも別の個体');
 });
 test('ENERGY_CHARGE_BY_FIELD_COUNT: 自場シグニ数+bonus枚をデッキからエナへ（WX10-035 BURST）', () => {
   const ctx = mkCtx({ signi: [SIGNI, SIGNI_P3000, null] }, {});
@@ -42136,7 +42140,7 @@ test('SET_CARD_COST_REPLACEMENT: named-card cost replacement persists for the ga
   eq(reps.length, 1, '置換が1件書かれる');
   eq(reps[0].cardName, '落華流粋', '対象はカード名');
   eq(JSON.stringify(reps[0].cost), JSON.stringify([{ color: '黒', count: 2 }, { color: '無', count: 1 }]), '置換後コスト');
-  ok(r.ownerState.lrig_deck.some(n => (cardMap.get(n)?.CardName) === '落華流粋'), 'クラフト自体もルリグデッキへ入る');
+  ok(r.ownerState.lrig_deck.some(n => (cardMap.get(n.split('#')[0])?.CardName) === '落華流粋'), 'クラフト自体もルリグデッキへ入る（個体番号つき）');
 
   // UI 側＝カード名一致で印刷コスト（《赤×1》《緑×1》《無×1》）を丸ごと差し替える
   const craft = cardMap.get('WXK03-TK-01B')!;
@@ -72150,6 +72154,46 @@ test('2026-10-20 自己対戦（生成デッキ）: シグニの下に置いた�
   const rc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
   ok(/if \(candidates\.length === 0\) \{ lastBanishedKeyRef\.current = ''; return; \}/.test(rc), '🔴候補0件で指紋を消していない');
 });
+
+test('2026-10-20 被覆: CPU もコスト付きの任意【出】を使う（onPlayCostPay）', () => {
+  // 🔑実測＝場に出たのに一度も動かなかった【出】235件のうち 214件がこれ＝CPU に使われたときが一度も試されていなかった。
+  eq(DEFAULT_CPU_POLICY.onPlayCostPay, 1, '既定で有効');
+  eq(resolveCpuPolicy('legacy-onplaycost').onPlayCostPay, 0, '旧挙動の口');
+  const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(/isOptionalOwnOnPlayForNormalSummon\(e\) && \(!e\.cost \|\| cpuPolicy\.onPlayCostPay > 0\)/.test(ct), '🔴CPU の召喚がコスト付き任意【出】を集めていない');
+  ok(/const wrappedCpu = wrapOptionalOnPlay\(effOpt, \{/.test(ct), '🔴コスト軽減の盤面を渡して包んでいない（印刷どおりの重いコストになる）');
+  // グロウ側（ルリグの【出】）も同じ数値で包む＝旧は「コインだけで払える」もの以外を捨てていた（76効果）。
+  ok(/onCostOnPlayWrap: cpuPolicy\.onPlayCostPay > 0/.test(ct), '🔴CPU のグロウがコスト付き任意【出】を包む口を渡していない');
+  const pg = fs.readFileSync(join(root, 'src/screens/battle/controller/performGrow.ts'), 'utf8');
+  ok(/if \(p\.onCostOnPlayWrap && !coinOnly\)/.test(pg) && /\.\.\.autoWrappedOnPlay\.map/.test(pg), '🔴グロウが包んだ【出】を積んでいない');
+});
+
+test('2026-10-20 被覆: 「ゲームから除外」は excluded へ（トラッシュ／ルリグトラッシュで近似しない・消さない）', () => withSavedCursor(() => {
+  // 🔴旧①＝`INTERNAL_BANISH_FROM_GAME_DO`（`WX14-064`）はトラッシュから取り除くだけ＝カードが消えた。
+  const base = mkCtx({}, {}, 'WX14-064#1');
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: ['WX14-064#1'] } } as ExecCtx;
+  const r = executeAction({ type: 'STUB', id: 'INTERNAL_BANISH_FROM_GAME_DO' } as unknown as EffectAction, ctx);
+  ok((r.ownerState.excluded ?? []).includes('WX14-064#1') && !r.ownerState.trash.includes('WX14-064#1'), '🔴トラッシュから除外の置き場へ');
+  eq(r.ownerState.self_optional_effect_taken, true, '除外できたので「そうした場合」が成立');
+  const gone = executeAction({ type: 'STUB', id: 'INTERNAL_BANISH_FROM_GAME_DO' } as unknown as EffectAction, base);
+  eq(gone.ownerState.self_optional_effect_taken, false, '🔴トラッシュに無ければ除外できず「そうした場合」も不成立');
+  // 🔴旧②＝`REMOVE_SELF_SIGNI_FROM_GAME`（`WXDi-CP02-TK01A`）は「ゲームから除外」と言いながらトラッシュへ置いていた。
+  const sb = mkCtx({ signi: ['WXDi-CP02-TK01A#1', null, null] }, {}, 'WXDi-CP02-TK01A#1');
+  const r2 = executeAction({ type: 'STUB', id: 'REMOVE_SELF_SIGNI_FROM_GAME' } as unknown as EffectAction, sb);
+  ok((r2.ownerState.excluded ?? []).includes('WXDi-CP02-TK01A#1') && !r2.ownerState.trash.includes('WXDi-CP02-TK01A#1'), '🔴このシグニは除外の置き場へ');
+}));
+
+test('2026-10-20 被覆: ルリグトラッシュからアーツを使う効果は、使用中の自分自身を候補にしない（WXK09-002）', () => withSavedCursor(() => {
+  // 🔴旧＝アーツは使用時に先にルリグトラッシュへ置かれるので、自分自身を選んで使い続けた（自己対戦の CAP）。
+  const use = findEffectDeep(parseCardEffects(cardMap.get('WXK09-002')!), 'WXK09-002-E1')!.action as EffectAction;
+  const base = mkCtx({}, {}, 'WXK09-002#1');
+  const ctx = { ...base, ownerState: { ...base.ownerState, lrig_trash: ['WXK09-002#1', 'WD01-007'] } } as ExecCtx;
+  const r = executeAction(use, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '候補選択が立つ');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  ok(!r.pending.candidates.includes('WXK09-002#1'), '🔴使用中の自分自身は候補に出ない');
+  ok(r.pending.candidates.includes('WD01-007'), '他のアーツは候補に出る');
+}));
 
 test('2026-10-20 自己対戦: 「このカードをセンタールリグの下に置く」はルリグトラッシュから移る（WD21-006）', () => withSavedCursor(() => {
   // 原文＝「…それをバニッシュする。そうした場合、このカードをあなたのセンタールリグの下に置く。」

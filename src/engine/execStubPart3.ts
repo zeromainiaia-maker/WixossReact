@@ -4650,7 +4650,8 @@ export function execStubPart3(
     const srcCnRSG = ctx.sourceCardNum;
     if (!srcCnRSG) return done(addLog(ctx, 'REMOVE_SELF_SIGNI_FROM_GAME: ソースなし'));
     const removedRSG = removeFromField(srcCnRSG, ctx.ownerState);
-    const newOwnerRSG: PlayerState = { ...removedRSG, trash: [...removedRSG.trash, srcCnRSG] };
+    // 🔴2026-10-20＝**除外の置き場（`excluded`）へ**。旧＝「ゲームから除外」と言いながらトラッシュへ置いていた（`WXDi-CP02-TK01A`）。
+    const newOwnerRSG: PlayerState = { ...removedRSG, excluded: [...(removedRSG.excluded ?? []), srcCnRSG] };
     return done(addLog({ ...ctx, ownerState: newOwnerRSG },
       `${ctx.cardMap.get(srcCnRSG)?.CardName ?? srcCnRSG}をゲームから除外`));
   }

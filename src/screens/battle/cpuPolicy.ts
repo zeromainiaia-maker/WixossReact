@@ -267,6 +267,12 @@ export interface CpuPolicy {
    */
   readonly assistGrowAsArts: number;
   /**
+   * 🆕2026-10-20＝**コスト付きの任意【出】（「《X》：〜してもよい」）を CPU も使う**か（`wrapOptionalOnPlay` が「払いますか？」の選択に包む）。
+   * 🔴**0 なら旧挙動＝一切使わない**（`legacy-onplaycost`）＝実測で**場に出たのに一度も動かなかった【出】の 214 / 235 件**がこれだった
+   *   （＝CPU に使われたときが一度も試されていない機構・§5.6 の原則）。
+   */
+  readonly onPlayCostPay: number;
+  /**
    * 🆕§5.7 `S-22`＝**`thenAction` から損得が読めない対象選択を「置き場（`targetScope`）」で決める**か（0＝旧挙動＝乱数）。
    * 🔴**0 にすると対象宣言が乱数に戻る**（`STUB{SELECT_TARGET_ONLY}` は `thenAction` に印しか持たない）。
    * 📏実測（修正前・本物のデッキ6つ × 1戦）＝CPU が答えた `SELECT_TARGET` **66件のうち32件（48%）が乱数**。
@@ -389,6 +395,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   choiceLookahead: 1,
   // 🆕2026-09-28＝アシストグロウをアーツと同じ扱いにする（ユーザー指示）。
   assistGrowAsArts: 1,
+  // 🆕2026-10-20＝コスト付き任意【出】も使う（払うかは「払いますか？」の選択で決める）。
+  onPlayCostPay: 1,
   // 🆕§5.7 `S-22`（2026-09-21）＝**既定で有効**。🔴これは調整つまみではなく**実測したバグの修正**
   //   （対象選択の 48% が乱数で、最大の塊は「宣言の後ろでバニッシュされる相手のシグニ」を乱数で選んでいた）。
   //   ⚠**実機の挙動が変わる回**＝自己対戦の乱数列も動くので、この回にベースラインを撮り直す。
@@ -520,6 +528,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-choice': variant('legacy-choice', { choiceLookahead: 0 }),
   // 🆕2026-09-28＝アシストグロウは候補の先頭を必ず使う（旧挙動）。
   'legacy-assistgrow': variant('legacy-assistgrow', { assistGrowAsArts: 0 }),
+  // 🆕2026-10-20＝コスト付き任意【出】を使わない（旧挙動）。
+  'legacy-onplaycost': variant('legacy-onplaycost', { onPlayCostPay: 0 }),
   /** 🆕2026-09-26＝**スペルを手札に残す加点を入れる前**（スペルは効果の点数だけで比べられ、真っ先にエナへ行っていた）。 */
   'legacy-spellcharge': variant('legacy-spellcharge', { chargeSpellKeep: 0 }),
   /** 🆕§5.7 `S-22` を入れる前＝`thenAction` で読めない対象選択は乱数（対象宣言が全部ここに落ちていた）。 */
@@ -614,14 +624,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'searchKeepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
+      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
       || key === 'cutinGainMin' || key === 'betCoinValue') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

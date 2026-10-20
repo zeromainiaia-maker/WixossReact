@@ -1919,7 +1919,8 @@ export function execStubPart2(
     }
     return done(addLog(ctx, `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}（TRASH STUB）`));
   }
-  // BANISH_FROM_GAME: ゲームから除外（ルリグトラッシュへ）
+  // BANISH_FROM_GAME: ゲームから除外（🆕2026-10-20＝`excluded` へ。旧＝ルリグトラッシュで近似）
+  //   ⚠live の2効果は `execStubPart1` の同名分岐が先に受ける＝ここは到達しない安全網だが、行き先は揃えておく。
   if (stub.id === 'BANISH_FROM_GAME') {
     const cnBFG = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnBFG) return done(addLog(ctx, '除外対象なし'));
@@ -1927,7 +1928,7 @@ export function execStubPart2(
     const ownerBFG: 'self' | 'opponent' = foundOppBFG ? 'opponent' : 'self';
     const stBFG = ownerState(ownerBFG, ctx);
     const removedBFG = removeFromField(cnBFG, stBFG);
-    const newSBFG: PlayerState = { ...removedBFG, lrig_trash: [...removedBFG.lrig_trash, cnBFG] };
+    const newSBFG: PlayerState = { ...removedBFG, trash: removedBFG.trash.filter(c => c !== cnBFG), excluded: [...(removedBFG.excluded ?? []), cnBFG] };
     return done(addLog(setOwnerState(ownerBFG, newSBFG, ctx), `${ctx.cardMap.get(cnBFG)?.CardName ?? cnBFG}をゲームから除外`));
   }
   // TRASH_ALL_OPP_CARDS: 対戦相手の指定ゾーンにあるカードをすべてトラッシュへ
@@ -3860,7 +3861,10 @@ export function execStubPart2(
             ? [...new Set([...ctx.ownerState.lrig_trash, ...ctx.otherState.lrig_trash])]
           : fromHandUS ? ctx.ownerState.hand
             : ctx.ownerState.trash;
-      let candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
+      // 🔴2026-10-20＝**使用中のこのカード自身は候補にしない**。アーツは使用時に先にルリグトラッシュへ置かれるので、
+      //   旧＝《ホーリー・グランドスラム》（`WXK09-002`「いずれかのプレイヤーのルリグトラッシュからアーツ１枚を…使用する」）が
+      //   **自分自身を選んで使い続けた**（自己対戦の CAP）。
+      let candsUS = zoneUS.filter(cn => cn !== ctx.sourceCardNum && matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
       // 🔴🆕**§5.3 `O-281`（2026-09-08）＝この経路は `Restriction`（限定条件）を一度も検査していなかった。**
       //   本体は `USE_SPELL_FROM_TRASH` / `CAST_FROM_OPP_TRASH` / `PLAY_SPELL_FROM_HAND` へ委譲するので、
       //   **live 12効果すべてが事実上「限定条件を無視して」使えた**（原文に当該句があるのは `WXK09-002-E1` の1件だけ

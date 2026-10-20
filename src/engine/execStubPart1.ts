@@ -2882,9 +2882,16 @@ export function execStubPart1(
   if (stub.id === 'INTERNAL_BANISH_FROM_GAME_DO') {
     const srcIBFG = ctx.sourceCardNum;
     if (!srcIBFG) return done(ctx);
+    // 🔴2026-10-20＝**除外の置き場（`excluded`）へ入れる**。旧＝トラッシュから取り除くだけ＝カードが消えた（自己対戦で発見・`WX14-064`）。
+    //   ⚠問いの間にトラッシュから動いていたら除外できない＝「そうした場合」も成立しない。
+    if (!ctx.ownerState.trash.includes(srcIBFG)) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
+        `${ctx.cardMap.get(srcIBFG)?.CardName ?? srcIBFG}はトラッシュにない（除外できない）`));
+    }
     const newOwner = {
       ...ctx.ownerState,
       trash: ctx.ownerState.trash.filter(c => c !== srcIBFG),
+      excluded: [...(ctx.ownerState.excluded ?? []), srcIBFG],
       self_optional_effect_taken: true,
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcIBFG)?.CardName ?? srcIBFG}をゲームから除外→後続効果発動`));

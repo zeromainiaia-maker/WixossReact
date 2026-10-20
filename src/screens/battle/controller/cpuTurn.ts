@@ -993,6 +993,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
           energyPayPool: cpuGrowPool,
           // ⚠CPU にモーダルは出せない＝コインだけで払える任意【出】は自動で払う。
           onCostOnPlay: 'auto',
+          // 🆕2026-10-20＝それ以外のコスト付き任意【出】も「払いますか？」の選択に包んで積む（召喚と同じ `onPlayCostPay`）。
+          onCostOnPlayWrap: cpuPolicy.onPlayCostPay > 0,
         });
         return;   // グロウで state が動く＝次の再実行で MAIN へ進む
       }
@@ -1196,13 +1198,18 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       //   engine の `OPTIONAL_ACTIVATE` は「発動する／発動しない」の CHOOSE を出し、CPU 自動応答は先頭
       //   （＝発動する）を選ぶ＝「**CPU は無コストの任意【出】を必ず発動する**」という明示方針になる。
       const optionalNoCostCpu = (cpuOwnOnPlayBlocked ? [] : effectsMap.get(candidate.id) ?? []).filter(e =>
-        isOptionalOwnOnPlayForNormalSummon(e) && !e.cost &&
+        // 🆕2026-10-20＝**コスト付きも使う**（`onPlayCostPay`）＝`wrapOptionalOnPlay` が「払いますか？」の選択に包み、
+        //   払うかどうかはその選択で CPU が決める（支払いは `resumeOptionalCost`＝人間の任意コストと同じ経路）。
+        isOptionalOwnOnPlayForNormalSummon(e) && (!e.cost || cpuPolicy.onPlayCostPay > 0) &&
         (!e.activeCondition || checkActiveCondition(e.activeCondition, newCpuSt, huSt, true, battleCardMap, candidate.id)) &&
         (!e.condition || evalUseCondition(e.condition, newCpuSt, huSt, battleCardMap, candidate.id, bs.turn_phase)),
       );
       for (const effOpt of optionalNoCostCpu) {
         // `costUnparsed` 等で包めないものは従来どおり発火させない（踏み倒し防止の安全弁をそのまま使う）。
-        const wrappedCpu = wrapOptionalOnPlay(effOpt);
+        // ⚠「〈条件〉の場合、この能力の発動コストは減る」は盤面を渡して焼き込む（人間の提示と同じ）。
+        const wrappedCpu = wrapOptionalOnPlay(effOpt, {
+          my: newCpuSt, op: cpuHuSt, cardMap: battleCardMap, sourceCardNum: candidate.id, turnPhase: bs.turn_phase ?? 'MAIN',
+        });
         if (!wrappedCpu) continue;
         cpuOnPlayEntries.push({
           id: generateUUID(),

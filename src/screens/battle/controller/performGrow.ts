@@ -4,7 +4,7 @@ import { checkActiveCondition, collectCopiedLrigAutoEffects, collectGrowCostSubs
 import { getCardNum } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
 import { recordEnergyPlacements } from '../../../engine/energyPlacement';
-import { applyAbilityCostReduction, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectOptionalNoCostOnPlayForGrow } from '../../../engine/triggerCollect';
+import { applyAbilityCostReduction, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectOptionalNoCostOnPlayForGrow, wrapOptionalOnPlay } from '../../../engine/triggerCollect';
 import { type CardData, type PlayerState, type StackEntry } from '../../../types';
 import { type CardEffect } from '../../../types/effects';
 import { buildArtsPayerCtx } from '../artsUseGate';
@@ -69,6 +69,11 @@ export const performGrow = async (
     energyPayPool: EnergyPayEntry[];
     /** コスト付き任意【出】の扱い（既定＝人間の支払いモーダル）。 */
     onCostOnPlay?: 'prompt' | 'auto';
+    /**
+     * 🆕2026-10-20＝`'auto'`（CPU）のとき、**コインだけでは払えないコスト付き任意【出】も「払いますか？」の選択に包んで積む**
+     * （`wrapOptionalOnPlay`＝召喚と同じ経路・CPU ポリシー `onPlayCostPay`）。旧＝捨てていた（場に出たのに未発動のルリグ【出】76件）。
+     */
+    onCostOnPlayWrap?: boolean;
     /**
      * 🆕§5.7 `S-5c` 第2段＝コスト付き【出】の確認モーダルを開く（画面のみ）。
      * ⚠`onCostOnPlay:'prompt'`（人間）のときだけ呼ばれる＝CPU（`'auto'`）は来ない。
@@ -311,10 +316,17 @@ export const performGrow = async (
     //   **コインだけで払えるものは自動で払って発動し、それ以外は発動しない**。
     //   これは CPU 手書きグロウ（続き552d で削除）の挙動をそのまま移したもの。
     const autoPaidOnPlay: import('../../../types/effects').CardEffect[] = [];
+    const autoWrappedOnPlay: import('../../../types/effects').CardEffect[] = [];
     if (p.onCostOnPlay === 'auto') {
       for (const eff of costOnPlay) {
         const coinOnly = !!eff.cost?.coin && !eff.cost.energy && !eff.cost.discard;
-        if (!coinOnly || (newMyState.coins ?? 0) < eff.cost!.coin!) continue;
+        if (!coinOnly || (newMyState.coins ?? 0) < eff.cost!.coin!) {
+          if (p.onCostOnPlayWrap && !coinOnly) {
+            const w = wrapOptionalOnPlay(eff, { my: newMyState, op, cardMap: ctx.cardMap, sourceCardNum: cardNum, turnPhase: ctx.bs.turn_phase ?? 'MAIN' });
+            if (w) autoWrappedOnPlay.push(w);
+          }
+          continue;
+        }
         newMyState = {
           ...newMyState,
           coins: (newMyState.coins ?? 0) - eff.cost!.coin!,
@@ -369,6 +381,10 @@ export const performGrow = async (
         effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
       })),
       ...optionalNoCostGrow.effects.map(eff => ({
+        id: generateUUID(), playerId: p.actorId, cardNum,
+        effectId: eff.effectId, label: `${cardName} の【出】効果（任意）`, effect: eff,
+      })),
+      ...autoWrappedOnPlay.map(eff => ({
         id: generateUUID(), playerId: p.actorId, cardNum,
         effectId: eff.effectId, label: `${cardName} の【出】効果（任意）`, effect: eff,
       })),
