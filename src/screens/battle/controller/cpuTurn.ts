@@ -69,6 +69,7 @@ import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssis
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {drawPhaseDraw} from '../drawPhase';
+import {collectOnAcceTriggers} from './acceTriggers';
 import {applyPhaseEntryState, resolveMainEntryFacedown} from '../phaseEntry';
 import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearEndingPlayerTurnState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
@@ -771,6 +772,20 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (await tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
     appendBattleLogs(['[CPU] アーツを使用しない']);
     await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt, contBlocked.forSelf) }));
+    return;
+  }
+
+  // ─── 🆕2026-10-21＝CPU がアクセを付けた直後の【自】（`acce_just_done`）───
+  // 🔴旧＝画面の見張りは「画面を見ている人の state」しか処理せず、**CPU のアクセの【自】は実機でも一度も発動しなかった**（印も残った）。
+  //   ⚠集め方は人間と同じ `collectOnAcceTriggers`。人間の画面は CPU 側を処理しないので二重にはならない。
+  if (cpuSt.acce_just_done && !bs.effect_stack && !bs.pending_effect) {
+    const hostNum = cpuSt.acce_just_done;
+    const cleared: PlayerState = { ...cpuSt, acce_just_done: null };
+    const acce = collectOnAcceTriggers({ state: cleared, op: huSt, acceHostCardNum: hostNum, ownerId: CPU_PLAYER_ID,
+      effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase, effectivePowers });
+    const written: PlayerState = acce.usedIds.length > 0 ? { ...cleared, actions_done: [...(cleared.actions_done ?? []), ...acce.usedIds] } : cleared;
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: written,
+      ...(acce.entries.length > 0 ? { effectStack: initStack(bs.active_user_id ?? CPU_PLAYER_ID, acce.entries) } : {}) }));
     return;
   }
 

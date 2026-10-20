@@ -14,7 +14,7 @@ PlayerState のキー: 389
    260 読 /  34 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    202 読 /  26 書  lrig_trash
-   313 読 /  19 書  actions_done
+   314 読 /  19 書  actions_done
    105 読 /  19 書  blocked_actions
    173 読 /  17 書  life_cloth
    131 読 /  17 書  keyword_grants
@@ -32,6 +32,7 @@ PlayerState のキー: 389
      4 読 /   8 書  prevent_defeat
      1 読 /   8 書  draw_limit
      5 読 /   8 書  signi_color_overrides
+     3 読 /   8 書  acce_just_done
      2 読 /   8 書  turn_end_energy_trash_targets
      1 読 /   8 書  cancel_current_signi_attack
     13 読 /   7 書  story_overrides
@@ -39,7 +40,6 @@ PlayerState のキー: 389
      3 読 /   7 書  turn_end_mill_count
      2 読 /   7 書  turn_end_return_to_lrig_deck
      3 読 /   7 書  last_summoned_resonas
-     1 読 /   7 書  acce_just_done
      1 読 /   7 書  crash_to_trash_instead
     17 読 /   7 書  pending_signi_battle
     19 読 /   7 書  lrig_upkeep_condition

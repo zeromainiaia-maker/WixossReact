@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
 import { useOnResume } from '../utils/resumeSync';
-import { CHEER_ZONE, cheerCardOf, signiStackAt, fieldSigniStacks } from '../engine/cheerZone';
+import { CHEER_ZONE, cheerCardOf, signiStackAt } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
@@ -12,7 +12,7 @@ import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToReso
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
 import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers} from '../engine/triggerCollect';
 import {coinLedger} from '../engine/coinAbilityNegation';
-import {acceCardsAt, allAcceCards, normalizeAcceSlots} from '../utils/acce';
+import {allAcceCards, normalizeAcceSlots} from '../utils/acce';
 import {C, HandCards, PlayerField} from '../components/BoardComponents';
 import type {CardAction} from '../components/BoardComponents';
 import {consumeLifeCrashReplaceDecision} from './battle/lifeCrashReplace';
@@ -118,6 +118,7 @@ import {makeBoardDiffCollector, type BoardDiffCollector} from './battle/controll
 import {buildBattleCardMap, buildBaseEffectsMap, buildAugmentedEffectsMap, buildEffectivePowers} from './battle/controller/battleMaterials';
 // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体（画面の `useEffect` から回る受け皿）。
 import {makeRuleChecks, createRuleCheckMemo} from './battle/controller/ruleChecks';
+import {collectOnAcceTriggers} from './battle/controller/acceTriggers';
 import {makeTrigCtx} from './battle/controller/execCtxDeps';
 import {performAssistGrow as performAssistGrowImpl} from './battle/controller/performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './battle/controller/performLrigAttack';
@@ -4773,100 +4774,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   別のシグニにアクセを付けただけで発火する過剰発火だった。'any_ally'/'any'＝「**あなたの**シグニ1体に
   //   【アクセ】が付いたとき」（WXK04-051/WXK05-064）は従来どおり自フィールド全体が反応する。
   const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
-    const triggerEntries: StackEntry[] = [];
-    // 🆕2026-08-31 続き748＝**いま付いた【アクセ】カード**（スタック末尾）。原文「**それが**レベル２以下の
-    //   【アクセ】の場合」（`WXK05-065-E1`）を `TRIGGER_SOURCE_MATCHES` が読むためにトリガー元として運ぶ。
-    // 🆕§5.3 `O-540`＝付け先がチアゾーンのシグニなら添字3（置き場は `signi_acce[3]`）。
-    const acceHostZoneIdx = fieldSigniStacks(state).findIndex(sg => sg?.at(-1) === acceHostCardNum);
-    const acceCardNum = acceHostZoneIdx >= 0 ? acceCardsAt(state.field, acceHostZoneIdx).at(-1) : undefined;
-    const usedOncePerTurnIdsAcce: string[] = [];
-    // 《ターン1回》《ターン2回》の使用制限（actions_done ＋ 本収集内で積んだ分の両方を数える）。
-    const acceLimitOk = (eff: import('../types/effects').CardEffect): boolean => {
-      const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
-      if (max === Infinity) return true;
-      const used = (state.actions_done ?? []).filter(id => id === eff.effectId).length
-        + usedOncePerTurnIdsAcce.filter(id => id === eff.effectId).length;
-      if (used >= max) return false;
-      usedOncePerTurnIdsAcce.push(eff.effectId);
-      return true;
-    };
-    for (const stack of fieldSigniStacks(state)) {   // 🆕`O-540`＝チアゾーンのシグニも【自】の持ち主
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO') continue;
-        if (!eff.timing?.includes('ON_ACCE')) continue;
-        const acceScope = eff.triggerScope ?? 'self';
-        if (acceScope === 'self' && topNum !== acceHostCardNum) continue;
-        if (eff.condition && !evalUseCondition(eff.condition, state, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-        if (!acceLimitOk(eff)) continue;
-        const card = battleCardMap.get(topNum);
-        triggerEntries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${card?.CardName ?? topNum}【自】${eff.timing?.[0] ?? 'ON_ACCE'}`,
-          effect: eff,
-          // 🆕2026-08-31 続き748＝**付いた【アクセ】そのもの**をトリガー元として運ぶ。
-          //   原文「**それが**レベル２以下の【アクセ】の場合」（`WXK05-065-E1`）は `TRIGGER_SOURCE_MATCHES` が読む。
-          triggeringCardNum: acceCardNum,
-        });
-      }
-    }
-    // ホストシグニ自体のON_ACCE効果は上記でキャッチされる
-    // また「あなたのシグニ１体がアクセされたとき」系のWX15-059等
-
-    // ON_ACCE_ATTACH（ルリグ）: 「あなたのシグニ１体に【アクセ】が付いたとき」（WXK04-003 オーバークロック）
-    const myLrigAcce = state.field.lrig.at(-1);
-    if (myLrigAcce) {
-      for (const eff of (effectsMap.get(myLrigAcce) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
-        if (eff.usageLimit === 'once_per_turn' &&
-            ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
-        if (eff.usageLimit === 'once_per_turn') usedOncePerTurnIdsAcce.push(eff.effectId);
-        triggerEntries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: myLrigAcce,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(myLrigAcce)?.CardName ?? myLrigAcce}【自】アクセ装着時`,
-          effect: eff,
-        });
-      }
-    }
-    // ON_ACCE_ATTACH（アクセカード自身）: 「このカードが【アクセ】としてシグニに付いたとき」（SPK01-11 ラズベリー）
-    const hostZoneAcce = fieldSigniStacks(state).findIndex(s => s?.at(-1) === acceHostCardNum);   // 🆕`O-540`
-    const attachedAcceNum = hostZoneAcce >= 0 ? acceCardsAt(state.field, hostZoneAcce).at(-1) : null;
-    if (attachedAcceNum) {
-      for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
-        // host シグニのレベル/クラス条件（WXK05-041=Lv4以上／WX17-076-E2=Lv2以下／WX17-033-E4=＜調理＞）
-        const acceTc = eff.triggerCondition;
-        if (acceTc?.accedHostMinLevel || acceTc?.accedHostMaxLevel) {
-          const hostLv = parseInt((battleCardMap.get(acceHostCardNum) ?? battleCardMap.get(getCardNum(acceHostCardNum)))?.Level ?? '0', 10);
-          if (isNaN(hostLv)) continue;
-          if (acceTc.accedHostMinLevel && hostLv < acceTc.accedHostMinLevel) continue;
-          if (acceTc.accedHostMaxLevel && hostLv > acceTc.accedHostMaxLevel) continue;
-        }
-        if (acceTc?.accedHostStory) {
-          const hostCls = battleCardMap.get(getCardNum(acceHostCardNum))?.CardClass ?? '';
-          if (!hostCls.includes(acceTc.accedHostStory)) continue;
-        }
-        if (eff.usageLimit === 'once_per_turn' &&
-            ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
-        if (eff.usageLimit === 'once_per_turn') usedOncePerTurnIdsAcce.push(eff.effectId);
-        triggerEntries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: attachedAcceNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(attachedAcceNum)?.CardName ?? attachedAcceNum}【自】アクセ装着時`,
-          effect: eff,
-        });
-      }
-    }
-
+    // 🆕2026-10-21＝集め方は CPU と同じ1本（`controller/acceTriggers.ts`）。
+    const { entries: triggerEntries, usedIds: usedOncePerTurnIdsAcce } = collectOnAcceTriggers({
+      state, op, acceHostCardNum, ownerId: user.id, effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase, effectivePowers,
+    });
     if (triggerEntries.length === 0) return;
     const stateToWrite = usedOncePerTurnIdsAcce.length > 0
       ? { ...state, actions_done: [...(state.actions_done ?? []), ...usedOncePerTurnIdsAcce] }

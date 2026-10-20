@@ -196,6 +196,7 @@ import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostK
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { collectOnAcceTriggers } from '../src/screens/battle/controller/acceTriggers';
 import { clearNextTurnPlayerState } from '../src/screens/battle/nextTurnPlayer';
 import { cardsForMatch } from '../src/screens/battle/matchCards';
 import { applyPhaseEntryState } from '../src/screens/battle/phaseEntry';
@@ -72203,6 +72204,18 @@ test('2026-10-21 ターン終了時の相手側の後始末は3経路共通の1�
   eq(c.signi_played_from_trash, undefined, '出自の印が消えない');
   for (const f of ['phaseAdvance', 'endDiscard', 'cpuTurn'])
     ok(/clearNextTurnPlayerState\(/.test(fs.readFileSync(join(root, `src/screens/battle/controller/${f}.ts`), 'utf8')), `🔴${f} の相手側の後始末が共通の1本を通らない`);
+}));
+
+test('2026-10-21 アクセが付いた直後の【自】は人間と CPU が同じ1本（collectOnAcceTriggers）＝CPU のアクセでも発動する', () => withSavedCursor(() => {
+  // 🔴旧＝画面の見張り（`acce_just_done`）は画面を見ている人の state しか処理せず、CPU がアクセを付けたときの【自】は実機の CPU 戦でも発動しなかった。
+  const st = mkState({ signi: ['WDK07-E17', null, null] });
+  const withAcce = { ...st, field: { ...st.field, signi_acce: [['WD01-012#9'], null, null] } } as unknown as PlayerState;
+  const r = collectOnAcceTriggers({ state: withAcce, op: mkState(), acceHostCardNum: 'WDK07-E17', ownerId: '00000000-0000-0000-0000-000000000001',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, turnPhase: 'MAIN' });
+  ok(r.entries.some(e => e.effectId === 'WDK07-E17-E1' && e.playerId === '00000000-0000-0000-0000-000000000001'), '🔴アクセされたときの【自】が集まらない');
+  const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(/if \(cpuSt\.acce_just_done && /.test(ct) && /collectOnAcceTriggers\(/.test(ct), '🔴CPU がアクセの印を処理していない');
+  ok(/collectOnAcceTriggers\(/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')), '画面が共有の1本を使っていない');
 }));
 
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
