@@ -148,9 +148,11 @@ function coresOf(lines: Line[]): Core[] {
       const pick = [...as].sort((a, b) => b.cards.filter(want).length - a.cards.filter(want).length).slice(0, 2);
       if (pick[0].cls !== pick[1].cls) out.push({ center: c, assists: pick, pool: c.pool, classes: [c.cls, ...pick.map(p => p.cls)], colors: new Set([...c.colors, ...pick.flatMap(p => [...p.colors])]), team: c.team });
     }
-    // ディーバ＝同じチームのルリグ3系統
+    // ディーバ＝同じチームのルリグ3系統（センター1＋アシスト2）
+    // 🔴2026-10-21（ユーザー回答）＝**アシストゾーンのルリグはアシストルリグにしかグロウできない**（グロウフェイズにアシストはグロウできない）。
+    //   旧＝アシストにセンター用の系統（種別「ルリグ」Lv1〜）を入れていた＝その札は一度も場に出られない（`O-544`）。⇒ アシスト系統から選ぶ。
     if (c.pool === 'diva' && c.team) {
-      const mates = centers.filter(m => m !== c && m.team === c.team && m.cls !== c.cls);
+      const mates = assists.filter(m => m.pool === c.pool && m.team === c.team && m.cls !== c.cls);
       // ⚠仲間2人も**互いに違うルリグタイプ**（同じタイプの系統を2本入れるとルリグデッキに同じ札が重なる）
       const m2 = mates.find(m => m.cls !== mates[0]?.cls);
       if (mates.length >= 2 && m2) {
