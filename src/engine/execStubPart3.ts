@@ -523,7 +523,8 @@ export function execStubPart3(
   // ⚠**ACTIVATED 経路の `WX25-P2-005-E1`（このゲームの間〜）は `GAIN_ABILITY_THIS_GAME` が
   //   `game_hand_size_bonus` を積む**ので、ここで足すと**二重に増える**。書かないのが正しい。
   if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
-    return done(addLog(ctx, `手札上限の宣言（判定は collectHandLimits）: ${stub.id}`));
+    // ⚠ログは利用者向けの日本語（旧＝内部の関数名と STUB id がそのまま対戦ログに出ていた・2026-10-21 自己対戦のログで発見）。
+    return done(addLog(ctx, stub.id === 'HAND_SIZE_INCREASE' ? '手札上限が増える' : '対戦相手の手札上限が減る'));
   }
   // ライフバースト特殊（engine: 発動システム改修必要）
   // LIFE_BURST_DOUBLE: 「次に」ありは1回消費、無しはこのターン中の全ライフバーストを2回発動する。

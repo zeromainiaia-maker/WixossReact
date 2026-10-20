@@ -33,9 +33,11 @@ import type { BattleStateRow, CardData, PlayerState } from '../src/types';
 import { setRng } from '../src/engine/rng';
 import { createRuleCheckMemo, type RuleCheckMemo } from '../src/screens/battle/controller/ruleChecks';
 import { CPU_PLAYER_ID } from '../src/screens/battle/battleUtils';
-import { resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { resolveCpuPolicy, patchCpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { collectHandLimits } from '../src/engine/effectEngine';
-import { TURN_SCOPED_STATE_FIELDS } from '../src/screens/battle/turnScopedState';
+import { TURN_SCOPED_STATE_FIELDS, clearEndingPlayerTurnState } from '../src/screens/battle/turnScopedState';
+/** ターンを終える側だけが消す「このターン」のキー（共有関数から取り出す）。 */
+const ENDING_KEYS = Object.keys(clearEndingPlayerTurnState({} as PlayerState));
 import { planLimitExcess } from '../src/screens/battle/limitExcess';
 import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
 import { buildBaseEffectsMap, buildBattleMaterials } from '../src/screens/battle/controller/battleMaterials';
@@ -52,6 +54,9 @@ const SEEDS = arg('--seeds', '1').split(',').map(Number);
  *   既定の CPU が「得にならない」と判断して撃たない【起】・アーツも踏む＝**強さを変えずに被覆だけ広げる**。
  */
 const POLICY = arg('--policy', 'default');
+/** 🆕`--policy-set "key=値,…"`＝ポリシーの値を差し替える（`patchCpuPolicy`＝`selfplay:scan` と同じ書式）。例＝`spellGainMin=-1000000`（解決できるスペルをほぼ全部使う）。 */
+const POLICY_SET = arg('--policy-set', '');
+const policyOf = () => POLICY_SET ? patchCpuPolicy(resolveCpuPolicy(POLICY), POLICY_SET) : resolveCpuPolicy(POLICY);
 const OUT = arg('--out', '');
 /** 🆕生成デッキ（`scripts/synthDecks.ts`）を読むとき＝既定はユーザーのデッキ。 */
 const DECK_DIR = arg('--deck-dir', 'scratchpad-decks');
@@ -100,6 +105,36 @@ const MIRROR = argv.includes('--mirror');
  * ⚠乱数は試合の乱数とは別の列（seed 由来）＝試合の乱数位置は変えるが再現はできる。
  */
 const ANSWER_FUZZ = Number(arg('--answer-fuzz', '0'));
+/**
+ * 🆕`--start <変種,…>`＝**開始盤面を極端にする**（カードは置き場を移すだけ＝保存則の検査はそのまま効く）。
+ *   `lowdeck`＝両者のデッキを8枚まで減らしてトラッシュへ（リフレッシュ・デッキ切れを早く踏む）／
+ *   `bigena`＝デッキの上から8枚ずつエナへ（重いアーツ・【起】を最初から撃てる）／`lowlife`＝ライフを2枚まで減らしてトラッシュへ（終盤の処理）。
+ */
+const START = arg('--start', '').split(',').filter(Boolean);
+/** 🆕`--logs-out <dir>`＝1戦ごとの対戦ログ（テキスト）を書く（ログの文言を実測する用）。 */
+const LOGS_OUT = arg('--logs-out', '');
+/**
+ * 🆕`--use-all-arts`＝両席の作戦データで**ルリグデッキのアーツを全部「攻めと守り」に指名する**（検査専用）。
+ * 🔑CPU が自分のターンに使うアーツは「除去（正面が塞がれているとき）」と作戦データの指名だけ＝ドロー・手札破壊・強化などの
+ *   アーツは**どの検査でも一度も実行されていなかった**（被覆のアーツ 484 / 706）。強さは変えずに被覆だけ広げる口。
+ */
+const USE_ALL_ARTS = argv.includes('--use-all-arts');
+function withAllArts(d: SelfPlayDeck, cardMap: Map<string, CardData>): SelfPlayDeck {
+  if (!USE_ALL_ARTS) return d;
+  const arts = [...new Set(d.lrigDeck.map(n => String(n).split('#')[0]))].filter(n => cardMap.get(n)?.Type === 'アーツ');
+  return { ...d, plan: { ...d.plan, cardUse: { ...(d.plan?.cardUse ?? {}), ...Object.fromEntries(arts.map(n => [n, 'both' as const])) } } };
+}
+function applyStart(row: BattleStateRow): BattleStateRow {
+  if (START.length === 0) return row;
+  const tweak = (st: PlayerState): PlayerState => {
+    let s = { ...st };
+    if (START.includes('bigena')) s = { ...s, energy: [...s.energy, ...s.deck.slice(0, 8)], deck: s.deck.slice(8) };
+    if (START.includes('lowdeck')) s = { ...s, trash: [...s.trash, ...s.deck.slice(8)], deck: s.deck.slice(0, 8) };
+    if (START.includes('lowlife')) s = { ...s, trash: [...s.trash, ...s.life_cloth.slice(2)], life_cloth: s.life_cloth.slice(0, 2) };
+    return s;
+  };
+  return { ...row, host_state: tweak(row.host_state), guest_state: tweak(row.guest_state) };
+}
 function makeAnswerFuzz(seed: number) {
   let a = (seed * 7919 + 17) | 0;
   const r = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -112,6 +147,15 @@ function makeAnswerFuzz(seed: number) {
     if (it.type === 'CHOOSE' && !it.multiSelect && !it.namePool) {
       const opts = it.options.filter((o: any) => o.available && !(o.costColors?.length));
       if (opts.length > 1) sel = [opts[Math.floor(r() * opts.length)].id];
+    } else if (it.type === 'CHOOSE' && it.multiSelect && !it.namePool) {
+      // 複数選択＝支払いの無い押せる肢から（「まで」なら0〜count 個・重複可なら重複も）
+      const opts = it.options.filter((o: any) => o.available && !(o.costColors?.length));
+      if (opts.length > 0) {
+        const n = it.upTo ? Math.floor(r() * (it.count + 1)) : it.count;
+        sel = it.allowRepeat ? Array.from({ length: n }, () => opts[Math.floor(r() * opts.length)].id) : shuffle(opts).slice(0, Math.min(n, opts.length)).map((o: any) => o.id);
+      }
+    } else if (it.type === 'LOOK_AND_REORDER') {
+      sel = shuffle(it.cards);
     } else if (it.type === 'SELECT_TARGET' && it.totalPowerMax === undefined && it.totalLevelMax === undefined && !it.selectionConstraint) {
       const cand = it.candidates.filter((n: string) => !(it.unplaceableCards ?? []).includes(n));
       const cnt = typeof it.count === 'number' ? it.count : 1;
@@ -243,19 +287,21 @@ const HOST_ID = 'headless-host';
 const findings: any[] = [];
 const emit = (f: any) => { findings.push(f); if (OUT) fs.appendFileSync(OUT, JSON.stringify(f) + '\n'); console.log(`  🔴 ${f.kind} ${f.detail}`); };
 
-async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
+async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
+  const a = withAllArts(a0, allCardMap), b = withAllArts(b0, allCardMap);
   const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck].map(n => String(n).split('#')[0]));
   const cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
   const cardMap = new Map(cards.map(c => [c.CardNum, c]));
   rngState.a = seed | 0; setRng(rngNext);
-  const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: resolveCpuPolicy(POLICY), guest: resolveCpuPolicy(POLICY) } });
-  const pol = resolveCpuPolicy(POLICY);
+  const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: policyOf(), guest: policyOf() } });
+  const pol = policyOf();
   const rngAfterSetup = rngState.a;
   /** ターンが変わった時点の盤面（席の鏡を比べる用）。 */
   const turnSnaps: { turn: number; row: BattleStateRow; logs: string[] }[] = [];
   const memo = createRuleCheckMemo();
   const deps = { cards, cpuPlans: { host: a.plan, guest: b.plan }, policy: { host: pol, guest: pol } };
   const fuzz = makeAnswerFuzz(seed);
+  setup.row = applyStart(setup.row);
   const m = createHeadlessMatch(setup.row, { ...deps, initialLogs: setup.logs, memo, ...(ANSWER_FUZZ > 0 ? { reviseAnswer: fuzz.revise } : {}) });
   const tag = `${a.name} vs ${b.name} s${seed}`;
   const initial = new Set(locate(m.row()).loc.keys());
@@ -269,6 +315,8 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const effectsMap = buildBaseEffectsMap(uniqCards);
   let pzSince = -1;
   let limSince = -1;
+  /** REPEAT＝このターンにスタックへ載った効果（スタック項目の id で数える）。 */
+  let repTurn = -1; const repSeen = new Set<string>(); const repCount = new Map<string, number>();
   // ⚠個体 ID（`WX01-001#3`）でも引けるカード表（実機の `InstanceMap` と同じ扱い）＝素の表だとパワーが読めず 0 と誤判定する
   class InstMap extends Map<string, CardData> { get(k: string) { return super.get(k) ?? super.get(numOf(k)); } has(k: string) { return super.has(k) || super.has(numOf(k)); } }
   const instMap = new InstMap(cardMap);
@@ -343,12 +391,60 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
       if (ps.hand.length > lim) once(`HANDLIMIT:${r.turn_count}`, { kind: 'HANDLIMIT', step, turn: r.turn_count, detail: `${prevIsHost ? 'H' : 'G'} 手札${ps.hand.length} > 上限${lim}`, logs: m.logs.slice(-10) });
     }
     if (MIRROR && r.turn_count !== prevRow.turn_count) turnSnaps.push({ turn: r.turn_count, row: r, logs: m.logs.slice(-8) });
+    // 🆕LRIGJUMP＝センタールリグが重なった（枚数が増えた）のに、レベルが2以上跳ねた（グロウはレベル+1まで）
+    //   ⚠候補出し＝「【グロウ】を無視して上に置く」効果は跳ねうる（ログで判定する）
+    for (const [side, a0, a1] of [['H', prevRow.host_state, r.host_state], ['G', prevRow.guest_state, r.guest_state]] as [string, PlayerState, PlayerState][]) {
+      if (a1.field.lrig.length <= a0.field.lrig.length) continue;
+      const lv = (id?: string) => parseInt(cardMap.get(numOf(id ?? ''))?.Level ?? '', 10);
+      const before = lv(a0.field.lrig.at(-1)), after = lv(a1.field.lrig.at(-1));
+      if (Number.isFinite(before) && Number.isFinite(after) && after > before + 1) once(`LRIGJUMP:${numOf(a1.field.lrig.at(-1)!)}`, { kind: 'LRIGJUMP', step, turn: r.turn_count, detail: `${side} センタールリグ Lv${before}→Lv${after}（${a1.field.lrig.at(-1)}）`, logs: m.logs.slice(-8) });
+    }
+    // 🆕REPEAT＝同じ効果（effectId）が1ターンに12回以上スタックに載る（自分自身を使い続ける等の暴走）
+    if (r.turn_count !== repTurn) { repTurn = r.turn_count; repSeen.clear(); repCount.clear(); }
+    for (const e of [...(r.effect_stack?.pendingTurn ?? []), ...(r.effect_stack?.pendingOpp ?? []), ...(r.effect_stack?.queue ?? [])]) {
+      if (!e.effectId || repSeen.has(e.id)) continue;
+      repSeen.add(e.id);
+      const n = (repCount.get(e.effectId) ?? 0) + 1; repCount.set(e.effectId, n);
+      if (n >= 12) once(`REPEAT:${e.effectId}`, { kind: 'REPEAT', step, turn: r.turn_count, detail: `${e.effectId} が1ターンに${n}回スタックに載った`, logs: m.logs.slice(-8) });
+    }
+    // 🆕DRAWLOG／CHARGELOG／BANISHLOG＝**ログに書いたことが盤面で起きたか**（同じ手のログに置換「代わりに」があれば数えない）
+    {
+      const stepLogs = m.logs.slice(logLenBefore);
+      const toAscii = (x: string) => x.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+      if (!stepLogs.some(l => /代わりに|置換/.test(l))) {
+        const sides = [[prevRow.host_state, r.host_state], [prevRow.guest_state, r.guest_state]] as [PlayerState, PlayerState][];
+        const moved = (from: (s: PlayerState) => string[], to: (s: PlayerState) => string[]) =>
+          sides.reduce((n, [a0, a1]) => { const f = new Set(from(a0)); return n + to(a1).filter(id => f.has(id) && !to(a0).includes(id)).length; }, 0);
+        const deckMin = Math.min(prevRow.host_state.deck.length, prevRow.guest_state.deck.length);
+        const drawN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^(?:\[CPU\] )?(\d+)枚ドロー$/)?.[1] ?? 0), 0);
+        if (drawN > 0 && drawN <= deckMin) {
+          const got = moved(st => st.deck, st => st.hand);
+          if (got < drawN) once(`DRAWLOG:${stepLogs.find(l => /ドロー$/.test(l))}`, { kind: 'DRAWLOG', step, turn: r.turn_count, detail: `ログはドロー${drawN}枚・デッキ→手札は${got}枚`, logs: m.logs.slice(-8) });
+        }
+        const chargeN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^エナチャージ(\d+)$/)?.[1] ?? 0), 0);
+        if (chargeN > 0 && chargeN <= deckMin) {
+          const got = moved(st => st.deck, st => st.energy);
+          if (got < chargeN) once(`CHARGELOG:${stepLogs.find(l => /^エナチャージ/.test(l))}`, { kind: 'CHARGELOG', step, turn: r.turn_count, detail: `ログはエナチャージ${chargeN}・デッキ→エナは${got}枚`, logs: m.logs.slice(-8) });
+        }
+        for (const l of stepLogs) {
+          const nm = l.match(/^(?:.+?が)?(.+)をバニッシュ$/)?.[1];
+          if (!nm) continue;
+          const onField = (st: PlayerState) => st.field.signi.filter(z => z?.length && cardMap.get(numOf(z.at(-1)!))?.CardName === nm).length;
+          const before = onField(prevRow.host_state) + onField(prevRow.guest_state), after = onField(r.host_state) + onField(r.guest_state);
+          if (before > 0 && after >= before) once(`BANISHLOG:${nm}`, { kind: 'BANISHLOG', step, turn: r.turn_count, detail: `ログは《${nm}》をバニッシュ・場の《${nm}》は ${before}→${after}`, logs: m.logs.slice(-8) });
+        }
+      }
+    }
     // 🆕TURNLEAK＝ターンが移ったのに「ターン終了時に失効する」値（`TURN_SCOPED_STATE_FIELDS` の turn-end）が**前の手と同じ中身のまま**残っている
     //   ⚠中身が変わっていれば数えない（ターン開始時の予約の昇格で同じキーに新しい値が入るため）
     if (r.turn_count !== prevRow.turn_count) {
       const empty = (v: unknown) => v === undefined || v === null || v === 0 || v === false || (Array.isArray(v) && v.length === 0) || (typeof v === 'object' && v !== null && Object.keys(v).length === 0);
       for (const [side, before, after] of [['H', prevRow.host_state, r.host_state], ['G', prevRow.guest_state, r.guest_state]] as [string, any, any][])
-        for (const [f, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS) as [string, { boundaries: readonly string[] }][]) {
+        for (const [f, spec] of [
+          ...Object.entries(TURN_SCOPED_STATE_FIELDS) as [string, { boundaries: readonly string[] }][],
+          // 🆕ターンを終えた側だけ＝`clearEndingPlayerTurnState` の一覧（相手の state の同じキーは「相手の次のターンまで」でありうる）
+          ...(((side === 'H') === (prevRow.active_user_id === r.host_id)) ? ENDING_KEYS.filter(k => !['actions_done', 'pending_crashed_cards', 'pending_crash_source_card_nums', 'pending_crash_causes'].includes(k)).map(k => [k, { boundaries: ['turn-end'] }] as [string, { boundaries: readonly string[] }]) : []),
+        ]) {
           if (!spec.boundaries.includes('turn-end')) continue;
           const b = before[f], a = after[f];
           // ⚠「次のターン」の予約（`<キー>_next_turn`／`<キー>_until_next_own_turn`）から昇格した分は正しい持ち越し（「次の対戦相手のターン終了時まで」＝2ターン）
@@ -383,6 +479,7 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_pending.json', JSON.stringify(m.row().pending_effect, null, 1), 'utf-8');
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_logs.txt', m.logs.join('\n'), 'utf-8');
   if (MIRROR && reason === 'finished') await mirrorCompare(setup.row, setup.logs, deps, rngAfterSetup, turnSnaps, m.row(), (key, f) => once(key, { game: tag, ...f }));
+  if (LOGS_OUT) { fs.mkdirSync(LOGS_OUT, { recursive: true }); fs.writeFileSync(join(LOGS_OUT, `${tag.replace(/[^\w.-]+/g, '_')}.txt`), m.logs.join(String.fromCharCode(10)), 'utf-8'); }
   if (reason === 'cap') once('CAP', { kind: 'CAP', step, turn: m.row().turn_count, detail: 'step 上限', logs: ctxLogs() });
   const r = m.row();
   if (COV_OUT) fs.appendFileSync(COV_OUT, JSON.stringify({ game: tag, reason, effects: [...covEffects], field: [...covField] }) + String.fromCharCode(10));
@@ -437,7 +534,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));

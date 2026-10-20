@@ -5,6 +5,7 @@ import { activateNextTurnDeployCountLimit } from './deployCountLimit';
 import { activateNextTurnSigniZoneBlocks } from './signiZoneBlock';
 import { applyUpPhaseToField } from './upPhase';
 import { resolveTurnHandover } from './turnHandover';
+import { resolvePendingExiles } from '../../engine/execUtils';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
 type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'main-phase-start' | 'consume';
@@ -182,6 +183,10 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   //   ターン終了プレイヤー側だけを手書きで空にしていた＝**相手のシグニへの「ターン終了時まで －5000」が
   //   相手のターン中もまるごと残っていた**（`WX02-072`《コードアンチ マチュピ》で実機報告）。
   //   ⚠期間の長い分は別ストア（`power_mods_until_opp_turn`／`keyword_grants_until_opp_turn` 等）なので、ここは「このターン」だけ。
+  // 🆕🔴2026-10-21＝**ルリグがシグニに乗っている状態（ドライブ状態）**。乗る効果は原文すべて「ターン終了時まで」
+  //   （【ライド】の注釈・《強奪の箱舟》・《コードライド　シマカゼ》）。旧＝どこでも消えず、**一度乗るとそのシグニが場を離れるまで
+  //   ずっとドライブ状態**だった＝次のターンの【ライド】（「ドライブ状態でない場合に使用できる」）がコストを払って空振りした（自己対戦のログで発見）。
+  lrig_riding_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'lrig rides last until end of turn (every ride text says so)' },
   temp_power_mods: { boundaries: ['turn-end'], reset: [], reason: 'until-end-of-turn power modifiers; stored on the modified signi owner, so both players must expire' },
   temp_level_mods: { boundaries: ['turn-end'], reset: [], reason: 'until-end-of-turn level modifiers; same owner-side storage as temp_power_mods' },
   keyword_grants: { boundaries: ['turn-end'], reset: undefined, reason: 'this-turn keyword grants; longer grants live in keyword_grants_until_opp_turn' },
@@ -462,6 +467,110 @@ function advanceLeaveToTrashWindows(
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 🆕2026-10-21＝**ターンを終えるプレイヤーだけ**の「このターン」の状態を消す（3つのターン終了経路の共通部分）。
+ * 🔴旧＝この一覧は**経路ごとの手書き**だった＝通常の終了（`phaseAdvance.ts`）89個／手札を捨てる終了（`endDiscard.ts`）70個／
+ *   **CPU のターン終了（`cpuTurn.ts`）は34個**＝CPU のターンでは「グロウ禁止」「ルリグへのダメージ無効」「ライフバースト抑制」
+ *   「次のスペルのコスト軽減」などが**ターンを越えて残り**、人間も**手札を捨てたかどうかで**残る状態が変わった（自己対戦の golden 較正で発見）。
+ * ⚠**両者を一律に消す登録表（`TURN_SCOPED_STATE_FIELDS`）とは別物**＝ここのキーは「相手の次のターンまで」相手の state に積まれる形
+ *   （`draw_limit`＝対戦相手の次のドロー上限）を含むので、**ターンを終える側にだけ**掛ける。
+ * ⚠**予約の処理（ターン終了時の除外 `pending_exile_nums` 等）を終えた後の state に掛ける**。
+ * ⚠一覧の正はここ＝新しい「このターン」のキーはここ（両者なら登録表）へ足す。
+ */
+export function clearEndingPlayerTurnState(state: PlayerState): PlayerState {
+  return {
+    ...state,
+    turn_end_energy_trash_targets: undefined,
+    pending_exile_nums: undefined,
+    turn_end_draw_count: undefined,
+    end_turn_effects_resolved: undefined,
+    signi_deploy_count_limit: undefined,
+    actions_done: [],
+    last_effect_draw_source: undefined,
+    pending_crashed_cards: [],
+    pending_crash_source_card_nums: [],
+    crash_source_card_num: undefined,
+    pending_crash_causes: [],
+    crash_cause: undefined,
+    prevent_next_damage: undefined,
+    prevent_next_damage_reservations: undefined,
+    turn_end_mill_count: undefined,
+    damage_replace_mill: undefined,
+    life_crash_replacements: undefined,
+    turn_end_return_to_lrig_deck: undefined,
+    last_summoned_resonas: undefined,
+    banish_redirect: undefined,
+    banish_redirect_target_nums: undefined,
+    banish_redirect_battle_target_nums: undefined,
+    banish_redirect_power0_target_nums: undefined,
+    banish_redirect_by_source_nums: undefined,
+    next_assist_grow_mods: undefined,
+    banish_redirect_by_source_effect_nums: undefined,
+    banish_redirect_once_source_nums: undefined,
+    banish_redirect_to_hand: undefined,
+    banish_redirect_to_exile: undefined,
+    power0_banish_to_trash: undefined,
+    power0_banish_to_trash_opp_only: undefined,
+    double_power_minus_sources: undefined,
+    no_grow: undefined,
+    suppress_life_burst: undefined,
+    prevent_lrig_damage: undefined,
+    prevent_defeat: undefined,
+    declared_number: undefined,
+    declared_class: undefined,
+    hand_signi_guard_enabled: undefined,
+    lrig_limit_mod: undefined,
+    prevent_opp_guard: undefined,
+    draw_limit: undefined,
+    card_class_overrides: undefined,
+    signi_color_overrides: undefined,
+    signi_zone_blocks: undefined,
+    attacked_signi_ids: undefined,
+    signi_attack_once_limit: undefined,
+    signi_attack_cost: undefined,
+    lrig_attack_remaining: undefined,
+    lrig_has_attacked: undefined,
+    pending_signi_battle: undefined,
+    pending_lrig_attack: undefined,
+    pending_banish_substitute: undefined,
+    banish_substitute_choice: undefined,
+    suppress_center_on_play: undefined,
+    crash_to_trash_instead: undefined,
+    crash_to_trash_next_crash_only: undefined,
+    life_crash_counters: undefined,
+    negate_opp_attacks: undefined,
+    all_cont_effects_negated: undefined,
+    turn_hand_discarded_count: undefined,
+    turn_signi_returned_to_hand: undefined,
+    turn_arts_used: undefined,
+    turn_arts_used_names: undefined,
+    turn_arts_used_colors: undefined,
+    turn_pieces_used_names: undefined,
+    banish_to_trash_by_self: undefined,
+    coin_condition_signi_instances: undefined,
+    deck_signi_level_override: undefined,
+    reduce_next_on_play_cost: undefined,
+    optional_discard_guard_enabled: undefined,
+    turn_end_field_trash_targets: undefined,
+    next_spell_uncounterable: undefined,
+    next_spell_cost_reduction: undefined,
+    next_spell_wild_cost_slot: undefined,
+    next_arts_cost_reduction: undefined,
+    next_lrig_act_cost_reduction: undefined,
+    turn_specific_cost_reductions: undefined,
+    turn_trigger_3rd_plant_down: undefined,
+    turn_plant_down_count: undefined,
+    opp_signi_energy_to_deck_bottom: undefined,
+    is_betting_this_effect: undefined,
+    is_boosting_this_effect: undefined,
+    last_discarded_signi_power: undefined,
+    last_discarded_signi_level: undefined,
+    last_discarded_signi_class: undefined,
+    cancel_current_signi_attack: undefined,
+    cancel_current_lrig_attack: undefined,
+  };
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
@@ -554,10 +663,12 @@ export function applyForcedTurnEnd(
   const enderBase = handover.consumeTurnEnder(activeState);
   const oppBase = handover.consumeOpponent(nextState);
   /** ターンを終える側の一時状態をクリア。 */
-  const endTurnClear = (state: PlayerState): PlayerState => clearTurnEndScopedState({
+  // 🆕2026-10-21＝通常のターン終了と同じく**ターン終了時の除外を処理してから**「このターン」の一覧（`clearEndingPlayerTurnState`）も消す
+  //   （旧＝`actions_done` と登録表だけ＝強制終了のターンではグロウ禁止・ダメージ無効などが残った）。
+  const endTurnClear = (state: PlayerState): PlayerState => clearTurnEndScopedState(clearEndingPlayerTurnState(resolvePendingExiles({
     ...state,
     actions_done: [],
-  });
+  }, true)));
   /** これからターンを行う側＝シグニをアップ（凍結中はアップせず凍結解除）＋次ターン予約の昇格。 */
   const startTurn = (state: PlayerState): PlayerState =>
     activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({

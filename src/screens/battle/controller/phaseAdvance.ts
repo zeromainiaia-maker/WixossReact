@@ -26,7 +26,7 @@ import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
 import {clearUntilOppTurnEffects} from '../untilOppTurn';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
-import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
+import {clearEndingPlayerTurnState, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import type { PerformCtx } from './performCtx';
 import { makeTrigCtxForPhase } from './execCtxDeps';
 
@@ -378,7 +378,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
 
       // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
       // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-      newMyState = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      newMyState = clearTurnEndScopedState(clearEndingPlayerTurnState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...myEndState,
         hand: myHandEND,
         deck: myDeckPreLimit,
@@ -443,7 +443,6 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
         attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
         signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
         signi_attack_cost: undefined,             // シグニアタックコストリセット
-        lrig_riding_signi: undefined,             // ドライブ状態（ライド）をリセット
         lrig_attack_remaining: undefined,         // マルチダメージ残数リセット
         lrig_has_attacked: undefined,             // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined,          // シグニバトル解決待ちフラグをリセット
@@ -491,7 +490,7 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
         last_discarded_signi_class: undefined,
         cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
         cancel_current_lrig_attack: undefined,      // 同上（ルリグアタック版・`WXDi-P09-036-E1`）
-      })));
+      }))));
       // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
       // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
       const opKey = isHost ? 'guest_state' : 'host_state';

@@ -16,6 +16,7 @@ import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
 //   トラッシュ【起】と同じ funnel を使う（写経しない）。
 import { canOfferTrashActivate } from './trashActivateCost';
+import { isEnergyAcceActivated } from './offFieldActivateGate';
 import type { EnergyPayEntry } from './energyPaySource';
 import type { TurnPhase } from '../../types';
 
@@ -200,6 +201,10 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     // ⚠**これで撃てなくなる**（正しい入口＝手札／エナの【起】はまだ surface していない）＝
     //   **踏み倒しのまま撃てるより安全側**。入口を作るのは §5.7 `S-31` の残り作業。
     !e.cost?.handExileSelf && !e.cost?.energyTrashSelf &&
+    // 🆕🔴2026-10-21＝**「このカードをエナゾーンから【アクセ】にする」【起】**（`isEnergyAcceActivated`・live 20効果）も同じ家族。
+    //   `energyActivated` が立っていないのでここを素通りし、**場にいる同じカードで撃てた**＝コストを払って
+    //   「エナ/手札/ルリグデッキにない」で空振りした（自己対戦のログで発見・《コードイート　メダマヤキ》）。正しい入口はエナゾーン（`offFieldActivateGate`）。
+    !isEnergyAcceActivated(e) &&
     // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
     //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
     !e.costUnparsed &&

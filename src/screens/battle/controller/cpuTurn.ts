@@ -69,7 +69,7 @@ import {searchCpuMove} from '../cpuSearch';
 import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssistGrow';
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
-import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
+import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearEndingPlayerTurnState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
 
 import type { SummonActorCtx } from './performSummonSigni';
@@ -1721,7 +1721,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (cpuEnergyTrashEND.trashed.length > 0) {
       appendBattleLogs([`ターン終了時：CPUの${cpuEnergyTrashEND.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
     }
-    const cleanCpuSt: PlayerState = clearTurnEndScopedState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+    // 🆕2026-10-21＝ターンを終える側の「このターン」の状態は人間の2経路と同じ1本（`clearEndingPlayerTurnState`）で消す（旧＝34個しか消しておらず、グロウ禁止・ダメージ無効などが CPU のターンを越えて残った）。
+    const cleanCpuSt: PlayerState = clearTurnEndScopedState(clearEndingPlayerTurnState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
       ...cpuEndState,
       energy: cpuEnergyTrashEND.state.energy,
       trash: cpuEnergyTrashEND.state.trash,
@@ -1743,7 +1744,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
       pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
       turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
-    })), true));
+    })), true)));
     // §6.4 O-3: CPU のターン終了も人間の2経路と**同じ `resolveTurnHandover`** を通す。
     // ⚠🔴従来ここは無条件で `activeUserId: user.id`＝**CPU が取った追加ターンも、人間が予約した
     //   「次の自分のターンをスキップ」（`WD20-006-E1`＝相手ターン中に撃つアーツ）も効かなかった**。

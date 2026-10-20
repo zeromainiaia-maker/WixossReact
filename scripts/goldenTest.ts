@@ -220,7 +220,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { applyForcedTurnEnd, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn, consumeGuardAltLoseAbility } from '../src/screens/battle/turnScopedState';
+import { applyForcedTurnEnd, clearEndingPlayerTurnState, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn, consumeGuardAltLoseAbility } from '../src/screens/battle/turnScopedState';
 import { consumeActivateCostZero } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
@@ -6246,10 +6246,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 41, '命名規約外のターン限定フィールド数（🆕 41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
+  eq(irregular.length, 42, '命名規約外のターン限定フィールド数（🆕 42＝2026-10-21 自己対戦のログで lrig_riding_signi（ドライブ状態＝「ターン終了時まで」）を登録。41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 109, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 109＝2026-10-14 §5.3 `O-543` 第3巡で3件登録。106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 110, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 110＝2026-10-21 lrig_riding_signi を登録。109＝2026-10-14 §5.3 `O-543` 第3巡で3件登録。106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -6274,6 +6274,9 @@ test('§6.4 turn-scoped T2: funnel 外のターン限定フィールド手書き
       const pattern = new RegExp(`(?:\\b${escaped}\\s*:|\\.${escaped}\\s*=)\\s*${resetLiteral}`, 'g');
       for (const match of source.matchAll(pattern)) {
         const line = source.slice(0, match.index).split('\n').length;
+        // 🆕2026-10-21＝**ターン終了のリセットではない、効果そのものの書き込み**だけを理由つきで許す。
+        //   `CENTER_LRIG_DISMOUNT`（「降りる」＝ドライブ状態の解除）は効果の帰結であって失効ではない。
+        if (/execStubPart3\.ts$/.test(path) && field === 'lrig_riding_signi') continue;
         hits.push(`${path.replace(root, '')}:${line}:${match[0]}`);
       }
     }
@@ -72144,6 +72147,45 @@ test('2026-10-20 自己対戦（生成デッキ）: PLAY_FREE は効果元へ落
   ok(/ownCheckFirst: ownCheckFirst === 'guest'/.test(hm) && /ownCheckFirst: ownCheckFirst === 'host'/.test(hm), '🔴両者チェックのとき両席へ口を渡していない');
   const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
   ok(/if \(huSt\.field\?\.check && !\(d\.ownCheckFirst && cpuSt\.field\?\.check\)\) return;/.test(ct), '🔴cpuTurn が両者チェックの口を見ていない');
+}));
+
+test('2026-10-21 ターン終了の4経路が「ターンを終える側のこのターンの状態」を同じ1本（clearEndingPlayerTurnState）で消す', () => withSavedCursor(() => {
+  // 🔴旧＝一覧が経路ごとの手書き（通常の終了89個／手札を捨てる終了70個／CPU のターン終了34個／強制終了0個）
+  //   ＝CPU のターンや「このターンを終了する」で終わったターンでは、グロウ禁止・ルリグへのダメージ無効・次のスペルのコスト軽減などが残った。
+  const files: Record<string, string> = {
+    phaseAdvance: 'src/screens/battle/controller/phaseAdvance.ts', endDiscard: 'src/screens/battle/controller/endDiscard.ts',
+    cpuTurn: 'src/screens/battle/controller/cpuTurn.ts', forced: 'src/screens/battle/turnScopedState.ts',
+  };
+  for (const [k, f] of Object.entries(files))
+    ok(/clearEndingPlayerTurnState\(/.test(fs.readFileSync(join(root, f), 'utf8').replace(/export function clearEndingPlayerTurnState\(/, '')), `🔴${k} のターン終了が共有の一覧を通らない`);
+  const dirty = { ...mkState(), no_grow: true, prevent_lrig_damage: true, next_spell_cost_reduction: 1, draw_limit: 1, suppress_life_burst: true } as unknown as PlayerState;
+  const cleared = clearEndingPlayerTurnState(dirty) as unknown as Record<string, unknown>;
+  for (const k of ['no_grow', 'prevent_lrig_damage', 'next_spell_cost_reduction', 'draw_limit', 'suppress_life_burst']) eq(cleared[k], undefined, `${k} が消えない`);
+  const forced = applyForcedTurnEnd(dirty, mkState());
+  eq((forced.activeAfter as unknown as Record<string, unknown>).no_grow, undefined, '🔴強制終了で「このターン」の状態が残る');
+  // ⚠ターン終了時の除外の予約は、消す前に処理する（強制終了でも予約が消えない）。
+  const withExile = { ...mkState({ signi: ['WD01-012#9', null, null] }), pending_exile_nums: ['WD01-012#9'] } as PlayerState;
+  ok((applyForcedTurnEnd(withExile, mkState()).activeAfter.excluded ?? []).includes('WD01-012#9'), '強制終了でターン終了時の除外が失われた');
+}));
+
+test('2026-10-21 自己対戦（ログ）: エナ用のアクセ【起】は場から撃てない／ドライブ状態はターン終了で消える／ログに内部 ID を出さない', () => withSavedCursor(() => {
+  // 🔴旧①＝「このカードをエナゾーンから【アクセ】にする」【起】（`WX15-102-E1` ほか live 20効果）が**場のシグニの【起】としても**提示された
+  //   （`energyActivated` が立っていないため）＝場の《コードイート　メダマヤキ》で撃ってコストだけ払い「エナ/手札/ルリグデッキにない」で空振り。
+  const acceEff = effectsMap.get('WX15-102')?.find(e => e.effectId === 'WX15-102-E1') as CardEffect;
+  ok(!!acceEff && isEnergyAcceActivated(acceEff), 'WX15-102-E1 がエナ用のアクセ【起】でない（前提が崩れた）');
+  const st = mkState({ signi: ['WX15-102#1', null, null], energy: 3 });
+  eq(listActivatableSigniEffects({ my: st, op: mkState(), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([['WX15-102#1', [acceEff]]]), cardMap: cardMap as Map<string, CardData> }).length, 0,
+    '🔴エナゾーン用のアクセ【起】が場のシグニの【起】として提示された');
+  // 🔴旧②＝ルリグがシグニに乗った状態（`lrig_riding_signi`）がどこでも消えず、次のターンの【ライド】（ドライブ状態でない場合に使用できる）が空振りした。
+  const riding = { ...mkState({ signi: ['WXK01-020#1', null, null] }), lrig_riding_signi: ['WXK01-020#1'] } as PlayerState;
+  eq((clearTurnEndScopedState(riding).lrig_riding_signi ?? []).length, 0, '🔴ドライブ状態がターン終了で消えない（乗る効果は全部「ターン終了時まで」）');
+  ok((TURN_SCOPED_STATE_FIELDS as Record<string, { boundaries: readonly string[] }>).lrig_riding_signi?.boundaries.includes('turn-end'), 'ターン限定の登録表に無い');
+  // 🔴旧③＝ログに内部の関数名・STUB id（「手札上限の宣言（判定は collectHandLimits）: HAND_SIZE_INCREASE」）／「ルリグ付与能力: undefined」。
+  const r1 = executeAction({ type: 'STUB', id: 'HAND_SIZE_INCREASE' } as unknown as EffectAction, mkCtx({}, {}));
+  ok(!r1.logs.some(l => /HAND_SIZE_INCREASE|collectHandLimits/.test(l)), '🔴ログに内部 ID が出る');
+  const r2 = executeAction({ type: 'GRANT_LRIG_ABILITY', abilities: [{ effectId: 'T-G1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true }] } as unknown as EffectAction, mkCtx({ lrig: ['WD01-001#1'] }, {}));
+  ok(!r2.logs.some(l => /undefined/.test(l)), '🔴ルリグ付与能力のログに undefined が出る');
 }));
 
 test('2026-10-21 自己対戦（乱数の答え）: 効果によるグロウ・ルリグを上に置く効果がルリグデッキの先頭を無条件で使わない', () => {

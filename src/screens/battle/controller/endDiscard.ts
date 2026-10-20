@@ -18,7 +18,7 @@ import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
 import {clearUntilOppTurnEffects} from '../untilOppTurn';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
-import {clearTurnEndScopedState} from '../turnScopedState';
+import {clearEndingPlayerTurnState, clearTurnEndScopedState} from '../turnScopedState';
 
 /** 画面だけが持つ捨て札モーダルの状態。 */
 export interface EndDiscardUi {
@@ -182,7 +182,7 @@ export async function confirmEndDiscard(c: PerformCtx, ui: EndDiscardUi): Promis
     // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
     // ここではフラグのクリアと最終クリーンアップのみ行う。
     // ターン内一時状態をクリアして newMyState を確定
-    let newMyState: typeof my = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+    let newMyState: typeof my = clearTurnEndScopedState(clearEndingPlayerTurnState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
       ...myEndState,
       hand: myHandEND,
       trash: myTrashAfterCoinCheck,
@@ -220,7 +220,7 @@ export async function confirmEndDiscard(c: PerformCtx, ui: EndDiscardUi): Promis
       draw_limit: undefined, card_class_overrides: undefined,
       signi_color_overrides: undefined, signi_zone_blocks: undefined,
       attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
-      signi_attack_cost: undefined, lrig_riding_signi: undefined,
+      signi_attack_cost: undefined,
       lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
       crash_to_trash_instead: undefined, crash_to_trash_next_crash_only: undefined, negate_opp_attacks: undefined,
       all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
@@ -234,7 +234,7 @@ export async function confirmEndDiscard(c: PerformCtx, ui: EndDiscardUi): Promis
       is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
       last_discarded_signi_class: undefined,      // §5.3 `O-328`: レベルと同じ寿命へ揃える
       cancel_current_signi_attack: undefined, cancel_current_lrig_attack: undefined,
-    })));
+    }))));
     // 相手のアップ処理
     const opKey = isHost ? 'guest_state' : 'host_state';
     // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）

@@ -11512,7 +11512,7 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
             : {}),
         };
         const nextCtx = targetsOpponent ? { ...ctx, otherState: newTarget } : { ...ctx, ownerState: newTarget };
-        return done(addLog(nextCtx, `${targetsOpponent ? '対戦相手の' : ''}ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
+        return done(addLog(nextCtx, `${targetsOpponent ? '対戦相手の' : ''}ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText ?? `能力を${ga.abilities.length}つ得る`}`));
       }
       return done(ctx);
     }
