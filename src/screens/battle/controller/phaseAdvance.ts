@@ -1,15 +1,13 @@
 import type {BattleStateRow, PlayerState, StackEntry, EffectStack, TurnPhase} from '../../../types';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {CardEffect} from '../../../types/effects';
-import {applyLrigDrawPhaseReplacement, calcContinuousBlockedActions, collectHandLimits, collectDrawLimits, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
+import {calcContinuousBlockedActions, collectHandLimits} from '../../../engine/effectEngine';
+import {drawPhaseDraw} from '../drawPhase';
 import {getCardNum} from '../../../engine/effectExecutor';
 import {resolvePendingExiles} from '../../../engine/execUtils';
 import {initStack, pushToStack} from '../../../engine/effectStack';
 import {collectDrawTriggers as pureCollectDrawTriggers, collectTurnTriggers as pureCollectTurnTriggers} from '../../../engine/triggerCollect';
-import {resolveTurnEndPreventionMill} from '../damagePrevention';
-import {resolveTurnEndLrigDeckReturn} from '../turnEndLrigDeckReturn';
-import {resolveTurnEndHandReturn} from '../turnEndHandReturn';
-import {resolveTurnEndEnergyTrash} from '../turnEndEnergyTrash';
+import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {generateUUID, drawCards} from '../battleUtils';
 import {recordEnergyPlacements} from '../../../engine/energyPlacement';
@@ -94,17 +92,8 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
 
     if (phase === 'UP') {
       // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
-      const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
-      // draw_limit: ターン内フラグ or 相手CONT LIMIT_OPP_DRAW_COUNT 効果の小さい方
-      const contDrawLimit = collectDrawLimits(op, effectsMap, battleCardMap, true, my);
-      // 🔴CONTINUOUS `BLOCK_ACTION{DRAW_LIMIT_<n>}`（`WX04-005-E2`）も上限として合流させる
-      //   （2026-08-19 続き567・§3 (cxxxv) と同じ「生成されるのに誰も読んでいない id」クラスだった）。
-      const blockDrawLimit = drawPhaseLimitFromBlocked(contBlocked.forSelf);
-      const effectiveDrawLimit = [my.draw_limit, contDrawLimit, blockDrawLimit]
-        .filter((n): n is number => n !== undefined)
-        .reduce<number | undefined>((min, n) => (min === undefined ? n : Math.min(min, n)), undefined);
-      const replacedDrawCount = applyLrigDrawPhaseReplacement(my, drawCount);
-      const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(replacedDrawCount, effectiveDrawLimit) : replacedDrawCount;
+      // 🆕2026-10-21＝枚数の判定は CPU と同じ1本（`drawPhase.ts`）。
+      const { blocked: drawBlocked, count: effectiveDrawCount } = drawPhaseDraw({ my, op, effectsMap, cardMap: battleCardMap, blockedSelf: contBlocked.forSelf, baseCount: drawCount });
       const preventRefreshTrash = fieldSigniStacks(my).some(s => {
         const top = s?.at(-1);
         return top && (effectsMap.get(top) ?? []).some(e =>
@@ -218,127 +207,19 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
       logFacedownEND('', facedownMyEND.flipped, facedownMyEND.trashed);
       logFacedownEND('相手の', facedownOpEND.flipped, facedownOpEND.trashed);
 
-      // ENDフェーズ：ビートゾーン全カードをトラッシュへ（手札上限処理と同タイミング）
-      let myBeatEND = myEndState.field.beat_zone ?? [];
-      let myTrashBeat = myEndState.trash;
-      if (myBeatEND.length > 0) {
-        myTrashBeat = [...myEndState.trash, ...myBeatEND];
-        appendBattleLogs([`ビートゾーン（${myBeatEND.length}枚）をトラッシュへ`]);
-        myBeatEND = [];
-      }
-
-      // ENDフェーズ①：「ターン終了時に」と書かれた効果をすべて解決する。
+      // ENDフェーズ①：「ターン終了時に」と書かれた予約をすべて解決する（ビートゾーン・ミル・ドロー・コイン条件・場のトラッシュ・
+      //   エナのトラッシュ・ルリグデッキへ戻す・手札へ戻す・このゲームの間のトラッシュ→手札・遅延除外）。
+      // 🆕2026-10-21＝**CPU のターン終了と同じ1本**（`turnEndStepOne.ts`）へ出した（旧＝ここにだけ書かれ、CPU のターンでは大半が起きなかった）。
       // 公式ルール：エンドフェイズは ①「ターン終了時に」効果 → ②手札上限調整(6枚) → ③ターン終了 の順。
-      // 手札を増やす効果（ドロー／トラッシュ→手札）も②より前に解決する必要があるため、ここで一括処理する。
-      // ※標準の timing:ON_TURN_END 効果は上の collectTurnTriggers でスタック解決済み（同じく②より前）。
-      let myHandEND = myEndState.hand;
-      let myDeckPreLimit = myEndState.deck;
-      let myFieldAfterCoinCheck = { ...myEndState.field, beat_zone: myBeatEND };
-      let myTrashAfterCoinCheck = myTrashBeat;
-      let myExcludedEND = myEndState.excluded;
-      let myEnergyEND = myEndState.energy;
-      if (!turnEndEffectsAlreadyResolved && (my.turn_end_mill_count ?? 0) > 0) {
-        const resolved = resolveTurnEndPreventionMill({ ...my, deck: myDeckPreLimit, trash: myTrashAfterCoinCheck });
-        myDeckPreLimit = resolved.state.deck;
-        myTrashAfterCoinCheck = resolved.state.trash;
-        appendBattleLogs([`ターン終了時：デウスシールドの能力でデッキの上から${resolved.milled.length}枚をトラッシュへ`]);
-      }
-      // DRAW_AT_TURN_END: このターン終了時に引く（このシグニが場を離れていても引く）
-      if (!turnEndEffectsAlreadyResolved && (my.turn_end_draw_count ?? 0) > 0) {
-        const nDrawEND = my.turn_end_draw_count!;
-        const drawnEND = myDeckPreLimit.slice(0, nDrawEND);
-        myDeckPreLimit = myDeckPreLimit.slice(nDrawEND);
-        myHandEND = [...myHandEND, ...drawnEND];
-        appendBattleLogs([`ターン終了時：カードを${drawnEND.length}枚引く`]);
-      }
-      // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
-      if (!turnEndEffectsAlreadyResolved && (my.coin_condition_signi_instances ?? []).length > 0) {
-        const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
-        if (!coinSpent) {
-          // コイン未消費 → coin_condition_signi_instances のシグニをトラッシュ
-          const newSigniField = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
-          for (const instId of my.coin_condition_signi_instances ?? []) {
-            for (let zi = 0; zi < 3; zi++) {
-              if (newSigniField[zi]?.includes(instId)) {
-                myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...newSigniField[zi]!];
-                newSigniField[zi] = null;
-                appendBattleLogs([`コイン消費なし → ${battleCardMap.get(instId)?.CardName ?? instId}をトラッシュ`]);
-              }
-            }
-          }
-          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
-        }
-      }
-      let myLrigDeckReturned: string[] = [];
-      // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
-      if (!turnEndEffectsAlreadyResolved && (my.turn_end_field_trash_targets ?? []).length > 0) {
-        const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
-        const trashedTEFT: string[] = [];
-        for (const targetId of my.turn_end_field_trash_targets!) {
-          const zi = newFieldSigniTEFT.findIndex(stack => stack?.at(-1) === targetId);
-          if (zi < 0) continue;
-          newFieldSigniTEFT[zi] = null;
-          trashedTEFT.push(targetId);
-        }
-        if (trashedTEFT.length > 0) {
-          myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...trashedTEFT];
-          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newFieldSigniTEFT };
-          appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
-        }
-      }
-      // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（TRASH_ENERGY_AT_TURN_END）
-      if (!turnEndEffectsAlreadyResolved) {
-        const et = resolveTurnEndEnergyTrash({ ...my, energy: myEnergyEND, trash: myTrashAfterCoinCheck });
-        if (et.trashed.length > 0) {
-          myEnergyEND = et.state.energy;
-          myTrashAfterCoinCheck = et.state.trash;
-          appendBattleLogs([`ターン終了時：${et.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
-        }
-      }
-      // turn_end_return_to_lrig_deck: 一時レゾナをルリグデッキへ戻す（§6.4 funnel＝2経路で同じ関数を通す）
-      if (!turnEndEffectsAlreadyResolved) {
-        const ret = resolveTurnEndLrigDeckReturn({ ...my, field: myFieldAfterCoinCheck });
-        if (ret.returned.length > 0) {
-          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
-          myLrigDeckReturned = ret.returned;
-          appendBattleLogs([`ターン終了時：${ret.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す`]);
-        }
-      }
-      // turn_end_return_to_hand: 「ターン終了時、それを場から手札に戻す」（§6.4 O-10 続き509・funnel＝2経路）
-      if (!turnEndEffectsAlreadyResolved) {
-        const rh = resolveTurnEndHandReturn({ ...my, field: myFieldAfterCoinCheck });
-        if (rh.returned.length > 0) {
-          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: rh.state.field.signi };
-          // 🔑**手札上限チェックより前に手札へ入れる**（memory: エンドフェイズは①ターン終了時効果→②手札上限）。
-          //   後から足すと上限超過分が捨てられずに残る。
-          myHandEND = [...myHandEND, ...rh.returned];
-          appendBattleLogs([`ターン終了時：${rh.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を手札に戻す`]);
-        }
-      }
-      // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
-      if (!turnEndEffectsAlreadyResolved && my.game_turn_end_trash_to_hand) {
-        const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
-        const ttMatches = myTrashAfterCoinCheck.filter(cn => {
-          const c = battleCardMap.get(cn);
-          return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(ttCls);
-        });
-        const ttToHand = ttMatches.slice(0, ttCnt);
-        if (ttToHand.length > 0) {
-          myTrashAfterCoinCheck = myTrashAfterCoinCheck.filter(cn => !ttToHand.includes(cn));
-          myHandEND = [...myHandEND, ...ttToHand];
-          appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
-        }
-      }
-      // 遅延自己除外：場に残っていてもターン終了時には除外する。
-      const exileAtEnd = resolvePendingExiles({
-        ...my, hand: myHandEND, deck: myDeckPreLimit,
-        trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
-      }, true);
-      myHandEND = exileAtEnd.hand;
-      myDeckPreLimit = exileAtEnd.deck;
-      myTrashAfterCoinCheck = exileAtEnd.trash;
-      myFieldAfterCoinCheck = { ...exileAtEnd.field, beat_zone: exileAtEnd.field.beat_zone ?? [] };
-      myExcludedEND = exileAtEnd.excluded;
+      const stepOneEND = resolveTurnEndStepOne(myEndState, battleCardMap);
+      if (stepOneEND.logs.length > 0) appendBattleLogs(stepOneEND.logs);
+      const myHandEND = stepOneEND.state.hand;
+      const myDeckPreLimit = stepOneEND.state.deck;
+      const myTrashAfterCoinCheck = stepOneEND.state.trash;
+      const myFieldAfterCoinCheck = stepOneEND.state.field;
+      const myExcludedEND = stepOneEND.state.excluded;
+      const myEnergyEND = stepOneEND.state.energy;
+      const myLrigDeckReturned = stepOneEND.lrigDeckReturned;
 
       // 🆕2026-09-29（報告 001668ea の同型）＝**予約型の「ターン終了時」（このシグニをトラッシュ／手札に戻す／カードを引く…）も
       //   エンドフェイズに入った時点で解決する**。→END の遷移で `__TURN_END_ON_ENTRY__` を立てた回は、ここで①の結果だけを

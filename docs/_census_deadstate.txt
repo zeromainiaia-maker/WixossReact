@@ -6,12 +6,12 @@ PlayerState のキー: 389
 
 
 ## 参考：書き込みの多い順（上位40）
-  1827 読 / 116 書  energy
-  1495 読 /  79 書  deck
-  4159 読 /  74 書  field
-  2182 読 /  71 書  hand
-  1919 読 /  65 書  trash
-   259 読 /  34 書  lrig_deck
+  1829 読 / 115 書  energy
+  1500 読 /  76 書  deck
+  4167 読 /  71 書  field
+  2187 読 /  70 書  hand
+  1923 読 /  62 書  trash
+   260 読 /  34 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    202 読 /  26 書  lrig_trash
    311 読 /  19 書  actions_done
@@ -32,17 +32,17 @@ PlayerState のキー: 389
      2 読 /   8 書  banish_redirect_battle_target_nums
      2 読 /   8 書  banish_redirect_power0_target_nums
      4 読 /   8 書  prevent_defeat
+     1 読 /   8 書  draw_limit
      5 読 /   8 書  signi_color_overrides
+     2 読 /   8 書  turn_end_energy_trash_targets
      1 読 /   8 書  cancel_current_signi_attack
     13 読 /   7 書  story_overrides
      5 読 /   7 書  crash_cause
-     1 読 /   7 書  draw_limit
+     3 読 /   7 書  turn_end_mill_count
+     2 読 /   7 書  turn_end_return_to_lrig_deck
+     3 読 /   7 書  last_summoned_resonas
      4 読 /   7 書  signi_deploy_count_limit
      1 読 /   7 書  acce_just_done
      1 読 /   7 書  crash_to_trash_instead
-     2 読 /   7 書  turn_end_energy_trash_targets
      7 読 /   7 書  turn_arts_used_names
      4 読 /   7 書  turn_arts_used_colors
-     2 読 /   7 書  turn_pieces_used_names
-    17 読 /   7 書  pending_signi_battle
-    19 読 /   7 書  lrig_upkeep_condition

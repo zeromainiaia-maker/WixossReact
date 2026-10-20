@@ -195,6 +195,8 @@ import { listOffFieldActivatableEffects, offFieldActivateTiming } from '../src/s
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
+import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { resolveTurnEndStepOne } from '../src/screens/battle/turnEndStepOne';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -50732,7 +50734,9 @@ test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を
     // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8')
+    // 🆕2026-10-21＝エンドフェイズ①は人間・CPU 共通の `turnEndStepOne.ts` へ出した（`phaseAdvance` はそこ経由で呼ぶ）。
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/turnEndStepOne.ts'), 'utf8');
   const calls = (src.match(/resolveTurnEndLrigDeckReturn\(/g) ?? []).length;
   eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
@@ -50784,15 +50788,18 @@ test('V-19 一時レゾナ: funnel の戻り値が全ターン終了出口で lr
     // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
     + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8')
+    // 🆕2026-10-21＝エンドフェイズ①は人間・CPU 共通の `turnEndStepOne.ts` へ出した。
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/turnEndStepOne.ts'), 'utf8');
   const vars = [...src.matchAll(/(\w+)\s*=\s*ret\.returned;/g)].map(m => m[1]);
   eq(vars.length, 2, `funnel の戻り値を受ける変数が2つ見つからない（${vars.join(',')}）`);
   for (const v of vars) {
-    ok(src.includes(`lrig_deck: [...myEndState.lrig_deck, ...${v}]`),
+    ok(src.includes(`lrig_deck: [...myEndState.lrig_deck, ...${v}]`) || src.includes(`lrig_deck: [...endState.lrig_deck, ...${v}]`),
        `${v} が lrig_deck へ永続化されていない＝場から消えたレゾナがどこにも戻らない`);
   }
-  const sites = (src.match(/lrig_deck: \[\.\.\.myEndState\.lrig_deck, \.\.\./g) ?? []).length;
-  eq(sites, 3, `ターン終了の出口3つ（上限超過で中断／通常／confirmEndDiscard）すべてで戻し入れる（現在 ${sites} 箇所）`);
+  // 🆕2026-10-21＝出口は4つ（上限超過で中断／通常／confirmEndDiscard／共通のエンドフェイズ①＝CPU も通る）。
+  const sites = (src.match(/lrig_deck: \[\.\.\.(?:myEndState|endState)\.lrig_deck, \.\.\./g) ?? []).length;
+  eq(sites, 4, `ターン終了の出口4つ（上限超過で中断／通常／confirmEndDiscard／turnEndStepOne）すべてで戻し入れる（現在 ${sites} 箇所）`);
 });
 
 
@@ -72147,6 +72154,35 @@ test('2026-10-20 自己対戦（生成デッキ）: PLAY_FREE は効果元へ落
   ok(/ownCheckFirst: ownCheckFirst === 'guest'/.test(hm) && /ownCheckFirst: ownCheckFirst === 'host'/.test(hm), '🔴両者チェックのとき両席へ口を渡していない');
   const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
   ok(/if \(huSt\.field\?\.check && !\(d\.ownCheckFirst && cpuSt\.field\?\.check\)\) return;/.test(ct), '🔴cpuTurn が両者チェックの口を見ていない');
+}));
+
+test('2026-10-21 エンドフェイズ①（ターン終了時の予約）は人間と CPU が同じ1本（resolveTurnEndStepOne）', () => withSavedCursor(() => {
+  // 🔴旧＝CPU のターン終了はドローとエナのトラッシュしか処理せず、「ターン終了時、このシグニをトラッシュ」「手札に戻す」・一時レゾナの返却・
+  //   ビートゾーン・ミル・コイン条件が CPU のターンでは全部起きなかった（予約は後片付けで消えた）。
+  const st = { ...mkState({ signi: ['WD01-012#1', 'WD01-013#1', null] }),
+    turn_end_field_trash_targets: ['WD01-012#1'], turn_end_return_to_hand: ['WD01-013#1'],
+    field: { ...mkState({ signi: ['WD01-012#1', 'WD01-013#1', null] }).field, beat_zone: ['WD01-014#1'] } } as unknown as PlayerState;
+  const r = resolveTurnEndStepOne(st, cardMap as Map<string, CardData>);
+  ok(r.state.trash.includes('WD01-012#1'), '🔴「ターン終了時、このシグニをトラッシュ」が起きない');
+  ok(r.state.hand.includes('WD01-013#1'), '🔴「ターン終了時、手札に戻す」が起きない');
+  ok(r.state.trash.includes('WD01-014#1') && (r.state.field.beat_zone ?? []).length === 0, '🔴ビートゾーンがトラッシュへ行かない');
+  eq(r.state.end_turn_effects_resolved, true, '解決済みの印が立たない');
+  // ⚠解決済みなら二重に適用しない（手札上限の捨て札で誘発を解決して戻ってきた回）。
+  const again = resolveTurnEndStepOne({ ...st, end_turn_effects_resolved: true } as PlayerState, cardMap as Map<string, CardData>);
+  ok(!again.state.trash.includes('WD01-012#1'), '解決済みなのにもう一度トラッシュした');
+  for (const f of ['src/screens/battle/controller/phaseAdvance.ts', 'src/screens/battle/controller/cpuTurn.ts'])
+    ok(/resolveTurnEndStepOne\(/.test(fs.readFileSync(join(root, f), 'utf8')), `🔴${f} のエンドフェイズ①が共有の1本を通らない`);
+}));
+
+test('2026-10-21 ドローフェイズの枚数（禁止・上限・置換）は人間と CPU が同じ1本（drawPhaseDraw）', () => withSavedCursor(() => {
+  // 🔴旧＝CPU は【常】の DRAW_LIMIT_<n> しか見ず、ドロー禁止・`draw_limit`（「対戦相手の次のドローは〜枚まで」）・ドローの置換を素通りした。
+  const base = { op: mkState(), effectsMap: new Map(), cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set<string>(), baseCount: 2 };
+  eq(drawPhaseDraw({ ...base, my: mkState() }).count, 2, '既定は2枚');
+  eq(drawPhaseDraw({ ...base, my: { ...mkState(), draw_limit: 1 } as PlayerState }).count, 1, '🔴draw_limit が効かない');
+  eq(drawPhaseDraw({ ...base, my: { ...mkState(), blocked_actions: ['DRAW'] } as PlayerState }).blocked, true, '🔴ドロー禁止が効かない');
+  eq(drawPhaseDraw({ ...base, my: mkState(), blockedSelf: new Set(['DRAW_LIMIT_1']) }).count, 1, '【常】のドロー上限');
+  for (const f of ['src/screens/battle/controller/phaseAdvance.ts', 'src/screens/battle/controller/cpuTurn.ts'])
+    ok(/drawPhaseDraw\(\{/.test(fs.readFileSync(join(root, f), 'utf8')), `🔴${f} がドローの枚数を共有の1本で決めていない`);
 }));
 
 test('2026-10-21 ターン終了の4経路が「ターンを終える側のこのターンの状態」を同じ1本（clearEndingPlayerTurnState）で消す', () => withSavedCursor(() => {

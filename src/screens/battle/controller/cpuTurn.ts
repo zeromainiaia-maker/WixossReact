@@ -4,12 +4,11 @@ import { pickCheerAttackTarget } from '../cheerAttack';
 import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase, BattleStateRow} from '../../../types';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
 import type {CardEffect, TriggerOriginZone} from '../../../types/effects';
-import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectHandLimits, collectHandGuardIconClasses, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
+import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectHandLimits, collectHandGuardIconClasses} from '../../../engine/effectEngine';
 import {getCardNum, evalUseCondition} from '../../../engine/effectExecutor';
 import {resolvePendingExiles} from '../../../engine/execUtils';
 import {initStack, pushToStack} from '../../../engine/effectStack';
 import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectTurnTriggers as pureCollectTurnTriggers, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay} from '../../../engine/triggerCollect';
-import {resolveTurnEndEnergyTrash} from '../turnEndEnergyTrash';
 import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
 import {cutinCardName, pickCpuCutin} from '../cpuCutin';
@@ -69,6 +68,8 @@ import {searchCpuMove} from '../cpuSearch';
 import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssistGrow';
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
+import {drawPhaseDraw} from '../drawPhase';
+import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearEndingPlayerTurnState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
 
@@ -860,7 +861,9 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // ⚠**ドロー上限は人間側と同じ funnel を通す**（2026-08-19 続き567）＝`DRAW_LIMIT_<n>` は
     //   「すべてのプレイヤーは…1枚しか引けない」（`WX04-005-E2`）なので、片側だけだと CPU だけ2枚引く。
     //   📋`collectDrawLimits`（`LIMIT_OPP_DRAW_COUNT`）と `draw_limit` は CPU 側では従来から未適用＝別の穴（§7 送り）。
-    const cpuDrawCount = Math.min(drawCount, drawPhaseLimitFromBlocked(cpuContBlockedSelf) ?? drawCount);
+    // 🆕2026-10-21＝枚数（禁止・上限・置換）は人間と同じ1本（`drawPhase.ts`）。旧＝【常】の `DRAW_LIMIT_<n>` しか見ていなかった。
+    const cpuDraw = drawPhaseDraw({ my: cpuSt, op: huSt, effectsMap, cardMap: battleCardMap, blockedSelf: cpuContBlockedSelf, baseCount: drawCount });
+    const cpuDrawCount = cpuDraw.blocked ? 0 : cpuDraw.count;
     appendBattleLogs([`[CPU] ${cpuDrawCount}枚ドロー`]);
     const cpuPreventRefresh = fieldSigniStacks(cpuSt).some(s => {
       const top = s?.at(-1);
@@ -879,7 +882,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     //     `drawBySourceStory` トリガー（`WX20-026-E3`）が前ターンの残値で誤発火しないようにする。
     let newCpuSt: PlayerState = {
       ...drawCards(activateTurnStartScopedState(cpuSt), cpuDrawCount, cpuPreventRefresh),
-      actions_done: ['DRAW'], last_effect_draw_source: undefined,
+      // ⚠人間と同じく、ドロー禁止なら「引いた」を記録しない・ドロー上限（`draw_limit`）は使ったら消す。
+      actions_done: cpuDraw.blocked ? [] : ['DRAW'], last_effect_draw_source: undefined, draw_limit: undefined,
     };
     if ((newCpuSt.refresh_count_this_turn ?? 0) > 0) appendBattleLogs(['[CPU] リフレッシュ（デッキを再構築）']);
     // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
@@ -1679,21 +1683,19 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       banish_redirect_power0_target_nums: undefined,
       banish_redirect_battle_target_nums: undefined,
     })).state));
-    // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
-    let cpuHandEND = cpuEndState.hand;
-    let cpuDeckEND = cpuEndState.deck;
-    if ((cpuEndState.turn_end_draw_count ?? 0) > 0) {
-      const drawnCPU = cpuDeckEND.slice(0, cpuEndState.turn_end_draw_count);
-      cpuDeckEND = cpuDeckEND.slice(cpuEndState.turn_end_draw_count);
-      cpuHandEND = [...cpuHandEND, ...drawnCPU];
-      appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
-    }
+    // 🆕2026-10-21＝エンドフェイズ①（「ターン終了時に」の予約）は人間と同じ1本（`turnEndStepOne.ts`）。
+    //   🔴旧＝ここはドローとエナのトラッシュしか処理しておらず、ビートゾーン・ミル・コイン条件・「ターン終了時、このシグニをトラッシュ」・
+    //   一時レゾナのルリグデッキへの返却・「ターン終了時、手札に戻す」が CPU のターンでは全部起きなかった（予約は後片付けで消えた）。
+    const stepOneCpu = resolveTurnEndStepOne(cpuEndState, battleCardMap);
+    if (stepOneCpu.logs.length > 0) appendBattleLogs(stepOneCpu.logs.map(l => `[CPU] ${l}`));
+    let cpuHandEND = stepOneCpu.state.hand;
+    const cpuDeckEND = stepOneCpu.state.deck;
     // 🆕§5.6 `C-4`＝**CPU の手札上限**（公式ルール：エンドフェイズ ①ターン終了時の効果 → ②手札が上限を超えていれば捨てる）。
     //   🔴旧実装は CPU に手札上限の処理自体が無かった（DESIGN §4 の注記）。
     //   上限は人間と同じ `collectHandLimits`、捨てた札の「手札からトラッシュに置かれたとき」は人間の `confirmEndDiscard` と同じ
     //   `collectAnyZoneTrashSelfTriggers(…, 'hand', undefined, false)`（ルール処理＝効果起因ではない）。
-    let cpuTrashEND = cpuEndState.trash;
-    const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
+    let cpuTrashEND = stepOneCpu.state.trash;
+    const cpuHandLimit = collectHandLimits(stepOneCpu.state, huEndState, battleCardMap, effectsMap);
     if (cpuHandEND.length > cpuHandLimit) {
       const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], undefined, cpuPolicy);
       const discardNums = discardIdx.map(i => cpuHandEND[i]);
@@ -1706,7 +1708,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         // 誘発を先に解決する＝人間経路と同じ。再入時は手札が上限以下なので素通りし、ターン終了時の予約（ドロー）も消費済み。
         await persist.commit(reduceBattle(bs, {
           type: 'WRITE_STATE', myKey: 'guest_state',
-          myState: { ...cpuEndState, hand: cpuHandEND, deck: cpuDeckEND, trash: cpuTrashEND, turn_end_draw_count: undefined },
+          myState: { ...stepOneCpu.state, hand: cpuHandEND, trash: cpuTrashEND },
           opp: { key: 'host_state', state: huEndState },
           effectStack: bs.effect_stack
             ? pushToStack(bs.effect_stack, cpuRuleDiscardEntries)
@@ -1715,17 +1717,10 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         return;
       }
     }
-    // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（人間側と同じ funnel）。
-    // CPU も 【出】でこの予約を積む札（`SPK01-10`）を召喚しうるので、人間の2経路と同じ関数を通す。
-    const cpuEnergyTrashEND = resolveTurnEndEnergyTrash({ ...cpuEndState, trash: cpuTrashEND });
-    if (cpuEnergyTrashEND.trashed.length > 0) {
-      appendBattleLogs([`ターン終了時：CPUの${cpuEnergyTrashEND.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
-    }
     // 🆕2026-10-21＝ターンを終える側の「このターン」の状態は人間の2経路と同じ1本（`clearEndingPlayerTurnState`）で消す（旧＝34個しか消しておらず、グロウ禁止・ダメージ無効などが CPU のターンを越えて残った）。
     const cleanCpuSt: PlayerState = clearTurnEndScopedState(clearEndingPlayerTurnState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
-      ...cpuEndState,
-      energy: cpuEnergyTrashEND.state.energy,
-      trash: cpuEnergyTrashEND.state.trash,
+      ...stepOneCpu.state,
+      trash: cpuTrashEND,
       turn_end_energy_trash_targets: undefined,
       hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
       actions_done: [],
