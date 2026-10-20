@@ -233,7 +233,11 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
   const { targets, sources, zoneNeeds, fieldNeeds, underNeeds, energyNeeds } = collectTargetsSources(eff);
   const selfSrcThis = sources.find(s => s.owner === 'self' && (s.filter.thisCardOnly || s.stype === 'TRASH_CARD' || s.stype === 'HAND_CARD'));
   let sourceZone: 'signi' | 'trash' | 'hand' = 'signi';
-  if (e.trashActivated || (selfSrcThis && selfSrcThis.stype === 'TRASH_CARD')) sourceZone = 'trash';
+  // 🆕2026-10-20＝「**トラッシュにあるこのカード**を除外してもよい」（`STUB{BANISH_FROM_GAME}`・`WX14-064` ほか）も効果元はトラッシュ。
+  //   旧＝場に置いていた＝「トラッシュにない」で終わり、除外の処理を一度も通らなかった（除外したカードが消えるバグを映せなかった）。
+  const srcCardForZone = cardMap.get(sourceNum);
+  const inTrashByText = /トラッシュにあるこのカード|このカードがトラッシュにある/.test(srcCardForZone ? abilityBlockTextOf(srcCardForZone, String(e.effectId ?? '')) : '');
+  if (e.trashActivated || (selfSrcThis && selfSrcThis.stype === 'TRASH_CARD') || JSON.stringify(eff).includes('"BANISH_FROM_GAME"') || inTrashByText) sourceZone = 'trash';
   else if (e.handActivated || (e.cost as { discardSelfFromHand?: boolean })?.discardSelfFromHand || (selfSrcThis && selfSrcThis.stype === 'HAND_CARD')) sourceZone = 'hand';
 
   const mkState = (side: '自' | '相', isSource: boolean): PlayerState => {
@@ -256,9 +260,13 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
       else if (sourceZone === 'trash') trash.unshift(sourceNum);
       else hand.unshift(sourceNum);
     }
+    // 🆕2026-10-20＝**使用中のアーツはルリグトラッシュに置く**（実機の `performArts` は効果を積む前にルリグトラッシュへ移す）。
+    //   旧＝どのゾーンにも置いていなかった＝「アーツが自分をルリグデッキへ戻すのにルリグトラッシュにも残る」（`WD21-006`）や
+    //   「ルリグトラッシュのアーツを使う効果が自分自身を選ぶ」（`WXK09-002`）が実機と違う盤面で隠れていた。
+    const artsInUse = isSource && srcNonSigni && srcType === 'アーツ';
     return {
       deck, lrig_deck: [], hand, life_cloth: takeN(7, i => `${side}ライフ${i + 1}`),
-      trash, lrig_trash: takeN(2, i => `${side}ルリグトラッシュ${i + 1}`),
+      trash, lrig_trash: [...takeN(2, i => `${side}ルリグトラッシュ${i + 1}`), ...(artsInUse ? [sourceNum] : [])],
       energy: COLORS.map(c => takeColor(`${side}エナ${c}`, c)), coins: 3, bonds: [],
       field: {
         lrig: srcNonSigni && srcType === 'ルリグ' ? [sourceNum] : lrigCard ? [lrigCard] : [], signi,

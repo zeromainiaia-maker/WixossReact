@@ -13498,23 +13498,6 @@ export function resumeSelectSigniZone(
   return done(cur);
 }
 
-// DECLARE_BOND: export
- export function resumeDeclareBond(
-  selectedCardNum: string,
-  pending: PendingInteractionDef & { type: 'DECLARE_BOND' },
-  ctx: ExecCtx,
-): ExecResult {
-  const cardName = ctx.cardMap.get(selectedCardNum)?.CardName;
-  if (!cardName) return done(addLog(ctx, '絆獲得: 選択カードが見つかりません'));
-  const current = ctx.ownerState.bonds ?? [];
-  const newBonds = current.includes(cardName) ? current : [...current, cardName];
-  const shuffled = shuffle([...ctx.ownerState.deck]);
-  const newOwner: PlayerState = { ...ctx.ownerState, bonds: newBonds, deck: shuffled };
-  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得（デッキをシャッフル）`);
-  if (pending.continuation) return executeAction(pending.continuation, cur);
-  return done(cur);
-}
-
 // REARRANGE_SIGNI: フィールドのシグニを好きなように配置し直す（count:'ALL'）。プレイヤーに配置選択を促す。
 function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, ctx: ExecCtx): ExecResult {
   if (a.swap) {

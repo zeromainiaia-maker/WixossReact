@@ -276,7 +276,7 @@ SPDi43-05-E2	base/both	選択肢なし・差分: 自状態 granted_effects_until
 SPDi43-26-E1	base/both	選択肢なし・差分: WX24-P1-TK2A#1: (不在) → 自フリー ; 自エナ対象: 自エナ → 自デッキ[0]
 SPDi44-12-E2	base/both	選択肢なし・差分: 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"SPDi44-12-sub-E1","duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DAMAGE_REPLACE_BY_COST","damageReplaceByCost":{"options":[{"handDiscard":1},{"en…
 
-## I3（81効果）
+## I3（80効果）
 WX02-026-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自S対象1: 自シグニ1(上) → 自トラッシュ ; 自デッキ上対象2: 自デッキ[0] → 自シグニ1(上)
 WX11-025-E2	nofield/both	失敗ログ「並び替え対象が1体以下のためスキップ」・差分: 自S源: 状態[なし]→[ダウン]
 WX14-012-E1	base/both	失敗ログ「空きシグニゾーンなし（カード１枚配置不可）」・差分: 自デッキの並びが変わった（残り14枚） ; 自状態 deck_shuffled_count: なし → 1
@@ -338,7 +338,6 @@ WX26-P1-083-E1	base/decline	辞退・差分: 相状態 suppress_life_burst: な�
 WX26-P1-086-E1	base/decline	辞退・差分: 相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
 WX25-P3-TK03-E1	base/both	失敗ログ「ウイルスなし」・差分: 自手札1: 自手札 → 自トラッシュ ; 自状態 turn_hand_discarded_cards: なし → ["自手札1"] ; 自状態 turn_hand_discarded_count: なし → 1
 WXK01-107-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
-WXK06-016-E1	base/both	失敗ログ「ルリグデッキに戻す対象なし（RETURN_SELF_ARTS_TO_LRIG_DECK）」・差分: 自デッキ上1: 自デッキ[0] → 自手札
 WXK08-010-E1	base/both	失敗ログ「アタックできない：コードアート　Ｉ・Ｄ・Ｏ・Ｌ」・差分: 相S対象0: 付与[なし]→[アタックできない]
 WXK08-015-E1	base/both	失敗ログ「キーなし（追加効果スキップ）」・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WXK08-016-E1	base/both	失敗ログ「キーなし（追加効果スキップ）」・差分: 相S対象0: 状態[なし]→[凍結,ダウン]
@@ -553,3 +552,7 @@ PR-426-E1	base/both	相S丙: 相シグニ2(上) → 相エナ
 WD10-009-BURST	nofield/both	相S対象0: 相シグニ0(上) → 相エナ
 WDA-F02-17-E2	base/both	相S丙: 状態[なし]→[ダウン]
 WDK06-R09-E3	nofield/both	相S対象0: パワー+2000
+
+## I6（0効果）
+
+## I7（0効果）

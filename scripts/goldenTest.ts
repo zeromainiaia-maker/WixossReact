@@ -72209,6 +72209,25 @@ test('2026-10-20 被覆: 効果のクラッシュはバースト確認待ちの�
   eq(r2.otherState.field.check, base.otherState.life_cloth.at(-1), '空いていればチェックゾーンへ');
 }));
 
+test('2026-10-20 構造: エンジンの対話の型はすべてアプリの振り分けに受け口がある／検査の自動応答はアプリが扱う型だけを扱う', () => {
+  // 🔴旧＝`DECLARE_BOND` はエンジンが出すのに**アプリの振り分け（`effectInteraction.ts`）にも画面にも受け口が無く**対戦が止まった。
+  //   しかも **smoke の自動応答には `DECLARE_BOND` の処理があった**ので、smoke は緑のまま＝検査だけが答えられる型が実機の止まりを隠した。
+  const types = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
+  const start = types.indexOf('export type PendingInteractionDef');
+  const block = types.slice(start, types.indexOf('\nexport ', start + 10));
+  const defTypes = [...block.matchAll(/^\s{6}type: '([A-Z_]+)'/gm)].map(m => m[1]);
+  ok(defTypes.length >= 8, `前提崩れ＝対話の型が読めない（${defTypes.join(',')}）`);
+  const dispatcher = fs.readFileSync(join(root, 'src/screens/battle/controller/effectInteraction.ts'), 'utf8');
+  const unhandled = defTypes.filter(t => !new RegExp(`type [!=]== '${t}'`).test(dispatcher));
+  eq(unhandled.join(','), '', '🔴アプリの振り分けに受け口の無い対話の型がある（人間でも CPU でも答えられず対戦が止まる）');
+  for (const f of ['scripts/smokeTest.ts', 'scripts/selfPlayFuzz.ts', 'scripts/behaviorAudit.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    const cased = [...src.matchAll(/case '([A-Z_]+)':/g)].map(m => m[1]).filter(t => /^[A-Z]+_[A-Z_]+$|^CHOOSE$|^SEARCH$/.test(t));
+    const extra = cased.filter(t => !defTypes.includes(t) && /SELECT|CHOOSE|SEARCH|REORDER|REVEAL|BOND|ALLOCATE|REARRANGE|DECLARE/.test(t));
+    eq(extra.join(','), '', `🔴${f} の自動応答が、アプリに無い対話の型を扱っている（検査だけが答えられる型は実機の止まりを隠す）`);
+  }
+});
+
 test('2026-10-20 自己対戦: 「このカードをセンタールリグの下に置く」はルリグトラッシュから移る（WD21-006）', () => withSavedCursor(() => {
   // 原文＝「…それをバニッシュする。そうした場合、このカードをあなたのセンタールリグの下に置く。」
   // 🔴旧＝ルリグデッキへ足し、手札からしか取り除かなかった＝使用済みアーツがルリグトラッシュとルリグデッキに二重存在。

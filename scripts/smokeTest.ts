@@ -21,7 +21,7 @@ import {
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone,
   resumeSelectSigniZone, resumeRearrangeSigni,
-  resumeDeclareBond, resumeRevealCards,
+  resumeRevealCards,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
@@ -132,12 +132,6 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
         case 'REARRANGE_SIGNI': {
           const arr = (p.signi as string[]) ?? (p.cards as string[]) ?? [];
           result = resumeRearrangeSigni(arr, pending as never, ctx);
-          break;
-        }
-        case 'DECLARE_BOND': {
-          const deckCards = (p.deckCards as string[]) ?? [];
-          if (deckCards.length === 0) return { status: 'SKIP', detail: 'DECLARE_BOND no deckCards' };
-          result = resumeDeclareBond(deckCards[0], pending as never, ctx);
           break;
         }
         case 'REVEAL_CARDS': result = resumeRevealCards(pending as never, ctx); break;

@@ -13,6 +13,10 @@
 //   I3 失敗・辞退後の後続＝能力ブロックに「そうした場合」があり、「しない」を選んだ run か失敗ログのある run で盤面差分が非空。
 //   I4 ログと差分の枚数不一致＝「N枚ドロー」「エナチャージN」「デッキ上からN枚をトラッシュ」のログの合計と、対応する移動の件数が違う。
 //   I5 側跨ぎ＝能力ブロックに「対戦相手」が無いのに、相手側の領域・状態が動いた。
+//   🆕I6 除外の行き先（2026-10-20）＝ログに「〜をゲームから除外」と出たのに、盤面差分に「→ 除外」への移動が無い
+//      （トラッシュ／ルリグトラッシュで近似・消滅＝自己対戦で `WX14-064`・`BANISH_FROM_GAME`・`trashExile` コストの3系統を拾った形）。
+//   🆕I7 置き場と種別（2026-10-20）＝シグニ／スペルがルリグトラッシュ・ルリグデッキへ、ルリグ系（ルリグ・アシスト・アーツ・ピース・キー・レゾナ）が
+//      手札・デッキ・エナ・ライフ・トラッシュへ動いた（自己対戦で `trashExile` コストのシグニがルリグトラッシュへ入っていた形）。
 //
 // ⚠🔴**I2〜I5 は候補出しであって判定ではない**＝精度は標本を判定して `round6/TYPE_LEDGER.md` に書く。件数をバグ数と読まない。
 // ⚠**トレースはハーネスの盤面**（汎用盤面と4変種）＝「その盤面で踏んだ経路」しか映らない。0件は「壊れていない」ではない。
@@ -28,7 +32,8 @@ const offset = Number(argOf('--offset') ?? 0);
 
 // 🔑ラチェット＝I1 だけ（精度 100%＝盤面から消える/増えるのは原文を問わず壊れている）。
 //   I2〜I5 は精度を測ってから足す。
-const BASELINE = { I1: 0 };
+// 🆕2026-10-20＝I6・I7 もラチェット（標本の誤検出を規則で潰して 0・修正前のコードで当時のバグを拾うことを反転確認済み）。
+const BASELINE = { I1: 0, I6: 0, I7: 0 };
 
 let tracesPath = argOf('--traces');
 if (!tracesPath) {
@@ -65,12 +70,19 @@ const FAIL_WORDS = /なし|できない|不可|スキップ|足りない|未達/
 const isFailLog = (l) => FAIL_WORDS.test(l.replace(/「[^」]*」/g, '').replace(/不可解/g, ''));
 const SKIP_PICK = /→ 「(しない|スキップ|skip)[^」]*」/i;
 
-const hits = { I1: [], I2: [], I3: [], I4: [], I5: [] };
+const hits = { I1: [], I2: [], I3: [], I4: [], I5: [], I6: [], I7: [] };
+// ラベル → カード種別（`board` の「自S甲=《名》(シグニ Lv4 …)」から読む）
+const typesOf = (board) => { const m = new Map(); for (const line of board ?? []) for (const x of line.matchAll(/([自相][^=,\s:]+)=《[^》]*》\(([^ )]+)/g)) m.set(x[1], x[2]); return m; };
+const MAIN_T = /^(シグニ|スペル)$/;
+const LRIG_T = /^(ルリグ|アシストルリグ|アーツ|ピース|リレーピース|キー|レゾナ)$/;
+const EXILE_LOG = /ゲームから除外/;
+const EXILE_NOT = /(?<![0-9１-９])0枚をゲームから除外|打ち消す|除外しますか|除外しない|除外できない|除外せず|除外するか|除外しても|除外を|除外された場合|代わりに/;
 let effects = 0;
 for (const card of traces) for (const tr of card.traces) {
   effects++;
   const text = tr.abilityText ?? '';
   const runs = runsOf(tr);
+  const types = typesOf(tr.board);
   const add = (id, where, evidence) => { if (!hits[id].some(h => h.effectId === tr.effectId)) hits[id].push({ effectId: tr.effectId, where, evidence, text }); };
 
   for (const [where, r] of runs) {
@@ -102,6 +114,25 @@ for (const card of traces) for (const tr of card.traces) {
       if (l > 0 && l !== m && r.status === 'OK') add('I4', where, `${name}: ログ${l}枚／移動${m}件`);
     }
 
+    // I6
+    const exLog = r.logs.find(l => EXILE_LOG.test(l) && !EXILE_NOT.test(l));
+    if (exLog && r.status === 'OK' && !r.diff.some(l => / → [自相]除外/.test(l))) add('I6', where, `ログ「${exLog}」・除外への移動なし｜${r.diff.filter(isMove).slice(0, 3).join(' ; ')}`);
+
+    // I7
+    for (const l of r.diff) {
+      if (!isMove(l) || l.includes('(消滅)')) continue;
+      const mm = /^(?:⚠側跨ぎ )?([^:]+): (.+) → (.+)$/.exec(l.trim());
+      if (!mm) continue;
+      const ty = types.get(mm[1]); const from = mm[2], to = mm[3];
+      if (!ty) continue;
+      // ⚠**元の置き場がその種別として正しいときだけ**数える＝ハーネスは効果元のアーツ・ルリグをメインのトラッシュ等へ置くことがあり、
+      //   そこから「トラッシュから手札へ」で拾われるのはハーネスの盤面の都合（初版の25件は全部これだった）。
+      const LRIG_ZONE = /^[自相](ルリグトラッシュ|ルリグデッキ|ルリグ|アシスト|キー|チェック)/, MAIN_ZONE = /^[自相](手札|デッキ|エナ|ライフ|トラッシュ)/;
+      const mainToLrig = MAIN_T.test(ty) && !LRIG_ZONE.test(from) && /^[自相](ルリグトラッシュ|ルリグデッキ|ルリグ$|アシスト)/.test(to);
+      const lrigToMain = LRIG_T.test(ty) && !MAIN_ZONE.test(from) && MAIN_ZONE.test(to);
+      if (mainToLrig || lrigToMain) { add('I7', where, `${mm[1]}(${ty}) → ${to}`); break; }
+    }
+
     // I5
     if (!/対戦相手|各プレイヤー|すべてのプレイヤー|両プレイヤー/.test(text)) {
       const opp = r.diff.filter(l => (isMove(l) && / → 相/.test(l)) || (isMove(l) && /: 相/.test(l)) || /^相(状態|制限|コイン)/.test(l) || /^相S[^:]*: (パワー|レベル|状態|付与)/.test(l));
@@ -122,7 +153,7 @@ fs.writeFileSync('docs/_census_trace_invariants.txt', lines.join('\n'));
 console.log(`実行結果の不変条件センサス（効果 ${effects}件）`);
 for (const id of Object.keys(hits)) console.log(`  ${id}: ${hits[id].length}効果${BASELINE[id] !== undefined ? `（BASELINE ${BASELINE[id]}）` : '（候補出し）'}`);
 console.log('明細 → docs/_census_trace_invariants.txt');
-console.log('⚠I2〜I5 は候補出しであって判定ではない（精度は round6/TYPE_LEDGER.md）。');
+console.log('⚠I2〜I5 は候補出しであって判定ではない（精度は round6/TYPE_LEDGER.md）。I1・I6・I7 は 0 が正（ラチェット）。');
 
 if (showId) {
   for (const h of hits[showId].slice(offset, offset + showN)) {
