@@ -72195,6 +72195,20 @@ test('2026-10-20 被覆: ルリグトラッシュからアーツを使う効果�
   ok(r.pending.candidates.includes('WD01-007'), '他のアーツは候補に出る');
 }));
 
+test('2026-10-20 被覆: 効果のクラッシュはバースト確認待ちのチェックゾーンを上書きしない', () => withSavedCursor(() => {
+  // 🔴旧＝チェックゾーンに前のカードが居るのに先頭1枚を上書きで置き、前のカードがゲームから消えた（`WX25-CP1-012-E1`）。
+  const base = mkCtx({}, { life: 3 });
+  const waiting = 'WX07-036#9';
+  const ctx = { ...base, otherState: { ...base.otherState, field: { ...base.otherState.field, check: waiting } } } as ExecCtx;
+  const lifeTop = ctx.otherState.life_cloth.at(-1)!;
+  const r = executeAction({ type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true } as unknown as EffectAction, ctx);
+  eq(r.otherState.field.check, waiting, '🔴チェックゾーンの前のカードはそのまま');
+  ok((r.otherState.pending_crashed_cards ?? []).includes(lifeTop), '🔴クラッシュしたカードはクラッシュ待ちへ回る');
+  // 空いていれば従来どおりチェックゾーンへ
+  const r2 = executeAction({ type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true } as unknown as EffectAction, base);
+  eq(r2.otherState.field.check, base.otherState.life_cloth.at(-1), '空いていればチェックゾーンへ');
+}));
+
 test('2026-10-20 自己対戦: 「このカードをセンタールリグの下に置く」はルリグトラッシュから移る（WD21-006）', () => withSavedCursor(() => {
   // 原文＝「…それをバニッシュする。そうした場合、このカードをあなたのセンタールリグの下に置く。」
   // 🔴旧＝ルリグデッキへ足し、手札からしか取り除かなかった＝使用済みアーツがルリグトラッシュとルリグデッキに二重存在。

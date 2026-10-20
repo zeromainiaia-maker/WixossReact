@@ -933,15 +933,17 @@ export function applyEffectBanishSubstituteChoice(
     const life = [...state.life_cloth];
     const crashed: string[] = [];
     for (let i = 0; i < chosen.amount && life.length > 0; i++) crashed.push(life.pop()!);
-    const checkCard = crashed[0] ?? null;
-    const pending = crashed.slice(1);
+    // 🔴2026-10-20＝チェックゾーンが埋まっていたら上書きしない（`execLifeCrash` と同じ）。
+    const checkBusy = !!state.field.check;
+    const checkCard = checkBusy ? null : (crashed[0] ?? null);
+    const pending = checkBusy ? crashed : crashed.slice(1);
     return addLog(setOwnerState(victimOwner, {
       ...state,
       life_cloth: life,
       life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
       // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（枚数だけでは1枚目/2枚目を区別できない）。
       checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
-      field: { ...state.field, check: checkCard },
+      field: { ...state.field, check: checkBusy ? state.field.check : checkCard },
       pending_crashed_cards: pending.length > 0
         ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
       crash_source_card_num: checkCard ? victimNum : state.crash_source_card_num,
@@ -3549,8 +3551,11 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     : state.life_crashed_by_opp_effect_this_turn;
   if (a.triggerBurst) {
     // バースト発動あり: 先頭1枚をチェックゾーンへ、残りはpending
-    const checkCard = crashed[0] ?? null;
-    const pending = crashed.slice(1);
+    // 🔴2026-10-20＝**チェックゾーンが埋まっていたら上書きしない**（全部を pending へ回す＝前のカードの処理が終わってから順に置く）。
+    //   旧＝バースト確認待ちのカードを上書きし、**そのカードがゲームから消えた**（自己対戦で発見・`WX25-CP1-012-E1` のクラッシュ）。
+    const checkBusy = !!state.field.check;
+    const checkCard = checkBusy ? null : (crashed[0] ?? null);
+    const pending = checkBusy ? crashed : crashed.slice(1);
     newS = {
       ...state,
       life_cloth: life,
@@ -3558,7 +3563,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       life_crashed_by_opp_effect_this_turn: oppEffectCrashAcc,
       // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（枚数だけでは1枚目/2枚目を区別できない）。
       checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
-      field: { ...state.field, check: checkCard },
+      field: { ...state.field, check: checkBusy ? state.field.check : checkCard },
       pending_crashed_cards: pending.length > 0 ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
       crash_source_card_num: checkCard ? ctx.sourceCardNum : state.crash_source_card_num,
       pending_crash_source_card_nums: pending.length > 0

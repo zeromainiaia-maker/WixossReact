@@ -31,6 +31,10 @@ import Papa from 'papaparse';
 import type { BattleStateRow, CardData, PlayerState } from '../src/types';
 import { setRngSeed } from '../src/engine/rng';
 import { CPU_PLAYER_ID } from '../src/screens/battle/battleUtils';
+import { resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { collectHandLimits } from '../src/engine/effectEngine';
+import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
+import { buildBaseEffectsMap } from '../src/screens/battle/controller/battleMaterials';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import { resolveSelfPlayDeck, listPlayableDeckNames, type SelfPlayDeck } from './selfPlayDecks';
@@ -39,6 +43,11 @@ import { cardCsvRelPaths } from './cardDataFiles.mjs';
 const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const SEEDS = arg('--seeds', '1').split(',').map(Number);
+/**
+ * 🆕CPU のポリシー（両席・既定＝`default`）。🔑**検査の幅を広げる口**＝`legacy-greedy`（先読みなし・使えるものは使う）は
+ *   既定の CPU が「得にならない」と判断して撃たない【起】・アーツも踏む＝**強さを変えずに被覆だけ広げる**。
+ */
+const POLICY = arg('--policy', 'default');
 const OUT = arg('--out', '');
 /** 🆕生成デッキ（`scripts/synthDecks.ts`）を読むとき＝既定はユーザーのデッキ。 */
 const DECK_DIR = arg('--deck-dir', 'scratchpad-decks');
@@ -156,8 +165,9 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
   const cardMap = new Map(cards.map(c => [c.CardNum, c]));
   setRngSeed(seed);
-  const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap });
-  const m = createHeadlessMatch(setup.row, { cards, initialLogs: setup.logs, cpuPlans: { host: a.plan, guest: b.plan } });
+  const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: resolveCpuPolicy(POLICY), guest: resolveCpuPolicy(POLICY) } });
+  const pol = resolveCpuPolicy(POLICY);
+  const m = createHeadlessMatch(setup.row, { cards, initialLogs: setup.logs, cpuPlans: { host: a.plan, guest: b.plan }, policy: { host: pol, guest: pol } });
   const tag = `${a.name} vs ${b.name} s${seed}`;
   const initial = new Set(locate(m.row()).loc.keys());
   const missingSince = new Map<string, number>();
@@ -165,6 +175,12 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const once = (key: string, f: any) => { if (reported.has(key)) return; reported.add(key); emit({ game: tag, ...f }); };
   let step = 0; let reason = 'cap';
   let lastLog = 0;
+  // 🆕ルール処理の取りこぼし（HANDLIMIT／POWERZERO）を見るための静的な効果表（`createHeadlessMatch` と同じ組み方）。
+  const effectsMap = buildBaseEffectsMap([...new Map(cards.map(c => [c.CardNum, c] as const)).values()]);
+  let pzSince = -1;
+  // ⚠個体 ID（`WX01-001#3`）でも引けるカード表（実機の `InstanceMap` と同じ扱い）＝素の表だとパワーが読めず 0 と誤判定する
+  class InstMap extends Map<string, CardData> { get(k: string) { return super.get(k) ?? super.get(numOf(k)); } has(k: string) { return super.has(k) || super.has(numOf(k)); } }
+  const instMap = new InstMap(cardMap);
   const covEffects = new Set<string>(), covField = new Set<string>();
   let sameN = 0;
   const ctxLogs = () => m.logs.slice(Math.max(0, m.logs.length - 6));
@@ -211,6 +227,19 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
         if (side.field.key_piece) covField.add(numOf(side.field.key_piece));
       }
     }
+    // HANDLIMIT＝ターンが移った直後、直前のターンプレイヤーの手札が上限を超えている（ターン終了時の手札調整の取りこぼし）
+    if (prevRow.active_user_id && r.active_user_id !== prevRow.active_user_id && r.turn_count !== prevRow.turn_count) {
+      const prevIsHost = prevRow.active_user_id === r.host_id;
+      const ps = prevIsHost ? r.host_state : r.guest_state, os = prevIsHost ? r.guest_state : r.host_state;
+      const lim = collectHandLimits(ps, os, instMap, effectsMap);
+      if (ps.hand.length > lim) once(`HANDLIMIT:${r.turn_count}`, { kind: 'HANDLIMIT', step, turn: r.turn_count, detail: `${prevIsHost ? 'H' : 'G'} 手札${ps.hand.length} > 上限${lim}`, logs: m.logs.slice(-10) });
+    }
+    // POWERZERO＝落ち着いた盤面（スタック・対話・スペル待ちなし）でバニッシュされるはずのシグニが残り続ける
+    if (!r.effect_stack && !r.pending_effect && !r.pending_spell) {
+      const pz = powerZeroBanishCandidates(r, r.host_state, r.guest_state, effectsMap, instMap);
+      if (pz.length > 0) { if (pzSince < 0) pzSince = step; else if (step - pzSince >= 15) once(`POWERZERO:${pz.join(',')}`, { kind: 'POWERZERO', step, turn: r.turn_count, detail: `${pz.join(',')} が${step - pzSince}手 残っている`, logs: m.logs.slice(-10) }); }
+      else pzSince = -1;
+    }
     for (const s of shapeIssues(r, cardMap)) once(`SHAPE:${s.replace(/#\d+/g, '')}`, { kind: 'SHAPE', step, turn: r.turn_count, detail: s, logs: m.logs.slice(-8) });
     lastLog = Math.max(0, m.logs.length - 8);
   }
@@ -247,7 +276,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));
