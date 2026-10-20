@@ -69,6 +69,7 @@ import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssis
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {drawPhaseDraw} from '../drawPhase';
+import {applyPhaseEntryState} from '../phaseEntry';
 import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearEndingPlayerTurnState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -835,6 +836,18 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   }
 
   const phase = bs.turn_phase;
+
+  // ─── 🆕2026-10-21＝フェイズに入るときの「このゲームの間」の処理（人間と同じ `applyPhaseEntryState`）───
+  // 🔴旧＝人間の `phaseAdvance` にだけ書かれており、CPU のターンではリミット＋・リミット修正の予約・開始時ドロー・開始時エナチャージが一度も起きなかった。
+  // ⚠CPU のフェイズ遷移は書き込み地点が多いので、**そのフェイズを初めて処理するとき**に1回だけ当てる（印は `actions_done`＝ターンごとに消える）。
+  if ((phase === 'GROW' || phase === 'MAIN' || phase === 'ENERGY') && !bs.effect_stack && !bs.pending_effect
+    && !(cpuSt.actions_done ?? []).includes(`__ENTER_${phase}__`)) {
+    const entry = applyPhaseEntryState(cpuSt, phase);
+    if (entry.logs.length > 0) appendBattleLogs(entry.logs.map(l => `[CPU] ${l}`));
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state',
+      myState: { ...entry.state, actions_done: [...(entry.state.actions_done ?? []), `__ENTER_${phase}__`] } }));
+    return;
+  }
 
   // 🆕§5.7 `S-15`＝候補数の実測フック（渡したときだけ・盤面には書かない）。`S-16` のビーム幅を決める材料。
   const observeMovesAt = (s: PlayerState) => {

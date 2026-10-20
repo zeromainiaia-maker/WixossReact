@@ -45,6 +45,7 @@ import { createHeadlessMatch, mirrorSeats } from '../src/screens/battle/controll
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import { resolveSelfPlayDeck, listPlayableDeckNames, type SelfPlayDeck } from './selfPlayDecks';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';
+import { cardsForMatch } from '../src/screens/battle/matchCards';
 
 const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
@@ -290,7 +291,7 @@ const emit = (f: any) => { findings.push(f); if (OUT) fs.appendFileSync(OUT, JSO
 async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
   const a = withAllArts(a0, allCardMap), b = withAllArts(b0, allCardMap);
   const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck].map(n => String(n).split('#')[0]));
-  const cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
+  const cards = cardsForMatch(allCards, used);
   const cardMap = new Map(cards.map(c => [c.CardNum, c]));
   rngState.a = seed | 0; setRng(rngNext);
   const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: policyOf(), guest: policyOf() } });
@@ -322,6 +323,8 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
   const instMap = new InstMap(cardMap);
   const covEffects = new Set<string>(), covField = new Set<string>();
   let sameN = 0;
+  /** 2手前の盤面（ログ行の遅れを吸収する）。 */
+  let prev2Row: BattleStateRow | null = null;
   const ctxLogs = () => m.logs.slice(Math.max(0, m.logs.length - 6));
   for (; step < MAX_STEPS; step++) {
     let k;
@@ -430,8 +433,15 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
           const nm = l.match(/^(?:.+?が)?(.+)をバニッシュ$/)?.[1];
           if (!nm) continue;
           const onField = (st: PlayerState) => st.field.signi.filter(z => z?.length && cardMap.get(numOf(z.at(-1)!))?.CardName === nm).length;
-          const before = onField(prevRow.host_state) + onField(prevRow.guest_state), after = onField(r.host_state) + onField(r.guest_state);
-          if (before > 0 && after >= before) once(`BANISHLOG:${nm}`, { kind: 'BANISHLOG', step, turn: r.turn_count, detail: `ログは《${nm}》をバニッシュ・場の《${nm}》は ${before}→${after}`, logs: m.logs.slice(-8) });
+          // ⚠ログ行は盤面の変化より1手遅れて届くことがある（実測＝バトルのバニッシュ）＝2手前の盤面と比べる
+          const before = Math.max(onField(prevRow.host_state) + onField(prevRow.guest_state), prev2Row ? onField(prev2Row.host_state) + onField(prev2Row.guest_state) : 0), after = onField(r.host_state) + onField(r.guest_state);
+          // ⚠「同じカードになる」等でカード名が上書きされた札は、印刷名では数えられない＝実機と同じ材料（上書きを当てた表）で数え直す
+          const recount = () => {
+            const cnt = (row: BattleStateRow) => { const mt = buildBattleMaterials({ bs: row, cards: uniqCards, userId: row.host_id, baseEffectsMap: effectsMap });
+              return [row.host_state, row.guest_state].reduce((n, st) => n + st.field.signi.filter(z => z?.length && mt.cardMap.get(z.at(-1)!)?.CardName === nm).length, 0); };
+            return { b: Math.max(cnt(prevRow), prev2Row ? cnt(prev2Row) : 0), a: cnt(r) };
+          };
+          if (before > 0 && after >= before && (() => { const x = recount(); return x.b > 0 && x.a >= x.b; })()) once(`BANISHLOG:${nm}`, { kind: 'BANISHLOG', step, turn: r.turn_count, detail: `ログは《${nm}》をバニッシュ・場の《${nm}》は ${before}→${after}`, logs: m.logs.slice(-8) });
         }
       }
     }
@@ -474,6 +484,7 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
     }
     for (const s of shapeIssues(r, cardMap)) once(`SHAPE:${s.replace(/#\d+/g, '')}`, { kind: 'SHAPE', step, turn: r.turn_count, detail: s, logs: m.logs.slice(-8) });
     lastLog = Math.max(0, m.logs.length - 8);
+    prev2Row = prevRow;
   }
   if (TRACE) { const r9 = m.row(); for (const [k, st] of [['HOST', r9.host_state], ['GUEST', r9.guest_state]] as const) console.log(k, JSON.stringify(st.field).slice(0, 300), 'crashed=', JSON.stringify(st.pending_crashed_cards), 'check=', st.field.check, 'burst=', JSON.stringify((st as any).pending_life_burst ?? null), 'psb=', JSON.stringify(st.pending_signi_battle ?? null), 'mods=', JSON.stringify(st.temp_power_mods ?? []).slice(0, 400)); const es = r9.effect_stack; if (es) console.log('STACK', JSON.stringify({ turn: es.turnPlayerId, pT: es.pendingTurn.map(e => e.effectId), pO: es.pendingOpp.map(e => e.effectId), q: es.queue.map(e => e.effectId), oT: es.orderTurnDone, oO: es.orderOppDone })); }
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_pending.json', JSON.stringify(m.row().pending_effect, null, 1), 'utf-8');

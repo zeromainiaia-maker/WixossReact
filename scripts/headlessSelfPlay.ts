@@ -70,6 +70,7 @@ import { formatAbReport, meanInterval, splitSeeds, summarizeAb, wilsonInterval, 
 import { formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck, type SelfPlayDeck } from './selfPlayDecks';
 import { buildScanSpecs, formatDivergeReport, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';   // 🆕2026-10-01 カード CSV はパック別（public/data/CardDatas/）
+import { cardsForMatch } from '../src/screens/battle/matchCards';
 
 const argv = process.argv.slice(2);
 const numArg = (name: string, dflt: number) => {
@@ -183,7 +184,7 @@ let cardMap = new Map<string, CardData>();
 function selectDecks(a: SelfPlayDeck, b: SelfPlayDeck): void {
   deckA = a; deckB = b;
   const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck].map(n => String(n).split('#')[0]));
-  cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
+  cards = cardsForMatch(allCards, used);
   cardMap = new Map(cards.map(c => [c.CardNum, c]));
 }
 selectDecks(deckA, deckB);

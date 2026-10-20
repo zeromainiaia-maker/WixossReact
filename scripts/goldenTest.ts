@@ -196,6 +196,8 @@ import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostK
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { cardsForMatch } from '../src/screens/battle/matchCards';
+import { applyPhaseEntryState } from '../src/screens/battle/phaseEntry';
 import { resolveTurnEndStepOne } from '../src/screens/battle/turnEndStepOne';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
@@ -72174,6 +72176,35 @@ test('2026-10-21 エンドフェイズ①（ターン終了時の予約）は人
     ok(/resolveTurnEndStepOne\(/.test(fs.readFileSync(join(root, f), 'utf8')), `🔴${f} のエンドフェイズ①が共有の1本を通らない`);
 }));
 
+test('2026-10-21 自己対戦（生成デッキ）: REV は使ったスペル自身を裏返して場に出す／1戦のカード集合は裏面・クラフト・トークンを含む', () => withSavedCursor(() => {
+  // 🔴旧①＝《白熱する黒白》（`PR-Di017A`）の「チェックゾーンにあるこのカードを裏返して≪REV:アンコーリング≫を場に出す」が
+  //   個体番号の無い `PR-Di017B` を新しく作った＝使ったスペルはトラッシュへも行き、1枚が2か所に存在した。
+  const base = mkCtx({ life: 1 }, {}, 'PR-Di017A#1');
+  const r = executeAction({ type: 'STUB', id: 'PLACE_REV_SIGNI', value: 'PR-Di017B' } as unknown as EffectAction, base);
+  const placed = r.ownerState.field.signi.find(st => st?.length)?.at(-1);
+  eq(placed, 'PR-Di017A#1', '🔴使ったスペル自身ではなく新しいカードを場に出した');
+  eq(r.ownerState.card_identity_overrides?.['PR-Di017A#1'], 'PR-Di017B', '🔴裏面として扱われていない');
+  eq(finalizeUsedCardPlacement(r.ownerState, 'PR-Di017A#1', 'trash').trash.includes('PR-Di017A#1'), false, '場に出たのにトラッシュへも置いた');
+  // 🔴旧②＝CPU観戦・自己対戦は「山のカード＋トークン」だけを渡していた＝裏面が「未知のカード」（パワー0）になってすぐバニッシュされた。
+  const set = new Set(cardsForMatch([...cardMap.values()] as CardData[], ['PR-Di017A#3']).map(c => c.CardNum));
+  ok(set.has('PR-Di017A') && set.has('PR-Di017B'), '🔴A 面から B 面が辿れない');
+  ok([...cardMap.values()].some(c => (c.Type ?? '').includes('クラフト') && set.has(c.CardNum)), '🔴クラフトが含まれない');
+  ok(/cardsForMatch\(cards, used\)/.test(fs.readFileSync(join(root, 'src/screens/SpectateScreen.tsx'), 'utf8')), '🔴CPU観戦が共有の1本を使っていない');
+}));
+
+test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
+  // 🔴旧＝`phaseAdvance` にだけ書かれ、CPU のターンではリミット＋・リミット修正の予約・開始時ドロー／エナチャージが一度も起きなかった。
+  const st = { ...mkState(), game_grow_phase_limit_plus: 1, pending_lrig_limit_mod: -1, game_main_draw: true, game_energy_phase_draw: true, game_energy_phase_charge: 1 } as unknown as PlayerState;
+  eq(applyPhaseEntryState(st, 'GROW').state.game_lrig_limit_bonus, 1, 'グロウフェイズ開始のリミット＋');
+  const main = applyPhaseEntryState(st, 'MAIN').state;
+  eq(main.lrig_limit_mod, -1, 'リミット修正の予約が適用されない'); eq(main.hand.length, st.hand.length + 1, 'メインフェイズ開始ドロー');
+  const ena = applyPhaseEntryState(st, 'ENERGY').state;
+  eq(ena.hand.length, st.hand.length + 1, 'エナフェイズ開始ドロー'); eq(ena.energy.length, st.energy.length + 1, 'エナフェイズ開始エナチャージ');
+  eq(applyPhaseEntryState(st, 'ATTACK_ARTS').state, st, '対象外のフェイズでは何もしない');
+  for (const f of ['src/screens/battle/controller/phaseAdvance.ts', 'src/screens/battle/controller/cpuTurn.ts'])
+    ok(/applyPhaseEntryState\(/.test(fs.readFileSync(join(root, f), 'utf8')), `🔴${f} がフェイズ開始の処理を共有の1本で行っていない`);
+}));
+
 test('2026-10-21 ドローフェイズの枚数（禁止・上限・置換）は人間と CPU が同じ1本（drawPhaseDraw）', () => withSavedCursor(() => {
   // 🔴旧＝CPU は【常】の DRAW_LIMIT_<n> しか見ず、ドロー禁止・`draw_limit`（「対戦相手の次のドローは〜枚まで」）・ドローの置換を素通りした。
   const base = { op: mkState(), effectsMap: new Map(), cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set<string>(), baseCount: 2 };
@@ -90085,7 +90116,9 @@ test('§5.7 S-23 本物のデッキで測る：山の差し替え・席ごとの
     '🔴席ごとの作戦データを渡していない＝相手のデッキのキーカードで判断する');
   ok(/'--deck-a', deckA\.name/.test(hs) && /'--deck-b', deckB\.name/.test(hs),
     '🔴子プロセス（`--jobs`）へ山を渡していない＝並列のときだけ既定の山で回る');
-  ok(/\/-TK\/\.test\(c\.CardNum\)/.test(hs),
+  // 🆕2026-10-21＝絞り込みは共有の `cardsForMatch`（トークン・クラフト・A/B 面を足す）へ移した＝その中身も見る。
+  ok(/cardsForMatch\(allCards, used\)/.test(hs)
+    && /-TK\/\.test\(c\.CardNum\)/.test(fs.readFileSync(join(root, 'src/screens/battle/matchCards.ts'), 'utf8')),
     '🔴トークンを常時ロードしていない＝効果で生成したカードの CardData が引けず無言の no-op になる（`O-263` と同じ形）');
   const headless = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf-8');
   ok(/cpuPlan: planFor\('guest'\)/.test(headless), '🔴guest 席の CPU に席ごとの作戦データを渡していない');

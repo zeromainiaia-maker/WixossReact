@@ -1577,9 +1577,17 @@ export function execStubPart1(
     // 空きゾーンを探してREVシグニを配置
     const emptyZone = ctx.ownerState.field.signi.findIndex(s => !s || s.length === 0);
     if (emptyZone < 0) return done(addLog(ctx, `${revCardNum}を場に出す空きゾーンなし`));
+    // 🔴2026-10-21＝原文は「チェックゾーンにある**このカード**を裏返して」＝**使ったスペル自身**が裏面になって場に出る。
+    //   旧＝個体番号の無い `PR-Di017B` を**新しく作って**置いていた＝使ったスペルはトラッシュへも行き、1枚が2か所に存在した（自己対戦で発見）。
+    //   ⇒ スペルの個体をそのまま置き、その個体を裏面として扱う（`card_identity_overrides`＝《夢限 -Q-》の裏返しと同じ受け皿）。
+    //   ⚠使い終わりの配置（`finalizeUsedCardPlacement`）は場に出た使用カードをトラッシュへ置かない。
+    const srcPRV = ctx.sourceCardNum && getCardNum(ctx.sourceCardNum) !== revCardNum ? ctx.sourceCardNum : revCardNum;
     const newSigniPRV = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    newSigniPRV[emptyZone] = [revCardNum];
-    const newOwnerPRV: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniPRV } };
+    newSigniPRV[emptyZone] = [srcPRV];
+    const newOwnerPRV: PlayerState = {
+      ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniPRV },
+      ...(srcPRV !== revCardNum ? { card_identity_overrides: { ...(ctx.ownerState.card_identity_overrides ?? {}), [srcPRV]: revCardNum } } : {}),
+    };
     return done(addLog({ ...ctx, ownerState: newOwnerPRV }, `≪REV:アンコーリング≫(${revCardNum})を場に出した`));
   }
   // ACCE_BANISH_SUBSTITUTE: アクセクラフトによる場離れ代替（オンタマ等）

@@ -10,7 +10,7 @@ import {collectDrawTriggers as pureCollectDrawTriggers, collectTurnTriggers as p
 import {resolveTurnEndStepOne} from '../turnEndStepOne';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {generateUUID, drawCards} from '../battleUtils';
-import {recordEnergyPlacements} from '../../../engine/energyPlacement';
+import {applyPhaseEntryState} from '../phaseEntry';
 import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
 import {resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns} from '../../../engine/facedownSigni';
 import {PHASE_LABEL, PHASE_NEXT, NON_TURN_PLAYER_PHASES} from '../uiConstants';
@@ -447,42 +447,12 @@ export async function doPhaseAdvance(upkeepPay: 'energy' | 'discard' | undefined
       //   ①**飛ばされたフェイズ**の開始時処理は走らず ②**その次に実際に入るフェイズ**の
       //   開始時処理はちゃんと走る、の両方をこの1つの書き換えで満たす。
       //   スキップが無い通常進行では `nextPhase === PHASE_NEXT[phase]` なので挙動は従来と同じ。
-      // →GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
-      if (nextPhase === 'GROW' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
-        const glp = newMyState.game_grow_phase_limit_plus!;
-        newMyState = { ...newMyState, game_lrig_limit_bonus: (newMyState.game_lrig_limit_bonus ?? 0) + glp };
-        appendBattleLogs([`グロウフェイズ開始：リミット+${glp}（このゲーム・累積${newMyState.game_lrig_limit_bonus}）`]);
-      }
-      // →MAIN 移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
-      if (nextPhase === 'MAIN' && my.pending_lrig_limit_mod !== undefined) {
-        newMyState = {
-          ...newMyState,
-          lrig_limit_mod: (newMyState.lrig_limit_mod ?? 0) + my.pending_lrig_limit_mod,
-          pending_lrig_limit_mod: undefined,
-        };
-      }
-      // →MAIN（メインフェイズ開始時）: game_main_draw（手札5枚以下ならドロー）
-      if (nextPhase === 'MAIN' && newMyState.game_main_draw && newMyState.hand.length <= 5 && newMyState.deck.length > 0) {
-        const drawCard = newMyState.deck[0];
-        newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
-        appendBattleLogs(['メインフェイズ開始ドロー（このゲーム）']);
-      }
-      // →ENERGY（エナフェイズ開始時）: game_energy_phase_draw
-      if (nextPhase === 'ENERGY' && newMyState.game_energy_phase_draw && newMyState.deck.length > 0) {
-        const drawCard = newMyState.deck[0];
-        newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
-        appendBattleLogs(['エナフェイズ開始ドロー（このゲーム）']);
-      }
-      // 🆕§5.3 `O-266`（2026-09-06）＝→ENERGY: game_energy_phase_charge（`WX25-P2-007-E1`）。
-      //   🔴**ドロー版とは別処理**＝デッキの上を**エナゾーン**へ置く（手札には入らない）。
-      //   ⚠原文の括弧書き「手札か場からエナゾーンにカードを置く**前に**」＝この地点（フェイズ開始時）で正しい。
-      const enaChargeN = newMyState.game_energy_phase_charge ?? 0;
-      if (nextPhase === 'ENERGY' && enaChargeN > 0 && newMyState.deck.length > 0) {
-        const charged = newMyState.deck.slice(0, enaChargeN);
-        // 🆕§5.3 `O-321` 第275＝エナゾーンへの配置は必ず台帳へ（`cause:'rule'`＝ルール処理）。
-        newMyState = recordEnergyPlacements({ ...newMyState, deck: newMyState.deck.slice(charged.length),
-          energy: [...newMyState.energy, ...charged] }, charged, 'rule');
-        appendBattleLogs([`エナフェイズ開始【エナチャージ${charged.length}】（このゲーム）`]);
+      // →GROW／MAIN／ENERGY に入るときの「このゲームの間」の処理（リミット＋・リミット修正の予約・開始時ドロー・開始時エナチャージ）。
+      // 🆕2026-10-21＝**CPU と同じ1本**（`phaseEntry.ts`）へ出した（旧＝ここにだけ書かれ、CPU のターンでは一度も起きなかった）。
+      if (nextPhase) {
+        const entry = applyPhaseEntryState(newMyState, nextPhase);
+        newMyState = entry.state;
+        if (entry.logs.length > 0) appendBattleLogs(entry.logs);
       }
       // HASTARLIQ: →ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
       // ⚠`phase !== 'ATTACK_LRIG'` で「追加のアタックフェイズ」の2周目を除外する

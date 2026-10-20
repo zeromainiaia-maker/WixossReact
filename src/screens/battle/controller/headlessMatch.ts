@@ -416,6 +416,23 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     return true;
   };
 
+  /**
+   * 🆕2026-10-21＝**host 席への「身代わり（バニッシュの代わりに〜）」の問い（`pending_banish_substitute`）に答える**。
+   * 🔑実機の CPU 戦では host 席＝人間なので、問いは人間の選択窓（`handleBanishSubstituteChoice`）が受ける。
+   *   ヘッドレス（自己対戦・CPU観戦）には答える口が無く、**試合が止まった**（自己対戦の IDLE・`WD22U` 同士）。
+   * ⚠書き込みは画面のハンドラと同じ／選ぶのは最初の選択肢（ダメージ置換の口と同じ向き）。
+   */
+  const answerHostBanishSubstitute = async (bs: BattleStateRow): Promise<boolean> => {
+    const pend = bs.host_state.pending_banish_substitute;
+    if (!pend) return false;
+    actor = 'host';
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'host_state', myState: {
+      ...bs.host_state, pending_banish_substitute: undefined,
+      banish_substitute_choice: { victimNum: pend.victimNum, option: pend.options[0] ?? null },
+    } }));
+    return true;
+  };
+
   /** 直前の `step()` で判断した CPU の席（`lastActor`）。 */
   let actor: 'host' | 'guest' | null = null;
   const step = async (): Promise<HeadlessStepKind> => {
@@ -428,6 +445,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     if (await runRuleChecks(bs)) return 'rule';
     if (await answerHostLifeCrashReplace(bs)) return 'interaction';
     if (await answerHostLimitExcess(bs)) return 'rule';
+    if (await answerHostBanishSubstitute(bs)) return 'interaction';
     if (await runCpuTurn(bs)) return 'cpu';
     return 'idle';
   };

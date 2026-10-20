@@ -21,6 +21,7 @@ import {
 } from '../utils/spectateStore';
 import { BUILD_ID } from '../version';
 import { spectateLogLabel } from './battle/spectateLog';
+import { cardsForMatch } from './battle/matchCards';
 
 /**
  * 🆕**CPU 観戦**（2026-09-22）＝CPU 同士の1試合を**先に丸ごと計算**し、1手ごとの盤面を記録して
@@ -163,7 +164,8 @@ export default function SpectateScreen({ decks, cards, variantCards = [], folder
     setRng(mulberry32(seed));
     // 対戦で使うカードだけに絞る（全カードを渡すと材料の組み立てが1手ごとに重くなる）＋トークンは常に載せる。
     const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck]);
-    const battleCards = cards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
+    // 🆕2026-10-21＝山に無いのに盤面へ出るカード（裏面・クラフト・トークン）も含める共有の1本。
+    const battleCards = cardsForMatch(cards, used);
     const battleCardMap = new Map(battleCards.map(c => [c.CardNum, c] as const));
     const firstIsA = first === 'random' ? random() < 0.5 : first === 'A';
     let frames: Frame[] = [];
