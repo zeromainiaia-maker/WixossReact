@@ -122,7 +122,7 @@ const LOGS_OUT = arg('--logs-out', '');
 const USE_ALL_ARTS = argv.includes('--use-all-arts');
 function withAllArts(d: SelfPlayDeck, cardMap: Map<string, CardData>): SelfPlayDeck {
   if (!USE_ALL_ARTS) return d;
-  const arts = [...new Set(d.lrigDeck.map(n => String(n).split('#')[0]))].filter(n => cardMap.get(n)?.Type === 'アーツ');
+  const arts = [...new Set(d.lrigDeck.map(n => String(n).split('#')[0]))].filter(n => ['アーツ', 'アシストルリグ', 'ルリグ'].includes(cardMap.get(n)?.Type ?? ''));
   return { ...d, plan: { ...d.plan, cardUse: { ...(d.plan?.cardUse ?? {}), ...Object.fromEntries(arts.map(n => [n, 'both' as const])) } } };
 }
 function applyStart(row: BattleStateRow): BattleStateRow {
@@ -266,7 +266,9 @@ function shapeIssues(r: BattleStateRow, cardMap: Map<string, CardData>): string[
   const out: string[] = [];
   for (const [side, s] of [['H', r.host_state], ['G', r.guest_state]] as [string, PlayerState][]) {
     if (s.field.signi.length !== 3) out.push(`${side} signi長さ${s.field.signi.length}`);
-    const ty = (id: string) => cardMap.get(numOf(id))?.Type ?? '?';
+    // ⚠裏返し・コピー（`card_identity_overrides`＝個体を別のカードとして扱う）を当てて種別を見る（REV＝スペルの個体が裏面のシグニになる）
+    const ov = { ...(r.host_state.card_identity_overrides ?? {}), ...(r.guest_state.card_identity_overrides ?? {}) } as Record<string, string>;
+    const ty = (id: string) => cardMap.get(numOf(ov[id] ?? id))?.Type ?? '?';
     for (const [z, arr] of [['手札', s.hand], ['デッキ', s.deck], ['エナ', s.energy], ['ライフ', s.life_cloth], ['トラッシュ', s.trash]] as [string, string[]][])
       for (const id of arr) if (LRIG_TYPES.has(ty(id)) && ty(id) !== 'レゾナ' && ty(id) !== 'クラフト') out.push(`${side}${z}にルリグデッキ系 ${id}(${ty(id)})`);
     for (const id of s.lrig_trash) if (['シグニ', 'スペル'].includes(ty(id))) out.push(`${side}ルリグトラッシュにメイン系 ${id}(${ty(id)})`);
