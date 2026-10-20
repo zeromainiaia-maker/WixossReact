@@ -17536,8 +17536,11 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv≤相手→グロウ＋キー能�
   (ctx.ownerState as { lrig_deck: string[] }).lrig_deck = [NEXT];
   ctx.otherState.field.lrig = [OPPL];
   const r = run({ type: 'STUB', id: 'CONDITIONAL_GROW_AND_KEY_DISABLE' } as unknown as EffectAction, ctx);
-  eq(r.ownerState.field.lrig.length, 2, 'グロウしていない');
-  eq(r.ownerState.field.lrig.at(-1), NEXT, '次ルリグへグロウしていない');
+  // 🆕2026-10-21＝engine は**グロウの予約だけ**を積む（旧＝ルリグデッキの先頭を無条件で重ねていた＝アーツでも「グロウ」した）。
+  //   実際のグロウ（候補の判定・グロウコスト・【出】）は正規経路＝人間の選択窓／CPU の予約消費（`cpuTurn`）。
+  eq(r.ownerState.field.lrig.length, 1, '🔴engine がセンターへ直接重ねている');
+  ok(!!r.ownerState.pending_effect_grow, '効果によるグロウの予約が積まれていない');
+  void NEXT;
   eq((r.ownerState as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, true, 'キー能力喪失フラグ');
 });
 test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能力喪失のみ', () => {
@@ -72142,6 +72145,33 @@ test('2026-10-20 自己対戦（生成デッキ）: PLAY_FREE は効果元へ落
   const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
   ok(/if \(huSt\.field\?\.check && !\(d\.ownCheckFirst && cpuSt\.field\?\.check\)\) return;/.test(ct), '🔴cpuTurn が両者チェックの口を見ていない');
 }));
+
+test('2026-10-21 自己対戦（乱数の答え）: 効果によるグロウ・ルリグを上に置く効果がルリグデッキの先頭を無条件で使わない', () => {
+  // 🔴旧①＝《ビカム・ユー》（`WXK02-029` ①・`CONDITIONAL_GROW_AND_KEY_DISABLE`）がルリグデッキの**先頭**を無条件でセンターへ重ねた
+  //   （アーツの《ブルー・パニッシュ》に「グロウ」した・グロウコストも払わない）。⇒ 効果によるグロウの予約（`pending_effect_grow`）を積むだけ。
+  const lrigDeck = ['WX11-017#1', 'PR-406#1', 'WD07-004#1'];
+  const base = mkCtx({ lrig: ['WD07-005#1'] }, { lrig: ['PR-407#1'] }, 'WXK02-029#1');
+  const ctx = { ...base, ownerState: { ...base.ownerState, lrig_deck: [...lrigDeck] } } as ExecCtx;
+  const r = executeAction({ type: 'STUB', id: 'CONDITIONAL_GROW_AND_KEY_DISABLE' } as unknown as EffectAction, ctx);
+  eq(JSON.stringify(r.ownerState.field.lrig), JSON.stringify(['WD07-005#1']), '🔴engine がセンターへ直接重ねている（グロウは正規経路で行う）');
+  eq(JSON.stringify(r.ownerState.lrig_deck), JSON.stringify(lrigDeck), 'ルリグデッキを削っている');
+  ok(!!r.ownerState.pending_effect_grow && !r.ownerState.pending_effect_grow.free, '🔴効果によるグロウの予約（コストを払う）が積まれていない');
+  eq(r.ownerState.keys_abilities_disabled, true, 'キーの能力喪失が落ちた');
+  // 🔴旧②＝《エボルブ/メイデン　イオナ》（`WXEX1-20-E2`・`PLACE_LRIG_FROM_DECK_ON_TOP`）も先頭を無条件で上に置いた。⇒ ＜イオナ＞のルリグだけ。
+  const live = effectsMap.get('WXEX1-20')?.find(e => e.effectId === 'WXEX1-20-E2')?.action as unknown as { placeLrigClass?: string };
+  eq(live?.placeLrigClass, 'イオナ', '🔴parser が置けるルリグのタイプを payload に載せていない');
+  const r2 = executeAction({ type: 'STUB', id: 'PLACE_LRIG_FROM_DECK_ON_TOP', placeLrigClass: 'イオナ' } as unknown as EffectAction, ctx);
+  const inter2 = r2.pending as unknown as { type?: string; candidates?: string[] } | undefined;
+  eq(JSON.stringify(inter2?.candidates), JSON.stringify(['WD07-004#1']), '🔴候補が＜イオナ＞のルリグだけでない（アーツ・別タイプが混ざる）');
+  const r3 = executeAction({ type: 'STUB', id: 'INTERNAL_PLACE_SELECTED_LRIG_ON_TOP' } as unknown as EffectAction, { ...ctx, lastProcessedCards: ['WD07-004#1'] } as ExecCtx);
+  eq(JSON.stringify(r3.ownerState.field.lrig), JSON.stringify(['WD07-005#1', 'WD07-004#1']), '選んだルリグを上に置いていない');
+  eq(r3.ownerState.lrig_deck.includes('WD07-004#1'), false, '置いたルリグがルリグデッキに残っている');
+  // 🔴旧③＝3つのグロウの予約は**画面の自分の席しか消費しなかった**＝CPU が使っても予約が残るだけ。⇒ cpuTurn が消費する。
+  const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  for (const key of ['pending_flip_grow_card', 'pending_effect_assist_grow', 'pending_effect_grow'])
+    ok(ct.includes(`if (cpuSt.${key}) {`), `🔴CPU が ${key} を消費しない`);
+  ok(/listCpuGrows\(cpuMoveCtx\(cleared\), \{ restrictNames: req\.cardNames/.test(ct), '🔴CPU の効果グロウが名前限定・無償の区別を通していない');
+});
 
 test('2026-10-21 自己対戦（席の入れ替え）: ヘッドレスは host 席のリミット超過にも答える', () => {
   // 🔴旧＝リミット超過で「どれを落とすか」を自動で解くのは CPU（guest 席）だけ（`checkLimitExcessRule` の `isCpuBattle && isHost`）。

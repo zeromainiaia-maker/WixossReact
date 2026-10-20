@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-21（第525バッチ）`selfplay:inv --answer-fuzz`（対話に乱数で答える）を追加し、効果によるグロウの3系統を修正
+
+- **道具**＝`--answer-fuzz P`＝CPU の対話の答えを確率 P で**合法な乱数の答え**に差し替える（`HeadlessMatchDeps.reviseAnswer`＝検査専用の口）。対象は `CHOOSE`（単一・支払いの無い肢）／`SELECT_TARGET`（任意なら0〜count体）／`SEARCH`（制約なし）。🔑CPU はいつも「得な答え」を選ぶので、別の肢・変わった対象・少なく選ぶ分岐を踏まない。実測＝P=1 で生成デッキ160戦あたり約1,900回・ユーザーデッキ78戦あたり約1,600回の差し替え。
+- 🔴**①《ビカム・ユー》（`WXK02-029` ①・`CONDITIONAL_GROW_AND_KEY_DISABLE`）がルリグデッキの先頭へ無条件で「グロウ」する**＝アーツの《ブルー・パニッシュ》がルリグゾーンの一番上に乗った（`SHAPE`）。グロウコストも払っていなかった（ログの「コスト支払い済み」は嘘）。⇒ `GROW_BY_EFFECT` と同じ**効果によるグロウの予約**（`pending_effect_grow`）を積むだけにした＝候補の判定・コスト・【出】は正規経路。既存 golden 1本は旧挙動を固定していたので書き換えた。
+- 🔴**②《エボルブ/メイデン　イオナ》（`WXEX1-20-E2`・`PLACE_LRIG_FROM_DECK_ON_TOP`）も先頭を無条件で上に置いた**（同じ形）。⇒ parser が＜X＞を payload（`placeLrigClass`）に載せ、engine は「ルリグかつ＜X＞」から選ばせる（逆翻訳も＜イオナ＞を描く）。live の変化はこの1効果だけ（effectId 単位で確認）。
+- 🔴**③3つのグロウの予約（`pending_flip_grow_card`／`pending_effect_assist_grow`／`pending_effect_grow`）は画面の自分の席しか消費しなかった**＝CPU が《クロス・テンスグロウ！》（`SP38-001`）・`WX19-007`・`WXDi-P16-001A`・`WX26-P1-049` を使っても**予約が残るだけでグロウが起きなかった**（CPU観戦・自己対戦も同じ）。⇒ `cpuTurn` が自分のターンに消費する（実行は人間と同じ `performGrow`／`performAssistGrow`・候補は `listCpuGrows` に名前限定と無償の口を足した）。
+- ⚠`GROW_CENTER_IF_LEVEL_LTE_OPP` も同じ「先頭を無条件で重ねる」形だが **live 0**（どのカードも使っていない）＝安全網として触っていない。
+- **検証**＝golden 新規1本（engine・cpuTurn の修正をそれぞれ戻すと FAIL）＋既存1本の書き換え・`npm run gates` 全緑・発見した試合を回し直して CPU が正しいレベル2のルリグへグロウ・`--answer-fuzz 1` でユーザーデッキ78戦／生成デッキ160戦とも所見0・**実機 `verifyFullMatch cpu` PASS**（`src/screens/` を触った回）。
+
 ## 2026-10-21（第524バッチ）`selfplay:inv` に「比べる検査」を3本足し、ヘッドレスの host 席のリミット超過の取りこぼしを修正
 
 - **道具**＝正解を知らなくても、同じ状況を別の条件で動かして食い違えば言える検査を足した。①`--resume-every N`（`RESUME`）＝N 手ごとに**その時点の盤面データだけから作り直した試合**を同じ乱数位置で1手進め、元の試合と比べる（盤面データの外に置いた状態＝再読み込み・対人戦の相手側で割れる形）。`--resume-fresh-memo` は二重処理防止の指紋も空にする。②`--mirror`（`MIRROR`）＝**開始盤面の席だけ入れ替えた試合**を同じ乱数で回し、ターンが変わるたびに突き合わせる（席で割れる形）。③不変条件 `TURNLEAK`（`TURN_SCOPED_STATE_FIELDS` の turn-end の値がターンを越えて同じ中身で残る・予約からの昇格は除く）・`LIMIT`（落ち着いた盤面でリミット超過が3手続く）。

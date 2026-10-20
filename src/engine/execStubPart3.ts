@@ -5757,18 +5757,12 @@ export function execStubPart3(
     const oppLvCG = oppLrigCnCG ? parseInt(ctx.cardMap.get(oppLrigCnCG)?.Level ?? '0') || 0 : 0;
     let ownerCG: PlayerState = { ...ctx.ownerState, keys_abilities_disabled: true };
     let logCG = 'ターン終了時まで、あなたのすべてのキーは能力を失う';
+    // 🔴2026-10-21＝旧は**ルリグデッキの先頭を無条件で**センターへ重ねていた（アーツでもレベル違いでも「グロウ」・コストも払わない＝
+    //   ログの「コスト支払い済み」は嘘）。⇒ `GROW_BY_EFFECT` と同じ**効果によるグロウの予約**（`pending_effect_grow`）を積み、
+    //   実際のグロウは正規経路（人間＝グロウ先の選択窓／CPU＝`cpuTurn` の予約消費）が行う＝候補の判定・グロウコスト（原文「グロウコストは支払う」）・【出】を通る。
     if (myLvCG <= oppLvCG) {
-      const nextLrigCG = ctx.ownerState.lrig_deck?.at(0);
-      if (nextLrigCG) {
-        ownerCG = {
-          ...ownerCG,
-          lrig_deck: ctx.ownerState.lrig_deck?.slice(1) ?? [],
-          field: { ...ownerCG.field, lrig: [...ownerCG.field.lrig, nextLrigCG] },
-        };
-        logCG = `グロウ条件成立（自Lv${myLvCG}≤相手Lv${oppLvCG}）→${ctx.cardMap.get(nextLrigCG)?.CardName ?? nextLrigCG}にグロウ（コスト支払い済み）。${logCG}`;
-      } else {
-        logCG = `グロウ不可（ルリグデッキ空）。${logCG}`;
-      }
+      ownerCG = { ...ownerCG, pending_effect_grow: {} };
+      logCG = `グロウ条件成立（自Lv${myLvCG}≤相手Lv${oppLvCG}）→センタールリグはグロウする（グロウコストを支払う）。${logCG}`;
     } else {
       logCG = `グロウ条件不成立（自Lv${myLvCG} > 相手Lv${oppLvCG}）。${logCG}`;
     }

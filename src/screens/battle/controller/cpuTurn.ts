@@ -786,6 +786,53 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
 
   if (!isCpuTurnNow) return;
 
+  // ─── 🆕2026-10-21＝**効果によるグロウの予約**を CPU も消費する ───
+  // 🔴旧＝3つの予約（`pending_flip_grow_card`／`pending_effect_assist_grow`／`pending_effect_grow`）は**画面の自分の席しか消費しなかった**
+  //   （`BattleScreen` の useEffect）＝CPU が《クロス・テンスグロウ！》等を使っても**予約が残るだけでグロウが起きなかった**。
+  // ⚠実行は人間と同じ関数（`performGrow`／`performAssistGrow`）・引数も画面の消費と同じ。予約は実行の前に消す（画面と同じ）。
+  if (!bs.effect_stack && !bs.pending_effect && !bs.pending_spell) {
+    if (cpuSt.pending_flip_grow_card) {
+      const target = cpuSt.pending_flip_grow_card;
+      const card = battleCardMap.get(target);
+      const cleared: PlayerState = { ...cpuSt, pending_flip_grow_card: undefined };
+      if (!card) { await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleared })); return; }
+      appendBattleLogs([`[CPU] グロウ（効果）: ${card.CardName}`]);
+      await performGrow(card, new Set(), { baseState: cleared, freeCost: true, consumeGrowAction: false, instanceId: target }, {
+        actor: cleared, opponent: huSt, actorId: CPU_PLAYER_ID, opponentId: bs.host_id, actorKey: 'guest_state',
+        isActorTurn: true, energyPayPool: [], onCostOnPlay: 'auto', onCostOnPlayWrap: cpuPolicy.onPlayCostPay > 0,
+      });
+      return;
+    }
+    if (cpuSt.pending_effect_assist_grow) {
+      const req = cpuSt.pending_effect_assist_grow;
+      const card = battleCardMap.get(getCardNum(req.instanceId));
+      const cleared: PlayerState = { ...cpuSt, pending_effect_assist_grow: undefined };
+      if (!card) { await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleared })); return; }
+      appendBattleLogs([`[CPU] アシストグロウ（効果）: ${card.CardName}`]);
+      await performAssistGrow(card, req.side, new Set(), {
+        owner: cleared, other: huSt, ownerId: CPU_PLAYER_ID, ownerKey: 'guest_state', energyPayPool: [],
+      });
+      return;
+    }
+    if (cpuSt.pending_effect_grow) {
+      const req = cpuSt.pending_effect_grow;
+      const cleared: PlayerState = { ...cpuSt, pending_effect_grow: undefined };
+      // 原文は「グロウしてもよい」＝候補が無い・払えないなら何もしない（予約だけ消す＝人間がモーダルを閉じたのと同じ）。
+      const m = listCpuGrows(cpuMoveCtx(cleared), { restrictNames: req.cardNames?.length ? req.cardNames : null, free: !!req.free })[0];
+      if (!m) {
+        appendBattleLogs(['[CPU] 効果によるグロウ先が無い（グロウしない）']);
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleared }));
+        return;
+      }
+      appendBattleLogs([`[CPU] グロウ（効果）: ${m.card.CardName}（Lv.${m.card.Level}）`]);
+      await performGrow(m.card, m.costIndices, { baseState: cleared, freeCost: !!req.free, suppressOnPlayOnce: req.suppressOnPlay === true }, {
+        actor: cleared, opponent: huSt, actorId: CPU_PLAYER_ID, opponentId: bs.host_id, actorKey: 'guest_state',
+        isActorTurn: true, energyPayPool: m.pool, onCostOnPlay: 'auto', onCostOnPlayWrap: cpuPolicy.onPlayCostPay > 0,
+      });
+      return;
+    }
+  }
+
   const phase = bs.turn_phase;
 
   // 🆕§5.7 `S-15`＝候補数の実測フック（渡したときだけ・盤面には書かない）。`S-16` のビーム幅を決める材料。

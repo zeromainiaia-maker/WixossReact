@@ -2198,17 +2198,30 @@ export function execStubPart2(
     };
     return done(addLog({ ...ctx, ownerState: sCTLD }, `${ctx.cardMap.get(cnCTLD)?.CardName ?? cnCTLD}をルリグデッキに追加`));
   }
-  // PLACE_LRIG_FROM_DECK_ON_TOP: ルリグデッキからルリグをフィールドへ
+  // PLACE_LRIG_FROM_DECK_ON_TOP: 「あなたのルリグデッキから＜X＞１枚をこのルリグの上に置く」（`WXEX1-20-E2`・【グロウ】やグロウコストは無視）。
+  // 🔴2026-10-21＝旧は**ルリグデッキの先頭を無条件で**センターへ重ねていた＝アーツ・アシストルリグ・別タイプでも「上に置いた」
+  //   （自己対戦で乱数の答えを使ったときに発見した `CONDITIONAL_GROW_AND_KEY_DISABLE` と同じ形）。
+  //   ⇒ 候補は**ルリグ（種別）かつ＜X＞**（payload `placeLrigClass`）。2枚以上なら選ばせる。
+  // 表示: ルリグデッキから＜X＞のルリグ１枚をこのルリグの上に置く（【グロウ】やグロウコストは無視）
   if (stub.id === 'PLACE_LRIG_FROM_DECK_ON_TOP') {
-    const sPLFDOT = ctx.ownerState;
-    const topLrigPLFDOT = sPLFDOT.lrig_deck[0];
-    if (!topLrigPLFDOT) return done(addLog(ctx, 'ルリグデッキなし'));
-    const newSPLFDOT: PlayerState = {
-      ...sPLFDOT,
-      lrig_deck: sPLFDOT.lrig_deck.slice(1),
-      field: { ...sPLFDOT.field, lrig: [...sPLFDOT.field.lrig, topLrigPLFDOT] },
+    const clsPL = stub.placeLrigClass;
+    const candsPL = [...new Set(ctx.ownerState.lrig_deck)].filter(id => {
+      const c = ctx.cardMap.get(getCardNum(id));
+      return c?.Type === 'ルリグ' && (!clsPL || (c.CardClass ?? '').split(/[/／]/).some(x => x.trim().includes(clsPL)));
+    });
+    if (candsPL.length === 0) return done(addLog(ctx, `ルリグデッキに${clsPL ? `＜${clsPL}＞の` : ''}ルリグが無い`));
+    return selectOrInteract(candsPL, 1, false, 'self_lrig_deck', { type: 'STUB', id: 'INTERNAL_PLACE_SELECTED_LRIG_ON_TOP' } as EffectAction, undefined, ctx);
+  }
+  // 表示: 選んだルリグをルリグデッキからセンタールリグの上に置く
+  if (stub.id === 'INTERNAL_PLACE_SELECTED_LRIG_ON_TOP') {
+    const pickPL = (ctx.lastProcessedCards ?? []).find(id => ctx.ownerState.lrig_deck.includes(id));
+    if (!pickPL) return done(addLog(ctx, '置くルリグを選べなかった'));
+    const newSPL: PlayerState = {
+      ...ctx.ownerState,
+      lrig_deck: ctx.ownerState.lrig_deck.filter(id => id !== pickPL),
+      field: { ...ctx.ownerState.field, lrig: [...ctx.ownerState.field.lrig, pickPL] },
     };
-    return done(addLog({ ...ctx, ownerState: newSPLFDOT }, `${ctx.cardMap.get(topLrigPLFDOT)?.CardName ?? topLrigPLFDOT}をフィールドへ`));
+    return done(addLog({ ...ctx, ownerState: newSPL }, `${ctx.cardMap.get(getCardNum(pickPL))?.CardName ?? pickPL}をこのルリグの上に置く`));
   }
   // LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグリミット増加（+1）と色獲得（log）
   if (stub.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {

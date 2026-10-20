@@ -5252,6 +5252,8 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /** 🆕2026-10-21＝`PLACE_LRIG_FROM_DECK_ON_TOP` の置けるルリグのタイプ（「ルリグデッキから＜イオナ＞１枚をこのルリグの上に置く」の＜イオナ＞）。 */
+  placeLrigClass?: string;
   /** 🆕`OPP_SIGNI_TO_DECK_AND_SHUFFLE` で「対戦相手の**すべての**シグニ」（選ばせない・2026-10-03 `WX26-P1-051-E1`）。 */
   allSigni?: boolean;
   /**

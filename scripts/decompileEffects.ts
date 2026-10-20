@@ -6610,6 +6610,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🔴旧ラベルは「このターン、グロウコストを支払わずにグロウできるようになる」＝
       //   **engine の旧挙動（全グロウ無料）を書いていた**。payload 化したので原文どおりに描ける。
       // ⚠**payload が無いときは engine が何もしない**＝それも描く（既定値へ倒したように読ませない）。
+      // 🆕2026-10-21＝置けるルリグのタイプ（`placeLrigClass`）を描く（engine はこの値で候補を絞る）。
+      if (a.id === 'PLACE_LRIG_FROM_DECK_ON_TOP') {
+        return `あなたのルリグデッキから${a.placeLrigClass ? `＜${a.placeLrigClass}＞の` : ''}ルリグ1枚をこのルリグの上に置く（【グロウ】やグロウコストは無視）`;
+      }
       if (a.id === 'CONDITIONAL_FREE_GROW') {
         const gfl = a.growFromLrigDeck;
         if (!gfl?.cardNames?.length) return '【未実装】グロウ先の指定が無いためグロウしない';

@@ -7,7 +7,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-10-14）
+## サマリー（最終生成: 2026-10-20）
 
 | 区分 | 値 |
 |---|---:|
@@ -15,7 +15,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 　└ ハンドラ実装あり | 555 |
 | 　└ フォールバック（execStub 未処理） | 42 |
 | 総 STUB ノード件数 | 3803 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 378 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 379 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -324,7 +324,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_SIGNI_TO_DECK_BY_GATE` | 1 | 1 | WDK09-001 | 相手シグニをゲートを通じてデッキへ（バウンス） |
 | `OPP_SIGNI_TO_DECK_NTH` | 1 | 1 | WDK09-012 | 相手シグニをデッキのN番目に挿入 |
 | `OPP_TRASH_TO_OPP_SIGNI_UNDER` | 1 | 1 | WXK11-069 | 相手トラッシュ最上段を相手シグニ下にカードを置く |
-| `PLACE_LRIG_FROM_DECK_ON_TOP` | 1 | 1 | WXEX1-20 | ルリグデッキからルリグをフィールドへ |
+| `PLACE_LRIG_FROM_DECK_ON_TOP` | 1 | 1 | WXEX1-20 | ルリグデッキから＜X＞のルリグ１枚をこのルリグの上に置く（【グロウ】やグロウコストは無視） |
 | `PLACE_VIRUS_CENTER` | 1 | 1 | WXEX2-79 | 相手の中央のシグニゾーンにウィルスを設置 |
 | `PLAY_EFFECT_TARGET_CLASS_CHANGE` | 1 | 1 | WX14-032 |  |
 | `POWER_COPY_FROM_DOWNED` | 1 | 1 | WXDi-P16-052 | ダウンしたシグニのパワーを自シグニに加算 |
@@ -649,7 +649,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 378 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 379 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -857,6 +857,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_PLACE_FACING_SAME_POWER` | 0 | 0 |  | ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══ 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１… |
 | `INTERNAL_PLACE_LRIG_UNDER_CENTER` | 0 | 0 |  | ルリグトラッシュから選択ルリグをセンタールリグ下に配置 |
 | `INTERNAL_PLACE_PUPPET` | 0 | 0 |  | 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ） |
+| `INTERNAL_PLACE_SELECTED_LRIG_ON_TOP` | 0 | 0 |  | 選んだルリグをルリグデッキからセンタールリグの上に置く |
 | `INTERNAL_PLACE_SELF_UNDER_SIGNI` | 0 | 0 |  | 自シグニを選択シグニのスタック下に移動。 |
 | `INTERNAL_PLACE_SUMMONED_RESONAS` | 0 | 0 |  | 選ばれたレゾナを1枚ずつ空きゾーンへ置く（§6.4 O-5）。 |
 | `INTERNAL_PMBTSL_APPLY` | 0 | 0 |  |  |

@@ -92,6 +92,43 @@ const RESUME_FRESH_MEMO = argv.includes('--resume-fresh-memo');
  * ⚠**ヘッドレスの進行役そのものが非対称**（ルール処理は host 席＝実機の人間のクライアント視点）＝差は候補として読む。
  */
 const MIRROR = argv.includes('--mirror');
+/**
+ * 🆕`--answer-fuzz P`＝**CPU の対話の答えを確率 P で乱数の（合法な）答えに差し替える**（`HeadlessMatchDeps.reviseAnswer`）。
+ * 🔑CPU はいつも「得な答え」を選ぶ＝断る・変わった対象・少なく選ぶ分岐を踏まない。差し替えるのは3形だけ＝
+ *   `CHOOSE`（単一選択・宣言なし）＝押せる肢のうち支払いの無い肢から／`SELECT_TARGET`＝候補から（任意なら0〜count体）／
+ *   `SEARCH`（制約なし）＝見えている札から（任意なら0〜maxPick枚）。⚠支払いのある肢・合計制約つきは CPU の答えのまま。
+ * ⚠乱数は試合の乱数とは別の列（seed 由来）＝試合の乱数位置は変えるが再現はできる。
+ */
+const ANSWER_FUZZ = Number(arg('--answer-fuzz', '0'));
+function makeAnswerFuzz(seed: number) {
+  let a = (seed * 7919 + 17) | 0;
+  const r = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const shuffle = <T,>(xs: T[]) => { const o = [...xs]; for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; } return o; };
+  const counts: Record<string, number> = {};
+  const revise = (pe: any, res: any) => {
+    if (ANSWER_FUZZ <= 0 || res.kind !== 'effect' || r() >= ANSWER_FUZZ) return res;
+    const it = pe.interaction;
+    let sel: string[] | null = null;
+    if (it.type === 'CHOOSE' && !it.multiSelect && !it.namePool) {
+      const opts = it.options.filter((o: any) => o.available && !(o.costColors?.length));
+      if (opts.length > 1) sel = [opts[Math.floor(r() * opts.length)].id];
+    } else if (it.type === 'SELECT_TARGET' && it.totalPowerMax === undefined && it.totalLevelMax === undefined && !it.selectionConstraint) {
+      const cand = it.candidates.filter((n: string) => !(it.unplaceableCards ?? []).includes(n));
+      const cnt = typeof it.count === 'number' ? it.count : 1;
+      const n = it.optional ? Math.floor(r() * (Math.min(cnt, cand.length) + 1)) : Math.min(cnt, cand.length);
+      if (cand.length > 0) sel = shuffle(cand).slice(0, n);
+    } else if (it.type === 'SEARCH' && !it.selectionConstraint) {
+      const vis = it.visibleCards.filter((n: string) => !(it.unplaceableCards ?? []).includes(n));
+      const max = Math.min(it.maxPick ?? 0, vis.length);
+      const n = it.optional ? Math.floor(r() * (max + 1)) : max;
+      sel = shuffle(vis).slice(0, n);
+    }
+    if (!sel) return res;
+    counts[it.type] = (counts[it.type] ?? 0) + 1;
+    return { ...res, selected: sel };
+  };
+  return { revise, counts };
+}
 /** 乱数（mulberry32）の状態を外から読み書きできる形＝分岐させた試合に同じ乱数位置を渡すため。 */
 const rngState = { a: 0 };
 const rngNext = () => {
@@ -218,7 +255,8 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const turnSnaps: { turn: number; row: BattleStateRow; logs: string[] }[] = [];
   const memo = createRuleCheckMemo();
   const deps = { cards, cpuPlans: { host: a.plan, guest: b.plan }, policy: { host: pol, guest: pol } };
-  const m = createHeadlessMatch(setup.row, { ...deps, initialLogs: setup.logs, memo });
+  const fuzz = makeAnswerFuzz(seed);
+  const m = createHeadlessMatch(setup.row, { ...deps, initialLogs: setup.logs, memo, ...(ANSWER_FUZZ > 0 ? { reviseAnswer: fuzz.revise } : {}) });
   const tag = `${a.name} vs ${b.name} s${seed}`;
   const initial = new Set(locate(m.row()).loc.keys());
   const missingSince = new Map<string, number>();
@@ -348,7 +386,7 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   if (reason === 'cap') once('CAP', { kind: 'CAP', step, turn: m.row().turn_count, detail: 'step 上限', logs: ctxLogs() });
   const r = m.row();
   if (COV_OUT) fs.appendFileSync(COV_OUT, JSON.stringify({ game: tag, reason, effects: [...covEffects], field: [...covField] }) + String.fromCharCode(10));
-  console.log(`${tag}: ${reason} steps=${step} turns=${r.turn_count} life H${r.host_state.life_cloth.length}/G${r.guest_state.life_cloth.length} winner=${r.winner_id ?? '-'}`);
+  console.log(`${tag}: ${reason}${ANSWER_FUZZ > 0 ? ` fuzz=${JSON.stringify(fuzz.counts)}` : ''} steps=${step} turns=${r.turn_count} life H${r.host_state.life_cloth.length}/G${r.guest_state.life_cloth.length} winner=${r.winner_id ?? '-'}`);
 }
 
 /** 席を入れ替えた試合を回し、ターンが変わるたびに元の試合（の鏡）と突き合わせる。最初の食い違いだけ報告する。 */
@@ -399,7 +437,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));
@@ -409,6 +447,11 @@ async function runPairs(from: number, to: number) {
   const games = all.filter(l => / steps=/.test(l));
   const bad = all.filter(l => l.startsWith('  🔴'));
   for (const l of games.filter(l => !/: finished /.test(l))) console.log(l);
+  if (ANSWER_FUZZ > 0) {
+    const tot: Record<string, number> = {};
+    for (const l of games) { const mm = l.match(/ fuzz=(\{[^}]*\})/); if (mm) for (const [k, v] of Object.entries(JSON.parse(mm[1]) as Record<string, number>)) tot[k] = (tot[k] ?? 0) + v; }
+    console.log(`差し替えた答え ${JSON.stringify(tot)}`);
+  }
   for (const l of bad) console.log(l);
   console.log(`${games.length}戦（決着 ${games.filter(l => /: finished /.test(l)).length}）｜所見 ${bad.length}｜${((Date.now() - t0) / 1000).toFixed(0)}秒${OUT ? `｜明細 → ${OUT}` : ''}`);
 })();

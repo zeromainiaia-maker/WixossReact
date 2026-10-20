@@ -2657,7 +2657,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- ルリグデッキから特定ルリグをこのルリグの上に置く ----
   if (t.match(/あなたのルリグデッキから.*このルリグの上に置く/)) {
-    return { type: 'STUB', id: 'PLACE_LRIG_FROM_DECK_ON_TOP' } as StubAction;
+    // 🆕2026-10-21＝置けるルリグのタイプ（＜X＞）を payload に載せる（engine は原文を読まない）。
+    const clsPL = t.match(/あなたのルリグデッキから＜([^＞]+)＞/)?.[1];
+    return { type: 'STUB', id: 'PLACE_LRIG_FROM_DECK_ON_TOP', ...(clsPL ? { placeLrigClass: clsPL } : {}) } as StubAction;
   }
 
   // ---- 凍結状態のシグニが場を離れる場合トラッシュ ----

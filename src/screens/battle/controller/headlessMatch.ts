@@ -5,7 +5,7 @@ import { CPU_PLAYER_ID } from '../battleUtils';
 import { normalizeCpuDeckPlan, type CpuDeckPlan } from '../cpuDeckPlan';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from '../cpuPolicy';
 import { cpuShouldAct, cpuWaitingForHuman } from '../cpuDriver';
-import { decideCpuInteractionResponse } from '../cpuInteractionRespond';
+import { decideCpuInteractionResponse, type CpuInteractionResponse } from '../cpuInteractionRespond';
 import { createHeadlessIo } from './battleIo';
 import { reduceBattle } from './battleController';
 import { buildBaseEffectsMap, buildBattleMaterials } from './battleMaterials';
@@ -110,6 +110,12 @@ export interface HeadlessMatchDeps {
   /** 🆕§5.7 `S-15`＝候補列挙の観測フック（両席とも・計測専用＝`scripts/headlessSelfPlay.ts --census-moves`）。 */
   observeMoves?: CpuTurnDeps['observeMoves'];
   observeChoice?: CpuTurnDeps['observeChoice'];
+  /**
+   * 🆕2026-10-21＝**対話の答えの差し替え**（検査専用＝`scripts/selfPlayInvariants.ts --answer-fuzz`）。
+   * 🔑CPU はいつも「得な答え」を選ぶので、断る・変わった対象を選ぶ・少なく選ぶ分岐を踏まない。ここで乱数の答えに差し替えると、その分岐も通る。
+   * ⚠**合法な答えだけを返す**のは差し替える側の責任（不正な答えで壊れても、それはバグではない）。
+   */
+  reviseAnswer?: (pe: PendingEffect, res: CpuInteractionResponse) => CpuInteractionResponse;
 }
 
 /**
@@ -225,7 +231,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
   const answerInteraction = async (bs: BattleStateRow, pe: PendingEffect): Promise<boolean> => {
     const ctx = clientCtx();
     const responderId = pe.respondPlayerId ?? pe.sourcePlayerId;
-    const res = decideCpuInteractionResponse(pe, {
+    const res0 = decideCpuInteractionResponse(pe, {
       cpuPlayerId: responderId, hostId: bs.host_id,
       hostState: bs.host_state, guestState: bs.guest_state,
       cards: d.cards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
@@ -235,7 +241,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       policy: (responderId === bs.host_id ? d.policy?.host : d.policy?.guest) ?? DEFAULT_CPU_POLICY,
       activePlayerId: bs.active_user_id ?? undefined, turnPhase: bs.turn_phase,
     });
-    if (!res) return false;
+    if (!res0) return false;
+    const res = d.reviseAnswer ? d.reviseAnswer(pe, res0) : res0;
     actor = responderId === bs.host_id ? 'host' : 'guest';
     const h = makeEffectInteractionHandlers(ctx, { loading: false });
     if (res.kind === 'rearrange') await h.handleRearrangeSigniConfirm(res.arrangement);

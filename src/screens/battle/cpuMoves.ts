@@ -160,13 +160,19 @@ function enaPayRankOf(ctx: CpuMoveCtx): ((num: string) => number) | undefined {
   return planHasEnaUse(ctx.plan) ? num => planEnaPayRank(ctx.plan, num) : undefined;
 }
 
-export function listCpuGrows(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'grow' }>[] {
+/**
+ * 🆕2026-10-21＝`opts`＝**効果によるグロウの予約**（`pending_effect_grow`）を CPU が消費するときの絞り込み
+ * （人間の `openFreeGrow(filter, names)` と同じ2軸）。`free`＝「グロウコストを支払わずに」＝支払いなし（`costIndices` 空）。
+ * ⚠省略時は従来どおり（通常のグロウ）。
+ */
+export function listCpuGrows(ctx: CpuMoveCtx, opts: { restrictNames?: string[] | null; free?: boolean } = {}): Extract<CpuMove, { kind: 'grow' }>[] {
   const s = ctx.actor;
   const pool = buildEnergyPayPool(s, { turnPhase: 'GROW', isMyTurn: true, effectsMap: ctx.effectsMap });
   const poolNums = energyPoolCardNums(pool);
   const { isAffordable, wholeSubstitutes } = basicAffordable(ctx, s);
   const out: Extract<CpuMove, { kind: 'grow' }>[] = [];
-  for (const card of listGrowCandidates({ my: s, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap })) {
+  for (const card of listGrowCandidates({ my: s, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap, restrictNames: opts.restrictNames ?? null })) {
+    if (opts.free) { out.push({ kind: 'grow', card, costIndices: new Set<number>(), pool }); continue; }
     // 🆕**§5.3 `O-219`**＝グロウ先ごとに軽減が変わる（人間UIと同じ関数・同じ引数で読む）。
     const red = collectGrowCostReductions(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, card.CardNum);
     const costStr = applyGrowCostReduction(card.GrowCost, red);
