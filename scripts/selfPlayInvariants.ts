@@ -18,6 +18,7 @@
  *   - `DUP`＝同じ ID が2つの置き場に居る ／ `NEW`＝開始時に無い ID が現れた（トークン以外＝複製か ID の書き換え）
  *   - `VANISH`＝開始時の ID がどの置き場にも40手以上居ない（`paths=` に state のどこに名前が残っているか）
  *   - `SHAPE`＝置き場とカード種別の食い違い（手札にアーツ・シグニゾーンの上がスペル 等）／NaN／未知のカード
+ *   - 🆕`TURNLEAK`＝ターン限定の値がターンを越えて残る／`LIMIT`＝リミット超過が残る／`RESUME`（`--resume-every`）＝盤面データから作り直した試合と食い違う／`MIRROR`（`--mirror`）＝席を入れ替えた試合と食い違う
  *   - `STALL`＝**盤面もログも変わらない手が続く**（空回り＝実機なら CPU が止まる）／`IDLE`＝誰も動けない／`CAP`＝手数の上限／`CRASH`＝例外
  * ⚠**候補出し**＝`VANISH`/`NEW` は置き場の追跡漏れでも出る（`behaviorAudit.ts` の `snapshot` と同じ置き場を見ている）。
  * ⚠**0件は「壊れていない」ではない**＝CPU が踏む手と、その山が持つカードしか見ていない。シードを変えて回す。
@@ -29,13 +30,16 @@ import { fileURLToPath } from 'url';
 import { join } from 'path';
 import Papa from 'papaparse';
 import type { BattleStateRow, CardData, PlayerState } from '../src/types';
-import { setRngSeed } from '../src/engine/rng';
+import { setRng } from '../src/engine/rng';
+import { createRuleCheckMemo, type RuleCheckMemo } from '../src/screens/battle/controller/ruleChecks';
 import { CPU_PLAYER_ID } from '../src/screens/battle/battleUtils';
 import { resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { collectHandLimits } from '../src/engine/effectEngine';
+import { TURN_SCOPED_STATE_FIELDS } from '../src/screens/battle/turnScopedState';
+import { planLimitExcess } from '../src/screens/battle/limitExcess';
 import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
-import { buildBaseEffectsMap } from '../src/screens/battle/controller/battleMaterials';
-import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
+import { buildBaseEffectsMap, buildBattleMaterials } from '../src/screens/battle/controller/battleMaterials';
+import { createHeadlessMatch, mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import { resolveSelfPlayDeck, listPlayableDeckNames, type SelfPlayDeck } from './selfPlayDecks';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';
@@ -73,6 +77,48 @@ for (let k = 0; k < names.length; k++) pairs.push([names[k], names[(k * 7 + 3) %
 if (argv.includes('--a')) { pairs.length = 0; pairs.push([arg('--a',''), arg('--b','')]); }
 const [p0, p1] = arg('--pairs', `0-${pairs.length - 1}`).split('-').map(Number);
 const TRACE = argv.includes('--trace');
+/**
+ * 🆕`--resume-every N`＝**N 手ごとに「その時点の盤面データだけから作り直した試合」を1手進め、元の試合の1手と突き合わせる**（`RESUME`）。
+ * 🔑**拾う形**＝盤面データ（DB の行）の外に置いた状態に頼る処理＝実機では**再読み込み・対人戦の相手側で結果が割れる**。
+ *   乱数の位置と二重処理防止の指紋（`RuleCheckMemo`）は複製して渡す＝それ以外の隠れた状態（モジュール変数・クロージャ）だけが差になる。
+ *   `--resume-fresh-memo` で指紋も空にする（＝再読み込みそのもの。⚠指紋は設計上 DB に無いので、差は候補として読む）。
+ */
+const RESUME_EVERY = Number(arg('--resume-every', '0'));
+const RESUME_FRESH_MEMO = argv.includes('--resume-fresh-memo');
+/**
+ * 🆕`--mirror`＝**同じ開始盤面を席だけ入れ替えて（`mirrorSeats`）もう1戦回し、ターンが変わるたびの盤面を突き合わせる**（`MIRROR`）。
+ * 🔑**拾う形**＝ホスト席とゲスト席で処理が割れる（`isHost`・`host_state` 決め打ち・`userId` の取り違え）。
+ *   エンジンの効果処理は「自分／相手」の相対なので、席の差が出るのは進行役（controller）の層だけ。
+ * ⚠**ヘッドレスの進行役そのものが非対称**（ルール処理は host 席＝実機の人間のクライアント視点）＝差は候補として読む。
+ */
+const MIRROR = argv.includes('--mirror');
+/** 乱数（mulberry32）の状態を外から読み書きできる形＝分岐させた試合に同じ乱数位置を渡すため。 */
+const rngState = { a: 0 };
+const rngNext = () => {
+  rngState.a = (rngState.a + 0x6D2B79F5) | 0;
+  let t = Math.imul(rngState.a ^ (rngState.a >>> 15), 1 | rngState.a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const cloneMemo = (m: RuleCheckMemo): RuleCheckMemo => ({
+  lastBanishedKeyRef: { current: m.lastBanishedKeyRef.current }, lastContMutationKeyRef: { current: m.lastContMutationKeyRef.current },
+  lastRefreshTurnEndKeyRef: { current: m.lastRefreshTurnEndKeyRef.current }, lastDeferredRefreshKeyRef: { current: m.lastDeferredRefreshKeyRef.current },
+  lastLimitExcessKeyRef: { current: m.lastLimitExcessKeyRef.current },
+  restrictionMatchedRef: { current: Object.fromEntries(Object.entries(m.restrictionMatchedRef.current).map(([k, v]) => [k, new Map(v)])) },
+});
+/** 識別子の揺れ（`crypto.randomUUID`・`Date.now()` を埋めた effectId）を潰して比べる。 */
+const normIds = (s: string) => s.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<uuid>').replace(/\d{13}/g, '<now>');
+/** 2つの行の差のあるキーを列挙（`host_state.x` 粒度）。 */
+function rowDiffKeys(a: any, b: any): string[] {
+  const out: string[] = [];
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (/_state$/.test(k) && a[k] && b[k]) {
+      for (const k2 of new Set([...Object.keys(a[k]), ...Object.keys(b[k])]))
+        if (normIds(JSON.stringify(a[k][k2]) ?? '') !== normIds(JSON.stringify(b[k][k2]) ?? '')) out.push(`${k}.${k2}`);
+    } else if (normIds(JSON.stringify(a[k]) ?? '') !== normIds(JSON.stringify(b[k]) ?? '')) out.push(k);
+  }
+  return out;
+}
 
 const numOf = (id: string) => id.split('#')[0];
 const LRIG_TYPES = new Set(['ルリグ', 'アシストルリグ', 'アーツ', 'ピース', 'リレーピース', 'キー', 'レゾナ', 'クラフト']);
@@ -164,10 +210,15 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck].map(n => String(n).split('#')[0]));
   const cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
   const cardMap = new Map(cards.map(c => [c.CardNum, c]));
-  setRngSeed(seed);
+  rngState.a = seed | 0; setRng(rngNext);
   const setup = buildHeadlessRow({ seats: { host: a, guest: b }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: resolveCpuPolicy(POLICY), guest: resolveCpuPolicy(POLICY) } });
   const pol = resolveCpuPolicy(POLICY);
-  const m = createHeadlessMatch(setup.row, { cards, initialLogs: setup.logs, cpuPlans: { host: a.plan, guest: b.plan }, policy: { host: pol, guest: pol } });
+  const rngAfterSetup = rngState.a;
+  /** ターンが変わった時点の盤面（席の鏡を比べる用）。 */
+  const turnSnaps: { turn: number; row: BattleStateRow; logs: string[] }[] = [];
+  const memo = createRuleCheckMemo();
+  const deps = { cards, cpuPlans: { host: a.plan, guest: b.plan }, policy: { host: pol, guest: pol } };
+  const m = createHeadlessMatch(setup.row, { ...deps, initialLogs: setup.logs, memo });
   const tag = `${a.name} vs ${b.name} s${seed}`;
   const initial = new Set(locate(m.row()).loc.keys());
   const missingSince = new Map<string, number>();
@@ -176,8 +227,10 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   let step = 0; let reason = 'cap';
   let lastLog = 0;
   // 🆕ルール処理の取りこぼし（HANDLIMIT／POWERZERO）を見るための静的な効果表（`createHeadlessMatch` と同じ組み方）。
-  const effectsMap = buildBaseEffectsMap([...new Map(cards.map(c => [c.CardNum, c] as const)).values()]);
+  const uniqCards = [...new Map(cards.map(c => [c.CardNum, c] as const)).values()];
+  const effectsMap = buildBaseEffectsMap(uniqCards);
   let pzSince = -1;
+  let limSince = -1;
   // ⚠個体 ID（`WX01-001#3`）でも引けるカード表（実機の `InstanceMap` と同じ扱い）＝素の表だとパワーが読めず 0 と誤判定する
   class InstMap extends Map<string, CardData> { get(k: string) { return super.get(k) ?? super.get(numOf(k)); } has(k: string) { return super.has(k) || super.has(numOf(k)); } }
   const instMap = new InstMap(cardMap);
@@ -189,9 +242,26 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
     const prevRow = m.row();
     const prevJson = JSON.stringify(prevRow);
     const logLenBefore = m.logs.length;
+    // 🆕RESUME＝同じ盤面データ・同じ乱数位置から作り直した試合を先に1手進めておく（元の試合の1手と比べる）
+    let fork: { row: BattleStateRow; logs: string[]; kind: string } | null = null;
+    if (RESUME_EVERY > 0 && step % RESUME_EVERY === 0 && !prevRow.winner_id) {
+      const rng0 = rngState.a;
+      try {
+        const f = createHeadlessMatch(JSON.parse(prevJson), { ...deps, memo: RESUME_FRESH_MEMO ? createRuleCheckMemo() : cloneMemo(memo) });
+        const fk = await f.step();
+        fork = { row: f.row(), logs: f.logs.slice(), kind: fk };
+      } catch (e: any) { fork = { row: prevRow, logs: [`CRASH ${String(e?.message ?? e)}`], kind: 'crash' }; }
+      rngState.a = rng0;
+    }
     try { k = await m.step(); } catch (e: any) {
       once('CRASH', { kind: 'CRASH', step, turn: m.row().turn_count, detail: String(e?.stack ?? e).split('\n').slice(0, 6).join(' | '), logs: ctxLogs() });
       reason = 'crash'; break;
+    }
+    if (fork) {
+      const keys = rowDiffKeys(m.row(), fork.row);
+      const newLogs = m.logs.slice(logLenBefore);
+      const logDiff = normIds(newLogs.join(String.fromCharCode(10))) !== normIds(fork.logs.join(String.fromCharCode(10)));
+      if (keys.length > 0 || logDiff || fork.kind !== k) once(`RESUME:${keys.join(',')}:${k}`, { kind: 'RESUME', step, turn: prevRow.turn_count, detail: `作り直した試合と食い違い（元=${k}／作り直し=${fork.kind}）差=${keys.join(',') || '(盤面同じ)'}${logDiff ? ` ログ差 元[${newLogs.slice(-2).join(' / ')}] 作り直し[${fork.logs.slice(-2).join(' / ')}]` : ''}`, logs: m.logs.slice(-8) });
     }
     if (TRACE && step > MAX_STEPS - 6) { const r0 = m.row(); for (const side of ['host_state','guest_state'] as const) for (const k of new Set([...Object.keys((prevRow as any)[side]), ...Object.keys((r0 as any)[side])])) { const a = JSON.stringify((prevRow as any)[side][k]), b = JSON.stringify((r0 as any)[side][k]); if (a !== b) console.log(`   Δ ${side}.${k}: ${a?.slice(0,200)} -> ${b?.slice(0,200)}`); } for (const k of Object.keys(r0)) if (!/_state$/.test(k) && JSON.stringify((prevRow as any)[k]) !== JSON.stringify((r0 as any)[k])) console.log(`   Δ row.${k}`); }
     if (TRACE && step > MAX_STEPS - 40) { const r0 = m.row(); console.log(`step${step} ${k} actor=${m.lastActor()} phase=${r0.turn_phase} active=${r0.active_user_id===HOST_ID?'H':'G'} pend=${JSON.stringify(r0.pending_effect)?.slice(0,300)} stack=${JSON.stringify(r0.effect_stack)?.slice(0,300)} | ${m.logs.slice(-2).join(' / ')}`); }
@@ -234,11 +304,39 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
       const lim = collectHandLimits(ps, os, instMap, effectsMap);
       if (ps.hand.length > lim) once(`HANDLIMIT:${r.turn_count}`, { kind: 'HANDLIMIT', step, turn: r.turn_count, detail: `${prevIsHost ? 'H' : 'G'} 手札${ps.hand.length} > 上限${lim}`, logs: m.logs.slice(-10) });
     }
+    if (MIRROR && r.turn_count !== prevRow.turn_count) turnSnaps.push({ turn: r.turn_count, row: r, logs: m.logs.slice(-8) });
+    // 🆕TURNLEAK＝ターンが移ったのに「ターン終了時に失効する」値（`TURN_SCOPED_STATE_FIELDS` の turn-end）が**前の手と同じ中身のまま**残っている
+    //   ⚠中身が変わっていれば数えない（ターン開始時の予約の昇格で同じキーに新しい値が入るため）
+    if (r.turn_count !== prevRow.turn_count) {
+      const empty = (v: unknown) => v === undefined || v === null || v === 0 || v === false || (Array.isArray(v) && v.length === 0) || (typeof v === 'object' && v !== null && Object.keys(v).length === 0);
+      for (const [side, before, after] of [['H', prevRow.host_state, r.host_state], ['G', prevRow.guest_state, r.guest_state]] as [string, any, any][])
+        for (const [f, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS) as [string, { boundaries: readonly string[] }][]) {
+          if (!spec.boundaries.includes('turn-end')) continue;
+          const b = before[f], a = after[f];
+          // ⚠「次のターン」の予約（`<キー>_next_turn`／`<キー>_until_next_own_turn`）から昇格した分は正しい持ち越し（「次の対戦相手のターン終了時まで」＝2ターン）
+          const reserved = [`${f}_next_turn`, `${f}_until_next_own_turn`].some(k => !empty(before[k]));
+          if (!reserved && !empty(b) && JSON.stringify(b) === JSON.stringify(a)) once(`TURNLEAK:${f}`, { kind: 'TURNLEAK', step, turn: r.turn_count, detail: `${side}.${f} がターンを越えて残った ${JSON.stringify(a).slice(0, 160)}`, logs: m.logs.slice(-10) });
+        }
+    }
     // POWERZERO＝落ち着いた盤面（スタック・対話・スペル待ちなし）でバニッシュされるはずのシグニが残り続ける
     if (!r.effect_stack && !r.pending_effect && !r.pending_spell) {
       const pz = powerZeroBanishCandidates(r, r.host_state, r.guest_state, effectsMap, instMap);
       if (pz.length > 0) { if (pzSince < 0) pzSince = step; else if (step - pzSince >= 15) once(`POWERZERO:${pz.join(',')}`, { kind: 'POWERZERO', step, turn: r.turn_count, detail: `${pz.join(',')} が${step - pzSince}手 残っている`, logs: m.logs.slice(-10) }); }
       else pzSince = -1;
+    }
+    // 🆕LIMIT＝落ち着いた盤面でリミット超過（レベル合計がリミットを超える）が3手以上続く（ルール処理の取りこぼし・ルール処理は毎手回るので3手で十分）
+    if (!r.effect_stack && !r.pending_effect && !r.pending_spell && !r.host_state.field.check && !r.guest_state.field.check) {
+      // ⚠素の表で超過したときだけ、実機と同じ材料（期間つきのレベル修正・付与された効果を当てた表）で測り直す＝素の表だけだと「相手ターン中だけレベル－」を見落として誤検出する
+      const sides = [['H', r.host_state, r.guest_state], ['G', r.guest_state, r.host_state]] as [string, PlayerState, PlayerState][];
+      const ownTurn = (side: string) => r.active_user_id === (side === 'H' ? r.host_id : r.guest_id);
+      let over = sides.filter(([side, o, op]) => planLimitExcess({ owner: o, opponent: op, cardMap: instMap, effectsMap, isOwnerTurn: ownTurn(side) }).excess > 0);
+      if (over.length > 0) {
+        const mat = buildBattleMaterials({ bs: r, cards: uniqCards, userId: r.host_id, baseEffectsMap: effectsMap });
+        over = over.filter(([side, o, op]) => planLimitExcess({ owner: o, opponent: op, cardMap: mat.cardMap, effectsMap: mat.effectsMap, isOwnerTurn: ownTurn(side) }).excess > 0);
+      }
+      const overSides = over.map(([side]) => side);
+      if (overSides.length > 0) { if (limSince < 0) limSince = step; else if (step - limSince >= 3) once(`LIMIT:${overSides.join('')}`, { kind: 'LIMIT', step, turn: r.turn_count, detail: `${overSides.join(',')} がリミット超過のまま${step - limSince}手`, logs: m.logs.slice(-10) }); }
+      else limSince = -1;
     }
     for (const s of shapeIssues(r, cardMap)) once(`SHAPE:${s.replace(/#\d+/g, '')}`, { kind: 'SHAPE', step, turn: r.turn_count, detail: s, logs: m.logs.slice(-8) });
     lastLog = Math.max(0, m.logs.length - 8);
@@ -246,10 +344,35 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   if (TRACE) { const r9 = m.row(); for (const [k, st] of [['HOST', r9.host_state], ['GUEST', r9.guest_state]] as const) console.log(k, JSON.stringify(st.field).slice(0, 300), 'crashed=', JSON.stringify(st.pending_crashed_cards), 'check=', st.field.check, 'burst=', JSON.stringify((st as any).pending_life_burst ?? null), 'psb=', JSON.stringify(st.pending_signi_battle ?? null), 'mods=', JSON.stringify(st.temp_power_mods ?? []).slice(0, 400)); const es = r9.effect_stack; if (es) console.log('STACK', JSON.stringify({ turn: es.turnPlayerId, pT: es.pendingTurn.map(e => e.effectId), pO: es.pendingOpp.map(e => e.effectId), q: es.queue.map(e => e.effectId), oT: es.orderTurnDone, oO: es.orderOppDone })); }
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_pending.json', JSON.stringify(m.row().pending_effect, null, 1), 'utf-8');
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_logs.txt', m.logs.join('\n'), 'utf-8');
+  if (MIRROR && reason === 'finished') await mirrorCompare(setup.row, setup.logs, deps, rngAfterSetup, turnSnaps, m.row(), (key, f) => once(key, { game: tag, ...f }));
   if (reason === 'cap') once('CAP', { kind: 'CAP', step, turn: m.row().turn_count, detail: 'step 上限', logs: ctxLogs() });
   const r = m.row();
   if (COV_OUT) fs.appendFileSync(COV_OUT, JSON.stringify({ game: tag, reason, effects: [...covEffects], field: [...covField] }) + String.fromCharCode(10));
   console.log(`${tag}: ${reason} steps=${step} turns=${r.turn_count} life H${r.host_state.life_cloth.length}/G${r.guest_state.life_cloth.length} winner=${r.winner_id ?? '-'}`);
+}
+
+/** 席を入れ替えた試合を回し、ターンが変わるたびに元の試合（の鏡）と突き合わせる。最初の食い違いだけ報告する。 */
+async function mirrorCompare(row0: BattleStateRow, logs0: string[], deps: any, rng0: number, snaps: { turn: number; row: BattleStateRow; logs: string[] }[], finalRow: BattleStateRow, report: (key: string, f: any) => void) {
+  const mir = (r: BattleStateRow) => mirrorSeats(r, HOST_ID, CPU_PLAYER_ID);
+  rngState.a = rng0;
+  const y = createHeadlessMatch(mir(row0), { ...deps, cpuPlans: { host: deps.cpuPlans.guest, guest: deps.cpuPlans.host }, policy: { host: deps.policy.guest, guest: deps.policy.host }, initialLogs: logs0, memo: createRuleCheckMemo() });
+  const ySnaps: { turn: number; row: BattleStateRow; logs: string[] }[] = [];
+  let k = '';
+  for (let i = 0; i < MAX_STEPS; i++) {
+    const prev = y.row();
+    try { k = await y.step(); } catch (e: any) { k = 'crash'; ySnaps.push({ turn: -1, row: prev, logs: [String(e?.message ?? e)] }); break; }
+    if (k === 'finished' || k === 'idle') break;
+    if (y.row().turn_count !== prev.turn_count) ySnaps.push({ turn: y.row().turn_count, row: y.row(), logs: y.logs.slice(-8) });
+  }
+  const pick = (r: BattleStateRow) => ({ active: r.active_user_id, phase: r.turn_phase, winner: r.winner_id ?? null, host_state: r.host_state, guest_state: r.guest_state });
+  for (let i = 0; i < Math.max(snaps.length, ySnaps.length); i++) {
+    const a = snaps[i], b = ySnaps[i];
+    if (!a || !b) { report('MIRROR:len', { kind: 'MIRROR', step: i, turn: (a ?? b)?.turn, detail: `ターン数が違う（元 ${snaps.length}／入れ替え ${ySnaps.length}・入れ替え側の終わり=${k}）`, logs: (a ?? b)!.logs }); return; }
+    const keys = rowDiffKeys(pick(b.row), pick(mir(a.row)));
+    if (keys.length > 0) { report(`MIRROR:${keys.join(',')}`, { kind: 'MIRROR', step: i, turn: a.turn, detail: `T${a.turn} で席を入れ替えた試合と食い違い 差=${keys.join(',')}（入れ替え側は host/guest が逆）`, logs: [...a.logs.map(l => `元| ${l}`), ...b.logs.map(l => `替| ${l}`)] }); return; }
+  }
+  const yw = y.row().winner_id, xw = finalRow.winner_id;
+  if ((xw === HOST_ID ? CPU_PLAYER_ID : xw === CPU_PLAYER_ID ? HOST_ID : xw) !== yw) report('MIRROR:winner', { kind: 'MIRROR', step: 0, turn: y.row().turn_count, detail: `勝者が鏡にならない（元=${xw}／入れ替え=${yw}）`, logs: y.logs.slice(-8) });
 }
 
 async function runPairs(from: number, to: number) {
@@ -276,7 +399,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));

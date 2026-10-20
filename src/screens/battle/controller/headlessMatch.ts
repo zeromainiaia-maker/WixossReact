@@ -33,6 +33,7 @@ import { resolvePendingSigniBattleFor as resolvePendingSigniBattleForImpl } from
 import { makeRuleChecks, createRuleCheckMemo, type RuleCheckMemo } from './ruleChecks';
 import { resolveStackStep } from './stackResolve';
 import { consumeLifeCrashReplaceDecision } from '../lifeCrashReplace';
+import { planLimitExcess, pickLimitExcessZone } from '../limitExcess';
 
 /**
  * 🆕**ヘッドレスの対戦ループ**（§5.7 `S-5d` 第3段・2026-09-19）＝**画面なしで CPU 同士を回す**。
@@ -385,6 +386,29 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     return true;
   };
 
+  /**
+   * 🆕2026-10-21＝**host 席のリミット超過（どれを落とすかを持ち主が選ぶ形）に答える**。
+   * 🔑実機の CPU 戦では host 席＝人間なので、問いは人間の選択窓（`LimitExcessModal`）が受ける
+   *   （`checkLimitExcessRule` が自動で解くのは CPU＝guest 席だけ）。ヘッドレス（自己対戦・**CPU観戦**）では
+   *   host 席も CPU なのに**答える口が無く、host 席だけリミット超過のまま進んでいた**（席を入れ替えた自己対戦で発見）。
+   * ⚠問う条件は画面の `limitExcessAsk` と同じ／書き込みは画面の `handleLimitExcessPick` と同じ／選び方は CPU 席と同じ `pickLimitExcessZone`。
+   */
+  const answerHostLimitExcess = async (bs: BattleStateRow): Promise<boolean> => {
+    if (bs.global_phase !== 'PLAYING' || bs.effect_stack || bs.pending_effect || bs.pending_spell) return false;
+    if (bs.host_state.field?.check || bs.guest_state.field?.check) return false;
+    const ctx = clientCtx();
+    const plan = planLimitExcess({
+      owner: bs.host_state, opponent: bs.guest_state, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
+      isOwnerTurn: bs.active_user_id === bs.host_id,
+    });
+    if (plan.levelOverZones.length > 0 || plan.excess <= 0) return false;
+    const pick = pickLimitExcessZone(plan);
+    if (pick === null) return false;
+    actor = 'host';
+    await makeRuleChecks(ctx, { loading: false, isCpuBattle: true, memo }).applyLimitExcessRule(bs.host_state, 'host_state', bs.host_id, [pick], 'リミット超過');
+    return true;
+  };
+
   /** 直前の `step()` で判断した CPU の席（`lastActor`）。 */
   let actor: 'host' | 'guest' | null = null;
   const step = async (): Promise<HeadlessStepKind> => {
@@ -396,6 +420,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     if (await resolveStackOnce(bs)) return 'stack';
     if (await runRuleChecks(bs)) return 'rule';
     if (await answerHostLifeCrashReplace(bs)) return 'interaction';
+    if (await answerHostLimitExcess(bs)) return 'rule';
     if (await runCpuTurn(bs)) return 'cpu';
     return 'idle';
   };

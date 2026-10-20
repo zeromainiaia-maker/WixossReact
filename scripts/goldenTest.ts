@@ -72143,6 +72143,17 @@ test('2026-10-20 自己対戦（生成デッキ）: PLAY_FREE は効果元へ落
   ok(/if \(huSt\.field\?\.check && !\(d\.ownCheckFirst && cpuSt\.field\?\.check\)\) return;/.test(ct), '🔴cpuTurn が両者チェックの口を見ていない');
 }));
 
+test('2026-10-21 自己対戦（席の入れ替え）: ヘッドレスは host 席のリミット超過にも答える', () => {
+  // 🔴旧＝リミット超過で「どれを落とすか」を自動で解くのは CPU（guest 席）だけ（`checkLimitExcessRule` の `isCpuBattle && isHost`）。
+  //   host 席は実機なら人間の選択窓（`LimitExcessModal`）が受けるが、ヘッドレス（自己対戦・CPU観戦）には答える口が無く、
+  //   host 席だけリミット超過のまま試合が進んだ（`selfplay:inv --mirror` が席を入れ替えた試合との食い違いとして検出）。
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/if \(await answerHostLimitExcess\(bs\)\) return 'rule';/.test(hm), '🔴host 席のリミット超過に答える口が step に無い');
+  ok(/pickLimitExcessZone\(plan\)/.test(hm) && /applyLimitExcessRule\(bs\.host_state, 'host_state', bs\.host_id, \[pick\], 'リミット超過'\)/.test(hm), '🔴答え方が画面の handleLimitExcessPick と違う');
+  const bsx = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/applyLimitExcessRule\(my, isHost \? 'host_state' : 'guest_state', user\.id, \[zoneIndex\], 'リミット超過'\)/.test(bsx), '画面側の書き込みが変わった＝ヘッドレスの口も合わせる');
+});
+
 test('2026-10-20 自己対戦（生成デッキ）: シグニの下に置いたスペルはトラッシュへ置かない／パワー0の指紋は候補0で消える', () => {
   // 🔴旧①＝「このスペルを…シグニの下に置いてもよい」（`WXDi-P11-063`）で、解決後の既定配置がトラッシュへも置いた（二重存在）。
   const spell = 'WXDi-P11-063#1';
@@ -88669,8 +88680,9 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
   // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝funnel（自分の盤面／CPU の盤面）は `controller/ruleChecks.ts` へ移設した
   //   ＝**地点の数は3のまま**（画面はモーダルの表示だけ）＝較正であって退化ではない。
   const screen = battleScreenSource();
-  eq((screen.match(/planLimitExcess\(/g) ?? []).length, 3,
-    '🔴判定の呼び出しが3箇所（モーダルの表示／自分の盤面の funnel／CPU の盤面）でない');
+  // 🆕2026-10-21＝**ヘッドレスの host 席の口**（`headlessMatch.ts` の `answerHostLimitExcess`＝画面のモーダルの代わり）で4地点＝較正であって退化ではない。
+  eq((screen.match(/planLimitExcess\(/g) ?? []).length, 4,
+    '🔴判定の呼び出しが4箇所（モーダルの表示／自分の盤面の funnel／CPU の盤面／ヘッドレスの host 席）でない');
   ok(/const checkLimitExcessRule = async/.test(screen) && /pickLimitExcessZone\(cpuPlan\)/.test(screen),
     '🔴CPU の盤面を自動で解く経路が無い（問う相手が居ないので半分実装になる）');
   ok(fs.existsSync(join(root, 'src/screens/battle/modals/LimitExcessModal.tsx')),
