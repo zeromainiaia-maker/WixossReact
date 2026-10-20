@@ -89,9 +89,10 @@ function deckProblem(row: DeckRow, cardMap: Map<string, CardData>): string | nul
  * 名前（部分一致）から山を1つ解決する。`name` が空なら合成デッキ（既定）。
  * 🔴**一意に決まらなければ例外**＝「なんとなく先頭」を選ぶと**どの山で測ったか分からない数字**が出る。
  */
-export function resolveSelfPlayDeck(name: string | null | undefined, cardMap: Map<string, CardData>): SelfPlayDeck {
+export function resolveSelfPlayDeck(name: string | null | undefined, cardMap: Map<string, CardData>, dir = DECK_EXPORT_DIR): SelfPlayDeck {
   if (!name) return MECH_DECK;
-  const rows = loadExportedDeckRows();
+  // 🆕2026-10-20＝`dir`＝生成デッキ（`scripts/synthDecks.ts` の出力）を読むとき。既定はユーザーのデッキ（`selfplay:ab` に生成デッキを混ぜない）。
+  const rows = loadExportedDeckRows(dir);
   if (rows.length === 0) {
     throw new Error(`書き出したデッキがありません（${DECK_EXPORT_DIR}/decks_*.json）。`
       + `\n  先に: node scripts/listDecks.mjs --export ${DECK_EXPORT_DIR}`);
@@ -119,8 +120,8 @@ export function resolveSelfPlayDeck(name: string | null | undefined, cardMap: Ma
 }
 
 /** 対戦に出せる山の名前（`--decks` の既定＝総当たりの母集団）。 */
-export function listPlayableDeckNames(cardMap: Map<string, CardData>, cpuOnly = false): string[] {
-  return loadExportedDeckRows()
+export function listPlayableDeckNames(cardMap: Map<string, CardData>, cpuOnly = false, dir = DECK_EXPORT_DIR): string[] {
+  return loadExportedDeckRows(dir)
     .filter(r => (!cpuOnly || r.deck_kind === 'cpu') && deckProblem(r, cardMap) === null)
     .map(r => r.name ?? '(無名)');
 }

@@ -7484,8 +7484,10 @@ export interface MILLAction {
 export interface GainBondAction {
   type: 'GAIN_BOND';
   // 'last_found': 直前のREVEAL_AND_PICK/SEARCHで見つかったカード名と絆を獲得
-  // 'declared': デッキからカードを選び、そのカード名と絆を獲得（UIインタラクション要）
-  source: 'last_found' | 'declared';
+  // 'declared': 自分のカードのうち【絆】能力を持つものの名前から1つ選び、その名前と絆を獲得（CHOOSE）
+  // 'name'（内部）: CHOOSE の選択肢の中身＝`cardName` との絆を獲得
+  source: 'last_found' | 'declared' | 'name';
+  cardName?: string;
 }
 
 // このターン特定カードを使用禁止にする

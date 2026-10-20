@@ -192,10 +192,14 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     }) ?? 0;
     const signiAtkCostSA = (my.signi_attack_cost ?? 0) + banCostSA;
     const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
+    // 🔴2026-10-20＝**払ったエナはトラッシュへ**。旧＝エナから削るだけで置き場に入れておらず、アタックのたびにカードが消えた
+    //   （自己対戦の不変条件走査で発見・`signi_attack_cost`／「《無》を支払わないかぎりアタックできない」）。
+    const paidEnergySA = signiAtkCostSA > 0 ? my.energy.slice(-signiAtkCostSA) : [];
     const newMyState: PlayerState = {
       ...my,
       field: { ...my.field, signi_down: newSigniDown, ...(isCheerAttack ? { cheer_down: true } : {}) },
       attacked_signi_ids: newAttackedIds, energy: newEnergySA,
+      ...(paidEnergySA.length > 0 ? { trash: [...my.trash, ...paidEnergySA] } : {}),
     };
     const newOpState = op;
 
@@ -218,7 +222,10 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     if ((my.negated_attacks ?? []).includes(myTopNum)) {
       // escapeDiscard（G154 BURST）: アタック側が手札をN枚捨てれば無効化を回避できる。手札が足りればモーダルで選択させる。
       const escapeCount = my.negated_attacks_escape?.[myTopNum];
-      if (escapeCount && my.hand.length >= escapeCount) {
+      // 🔴2026-10-20＝**回避を尋ねるのは自分（人間）のアタックだけ**＝CPU は回避しない（無効化へ進む）。ルリグアタック（`performLrigAttack.ts`）と同じ条件。
+      //   旧＝CPU でもここで保留して return＝アタッカーがダウンせず、CPU が同じアタックを無限に繰り返した（自己対戦で発見）。
+      //   ⚠実機の画面ラッパーは CPU の呼び出しにも `openNegateEscape` を渡す＝口の有無だけでは CPU を見分けられない。
+      if (escapeCount && my.hand.length >= escapeCount && attackerId === ctx.userId && p.openNegateEscape) {
         // ⚠解除コストは**この時点で支払い済み**（上のブロック）＝再入時に二重請求しない。
         p.openNegateEscape?.({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount, attackFieldTrashAlreadyPaid: true, attackHandDiscardAlreadyPaid: true });
         const paymentStack = attackFieldTrashTriggerEntries.length > 0

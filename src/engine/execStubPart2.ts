@@ -4084,7 +4084,11 @@ export function execStubPart2(
       || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
     // ⚠`carriedCardNum` 優先＝支払い CHOOSE を跨ぐと `lastProcessedCards` が消えるため
     //   （`USE_SPELL_FROM_TRASH_PAYING_COST` が確定済みスペルを焼き込んで渡す。§6.4 O-35）。
-    const cnPF = stub.carriedCardNum ?? ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+    // 🔴2026-10-20＝**`PLAY_FREE` は効果元へ落とさない**（アクション型の `PLAY_FREE` も選んだ札を `lastProcessedCards` で渡してここへ来る）。
+    //   live の2効果（`PR-474`「それがスペルの場合…使用してもよい」／`WX07-014`「打ち消したスペルを使用する」）は
+    //   どちらも**直前に見た／打ち消したスペル**を指す。旧＝対象が無いと `sourceCardNum` に落ち、対話をまたぐと
+    //   効果元が外側のカードに戻る＝**`PR-433`（相手のアーツを使う）が自分自身をもう一度実行し続けた**（自己対戦の CAP）。
+    const cnPF = stub.carriedCardNum ?? ctx.lastProcessedCards?.[0] ?? (stub.id === 'PLAY_FREE' ? undefined : ctx.sourceCardNum);
     if (!cnPF) return done(addLog(ctx, '[フリープレイ: 対象カードなし]'));
     const cardPF = ctx.cardMap.get(cnPF);
     if (!cardPF) return done(addLog(ctx, '[フリープレイ: カードデータなし]'));
@@ -4109,10 +4113,16 @@ export function execStubPart2(
         // 相手トラッシュから削除（手札にあるかのように使用するため自トラッシュには加えない）
         // 🆕**ルリグトラッシュからも外す**（§5.3 `O-259` 第5）＝アーツは相手の**ルリグトラッシュ**に
         //   在るので、`trash` だけを削っていた旧実装では**使ったのに相手の手元に残り続けた**。
+        // 🔴2026-10-20＝**使い終えたカードは持ち主の置き場へ戻す**（スペル→トラッシュ・アーツ→ルリグトラッシュの一番上）。
+        //   旧＝取り除くだけで戻しておらず、**相手に使われたカードがゲームから消えた**（自己対戦で発見・`PR-433` が `PR-474` を使った試合）。
+        const wasInLrigTrashPF = stateOtherAfterPF.lrig_trash.includes(cnPF);
+        const toLrigTrashPF = cardPF.Type === 'アーツ' || (cardPF.Type !== 'スペル' && wasInLrigTrashPF);
+        const trashRestPF = stateOtherAfterPF.trash.filter(c => c !== cnPF);
+        const lrigTrashRestPF = stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF);
         stateOtherAfterPF = {
           ...stateOtherAfterPF,
-          trash: stateOtherAfterPF.trash.filter(c => c !== cnPF),
-          lrig_trash: stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF),
+          trash: toLrigTrashPF ? trashRestPF : [...trashRestPF, cnPF],
+          lrig_trash: toLrigTrashPF ? [...lrigTrashRestPF, cnPF] : lrigTrashRestPF,
         };
       } else if (cardPF.Type === 'アーツ' && ctx.ownerState.lrig_deck?.includes(cnPF)) {
         // 🆕**§5.3 `O-264`（2026-09-06）＝ルリグデッキのアーツを使ったら**ルリグトラッシュ**へ。

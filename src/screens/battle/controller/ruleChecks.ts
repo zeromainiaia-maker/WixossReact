@@ -197,7 +197,11 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
         candidates.push(topNum);
       }
     }
-    if (candidates.length === 0) return;
+    // 🔴2026-10-20＝**候補が0件になったら指紋を消す**。旧＝指紋を対戦中ずっと持ち続けたため、
+    //   一度パワー0でバニッシュされた個体（同じ instance ID）が後で場に戻り、再びパワー0になると
+    //   「処理済み」と見なされて**二度とバニッシュされなかった**（CPU 側は毎回ここを呼んで戻る＝自己対戦で STALL）。
+    //   ⚠`updated_at` を指紋に入れる形にはしない＝置換で場に残る個体を毎回処理し直して無限ループになりうる。
+    if (candidates.length === 0) { lastBanishedKeyRef.current = ''; return; }
 
     const candidateKey = [...candidates].sort().join(',');
     if (candidateKey === lastBanishedKeyRef.current) return; // DB伝播待ち中の二重処理をスキップ

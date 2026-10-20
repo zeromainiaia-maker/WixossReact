@@ -31580,7 +31580,10 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
   });
   test('Stage3 reduceBattle SET_STACK: settle 無しは素通し（null 含む）', () => {
     const stk = { orderTurnDone: true, orderOppDone: true, queue: [] } as unknown as EffectStack;
-    eq(reduceBattle(stub, { type: 'SET_STACK', stack: stk }).effect_stack, stk, '解決済みでも settle なしは素通し');
+    // 🆕2026-10-20＝契約を変えた：**解決済み（対話待ちなし）のスタックは settle 指定に関わらず null で書く**
+    //   （残すと誰も動けなくなる＝自己対戦の IDLE。`battleController.ts` の `settleDeadStack`）。
+    eq(reduceBattle(stub, { type: 'SET_STACK', stack: stk }).effect_stack, null, '🔴解決済み・対話待ちなしは null');
+    eq(reduceBattle({ ...stub, pending_effect: { effectId: 'x' } } as unknown as BattleStateRow, { type: 'SET_STACK', stack: stk }).effect_stack, stk, '対話待ちの間は残す');
     eq(reduceBattle(stub, { type: 'SET_STACK', stack: null }).effect_stack, null, 'null 素通し');
   });
   test('Stage3 reduceBattle END_GAME: FINISHED＋winner＋最終盤面', () => {
@@ -72090,6 +72093,64 @@ test('2026-10-20 自己対戦: トラッシュから除外するコスト（tras
   }
 });
 
+test('2026-10-20 自己対戦: 「好きな生徒１人との絆を獲得する」は画面と CPU が答えられる CHOOSE で尋ねる（8効果）', () => withSavedCursor(() => {
+  // 🔴旧＝`DECLARE_BOND` 対話＝対話の振り分けにも画面にも受け口が無く、**人間でも CPU でも対戦が止まった**（`WXDi-CP02-006` ほか）。
+  const kizuna = [...cardMap.values()].find(c => c.Type === 'シグニ' && /【絆/.test(c.EffectText ?? ''))!;
+  ok(!!kizuna, '前提＝【絆】を持つシグニがある');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState = { ...ctx.ownerState, deck: [`${kizuna.CardNum}#1`, ...ctx.ownerState.deck], bonds: [] };
+  const act = { type: 'GAIN_BOND', source: 'declared' } as unknown as EffectAction;
+  const first = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!first.done, '対話を出す');
+  const pend = (first as { pending: { type: string; options?: { label: string }[] } }).pending;
+  eq(pend.type, 'CHOOSE', '🔴受け口のある CHOOSE で尋ねる（DECLARE_BOND は画面にも振り分けにも無い）');
+  ok(pend.options!.some(o => o.label === kizuna.CardName), '候補に【絆】を持つ自分のカードの名前が出る');
+  const r = finish(first, ctx);
+  ok((r.ownerState.bonds ?? []).length === 1, '🔴選ぶと絆を1つ獲得する');
+}));
+
+test('2026-10-20 自己対戦（生成デッキ）: 中身0件のスタックは書き込み時に null になる／無効化回避を尋ねるのは自分のアタックだけ', () => {
+  // 🔴旧①＝`initStack` がターン限定の【自】をふるい落として0件になったスタックをそのまま書き、誰も動けなくなった（IDLE）。
+  const row = { host_id: 'H', guest_id: 'G', active_user_id: 'H' } as unknown as BattleStateRow;
+  const empty = initStack('H', []);
+  eq(reduceBattle(row, { type: 'SET_STACK', stack: empty }).effect_stack, null, '🔴中身0件のスタックは null として書く');
+  eq(reduceBattle(row, { type: 'WRITE_STATE', myKey: 'host_state', myState: mkState({}), effectStack: empty }).effect_stack, null, '🔴WRITE_STATE 経由でも null');
+  const one = initStack('H', [{ id: 'x', playerId: 'H', cardNum: 'WD01-009', effectId: 'e', label: 'l', effect: { effectId: 'e', effectType: 'AUTO', action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true } as unknown as CardEffect }]);
+  ok(!!reduceBattle(row, { type: 'SET_STACK', stack: one }).effect_stack, '中身があるスタックはそのまま');
+  // 🔴旧②＝シグニアタックの「手札を捨てれば無効化を回避」で CPU にも選択の口を開いて保留＝同じアタックを無限に繰り返した（CAP）。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniAttack.ts'), 'utf8');
+  ok(/escapeCount && my\.hand\.length >= escapeCount && attackerId === ctx\.userId && p\.openNegateEscape/.test(src),
+    '🔴無効化の回避を尋ねるのは自分（人間）のアタックだけ（ルリグアタックと同じ条件）');
+});
+
+test('2026-10-20 自己対戦（生成デッキ）: PLAY_FREE は効果元へ落ちない／両席 CPU の待ち合わせを解く口がある', () => withSavedCursor(() => {
+  // 🔴旧①＝対象が無いと `sourceCardNum` に落ち、対話をまたぐと外側のカード（`PR-433`）が自分自身を実行し続けた（CAP）。
+  const src = 'PR-433';
+  const base = mkCtx({}, {}, src);
+  // 効果元（相手のアーツを使う）を実行してしまうと、相手のルリグトラッシュのアーツを選ぶ対話が立つ盤面
+  const ctx = { ...base, lastProcessedCards: [], otherState: { ...base.otherState, lrig_trash: ['WD02-007'] } } as ExecCtx;
+  const r = executeAction({ type: 'STUB', id: 'PLAY_FREE' } as unknown as EffectAction, ctx);
+  ok(r.done, '🔴対象が無ければ何もしないで終わる（効果元を実行しない）');
+  // 🔴旧②③＝ヘッドレス（自己対戦・CPU観戦）で両席が CPU のとき、host 席へのダメージ置換の問い／両者のチェックゾーンで止まった（IDLE）。
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/if \(await answerHostLifeCrashReplace\(bs\)\) return 'interaction';/.test(hm), '🔴host 席のダメージ置換の問いに答える口が step に無い');
+  ok(/ownCheckFirst: ownCheckFirst === 'guest'/.test(hm) && /ownCheckFirst: ownCheckFirst === 'host'/.test(hm), '🔴両者チェックのとき両席へ口を渡していない');
+  const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(/if \(huSt\.field\?\.check && !\(d\.ownCheckFirst && cpuSt\.field\?\.check\)\) return;/.test(ct), '🔴cpuTurn が両者チェックの口を見ていない');
+}));
+
+test('2026-10-20 自己対戦（生成デッキ）: シグニの下に置いたスペルはトラッシュへ置かない／パワー0の指紋は候補0で消える', () => {
+  // 🔴旧①＝「このスペルを…シグニの下に置いてもよい」（`WXDi-P11-063`）で、解決後の既定配置がトラッシュへも置いた（二重存在）。
+  const spell = 'WXDi-P11-063#1';
+  const st = mkState({ signi: ['WXDi-P11-039#1', null, null] });
+  const under = { ...st, field: { ...st.field, signi: [[spell, 'WXDi-P11-039#1'], null, null] } } as PlayerState;
+  eq(finalizeUsedCardPlacement(under, spell, 'trash').trash.includes(spell), false, '🔴シグニの下に置かれたスペルはトラッシュへ置かない');
+  eq(finalizeUsedCardPlacement(st, spell, 'trash').trash.includes(spell), true, '場に居なければ従来どおりトラッシュへ');
+  // 🔴旧②＝パワー0バニッシュの指紋を対戦中ずっと保持＝同じ個体が場に戻って再びパワー0になっても二度とバニッシュされなかった（CPU は STALL）。
+  const rc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  ok(/if \(candidates\.length === 0\) \{ lastBanishedKeyRef\.current = ''; return; \}/.test(rc), '🔴候補0件で指紋を消していない');
+});
+
 test('2026-10-20 自己対戦: 「このカードをセンタールリグの下に置く」はルリグトラッシュから移る（WD21-006）', () => withSavedCursor(() => {
   // 原文＝「…それをバニッシュする。そうした場合、このカードをあなたのセンタールリグの下に置く。」
   // 🔴旧＝ルリグデッキへ足し、手札からしか取り除かなかった＝使用済みアーツがルリグトラッシュとルリグデッキに二重存在。
@@ -75973,7 +76034,9 @@ test('§5.3 O-259 第10 A3: 両者のルリグトラッシュを合わせ、選�
   const ownResult = pick(ownArts);
   ok(ownResult.ownerState.lrig_trash.includes(ownArts), '自分側は既存 USE_SPELL_FROM_TRASH 経路へ委譲');
   const oppResult = pick(oppArts);
-  ok(!oppResult.otherState.lrig_trash.includes(oppArts), '相手側は既存 CAST_FROM_OPP_TRASH 経路へ委譲して取り除く');
+  // 🆕2026-10-20＝使い終えたアーツは**持ち主（相手）のルリグトラッシュの一番上へ戻る**（旧＝取り除くだけでゲームから消えていた）。
+  eq(oppResult.otherState.lrig_trash.at(-1), oppArts, '🔴相手側は CAST_FROM_OPP_TRASH 経路へ委譲し、使用後は持ち主のルリグトラッシュへ戻る');
+  ok(!oppResult.ownerState.lrig_trash.includes(oppArts), '使った側の置き場には入らない');
   const miss = executeAction(use, {
     ...ctx, ownerState: { ...ctx.ownerState, lrig_trash: [tooHigh] }, otherState: { ...ctx.otherState, lrig_trash: [] },
   } as ExecCtx);

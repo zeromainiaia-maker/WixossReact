@@ -104,6 +104,12 @@ export interface CpuTurnActions {
 /** CPU の1手に要る、画面だけが持つもの。 */
 export interface CpuTurnDeps {
   actions: CpuTurnActions;
+  /**
+   * 🆕2026-10-20＝**両者のチェックゾーンが埋まっているとき、こちらのチェックを先に処理してよい**（ヘッドレスの両席 CPU 専用）。
+   * 🔴無いと「相手（人間）のバースト処理中は待つ」同士で**互いに待ち合って止まる**（自己対戦・CPU観戦で発見）。
+   *   実機の人間対 CPU では人間が先に答えるので渡さない。
+   */
+  ownCheckFirst?: boolean;
   /** 画面の props の全カード（⚠`PerformCtx.cards`＝場で使う `battleCards` とは別物）。 */
   allCards: CardData[];
   /** CPU デッキの作戦データ（画面の `cpuPlan`）。 */
@@ -235,7 +241,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const isCpuTurnNow = bs.active_user_id === CPU_PLAYER_ID;
 
   // 人間がライフバースト処理中（チェックゾーンにカードあり）はCPU行動しない
-  if (huSt.field?.check) return;
+  if (huSt.field?.check && !(d.ownCheckFirst && cpuSt.field?.check)) return;
 
   /**
    * CPU の場のシグニ【起】を1つぶん試す（撃ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1`。

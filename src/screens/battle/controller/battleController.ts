@@ -205,7 +205,31 @@ export type BattleAction =
  * 純粋遷移：現在の盤面とアクションから、DB へ書き込むパッチ（Partial<BattleStateRow>）を返す。
  * 副作用なし・同入力同出力。永続化は呼び出し側（useBattlePersist）が担う。
  */
+/**
+ * 🆕2026-10-20＝**解決するものが無いスタックは null として書く**（書き込みの1本道）。
+ * 🔴`effect_stack` が残っていると `!!bs.effect_stack` が真のまま＝**ルール処理も CPU も「処理中」と見て誰も動かない**。
+ *   自己対戦（生成デッキ）で2つの形を拾った：
+ *   ①`initStack`／`pushToStack` がターン限定の効果（《相手ターン》の【自】など）を**ふるい落とした結果0件**のスタックを書いた
+ *   ②対話を閉じるパッチがスタックに触れず、**順番確定済み・キュー空（`isStackDone`）のスタック**がそのまま残った
+ *     （`pendingTurn` は履歴として残る＝生きているのは `queue` だけ）。
+ * ⚠**対話待ち（`pending_effect`）がある間は残す**＝解決中の効果はキューから外れているので、そこで消すと後続の扱いが変わる。
+ */
+function settleDeadStack(bs: BattleStateRow, patch: Partial<BattleStateRow>): Partial<BattleStateRow> {
+  const st = 'effect_stack' in patch ? patch.effect_stack : bs.effect_stack;
+  if (!st) return patch;
+  const pending = 'pending_effect' in patch ? patch.pending_effect : bs.pending_effect;
+  const none = (xs: unknown) => Array.isArray(xs) && xs.length === 0;
+  const empty = none(st.pendingTurn) && none(st.pendingOpp) && none(st.queue);
+  const done = st.orderTurnDone === true && st.orderOppDone === true && none(st.queue);
+  if (empty || (done && !pending)) return { ...patch, effect_stack: null };
+  return patch;
+}
+
 export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
+  return settleDeadStack(bs, reduceBattleRaw(bs, action));
+}
+
+function reduceBattleRaw(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
   // bs は「純粋遷移は現在盤面から次パッチを計算する」契約を表す引数。多くのケースは payload 完結で
   // 盤面参照が不要だが、盤面依存の遷移（BEGIN_NEXT_TURN の turn_count 加算など）はここから読む。
   switch (action.type) {

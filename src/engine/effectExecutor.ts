@@ -10565,13 +10565,31 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
     const newOwner: PlayerState = { ...ctx.ownerState, bonds: [...current, cardName] };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得`));
   }
-  // 'declared': デッキからカードを選択させる
-  const deckCards = [...ctx.ownerState.deck];
-  if (deckCards.length === 0) return done(addLog(ctx, '絆獲得: デッキが空'));
-  return needsInteraction(ctx, {
-    type: 'DECLARE_BOND',
-    deckCards,
-    continuation: a.source === 'declared' ? undefined : undefined,
+  if (a.source === 'name') {
+    if (!a.cardName) return done(addLog(ctx, '絆獲得: 名前が無い'));
+    const cur = ctx.ownerState.bonds ?? [];
+    if (cur.includes(a.cardName)) return done(addLog(ctx, `${a.cardName}との絆は既に獲得済み`));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, bonds: [...cur, a.cardName] } }, `${a.cardName}との絆を獲得`));
+  }
+  // 'declared'＝「好きな生徒１人との絆を獲得する」（場や手札にいない生徒も可）。
+  // 🔴2026-10-20 まで `DECLARE_BOND` 対話を出していたが、**対話の振り分け（`effectInteraction.ts`）にも画面にも
+  //   その型の受け口が無く**、人間でも CPU でも解決できずに対戦が止まった（自己対戦の不変条件走査で発見・8効果）。
+  //   ⇒ 画面・CPU が扱える `CHOOSE` にする。候補＝**自分のカードのうち【絆】能力を持つものの名前**
+  //   （絆は名前の完全一致で読まれる＝`HAS_BOND`／`isKizunaActive`。【絆】を持たない名前と絆を結んでも何も起きない）。
+  //   ⚠注釈文（（）内）の「【絆】能力が有効になります」は数えない＝ピース自身が候補に出る。
+  const own = ctx.ownerState;
+  const pool = [...own.deck, ...own.hand, ...own.trash, ...own.energy, ...own.life_cloth, ...(own.lrig_deck ?? []), ...own.lrig_trash,
+    ...own.field.lrig, ...(own.field.assist_lrig_l ?? []), ...(own.field.assist_lrig_r ?? []), ...fieldSigniStacks(own).flatMap(st => st ?? [])];
+  const have = own.bonds ?? [];
+  const names = [...new Set(pool.map(n => ctx.cardMap.get(getCardNum(n))).filter(c => !!c && /【絆/.test((c.EffectText ?? '').replace(/（[^）]*）/g, ''))).map(c => c!.CardName))]
+    .filter(n => !have.includes(n));
+  if (names.length === 0) return done(addLog(ctx, '絆獲得: 絆を獲得できる生徒がいない'));
+  return needsInteraction(addLog(ctx, '絆を獲得する生徒を選ぶ'), {
+    type: 'CHOOSE', count: 1,
+    options: names.map(name => ({
+      id: 'bond_' + name, label: name, available: true,
+      action: { type: 'GAIN_BOND', source: 'name', cardName: name } as import('../types/effects').GainBondAction,
+    })),
   });
 }
 

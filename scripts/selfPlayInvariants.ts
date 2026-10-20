@@ -40,6 +40,10 @@ const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const SEEDS = arg('--seeds', '1').split(',').map(Number);
 const OUT = arg('--out', '');
+/** 🆕生成デッキ（`scripts/synthDecks.ts`）を読むとき＝既定はユーザーのデッキ。 */
+const DECK_DIR = arg('--deck-dir', 'scratchpad-decks');
+/** 🆕発動した効果・場に出たカードの記録（1戦1行の JSON）＝`scripts/synthDecks.ts --covered` の入力。 */
+const COV_OUT = arg('--cov-out', '');
 const MAX_STEPS = Number(arg('--steps', '4000'));
 const JOBS = Number(arg('--jobs', '1'));
 /** 盤面もログも変わらない手がこれだけ続いたら空回り（STALL）。 */
@@ -53,7 +57,7 @@ for (const f of cardCsvRelPaths()) {
   for (const r of data) if (r.CardNum?.trim()) allCards.push(r as unknown as CardData);
 }
 const allCardMap = new Map(allCards.map(c => [c.CardNum, c]));
-const names = listPlayableDeckNames(allCardMap);
+const names = listPlayableDeckNames(allCardMap, false, DECK_DIR);
 // 対の並び：i 番目の山 vs (i+k) 番目
 const pairs: [string, string][] = [];
 for (let k = 0; k < names.length; k++) pairs.push([names[k], names[(k * 7 + 3) % names.length]]);
@@ -81,7 +85,7 @@ function locate(r: BattleStateRow) {
     s.trash.forEach(id => put(id, `${side}トラッシュ`));
     s.lrig_trash.forEach(id => put(id, `${side}ルリグトラッシュ`));
     s.energy.forEach(id => put(id, `${side}エナ`));
-    (s.bonds ?? []).forEach(id => put(id, `${side}ボンド`));
+    // ⚠`bonds`（絆）は**カード名の一覧**で置き場ではない＝数えない（数えると NEW の誤検出になる）
     s.field.lrig.forEach(id => put(id, `${side}ルリグ`));
     s.field.signi.forEach((st, z) => (st ?? []).forEach((id, d) => put(id, `${side}シグニ${z}${d === st!.length - 1 ? '(上)' : '(下)'}`)));
     (s.field.assist_lrig_l ?? []).forEach(id => put(id, `${side}アシストL`));
@@ -129,7 +133,7 @@ function shapeIssues(r: BattleStateRow, cardMap: Map<string, CardData>): string[
     for (const [z, arr] of [['手札', s.hand], ['デッキ', s.deck], ['エナ', s.energy], ['ライフ', s.life_cloth], ['トラッシュ', s.trash]] as [string, string[]][])
       for (const id of arr) if (LRIG_TYPES.has(ty(id)) && ty(id) !== 'レゾナ' && ty(id) !== 'クラフト') out.push(`${side}${z}にルリグデッキ系 ${id}(${ty(id)})`);
     for (const id of s.lrig_trash) if (['シグニ', 'スペル'].includes(ty(id))) out.push(`${side}ルリグトラッシュにメイン系 ${id}(${ty(id)})`);
-    s.field.signi.forEach((st, z) => { const top = st?.at(-1); if (top && !['シグニ', 'レゾナ'].includes(ty(top))) out.push(`${side}シグニ${z}の上が ${top}(${ty(top)})`); });
+    s.field.signi.forEach((st, z) => { const top = st?.at(-1); if (top && !/^(シグニ|レゾナ)/.test(ty(top))) out.push(`${side}シグニ${z}の上が ${top}(${ty(top)})`); });
     const lt = s.field.lrig.at(-1); if (lt && !['ルリグ'].includes(ty(lt))) out.push(`${side}ルリグゾーンの上が ${lt}(${ty(lt)})`);
     if (!Number.isFinite(s.coins ?? 0) || (s.coins ?? 0) < 0) out.push(`${side} coins=${s.coins}`);
     for (const id of [...s.hand, ...s.deck, ...s.trash, ...s.energy]) if (!cardMap.has(numOf(id))) out.push(`${side} 未知のカード ${id}`);
@@ -161,6 +165,7 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
   const once = (key: string, f: any) => { if (reported.has(key)) return; reported.add(key); emit({ game: tag, ...f }); };
   let step = 0; let reason = 'cap';
   let lastLog = 0;
+  const covEffects = new Set<string>(), covField = new Set<string>();
   let sameN = 0;
   const ctxLogs = () => m.logs.slice(Math.max(0, m.logs.length - 6));
   for (; step < MAX_STEPS; step++) {
@@ -194,12 +199,27 @@ async function play(a: SelfPlayDeck, b: SelfPlayDeck, seed: number) {
       if (!missingSince.has(id)) missingSince.set(id, step);
       else if (step - missingSince.get(id)! >= 40) once(`VANISH:${id}`, { kind: 'VANISH', step, turn: r.turn_count, detail: `${id} 不明 since step ${missingSince.get(id)} paths=${findPaths(r, id).join(',') || 'なし'}`, logs: m.logs.slice(-10) });
     }
+    // 被覆＝スタックに載った効果（アーツ・スペル・【起】・【自】・【出】・バーストはここを通る）／対話中の効果／場に出たカード
+    if (COV_OUT) {
+      const st = r.effect_stack;
+      for (const e of [...(st?.pendingTurn ?? []), ...(st?.pendingOpp ?? []), ...(st?.queue ?? [])]) if (e.effectId) covEffects.add(e.effectId);
+      if (r.pending_effect?.effectId) covEffects.add(r.pending_effect.effectId);
+      if (r.pending_spell?.card_num) covField.add(numOf(r.pending_spell.card_num));
+      for (const side of [r.host_state, r.guest_state]) {
+        for (const stk of side.field.signi) { const top = stk?.at(-1); if (top) covField.add(numOf(top)); }
+        for (const z of [side.field.lrig, side.field.assist_lrig_l ?? [], side.field.assist_lrig_r ?? []]) { const top = z.at(-1); if (top) covField.add(numOf(top)); }
+        if (side.field.key_piece) covField.add(numOf(side.field.key_piece));
+      }
+    }
     for (const s of shapeIssues(r, cardMap)) once(`SHAPE:${s.replace(/#\d+/g, '')}`, { kind: 'SHAPE', step, turn: r.turn_count, detail: s, logs: m.logs.slice(-8) });
     lastLog = Math.max(0, m.logs.length - 8);
   }
+  if (TRACE) { const r9 = m.row(); for (const [k, st] of [['HOST', r9.host_state], ['GUEST', r9.guest_state]] as const) console.log(k, JSON.stringify(st.field).slice(0, 300), 'crashed=', JSON.stringify(st.pending_crashed_cards), 'check=', st.field.check, 'burst=', JSON.stringify((st as any).pending_life_burst ?? null), 'psb=', JSON.stringify(st.pending_signi_battle ?? null), 'mods=', JSON.stringify(st.temp_power_mods ?? []).slice(0, 400)); const es = r9.effect_stack; if (es) console.log('STACK', JSON.stringify({ turn: es.turnPlayerId, pT: es.pendingTurn.map(e => e.effectId), pO: es.pendingOpp.map(e => e.effectId), q: es.queue.map(e => e.effectId), oT: es.orderTurnDone, oO: es.orderOppDone })); }
+  if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_pending.json', JSON.stringify(m.row().pending_effect, null, 1), 'utf-8');
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_logs.txt', m.logs.join('\n'), 'utf-8');
   if (reason === 'cap') once('CAP', { kind: 'CAP', step, turn: m.row().turn_count, detail: 'step 上限', logs: ctxLogs() });
   const r = m.row();
+  if (COV_OUT) fs.appendFileSync(COV_OUT, JSON.stringify({ game: tag, reason, effects: [...covEffects], field: [...covField] }) + String.fromCharCode(10));
   console.log(`${tag}: ${reason} steps=${step} turns=${r.turn_count} life H${r.host_state.life_cloth.length}/G${r.guest_state.life_cloth.length} winner=${r.winner_id ?? '-'}`);
 }
 
@@ -207,7 +227,7 @@ async function runPairs(from: number, to: number) {
   for (let i = from; i <= to && i < pairs.length; i++) {
     const [an, bn] = pairs[i];
     let a: SelfPlayDeck, b: SelfPlayDeck;
-    try { a = resolveSelfPlayDeck(an, allCardMap); b = resolveSelfPlayDeck(bn, allCardMap); } catch (e) { console.log(`skip ${an}/${bn}: ${e}`); continue; }
+    try { a = resolveSelfPlayDeck(an, allCardMap, DECK_DIR); b = resolveSelfPlayDeck(bn, allCardMap, DECK_DIR); } catch (e) { console.log(`skip ${an}/${bn}: ${e}`); continue; }
     for (const s of SEEDS) await play(a, b, s);
   }
 }
@@ -227,7 +247,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), ...(OUT ? ['--out', OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));

@@ -13,7 +13,14 @@ export function finalizeUsedCardPlacement(
   //   `STUB{RETURN_SELF_SPELL_TO_HAND}`（`WXK08-040-E1`③「このスペルを手札に戻す」）が
   //   手札へ入れたあとにここでトラッシュへも置くと、**同じカードが手札とトラッシュに二重で現れる**。
   const returnedToHand = state.hand.includes(sourceCardNum);
-  if (!placement || state.excluded?.includes(sourceCardNum) || placedAsCharm || returnedToHand
+  // 🆕2026-10-20＝**解決中にシグニの下などの場へ置かれた使用カードも置かない**（`WXDi-P11-063`
+  //   「このスペルを…シグニの下に置いてもよい」）。旧＝シグニの下とトラッシュに二重で現れた（自己対戦で発見）。
+  const f = state.field;
+  const placedOnField = f.signi.some(st => st?.includes(sourceCardNum))
+    || (f.cheer_under ?? []).includes(sourceCardNum)
+    || (f.signi_soul ?? []).includes(sourceCardNum)
+    || (f.signi_acce ?? []).some(ids => ids?.includes(sourceCardNum));
+  if (!placement || state.excluded?.includes(sourceCardNum) || placedAsCharm || returnedToHand || placedOnField
       || state[placement].includes(sourceCardNum)) {
     return state;
   }

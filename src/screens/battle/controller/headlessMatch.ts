@@ -32,6 +32,7 @@ import { performSummonSigni as performSummonSigniImpl } from './performSummonSig
 import { resolvePendingSigniBattleFor as resolvePendingSigniBattleForImpl } from './resolveSigniBattle';
 import { makeRuleChecks, createRuleCheckMemo, type RuleCheckMemo } from './ruleChecks';
 import { resolveStackStep } from './stackResolve';
+import { consumeLifeCrashReplaceDecision } from '../lifeCrashReplace';
 
 /**
  * 🆕**ヘッドレスの対戦ループ**（§5.7 `S-5d` 第3段・2026-09-19）＝**画面なしで CPU 同士を回す**。
@@ -311,10 +312,14 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
    *   host 席だけが T1・T2・T3 … と連続で打ち、相手は一度も動かなかった）。
    */
   const runCpuTurn = async (bs: BattleStateRow): Promise<boolean> => {
+    // 🆕2026-10-20＝**両者のチェックゾーンが同時に埋まったら、ターンプレイヤーの席から処理する**。
+    //   🔴`cpuShouldAct`／`cpuTurnAction` は「相手（＝人間）がバースト処理中なら待つ」＝両席が CPU だと互いに待ち合って止まった。
+    const bothCheck = !!bs.host_state.field?.check && !!bs.guest_state.field?.check;
+    const ownCheckFirst = bothCheck ? (bs.active_user_id === bs.guest_id ? 'guest' : 'host') : null;
     // 🔴**相手の応答待ちなら、その席へ譲る**（`cpuWaitingForHuman`＝ガード応答・カットイン・身代わり・ダメージ置換）＝
     //   実機ではここで人間が答える。譲らないと**攻撃側の CPU を呼び続けて盤面が1歩も動かない**
     //   （試運転で実測＝T2 の `ATTACK_LRIG` で無限に空回りした）。
-    if (cpuShouldAct(bs) && !cpuWaitingForHuman(bs)) {
+    if (ownCheckFirst === 'guest' || (!ownCheckFirst && cpuShouldAct(bs) && !cpuWaitingForHuman(bs))) {
       actor = 'guest';
       await cpuTurnAction(ctxOf(bs, bs.host_id), {
         actions: actionsFor(() => ctxOf(row(), row().host_id)),
@@ -325,6 +330,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
         checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
         // 🆕§5.6 `C-12`＝ピース応答窓の「最新盤面の読み直し」（ヘッドレスは書き込み済みの行をそのまま返す）。
         fetchLatest: async () => row(),
+        ownCheckFirst: ownCheckFirst === 'guest',
       });
       return true;
     }
@@ -332,7 +338,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     const hostId = bs.host_id, guestId = bs.guest_id;
     const mirrored = () => mirrorSeats(row(), hostId, guestId);
     const m0 = mirrored();
-    if (!cpuShouldAct(m0) || cpuWaitingForHuman(m0)) return false;
+    if (ownCheckFirst !== 'host' && (!cpuShouldAct(m0) || cpuWaitingForHuman(m0))) return false;
     // 🔴書き戻しは鏡で戻す（`reduceBattle` が作るパッチは鏡座標なので、そのまま書くと席が入れ替わる）。
     const mirrorIo = {
       ...io,
@@ -349,7 +355,33 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
       // 🆕§5.6 `C-12`＝🔴**鏡の席では鏡に映した行を返す**（そのまま返すと席が入れ替わった盤面で窓を閉じる）。
       fetchLatest: async () => mirrored(),
+      ownCheckFirst: ownCheckFirst === 'host',
     });
+    return true;
+  };
+
+  /**
+   * 🆕2026-10-20＝**host 席へのダメージ置換の問い（`pending_life_crash_replace`）に答える**。
+   * 🔑実機の CPU 戦では host 席＝人間なので、問いは人間の選択窓（`LifeCrashReplaceModal`）が受ける。
+   *   ヘッドレス（自己対戦・**CPU観戦**）では host 席も CPU なのに**答える口が無く、対戦が止まった**（自己対戦の IDLE）。
+   * ⚠答え方は**画面のハンドラ（`BattleScreen` の `handleLifeCrashReplaceChoice`）と同じ書き込み**＝
+   *   ルリグアタックなら【ガードしない】の続きを呼び直し、シグニアタックなら書くだけ（攻撃側の解決が再入する）。
+   * ⚠選ぶのは**最初の選択肢**＝CPU が防御側のときの既定（置換を自動適用）と同じ向き。
+   */
+  const answerHostLifeCrashReplace = async (bs: BattleStateRow): Promise<boolean> => {
+    const host = bs.host_state;
+    const pend = host.pending_life_crash_replace;
+    if (!pend) return false;
+    actor = 'host';
+    const answered: typeof host = { ...consumeLifeCrashReplaceDecision(host), life_crash_replace_choice: { option: pend.options[0] ?? null } };
+    if (host.field.lrig_attacked) {
+      await performGuardResponseImpl(null, {
+        responder: answered, attacker: bs.guest_state,
+        responderId: bs.host_id, attackerId: bs.guest_id, responderKey: 'host_state',
+      }, clientCtx());
+    } else {
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'host_state', myState: answered }));
+    }
     return true;
   };
 
@@ -363,6 +395,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     if (await confirmOrderIfNeeded(bs)) return 'order';
     if (await resolveStackOnce(bs)) return 'stack';
     if (await runRuleChecks(bs)) return 'rule';
+    if (await answerHostLifeCrashReplace(bs)) return 'interaction';
     if (await runCpuTurn(bs)) return 'cpu';
     return 'idle';
   };

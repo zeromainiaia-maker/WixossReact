@@ -3756,8 +3756,8 @@ function actionJa(a?: Action, effectType?: string): string {
       return `あなたがドローフェイズにカードを${a.fromCount}枚引く場合、代わりに${a.toCount}枚引く`;
     case 'AWAKEN_SIGNI': return a.targetsLastProcessed ? 'それは覚醒する' : 'このシグニを覚醒状態にする';
     case 'GAIN_BOND': return a.source === 'declared'
-      ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
-      : '直前に見つけたカード名との絆を獲得する';
+      ? '好きな生徒（【絆】を持つあなたのカードの名前）1人との絆を獲得する'
+      : a.source === 'name' ? `${a.cardName ?? '?'}との絆を獲得する` : '直前に見つけたカード名との絆を獲得する';
     case 'GROW_COST_REDUCTION': {
       // 🆕**§5.3 `O-219`（2026-09-04）**＝「**この**カードにグロウするためのコストは」は
       //   **グロウ先カード自身**の宣言（`forSelfGrowOnly`）＝逆翻訳でも「あなたの次の」と書かない
