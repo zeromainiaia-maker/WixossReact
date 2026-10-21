@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { isReadyToResolve, confirmTurnOrder, confirmOppOrder } from '../../../engine/effectStack';
-import type { BattleStateRow, CardData, PendingEffect } from '../../../types';
+import type { BattleStateRow, CardData, PendingEffect, PlayerState, StackEntry } from '../../../types';
+import { collectDriveBecameTriggers as collectDriveBecameTriggersPure, collectBeatBecameTriggers as collectBeatBecameTriggersPure } from '../../../engine/triggerCollect';
+import { initStack } from '../../../engine/effectStack';
+import { collectEnergyPowerTriggers, type EnergyPowerSnapshot } from './energyPowerWatch';
 import { CPU_PLAYER_ID } from '../battleUtils';
 import { normalizeCpuDeckPlan, type CpuDeckPlan } from '../cpuDeckPlan';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from '../cpuPolicy';
@@ -433,16 +436,72 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     return true;
   };
 
+  /**
+   * 🆕2026-10-21＝**「ドライブ状態になったとき」「【ビート】になったとき」の印**（`drive_became_just`／`beat_became_just`）を両席とも処理する。
+   * 🔑実機では画面（`BattleScreen`）の見張り（`useEffect`）が処理する＝ヘッドレス（自己対戦・CPU観戦）には**その見張りが無く、
+   *   この2種類の【自】が一度も発動しなかった**。収集は画面と同じ engine の純関数（`triggerCollect.ts`）。
+   * ⚠画面と同じく、スタックも対話も無いときだけ動く。
+   */
+  const processBecameFlags = async (bs: BattleStateRow): Promise<boolean> => {
+    if (bs.effect_stack || bs.pending_effect || bs.global_phase !== 'PLAYING') return false;
+    const hostD = bs.host_state.drive_became_just ?? [], guestD = bs.guest_state.drive_became_just ?? [];
+    const hostB = bs.host_state.beat_became_just ?? [], guestB = bs.guest_state.beat_became_just ?? [];
+    if (hostD.length + guestD.length + hostB.length + guestB.length === 0) return false;
+    const trig = clientCtx().trigCtx();
+    const entries: StackEntry[] = [];
+    const used: Record<'host_state' | 'guest_state', string[]> = { host_state: [], guest_state: [] };
+    const seats = [
+      { key: 'host_state' as const, other: 'guest_state' as const, st: bs.host_state, op: bs.guest_state, id: bs.host_id, opId: bs.guest_id },
+      { key: 'guest_state' as const, other: 'host_state' as const, st: bs.guest_state, op: bs.host_state, id: bs.guest_id, opId: bs.host_id },
+    ];
+    for (const s of seats) {
+      for (const n of s.st.drive_became_just ?? []) {
+        const r = collectDriveBecameTriggersPure(trig, n, s.st, s.op, s.id, s.opId);
+        entries.push(...r.entries); used[s.key].push(...r.driverUsedIds); used[s.other].push(...r.otherUsedIds);
+      }
+      for (const n of s.st.beat_became_just ?? []) {
+        const r = collectBeatBecameTriggersPure(trig, n, s.st, s.id);
+        entries.push(...r.entries); used[s.key].push(...r.usedIds);
+      }
+    }
+    const fix = (st: PlayerState, key: 'host_state' | 'guest_state'): PlayerState => ({
+      ...st, drive_became_just: null, beat_became_just: null,
+      ...(used[key].length > 0 ? { actions_done: [...(st.actions_done ?? []), ...used[key]] } : {}),
+    });
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATES',
+      states: { host_state: fix(bs.host_state, 'host_state'), guest_state: fix(bs.guest_state, 'guest_state') },
+      ...(entries.length > 0 ? { effectStack: initStack(bs.active_user_id ?? bs.host_id, entries) } : {}) }));
+    return true;
+  };
+
   /** 直前の `step()` で判断した CPU の席（`lastActor`）。 */
   let actor: 'host' | 'guest' | null = null;
+  /** 🆕2026-10-21＝エナチャージ・パワー閾値の見張りが比べる「前回の盤面」（画面の `prevEnergyRef`/`prevPowersRef` に相当）。 */
+  let energyPowerPrev: EnergyPowerSnapshot | null = null;
   const step = async (): Promise<HeadlessStepKind> => {
     actor = null;
     const bs = row();
     if (bs.winner_id || bs.global_phase === 'FINISHED') return 'finished';
+    // 🆕2026-10-21＝**「エナゾーンにカードが置かれたとき」「パワーがN以上になったとき」**（画面の見張りと同じ判定・同じ条件）。
+    //   🔴旧＝ヘッドレスにはこの見張りが無く、自己対戦・CPU観戦ではこの2種類の【自】が一度も発動しなかった。
+    //   ⚠画面と同じく、スタックか対話がある間は比べない（前回の盤面も更新しない）。
+    if (!bs.effect_stack && !bs.pending_effect && bs.global_phase === 'PLAYING') {
+      const c = clientCtx();
+      const ep = collectEnergyPowerTriggers({ bs, prev: energyPowerPrev, effectsMap: c.effectsMap, cardMap: c.cardMap });
+      energyPowerPrev = ep.current;
+      if (ep.entries.length > 0) {
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATES', states: {
+          ...(ep.autoUsedByKey.host.length > 0 ? { host_state: { ...bs.host_state, actions_done: [...(bs.host_state.actions_done ?? []), ...ep.autoUsedByKey.host] } } : {}),
+          ...(ep.autoUsedByKey.guest.length > 0 ? { guest_state: { ...bs.guest_state, actions_done: [...(bs.guest_state.actions_done ?? []), ...ep.autoUsedByKey.guest] } } : {}),
+        }, effectStack: initStack(bs.active_user_id ?? bs.host_id, ep.entries) }));
+        return 'rule';
+      }
+    }
     if (bs.pending_effect) return (await answerInteraction(bs, bs.pending_effect)) ? 'interaction' : 'idle';
     if (await confirmOrderIfNeeded(bs)) return 'order';
     if (await resolveStackOnce(bs)) return 'stack';
     if (await runRuleChecks(bs)) return 'rule';
+    if (await processBecameFlags(bs)) return 'rule';
     if (await answerHostLifeCrashReplace(bs)) return 'interaction';
     if (await answerHostLimitExcess(bs)) return 'rule';
     if (await answerHostBanishSubstitute(bs)) return 'interaction';

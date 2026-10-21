@@ -5,7 +5,7 @@ import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectGuardTrashSelfSigni, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectGuardTrashSelfSigni, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
 import {getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
@@ -47,7 +47,6 @@ import {randomInt} from '../engine/rng';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, isPieceCardType} from './battle/battleUtils';
 import {recordEnergyPlacements} from '../engine/energyPlacement';
 import {performEnergyCharge, type EnergyChargeSource} from './battle/controller/performEnergyCharge';
-import {mainPhaseGateOkFor} from '../engine/triggerCollect';
 import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, applyGrowCostReduction, parseCoinCost, canAffordEnergyCostWithSubstitutes, paySelectedExceed} from './battle/costs';
 import {meetsRestriction, effectiveLrigClass, listGrowCandidates, declaredSigniOverride} from './battle/growLogic';
 import {cardNameUseBlocked} from './battle/cardNameUseBlock';
@@ -119,6 +118,7 @@ import {buildBattleCardMap, buildBaseEffectsMap, buildAugmentedEffectsMap, build
 // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体（画面の `useEffect` から回る受け皿）。
 import {makeRuleChecks, createRuleCheckMemo} from './battle/controller/ruleChecks';
 import {collectOnAcceTriggers} from './battle/controller/acceTriggers';
+import {collectEnergyPowerTriggers} from './battle/controller/energyPowerWatch';
 import {makeTrigCtx} from './battle/controller/execCtxDeps';
 import {performAssistGrow as performAssistGrowImpl} from './battle/controller/performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './battle/controller/performLrigAttack';
@@ -161,7 +161,6 @@ import {buildLrigSetupState} from './battle/lrigSetup';
 import {resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA} from '../utils/deckLrigSetup';
 import {listAssistGrowCandidates} from './battle/assistGrow';
 import {clearEndOfAttackEffects} from './battle/attackDuration';
-import {reserveGrantedAutoUsage} from './battle/grantedAuto';
 import {getResonaSummonCandidate, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate} from './battle/resonaSummon';
 import {pendingEffectCardNums} from './battle/pendingEffectCards';
 import {planRiseSummon, type RiseSelection} from './battle/riseSummon';
@@ -179,7 +178,6 @@ import {sideAttackEmptyZoneDealsDamage} from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
 import {handDiscardHistoryRecord, payRemoveOppVirus, payCharmTrash} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
-import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
 import {splitLogsByVisibility} from '../engine/hiddenInfo';
 import {canShowPrivateLog} from './battle/privateLogVisibility';
@@ -2016,90 +2014,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.effect_stack || bs.pending_effect) return;
     if (bs.global_phase !== 'PLAYING') return;
     const hostState = bs.host_state, guestState = bs.guest_state;
-    const hostIsActive = bs.active_user_id === bs.host_id;
-    // 各シグニを「その持ち主視点」で計算したパワー（ターン依存修正を正しく反映）
-    const hostPowers  = calcFieldPowers(hostState, guestState, hostIsActive,  effectsMap, battleCardMap, bs.turn_phase);
-    const guestPowers = calcFieldPowers(guestState, hostState, !hostIsActive, effectsMap, battleCardMap, bs.turn_phase);
-    const curPowers = new Map<string, number>([...hostPowers, ...guestPowers]);
-    const prevEnergy = prevEnergyRef.current;
-    const prevPowers = prevPowersRef.current;
-    const snapshot = () => {
-      prevEnergyRef.current = { host: [...hostState.energy], guest: [...guestState.energy] };
-      prevPowersRef.current = curPowers;
-    };
+    // 🆕2026-10-21＝判定はヘッドレスと同じ1本（`controller/energyPowerWatch.ts`）。ここは前回の盤面の記録と書き込みだけ。
+    const prevSnap = prevEnergyRef.current && prevPowersRef.current
+      ? { energy: prevEnergyRef.current, powers: prevPowersRef.current } : null;
     // 初回観測 or push権を持たない（非ホスト）クライアントはスナップショット更新のみ
-    if (!prevEnergy || !prevPowers || user.id !== bs.host_id) { snapshot(); return; }
-
-    const sides: Array<{ key: 'host' | 'guest'; st: PlayerState; op: PlayerState; ownerId: string; prevE: string[] }> = [
-      { key: 'host',  st: hostState,  op: guestState, ownerId: bs.host_id,  prevE: prevEnergy.host },
-      { key: 'guest', st: guestState, op: hostState,  ownerId: bs.guest_id, prevE: prevEnergy.guest },
-    ];
-    const entries: StackEntry[] = [];
-    const autoUsedByKey: Record<'host' | 'guest', string[]> = { host: [], guest: [] };
-    for (const { key, st, op, ownerId, prevE } of sides) {
-      const isOwnerActiveTurn = ownerId === bs.active_user_id;
-      // ON_ENERGY_CHARGE: エナがちょうど1枚増えたとき（差分の新規カードが1枚）
-      const addedToEnergy = st.energy.filter(n => !prevE.includes(n));
-      // センタールリグの付与ストア（effectsMap 非搭載）の ON_ENERGY_CHARGE watcher（SPDi43-13-E2＝
-      // 「ターン終了時まで、このルリグは『【自】あなたのエナゾーンにカードが置かれたとき…』を得る」）。
-      // 下の走査は場のシグニしか見ないため、ルリグ host の付与能力は付与ストアから別途収集する。
-      // 🔴《ターン1回/2回》の予約は**付与 watcher と印刷シグニの両方**で行う（タスク12(cxx)）。
-      //   ⚠この useEffect は entries を積むだけで `actions_done` へ書き戻していなかったため、
-      //     印刷シグニ側は**エナチャージのたびに撃てた**（ON_ENERGY_CHARGE 6効果／ON_POWER_THRESHOLD 3効果）。
-      //     予約 ID は下の commit で `actions_done` へ書き戻す＝他コレクタと同じ規約。
-      const ecLrigTop = st.field.lrig.at(-1);
-      if (ecLrigTop && addedToEnergy.length === 1) {
-        for (const w of grantedStoreWatchers(st, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
-          const eff = w.effect;
-          if (eff.triggerCondition?.movedSelf) continue;
-          if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
-          // 🆕`O-64`：「〈あなた〉のメインフェイズの間／以外で」＝この watcher は collector ではないので
-          //   `mainPhaseGateOk` を通らない。**フェイズ語彙を1つも見ていなかった**ので素の版を直接呼ぶ。
-          if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;
-          if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
-          if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
-              && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
-          if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;
-          entries.push({ id: generateUUID(), playerId: ownerId, cardNum: ecLrigTop, effectId: eff.effectId,
-            label: `${battleCardMap.get(ecLrigTop)?.CardName ?? ecLrigTop} の【自】効果（エナチャージ時・付与能力）`, effect: eff });
-        }
-      }
-      // ON_POWER_THRESHOLD / ON_ENERGY_CHARGE は場のシグニを走査
-      for (let zi = 0; zi < st.field.signi.length; zi++) {
-        const topNum = st.field.signi[zi]?.at(-1);
-        if (!topNum) continue;
-        for (const eff of effectsMap.get(topNum) ?? []) {
-          if (eff.effectType !== 'AUTO') continue;
-          if (eff.timing?.includes('ON_ENERGY_CHARGE') && addedToEnergy.length === 1) {
-            if (eff.triggerCondition?.movedSelf) continue;
-            if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
-            if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;   // `O-64`
-            // 「あなたのターンの間」= IS_MY_TURN（evalでは常にtrueのため、ここで自ターン判定）
-            if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
-            if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
-                && !evalUseCondition(eff.condition, st, op, battleCardMap, topNum, bs.turn_phase, curPowers)) continue;
-            if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;   // タスク12(cxx)
-            entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
-              label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（エナチャージ時）`, effect: eff });
-          }
-          if (eff.timing?.includes('ON_POWER_THRESHOLD')) {
-            // 🆕`O-64`：「あなたのメインフェイズの間、このシグニのパワーがN以上になったとき」
-            //   （`WX18-077-E1`／`WX18-078-E1`）。この枝は `triggerCondition` を1つも見ていなかった＝
-            //   相手ターン・相手メインフェイズでも発火していた。
-            if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;
-            const threshold = eff.condition?.type === 'SELF_POWER_GTE' ? eff.condition.value : Infinity;
-            const curP  = curPowers.get(topNum) ?? 0;
-            const prevP = prevPowers.get(topNum);
-            const wasBelow = prevP === undefined || prevP < threshold;
-            if (curP >= threshold && wasBelow) {
-              if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;   // タスク12(cxx)
-              entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
-                label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（パワー${threshold}到達時）`, effect: eff });
-            }
-          }
-        }
-      }
-    }
+    const pushable = !!prevSnap && user.id === bs.host_id;
+    const { entries, autoUsedByKey, current } = collectEnergyPowerTriggers({ bs, prev: pushable ? prevSnap : null, effectsMap, cardMap: battleCardMap });
+    const snapshot = () => {
+      prevEnergyRef.current = current.energy;
+      prevPowersRef.current = current.powers;
+    };
+    if (!pushable) { snapshot(); return; }
     if (entries.length === 0) { snapshot(); return; }
     (async () => {
       setLoading(true);

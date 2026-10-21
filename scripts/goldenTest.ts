@@ -196,6 +196,7 @@ import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostK
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { collectEnergyPowerTriggers } from '../src/screens/battle/controller/energyPowerWatch';
 import { collectOnAcceTriggers } from '../src/screens/battle/controller/acceTriggers';
 import { clearNextTurnPlayerState } from '../src/screens/battle/nextTurnPlayer';
 import { cardsForMatch } from '../src/screens/battle/matchCards';
@@ -51235,7 +51236,9 @@ test('エナ差分 watcher の《ターン1回/2回》予約（タスク12(cxx)�
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   const watcher = src.slice(src.indexOf('// ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー'));
   const block = watcher.slice(0, watcher.indexOf('// ON_TURN_END 解決後の自動フェーズ進行'));
-  eq((block.match(/reserveGrantedAutoUsage\(st, eff, autoUsedByKey\[key\]\)/g) ?? []).length, 3,
+  // 🆕2026-10-21＝判定は画面とヘッドレス共通の `controller/energyPowerWatch.ts` へ移した＝push 地点はそちらで数える。
+  const judge = fs.readFileSync(join(root, 'src/screens/battle/controller/energyPowerWatch.ts'), 'utf8');
+  eq((judge.match(/reserveGrantedAutoUsage\(st, eff, autoUsedByKey\[key\]\)/g) ?? []).length, 3,
     'エナ差分 watcher の push 地点3つすべてが usageLimit 予約を通る');
   ok(/actions_done: \[\.\.\.\(hostState\.actions_done \?\? \[\]\), \.\.\.autoUsedByKey\.host\]/.test(block)
     && /actions_done: \[\.\.\.\(guestState\.actions_done \?\? \[\]\), \.\.\.autoUsedByKey\.guest\]/.test(block),
@@ -72216,6 +72219,21 @@ test('2026-10-21 アクセが付いた直後の【自】は人間と CPU が同�
   const ct = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
   ok(/if \(cpuSt\.acce_just_done && /.test(ct) && /collectOnAcceTriggers\(/.test(ct), '🔴CPU がアクセの印を処理していない');
   ok(/collectOnAcceTriggers\(/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')), '画面が共有の1本を使っていない');
+}));
+
+test('2026-10-21 ヘッドレス（自己対戦・CPU観戦）も画面と同じ見張り（ドライブ・ビート・エナチャージ・パワー閾値）を持つ', () => withSavedCursor(() => {
+  // 🔴旧＝この4種類の【自】は画面（`BattleScreen` の useEffect）にしか無く、ヘッドレスでは一度も発動しなかった（変更前の自己対戦 960戦で0回）。
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/if \(await processBecameFlags\(bs\)\) return 'rule';/.test(hm), '🔴ヘッドレスがドライブ・ビートの印を処理しない');
+  ok(/collectEnergyPowerTriggers\(\{ bs, prev: energyPowerPrev/.test(hm), '🔴ヘッドレスがエナチャージ・パワー閾値を見張らない');
+  ok(/collectEnergyPowerTriggers\(/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')), '画面が共有の1本を使っていない');
+  // 判定＝エナがちょうど1枚増えたら「エナゾーンにカードが置かれたとき」（`WXDi-P11-073-E1`）。
+  const base = mkState({ signi: ['WXDi-P11-073', null, null] });
+  const bs0 = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'MAIN', host_state: base, guest_state: mkState() } as unknown as BattleStateRow;
+  const first = collectEnergyPowerTriggers({ bs: bs0, prev: null, effectsMap, cardMap: cardMap as Map<string, CardData> });
+  eq(first.entries.length, 0, '初回は比べない');
+  const bs1 = { ...bs0, host_state: { ...base, energy: [...base.energy, 'WD01-012#7'] } } as BattleStateRow;
+  ok(collectEnergyPowerTriggers({ bs: bs1, prev: first.current, effectsMap, cardMap: cardMap as Map<string, CardData> }).entries.some(e => e.effectId === 'WXDi-P11-073-E1'), '🔴エナが1枚増えたのに【自】が集まらない');
 }));
 
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
