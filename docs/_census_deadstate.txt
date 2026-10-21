@@ -8,22 +8,22 @@ PlayerState のキー: 389
 ## 参考：書き込みの多い順（上位40）
   1836 読 / 117 書  energy
   1498 読 /  76 書  deck
-  4167 読 /  71 書  field
-  2187 読 /  70 書  hand
+  4169 読 /  71 書  field
+  2198 読 /  70 書  hand
   1923 読 /  62 書  trash
    260 読 /  34 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    202 読 /  26 書  lrig_trash
-   317 読 /  19 書  actions_done
+   318 読 /  19 書  actions_done
    105 読 /  19 書  blocked_actions
    173 読 /  17 書  life_cloth
    131 読 /  17 書  keyword_grants
    113 読 /  14 書  coins
      9 読 /  14 書  pending_banish_substitute
      2 読 /  12 書  self_optional_effect_taken
+     5 読 /  12 書  opp_virus_removed_just
      4 読 /  12 書  banish_substitute_choice
     11 読 /  11 書  pending_crash_source_card_nums
-     3 読 /  11 書  opp_virus_removed_just
     21 読 /  10 書  pending_crashed_cards
      6 読 /  10 書  crash_source_card_num
     10 読 /   9 書  card_class_overrides

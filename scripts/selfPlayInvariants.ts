@@ -422,7 +422,8 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
           sides.reduce((n, [a0, a1]) => { const f = new Set(from(a0)); return n + to(a1).filter(id => f.has(id) && !to(a0).includes(id)).length; }, 0);
         const deckMin = Math.min(prevRow.host_state.deck.length, prevRow.guest_state.deck.length);
         const drawN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^(?:\[CPU\] )?(\d+)枚ドロー$/)?.[1] ?? 0), 0);
-        if (drawN > 0 && drawN <= deckMin) {
+        // ⚠同じ手で手札からデッキへ戻したカードを引く形（「デッキの一番上へ」→「1枚ドロー」）は前の盤面のデッキに無い＝数えない
+        if (drawN > 0 && drawN <= deckMin && !stepLogs.some(l => /デッキの一番上へ|デッキに戻/.test(l))) {
           const got = moved(st => st.deck, st => st.hand);
           if (got < drawN) once(`DRAWLOG:${stepLogs.find(l => /ドロー$/.test(l))}`, { kind: 'DRAWLOG', step, turn: r.turn_count, detail: `ログはドロー${drawN}枚・デッキ→手札は${got}枚`, logs: m.logs.slice(-8) });
         }

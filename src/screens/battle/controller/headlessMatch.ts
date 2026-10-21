@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { isReadyToResolve, confirmTurnOrder, confirmOppOrder } from '../../../engine/effectStack';
-import type { BattleStateRow, CardData, PendingEffect, PlayerState, StackEntry } from '../../../types';
-import { collectDriveBecameTriggers as collectDriveBecameTriggersPure, collectBeatBecameTriggers as collectBeatBecameTriggersPure } from '../../../engine/triggerCollect';
+import type { BattleStateRow, CardData, PendingEffect, PlayerState } from '../../../types';
+import { hasJustFlags, processSeatJustFlags } from './justFlags';
 import { initStack } from '../../../engine/effectStack';
 import { collectEnergyPowerTriggers, type EnergyPowerSnapshot } from './energyPowerWatch';
 import { CPU_PLAYER_ID } from '../battleUtils';
@@ -437,39 +437,23 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
   };
 
   /**
-   * 🆕2026-10-21＝**「ドライブ状態になったとき」「【ビート】になったとき」の印**（`drive_became_just`／`beat_became_just`）を両席とも処理する。
+   * 🆕2026-10-21＝**「〜した直後」の印**（手札の公開・効果による手札捨て・ゾーン移動・ドライブ・【ビート】・ウィルスの増減・相手のスペルの使用）を
+   * 両席とも処理する（`controller/justFlags.ts`）。
    * 🔑実機では画面（`BattleScreen`）の見張り（`useEffect`）が処理する＝ヘッドレス（自己対戦・CPU観戦）には**その見張りが無く、
-   *   この2種類の【自】が一度も発動しなかった**。収集は画面と同じ engine の純関数（`triggerCollect.ts`）。
+   *   これらの【自】が一度も発動しなかった**。収集は画面と同じ engine の純関数。
    * ⚠画面と同じく、スタックも対話も無いときだけ動く。
    */
   const processBecameFlags = async (bs: BattleStateRow): Promise<boolean> => {
     if (bs.effect_stack || bs.pending_effect || bs.global_phase !== 'PLAYING') return false;
-    const hostD = bs.host_state.drive_became_just ?? [], guestD = bs.guest_state.drive_became_just ?? [];
-    const hostB = bs.host_state.beat_became_just ?? [], guestB = bs.guest_state.beat_became_just ?? [];
-    if (hostD.length + guestD.length + hostB.length + guestB.length === 0) return false;
-    const trig = clientCtx().trigCtx();
-    const entries: StackEntry[] = [];
-    const used: Record<'host_state' | 'guest_state', string[]> = { host_state: [], guest_state: [] };
-    const seats = [
-      { key: 'host_state' as const, other: 'guest_state' as const, st: bs.host_state, op: bs.guest_state, id: bs.host_id, opId: bs.guest_id },
-      { key: 'guest_state' as const, other: 'host_state' as const, st: bs.guest_state, op: bs.host_state, id: bs.guest_id, opId: bs.host_id },
-    ];
-    for (const s of seats) {
-      for (const n of s.st.drive_became_just ?? []) {
-        const r = collectDriveBecameTriggersPure(trig, n, s.st, s.op, s.id, s.opId);
-        entries.push(...r.entries); used[s.key].push(...r.driverUsedIds); used[s.other].push(...r.otherUsedIds);
-      }
-      for (const n of s.st.beat_became_just ?? []) {
-        const r = collectBeatBecameTriggersPure(trig, n, s.st, s.id);
-        entries.push(...r.entries); used[s.key].push(...r.usedIds);
-      }
-    }
-    const fix = (st: PlayerState, key: 'host_state' | 'guest_state'): PlayerState => ({
-      ...st, drive_became_just: null, beat_became_just: null,
-      ...(used[key].length > 0 ? { actions_done: [...(st.actions_done ?? []), ...used[key]] } : {}),
-    });
+    if (!hasJustFlags(bs.host_state) && !hasJustFlags(bs.guest_state)) return false;
+    const c = clientCtx();
+    const trig = c.trigCtx();
+    const h = processSeatJustFlags({ trig, st: bs.host_state, op: bs.guest_state, id: bs.host_id, opId: bs.guest_id, effectsMap: c.effectsMap, cardMap: c.cardMap });
+    const g = processSeatJustFlags({ trig, st: bs.guest_state, op: bs.host_state, id: bs.guest_id, opId: bs.host_id, effectsMap: c.effectsMap, cardMap: c.cardMap });
+    const addUsed = (st: PlayerState, ids: string[]): PlayerState => ids.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...ids] } : st;
+    const entries = [...h.entries, ...g.entries];
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATES',
-      states: { host_state: fix(bs.host_state, 'host_state'), guest_state: fix(bs.guest_state, 'guest_state') },
+      states: { host_state: addUsed(h.st, g.opUsedIds), guest_state: addUsed(g.st, h.opUsedIds) },
       ...(entries.length > 0 ? { effectStack: initStack(bs.active_user_id ?? bs.host_id, entries) } : {}) }));
     return true;
   };

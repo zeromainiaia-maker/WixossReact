@@ -1580,12 +1580,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // CPU戦: CPU(=guest)が効果で捨てた手札のフラグも人間(host)クライアントが処理する（ON_HAND_DISCARDED 'any' 等）
   const cpuHandDiscardedRef = (user && bs && isCpuBattle && user.id === bs.host_id)
     ? bs.guest_state?.hand_discarded_just : undefined;
+  // 🆕2026-10-21＝CPU が手札を**公開した**印も処理する（旧＝捨てた印だけ＝CPU の「手札から公開されたとき」の【自】が発動せず印も残った）。
+  const cpuHandRevealedRef = (user && bs && isCpuBattle && user.id === bs.host_id)
+    ? bs.guest_state?.hand_revealed_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
     const revealedHJ = handRevealedJustRef ?? [];
     const discardedHJ = handDiscardedJustRef ?? [];
     const cpuDiscardedHJ = cpuHandDiscardedRef ?? [];
-    if (revealedHJ.length === 0 && discardedHJ.length === 0 && cpuDiscardedHJ.length === 0) return;
+    const cpuRevealedHJ = cpuHandRevealedRef ?? [];
+    if (revealedHJ.length === 0 && discardedHJ.length === 0 && cpuDiscardedHJ.length === 0 && cpuRevealedHJ.length === 0) return;
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const localMy: PlayerState = localIsHost ? bs.host_state : bs.guest_state;
@@ -1638,6 +1642,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
         };
         const states: Partial<Record<PlayerStateKey, PlayerState>> = { [stateKey]: cleared };
+        // 🆕2026-10-21＝CPU(guest)が手札から公開したカード自身の【自】（ON_REVEALED_FROM_HAND）＋場の ON_SELF_REVEAL_FROM_HAND。
+        if (cpuRevealedHJ.length > 0) {
+          const gs = bs.guest_state;
+          entries.push(...pureCollectRevealedFromHandTriggers(mkTrigCtx(), cpuRevealedHJ, gs, CPU_PLAYER_ID, gs.hand_revealed_just_source_card_num ?? undefined));
+          for (const stack of gs.field.signi) {
+            const topNum = stack?.at(-1);
+            if (!topNum) continue;
+            for (const eff of (effectsMap.get(topNum) ?? [])) {
+              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
+              entries.push({ id: generateUUID(), playerId: CPU_PLAYER_ID, cardNum: topNum, effectId: eff.effectId,
+                label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札公開時`, effect: eff });
+            }
+          }
+          states.guest_state = { ...(states.guest_state ?? gs), hand_revealed_just: null, hand_revealed_just_source_card_num: null };
+        }
         // CPU戦: CPU(guest)が捨てた手札 → CPU自身の self/any 効果 + 人間(host)の 'any' 効果を収集し、guest フラグをクリア
         if (cpuDiscardedHJ.length > 0) {
           const { entries: cpuHd, usedLimitIds: cpuUsed } = collectHandDiscardTriggers(
@@ -1646,7 +1665,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             bs.guest_state.hand_discarded_just_cause_card_num ?? undefined);
           entries.push(...cpuHd);
           states.guest_state = {
-            ...bs.guest_state,
+            ...(states.guest_state ?? bs.guest_state),
             hand_discarded_just: null,
             hand_discarded_just_by_opp: null,
             hand_discarded_just_cause_owner_id: null,
@@ -1667,7 +1686,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handRevealedJustRef, handDiscardedJustRef, cpuHandDiscardedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handRevealedJustRef, handDiscardedJustRef, cpuHandDiscardedRef, cpuHandRevealedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 対戦相手の場のウィルス増減フラグ（opp_virus_placed_just / opp_virus_removed_just）を検出して
   // ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED トリガーを発火（WD19-009 / WX21-030）

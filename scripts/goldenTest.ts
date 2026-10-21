@@ -196,6 +196,8 @@ import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostK
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
+import { processSeatJustFlags } from '../src/screens/battle/controller/justFlags';
+import { makeTrigCtx } from '../src/screens/battle/controller/execCtxDeps';
 import { collectEnergyPowerTriggers } from '../src/screens/battle/controller/energyPowerWatch';
 import { collectOnAcceTriggers } from '../src/screens/battle/controller/acceTriggers';
 import { clearNextTurnPlayerState } from '../src/screens/battle/nextTurnPlayer';
@@ -72236,6 +72238,20 @@ test('2026-10-21 ヘッドレス（自己対戦・CPU観戦）も画面と同じ
   ok(collectEnergyPowerTriggers({ bs: bs1, prev: first.current, effectsMap, cardMap: cardMap as Map<string, CardData> }).entries.some(e => e.effectId === 'WXDi-P11-073-E1'), '🔴エナが1枚増えたのに【自】が集まらない');
 }));
 
+test('2026-10-21 ヘッドレスは「〜した直後」の印（手札・ゾーン移動・ドライブ・ビート・ウィルス・相手のスペル）を両席とも処理する', () => withSavedCursor(() => {
+  // 🔴旧＝画面の見張りにしか無く、ヘッドレス（自己対戦・CPU観戦）ではこれらの【自】が発動しなかった（変更前の 2,838戦で合計1回）。
+  const st = { ...mkState({ signi: ['WX11-036', null, null] }), zone_moved_just: ['WX11-036'], hand_discarded_just: ['WD01-012#3'] } as unknown as PlayerState;
+  const bs0 = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'MAIN', host_state: st, guest_state: mkState() } as unknown as BattleStateRow;
+  const trig = makeTrigCtx({ bs: bs0, effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' });
+  const r = processSeatJustFlags({ trig, st, op: mkState(), id: 'H', opId: 'G', effectsMap, cardMap: cardMap as Map<string, CardData> });
+  ok(r.entries.some(e => e.effectId === 'WX11-036-E2'), '🔴ゾーンを移動したときの【自】が集まらない');
+  eq(r.st.zone_moved_just, null, '印が消えない'); eq(r.st.hand_discarded_just, null, '手札を捨てた印が消えない');
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/processSeatJustFlags\(\{ trig, st: bs\.host_state/.test(hm) && /processSeatJustFlags\(\{ trig, st: bs\.guest_state/.test(hm), '🔴ヘッドレスが両席の印を処理しない');
+  // 🔴旧＝実機の CPU 戦でも、CPU が手札を**公開した**印（`hand_revealed_just`）は画面の見張りが処理しなかった（捨てた印だけ）。
+  ok(/const cpuRevealedHJ = cpuHandRevealedRef \?\? \[\];/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')), '🔴画面が CPU の手札公開の印を処理しない');
+}));
+
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
   // 🔴旧＝`phaseAdvance` にだけ書かれ、CPU のターンではリミット＋・リミット修正の予約・開始時ドロー／エナチャージが一度も起きなかった。
   const st = { ...mkState(), game_grow_phase_limit_plus: 1, pending_lrig_limit_mod: -1, game_main_draw: true, game_energy_phase_draw: true, game_energy_phase_charge: 1 } as unknown as PlayerState;
@@ -89895,15 +89911,15 @@ test('§5.7 S-5d 第3段 席の鏡：2回かけると元に戻る／guest 席に
 test('§5.7 S-5d 第3段 ヘッドレスの対戦ループ：画面なしで両席が自分のターンを回す', () => {
   // 🔴**この1本だけが端から端まで回す**＝材料（`battleMaterials`）・ルール処理（`ruleChecks`）・対話の解決・
   //   CPU の1手・席の鏡が**全部つながっていないと `ターン=1` のまま止まる**（試運転で2回とも実際に止まった）。
-  //   ⚠重いので手数を絞る（60手＝3ターン目まで・約9秒）。**決着まで回すのは `gates` の `selfplay`**（1戦 約35秒・並列）。
+  //   ⚠重いので手数を絞る（90手＝3ターン目まで・🆕2026-10-21 に 60→90＝フェイズ開始時の処理と「〜した直後」の印の処理で1ターンの手数が増えた＝較正）。**決着まで回すのは `gates` の `selfplay`**（1戦 約35秒・並列）。
   const out = execFileSync(process.execPath, [join(root, 'node_modules/tsx/dist/cli.mjs'),
-    join(root, 'scripts/headlessSelfPlay.ts'), '--games', '1', '--seed', '1', '--steps', '60', '--allow-stall'],
+    join(root, 'scripts/headlessSelfPlay.ts'), '--games', '1', '--seed', '1', '--steps', '90', '--allow-stall'],
     { cwd: root, encoding: 'utf8' });
   const m = out.match(/ターン=(\d+)/);
   ok(!!m, `🔴自己対戦が結果行を出さない: ${out.slice(0, 400)}`);
   // 🔑**3ターン目まで**見る＝host 席 → guest 席 → host 席の**両方向の引き渡し**を通す
   //   （2ターン目までだと、鏡側だけが正しくても通ってしまう＝反転確認で実測）。
-  ok(parseInt(m![1], 10) >= 3, `🔴60手で3ターン目まで進まない（ターン=${m![1]}）＝どちらかの席が動いていない`);
+  ok(parseInt(m![1], 10) >= 3, `🔴90手で3ターン目まで進まない（ターン=${m![1]}）＝どちらかの席が動いていない`);
   // 🆕§5.7 `S-15`＝**CPU が実際に打った手は、その盤面の候補列挙（`listCpuMoves`）に必ず出ている**。
   //   🔴外れる＝探索（`S-16`）が見る手と本番の選択がズレた。⚠反転確認済み（列挙から【起】を抜くと 1件出て exit 1）。
   const mc = out.match(/打った手の照合 (\d+)手｜列挙に無かった手 (\d+)/);
