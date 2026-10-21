@@ -3582,6 +3582,12 @@ export interface AttachCharmAction {
    * ⚠これが無いと**自分自身の【チャーム】になる**（場から消えるだけの無意味な動作）。
    */
   toOther?: boolean;
+  /** 内部用: チャームにするカードの選択の応答待ち（選ばれた札は `lastProcessedCards`）。JSON には書かない。 */
+  _charmPick?: boolean;
+  /** 内部用: 確定したチャームにするカード。JSON には書かない。 */
+  _charmPicked?: string[];
+  /** 内部用: 付け先シグニの選択の応答待ち（選ばれたシグニは `lastProcessedCards`）。JSON には書かない。 */
+  _hostPick?: boolean;
 }
 
 /**

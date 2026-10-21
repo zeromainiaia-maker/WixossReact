@@ -1022,6 +1022,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   選べるのはエナが5枚以上のときだけ（選択肢の条件）＝払えない盤面で②を選んで空振りしない。
   ],
 
+  // ── WX05-080 ／ 原文【起】《ダウン》：あなたの＜悪魔＞のシグニ１体を対象とし、**このシグニを**それの【チャーム】にする。
+  // 🔴旧 live（AUTO）は `charm:{type:'SIGNI',owner:'self'}` だけで「このシグニ」が無く、場の先頭のシグニをチャームにしていた
+  //   （自分自身を付け先にも選べた＝シグニのいないゾーンに【チャーム】が残る。2026-10-21 `selfplay:inv` の SHAPE）。
+  'WX05-080': [
+    {"effectId":"WX05-080-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"ATTACH_CHARM","charm":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"to":{"type":"SIGNI","owner":"self","count":1,"filter":{"story":"悪魔"}},"toOther":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   // ── WXEX1-28 ／ 原文【起】…《黒×0》：**対象の対戦相手のシグニ１体を**対象の対戦相手の**他の**シグニ１体の
   //   【チャーム】にする。
   // 🔴旧 live は `charm:{type:'SIGNI'}` を書いていたのに engine に SIGNI 分岐が無く、既定枝（手札／エナ）へ

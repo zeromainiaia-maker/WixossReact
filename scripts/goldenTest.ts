@@ -47287,8 +47287,11 @@ test('続き377n engine: ATTACH_CHARM は N枚×N体をペアで付与する（�
   const d1 = fresh(), d2 = fresh();
   const base = mkCtx({ signi: [a1, a2, a3] }, {});
   const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, deck: [d1, d2, ...base.ownerState.deck] } };
-  const r = runEffect(effect.action, ctx);
-  ok(r.done, 'デッキ上からの付与は選択を挟まず解決する');
+  // 2026-10-21＝「あなたのシグニを２体まで**対象とし**」＝3体から2体を選ぶ対話が挟まる（オートパイロットで先頭2体）。
+  const r1 = runEffect(effect.action, ctx);
+  ok(!r1.done && (r1.pending as { candidates?: string[] }).candidates?.length === 3, '付け先を3体から選ぶ対話が立つ');
+  const r = run(effect.action, ctx);
+  ok(r.done, '解決する');
   const charms = r.ownerState.field.signi_charms ?? [];
   eq(charms.filter(Boolean).length, 2, '2組つく（従来は1組だけだった）');
   eq(charms[0], d1, '1体目にはデッキ1枚目');
@@ -47306,10 +47309,71 @@ test('続き377n engine: 単数ペア（1枚→1体）の既存挙動は変え�
   const t2 = findCard(c => isSigni(c) && c.CardNum !== t1 && (c.CardClass ?? '').includes('微菌'));
   const base = mkCtx({ signi: [a1, a2, null], trash: 0 }, {});
   const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, trash: [t1, t2] } };
-  const r = runEffect(effect.action, ctx);
+  // 2026-10-21＝候補が2枚×2体なので「どれを」「どれに」の選択が2段挟まる（オートパイロットで先頭を答える）。
+  const r = run(effect.action, ctx);
   ok(r.done, '解決する');
   eq((r.ownerState.field.signi_charms ?? []).filter(Boolean).length, 1, '1組だけ＝複数ペア化の巻き添えを受けない');
   eq(r.ownerState.trash.length, 1, 'トラッシュからは1枚だけ減る');
+}));
+
+// 2026-10-21＝`ATTACH_CHARM` は「対象の」カード／シグニを**持ち主に選ばせる**（旧＝候補の先頭を黙って取っていた）。
+test('ATTACH_CHARM: トラッシュのどの札を・どのシグニに付けるかを選ばせる（WDK12-001-E2）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WDK12-001') ?? []).find(e => e.effectId === 'WDK12-001-E2');
+  ok(!!effect, 'WDK12-001-E2: live effect exists');
+  if (!effect) return;
+  const a1 = fresh(), a2 = fresh();
+  const t1 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('微菌'));
+  const t2 = findCard(c => isSigni(c) && c.CardNum !== t1 && (c.CardClass ?? '').includes('微菌'));
+  const base = mkCtx({ signi: [a1, a2, null], trash: 0 }, {});
+  const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, trash: [t1, t2] } };
+  const r1 = runEffect(effect.action, ctx);
+  ok(!r1.done, '段1＝チャームにする札を選ぶ対話が立つ');
+  if (r1.done) return;
+  const p1 = r1.pending as { type: string; candidates: string[]; targetScope: string };
+  eq(p1.type, 'SELECT_TARGET', '段1は SELECT_TARGET');
+  eq(p1.targetScope, 'self_trash', '段1はトラッシュから選ぶ');
+  eq([...p1.candidates].sort().join(','), [t1, t2].sort().join(','), '段1の候補＝トラッシュの＜微菌＞2枚');
+  const c1: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+  const r2 = resumeSelectTarget([t2], r1.pending as never, c1);
+  ok(!r2.done, '段2＝付け先のシグニを選ぶ対話が立つ');
+  if (r2.done) return;
+  const p2 = r2.pending as { candidates: string[]; targetScope: string };
+  eq(p2.targetScope, 'self_field', '段2は自分の場から選ぶ');
+  eq([...p2.candidates].sort().join(','), [a1, a2].sort().join(','), '段2の候補＝自分のシグニ2体');
+  const c2: ExecCtx = { ...c1, ownerState: r2.ownerState, otherState: r2.otherState, logs: r2.logs };
+  const r3 = finish(resumeSelectTarget([a2], r2.pending as never, c2), c2);
+  eq(r3.ownerState.field.signi_charms?.[1], t2, '🔴選んだ札（2枚目）が選んだシグニ（ゾーン1）に付く');
+  eq(r3.ownerState.field.signi_charms?.[0] ?? null, null, '選ばなかったシグニには付かない');
+  eq(r3.ownerState.trash.join(','), t1, 'トラッシュには選ばなかった札が残る');
+}));
+
+test('ATTACH_CHARM: WX05-080「このシグニを」は自分自身を付け先にしない（空のゾーンに【チャーム】を残さない）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX05-080') ?? []).find(e => e.effectId === 'WX05-080-E1');
+  ok(!!effect, 'WX05-080-E1: live effect exists');
+  if (!effect) return;
+  const devil = (skip: string[]) => findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔') && !skip.includes(c.CardNum));
+  const self = 'WX05-080';
+  const d1 = devil([self]);
+  const d2 = devil([self, d1]);
+  // 効果元をゾーン1に、他の＜悪魔＞2体をゾーン0・2に。
+  const ctx = mkCtx({ signi: [d1, self, d2] }, {}, self);
+  const r1 = runEffect(effect.action, ctx);
+  ok(!r1.done, '付け先が2体＝選ぶ対話が立つ');
+  if (r1.done) return;
+  const p1 = r1.pending as { candidates: string[] };
+  eq(p1.candidates.includes(self), false, '🔴効果元自身は付け先の候補に入らない');
+  eq([...p1.candidates].sort().join(','), [d1, d2].sort().join(','), '候補＝他の＜悪魔＞2体');
+  const c1: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+  const r2 = finish(resumeSelectTarget([d2], r1.pending as never, c1), c1);
+  eq(r2.ownerState.field.signi_charms?.[2], self, '効果元が選んだシグニ（ゾーン2）の【チャーム】になる');
+  eq(r2.ownerState.field.signi[1]?.length ?? 0, 0, '効果元のゾーンは空く');
+  eq(r2.ownerState.field.signi_charms?.[1] ?? null, null, '🔴空いたゾーンに【チャーム】は残らない');
+
+  // 他に＜悪魔＞がいない＝何も起きない（旧＝自分自身の【チャーム】になってゾーン1に【チャーム】だけが残った）。
+  const lone = mkCtx({ signi: [null, self, null] }, {}, self);
+  const r3 = run(effect.action, lone);
+  eq(r3.ownerState.field.signi[1]?.at(-1), self, '付け先が無ければ効果元は場に残る');
+  eq((r3.ownerState.field.signi_charms ?? []).filter(Boolean).length, 0, '【チャーム】はどこにも付かない');
 }));
 
 test('続き377n: 「N枚まで × N体まで」が live JSON の charm/to 両側に載る', () => withSavedCursor(() => {

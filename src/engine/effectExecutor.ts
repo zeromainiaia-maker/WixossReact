@@ -8865,7 +8865,10 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   // 🆕**場のシグニ自身をチャームに変える**（`WXEX1-28-E1`）。分岐が無いと既定枝（手札／エナ）へ落ちて
   //   まったく別のカードをチャームにする（`charm.type:'SIGNI'` は live に前から在ったのに死んでいた）。
   if (a.charm.type === 'SIGNI') {
-    charmCands = fieldCandidates(charmSrc, a.charm.filter, ctx.cardMap, ctx.effectivePowers);
+    // 「このシグニを〜の【チャーム】にする」（`WX05-080`）＝効果元シグニ自身。
+    charmCands = a.charm.filter?.thisCardOnly
+      ? (ctx.sourceCardNum && fieldSigniStacks(charmSrc).some(s => s?.at(-1) === ctx.sourceCardNum) ? [ctx.sourceCardNum] : [])
+      : fieldCandidates(charmSrc, a.charm.filter, ctx.cardMap, ctx.effectivePowers);
     charmFromLocation = 'field';
   } else if (a.charm.type === 'DECK_CARD') {
     charmCands = charmSrc.deck.slice(0, Math.min(charmLimit, charmSrc.deck.length));
@@ -8904,13 +8907,6 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   } else {
     toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   }
-  // 🆕`toOther`＝「**他の**シグニの【チャーム】にする」＝チャームになる側をホスト候補から外す。
-  //   ⚠先に確定するのはチャーム側（下のペアリングが `slice(0, pairCount)` で先頭から取る）なので、
-  //     同じ順序で除外しないと「自分自身のチャームになる」ペアが残る。
-  if (a.toOther) {
-    const charmHead = new Set(charmCands.slice(0, charmLimit === Number.MAX_SAFE_INTEGER ? charmCands.length : charmLimit));
-    toCands = toCands.filter(n => !charmHead.has(n));
-  }
   // 🆕§5.3 `O-528`（2026-09-16 ユーザー判断＝読みA）＝**【チャーム】が既に付いているシグニは対象にできない**。
   //   🔴旧実装は既存の `signi_charms[z]` を見ずに上書きしており、古い【チャーム】がどこにも無くなっていた
   //   （`WX11-034-BURST`・round6 R6-0 の全数トレースで唯一残った「消滅」）。
@@ -8918,13 +8914,59 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     const z = fieldSigniStacks(toState).findIndex(s => s?.at(-1) === n);
     return z < 0 || !toState.field.signi_charms?.[z];
   });
-  if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
+  // 🔴**場のシグニをチャームにするとき、そのシグニ自身は付け先になれない**（`toOther` の有無に関係なく）＝
+  //   自分を自分の【チャーム】にすると、シグニのいないゾーンに【チャーム】だけが残る
+  //   （2026-10-21 `selfplay:inv` の SHAPE＝`WX05-080` が自分自身を付け先に選んでいた）。
+  //   チャーム側の候補も「他に付け先があるもの」に絞る。
+  const excludeCharmFromHosts = charmFromLocation === 'field' || !!a.toOther;
+  if (excludeCharmFromHosts) charmCands = charmCands.filter(c => toCands.some(t => t !== c));
+  if (charmCands.length === 0 || toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   // ペアを i 番目どうしで対応させる（原文は「カードN枚を、シグニN体の【チャーム】にする」＝1体1枚）。
-  const pairCount = Math.min(charmCands.length, toCands.length, charmLimit, toLimit);
+  const charmPairMax = Math.min(charmCands.length, toCands.length, charmLimit, toLimit);
+  // 🆕2026-10-21＝**「対象の」カード／シグニは持ち主が選ぶ**（旧＝どちらも候補の先頭を黙って取っていた＝
+  //   トラッシュのどの札をチャームにするか・どのシグニに付けるかを一度も選ばせていなかった）。
+  //   段1＝チャームにするカード（デッキの上・「このカード」は選ぶ余地が無い）→ 段2＝付け先のシグニ。
+  //   段間は `_charmPick`／`_charmPicked`／`_hostPick` で繋ぐ（`ATTACH_FACEDOWN_FROM_HAND` の `_hostPending` と同じ規約）。
+  const charmScopeOf = (): TargetScope | null => {
+    const side = charmOwner === 'self' ? 'self' : 'opp';
+    if (charmFromLocation === 'field') return `${side}_field` as TargetScope;
+    if (charmFromLocation === 'trash') return `${side}_trash` as TargetScope;
+    if (charmFromLocation === 'energy') return `${side}_energy` as TargetScope;
+    if (charmFromLocation === 'hand') return `${side}_hand` as TargetScope;
+    return null;
+  };
+  let charmNums: string[];
+  if (a._charmPicked) {
+    charmNums = a._charmPicked.filter(c => charmCands.includes(c)).slice(0, charmPairMax);
+  } else if (a._charmPick) {
+    charmNums = (ctx.lastProcessedCards ?? []).filter(c => charmCands.includes(c)).slice(0, charmPairMax);
+  } else {
+    const charmScope = charmScopeOf();
+    const choosable = charmScope !== null && !a.charm.filter?.thisCardOnly;
+    if (choosable && charmCands.length > charmPairMax) {
+      const pickAct: AttachCharmAction = { ...a, _charmPick: true };
+      return selectOrInteract(charmCands, charmPairMax, false, charmScope!, pickAct as EffectAction, undefined, ctx);
+    }
+    charmNums = charmCands.slice(0, charmPairMax);
+  }
+  if (charmNums.length === 0) return done(addLog(ctx, 'チャームなし'));
+  const hostCands = excludeCharmFromHosts ? toCands.filter(n => !charmNums.includes(n)) : toCands;
+  const pairCount = Math.min(charmNums.length, hostCands.length, toLimit);
   if (pairCount <= 0) return done(addLog(ctx, 'チャーム付与対象なし'));
-  const charmNums = charmCands.slice(0, pairCount);
-  const targetNums = toCands.slice(0, pairCount);
+  let targetNums: string[];
+  if (a._hostPick) {
+    targetNums = (ctx.lastProcessedCards ?? []).filter(n => hostCands.includes(n)).slice(0, pairCount);
+    if (targetNums.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
+  } else if (hostCands.length > pairCount) {
+    const { _charmPick: _cp, ...rest } = a;
+    const hostAct: AttachCharmAction = { ...rest, _charmPicked: charmNums.slice(0, pairCount), _hostPick: true };
+    return selectOrInteract(hostCands, pairCount, false, toOwner === 'self' ? 'self_field' : 'opp_field',
+      hostAct as EffectAction, undefined, ctx);
+  } else {
+    targetNums = hostCands.slice(0, pairCount);
+  }
+  charmNums = charmNums.slice(0, targetNums.length);
   // 🆕§5.3 `O-540`＝チアゾーンのシグニは添字3（`signi_charms[3]`）。
   const zoneIdxs = targetNums.map(n => fieldSigniStacks(toState).findIndex(s => s?.at(-1) === n));
   if (zoneIdxs.some(i => i < 0)) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
@@ -8932,7 +8974,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   // チャームカードをソースから除去
   let newCharmSrc: PlayerState = { ...charmSrc };
   if (charmFromLocation === 'deck') {
-    newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(pairCount) };
+    newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(charmNums.length) };
   } else if (charmFromLocation === 'energy') {
     newCharmSrc = { ...newCharmSrc, energy: newCharmSrc.energy.filter(n => !charmNums.includes(n)) };
   } else if (charmFromLocation === 'trash') {

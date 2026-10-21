@@ -146,7 +146,7 @@ miss = 各ソース行について、その行の門から来る live カード�
   effectEngine.ts:5331 <fn:getCrossConditionText> const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
   effectEngine.ts:7388 <fn:collectRiseBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(base(n))?.EffectText ?? '').includes('【ライズ】');
   effectEngine.ts:7494 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
-  effectExecutor.ts:10589 <fn:execGainBond> const names = [...new Set(pool.map(n => ctx.cardMap.get(getCardNum(n))).filter(c => !!c && /【絆/.test((c.EffectText ?? '').replace(
+  effectExecutor.ts:10631 <fn:execGainBond> const names = [...new Set(pool.map(n => ctx.cardMap.get(getCardNum(n))).filter(c => !!c && /【絆/.test((c.EffectText ?? '').replace(
   execStubPart1.ts:1423 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4923 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execUtils.ts:556 <fn:countFromZone> sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)
