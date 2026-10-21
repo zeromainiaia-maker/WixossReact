@@ -215,7 +215,7 @@ import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReas
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
 import { ALL_LRIG_FOLDER, withAllLrigFolder } from '../src/utils/deckFolders';
-import { applyFolderReorder, copyDeckName, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
+import { applyFolderReorder, copyDeckName, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, groupDecksByFormatAndFolder, findFormatFolder, formatFolderKey, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
@@ -87721,6 +87721,14 @@ test('デッキのフォルダ（センターのルリグタイプ別）・種�
   eq(folders[folders.length - 1].name, UNSET_FOLDER, '「未設定」フォルダが最後に来ない');
   eq(JSON.stringify(folders.find(f => f.name === 'ウムル')?.decks.map(d => d.id)), JSON.stringify(['a', 'd']), 'フォルダ内で元の並びが保たれない');
   eq(new Set(folders.flatMap(f => f.decks.map(d => d.id))).size, decksIn.length, '🔴同じデッキが2つのフォルダに出た／消えた');
+  // 🆕2026-10-21＝フォーマットの枠（ディーバ→レガシー→オールスター・空の枠は出さない）で分けてからフォルダ。同じルリグタイプが2つの枠に出ても開くフォルダは区別する。
+  const fmtOf: Record<string, 'diva' | 'legacy' | 'allstar'> = { a: 'legacy', b: 'legacy', c: 'diva', d: 'diva', e: 'legacy' };
+  const sections = groupDecksByFormatAndFolder(decksIn, cardMap, d => fmtOf[d.id]);
+  eq(JSON.stringify(sections.map(s => s.format)), JSON.stringify(['diva', 'legacy']), '🔴フォーマットの枠の並び／空の枠の扱いが違う');
+  eq(sections.reduce((n, s) => n + s.count, 0), decksIn.length, '🔴枠に分けたらデッキが増えた／消えた');
+  eq(JSON.stringify(findFormatFolder(sections, formatFolderKey('legacy', 'ウムル'))?.folder.decks.map(d => d.id)), JSON.stringify(['a']), '🔴レガシーのウムルを開いたらディーバのデッキが混ざった');
+  eq(JSON.stringify(findFormatFolder(sections, formatFolderKey('diva', 'ウムル'))?.folder.decks.map(d => d.id)), JSON.stringify(['d']), '🔴ディーバのウムルを開けない');
+  eq(findFormatFolder(sections, 'ウムル'), null, 'フォーマット無しのキーでフォルダが開いた');
   // フォルダ内の並べ替えは他のフォルダの相対順を動かさない。
   const all = [deck('a', UMR0), deck('p', PIRULUK0), deck('d', UMR0), deck('q', PIRULUK0, 'cpu')];
   const reordered = applyFolderReorder(all, [all[2], all[0]]);

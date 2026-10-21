@@ -15,16 +15,21 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { CardData, Deck } from '../types';
-import { applyFolderReorder, deckKindOf, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, DECK_KIND_JA, type DeckKind } from '../utils/deckFolders';
+import { applyFolderReorder, deckKindOf, findFormatFolder, folderThumbKey, folderThumbnailCandidates, groupDecksByFormatAndFolder, DECK_KIND_JA, type DeckKind } from '../utils/deckFolders';
+import { DECK_FORMAT_JA, effectiveDeckFormat } from '../utils/deckFormat';
+import { buildVariantNumIndex } from '../utils/cardSearch';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
-import { DeckFolderGrid, DeckFolderHeader } from './deck/DeckFolderGrid';
+import { DeckFolderHeader, DeckFormatSections } from './deck/DeckFolderGrid';
 
 interface Props {
   /** 自分のデッキ全部（`player` と `cpu` の両方）。表示はタブの種類で絞る。 */
   decks: Deck[];
   cards: CardData[];
+  /** 🆕2026-10-21＝フォーマットの推定（`format` 未設定の古いデッキ）に再録の索引が要る。 */
+  variantCards: CardData[];
   /** 🆕2026-09-17＝いま開いているタブ（自分のデッキ／CPUデッキ）とフォルダ。編集画面から戻っても保つので親が持つ。 */
   kind: DeckKind;
+  /** 開いているフォルダ＝`formatFolderKey(フォーマット, フォルダ名)`。 */
   openFolder: string | null;
   onChangeView: (kind: DeckKind, openFolder: string | null) => void;
   onCreateDeck?: (name: string, kind: DeckKind) => void;
@@ -93,7 +98,7 @@ function SortableDeckCard({ deck, cards, isCpuKind, isSortMode, onClick }: Sorta
   );
 }
 
-export default function DeckListScreen({ decks, cards, kind, openFolder, onChangeView, onCreateDeck, onEditDeck, onReorderDecks, folderThumbnails, onSetFolderThumbnail, onBack }: Props) {
+export default function DeckListScreen({ decks, cards, variantCards, kind, openFolder, onChangeView, onCreateDeck, onEditDeck, onReorderDecks, folderThumbnails, onSetFolderThumbnail, onBack }: Props) {
   const [showFolderThumb, setShowFolderThumb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -104,11 +109,14 @@ export default function DeckListScreen({ decks, cards, kind, openFolder, onChang
   const accent = isCpuKind ? '#28a745' : '#007bff';
   const cardMap = useMemo(() => new Map(cards.map(c => [c.CardNum, c] as const)), [cards]);
   // 🆕2026-09-17＝タブの種類で絞り、センタールリグのルリグタイプ別フォルダにまとめる（`utils/deckFolders.ts`）。
-  const folders = useMemo(
-    () => groupDecksByFolder(localDecks.filter(d => deckKindOf(d) === kind), cardMap),
-    [localDecks, kind, cardMap],
+  //   🆕2026-10-21＝その前にフォーマット（ディーバ／レガシー／オールスター）の枠で分ける。
+  const variantNumIndex = useMemo(() => buildVariantNumIndex(variantCards), [variantCards]);
+  const sections = useMemo(
+    () => groupDecksByFormatAndFolder(localDecks.filter(d => deckKindOf(d) === kind), cardMap, d => effectiveDeckFormat(d, cardMap, variantNumIndex)),
+    [localDecks, kind, cardMap, variantNumIndex],
   );
-  const current = openFolder ? folders.find(f => f.name === openFolder) ?? null : null;
+  const opened = findFormatFolder(sections, openFolder);
+  const current = opened?.folder ?? null;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -179,16 +187,16 @@ export default function DeckListScreen({ decks, cards, kind, openFolder, onChang
         ))}
       </div>
 
-      {folders.length === 0 ? (
+      {sections.length === 0 ? (
         <p style={{ color: '#555', textAlign: 'center', marginTop: '80px' }}>
           {isCpuKind ? 'CPUデッキがありません。「＋ CPUデッキを作成」から作ってください。' : 'デッキがありません。新規作成してください。'}
         </p>
       ) : !current ? (
-        <DeckFolderGrid folders={folders} cardMap={cardMap} accent={accent} onOpen={name => onChangeView(kind, name)}
+        <DeckFormatSections sections={sections} cardMap={cardMap} accent={accent} onOpen={key => onChangeView(kind, key)}
           thumbnailOf={name => folderThumbnails[folderThumbKey(kind, name)]} />
       ) : (
         <>
-          <DeckFolderHeader name={current.name} count={current.decks.length} accent={accent}
+          <DeckFolderHeader name={`${DECK_FORMAT_JA[opened!.format]}／${current.name}`} count={current.decks.length} accent={accent}
             onBack={() => { setIsSortMode(false); onChangeView(kind, null); }}
             onEditThumbnail={() => setShowFolderThumb(true)} />
           {showFolderThumb && (

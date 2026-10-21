@@ -1,5 +1,6 @@
 import type { CardData, Deck } from '../types';
 import { randomInt } from '../engine/rng';
+import { DECK_FORMATS, type DeckFormat } from './deckFormat';
 
 /**
  * 🆕**デッキのフォルダ分け（センタールリグのルリグタイプ別）とデッキの種類**（2026-09-17 ユーザー決定）。
@@ -63,6 +64,40 @@ export function groupDecksByFolder<T extends Pick<Deck, 'centerLrig'>>(
   return [...byName.entries()]
     .sort(([a], [b]) => (a === UNSET_FOLDER ? 1 : b === UNSET_FOLDER ? -1 : a.localeCompare(b, 'ja')))
     .map(([name, list]) => ({ name, decks: list }));
+}
+
+/**
+ * 🆕**フォーマット（ディーバ／レガシー／オールスター）ごとの枠に分けてから、ルリグタイプ別フォルダにまとめる**（2026-10-21 ユーザー要望「混ざっていると見づらい」）。
+ * デッキが1つも無いフォーマットの枠は出さない。フォーマットは呼び出し側が渡す（`effectiveDeckFormat` は再録の索引が要るため）。
+ * 🔑同じルリグタイプが2つの枠に出るので、開いているフォルダは `formatFolderKey` で区別する。
+ */
+export interface DeckFormatSection<T> {
+  format: DeckFormat;
+  folders: DeckFolder<T>[];
+  count: number;
+}
+
+export function groupDecksByFormatAndFolder<T extends Pick<Deck, 'centerLrig'>>(
+  decks: T[],
+  cardMap: Map<string, CardData>,
+  formatOf: (deck: T) => DeckFormat,
+): DeckFormatSection<T>[] {
+  return DECK_FORMATS
+    .map(format => {
+      const inFormat = decks.filter(d => formatOf(d) === format);
+      return { format, folders: groupDecksByFolder(inFormat, cardMap), count: inFormat.length };
+    })
+    .filter(s => s.count > 0);
+}
+
+/** 開いているフォルダの識別子＝フォーマット＋フォルダ名。 */
+export const formatFolderKey = (format: DeckFormat, folderName: string): string => `${format}|${folderName}`;
+
+/** `formatFolderKey` で開いたフォルダを探す。 */
+export function findFormatFolder<T>(sections: DeckFormatSection<T>[], key: string | null): { format: DeckFormat; folder: DeckFolder<T> } | null {
+  if (!key) return null;
+  for (const s of sections) for (const f of s.folders) if (formatFolderKey(s.format, f.name) === key) return { format: s.format, folder: f };
+  return null;
 }
 
 /**

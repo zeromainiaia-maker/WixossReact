@@ -1,5 +1,6 @@
 import type { CardData, Deck } from '../../types';
-import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, folderFaceCard, type DeckFolder } from '../../utils/deckFolders';
+import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, folderFaceCard, formatFolderKey, type DeckFolder, type DeckFormatSection } from '../../utils/deckFolders';
+import { DECK_FORMAT_JA } from '../../utils/deckFormat';
 
 /**
  * センタールリグのルリグタイプ別フォルダの一覧（デッキ一覧・マッチングで共用）。
@@ -67,6 +68,35 @@ export function DeckFolderHeader({ name, count, accent, onBack, onEditThumbnail 
           marginLeft: 'auto', padding: '6px 12px', borderRadius: 6, border: '1px solid #444', backgroundColor: 'transparent', color: '#ccc', fontSize: 12, cursor: 'pointer',
         }}>🖼 サムネイル設定</button>
       )}
+    </div>
+  );
+}
+
+/**
+ * 🆕**フォーマットごとの枠**（2026-10-21）＝見出し（ディーバ／レガシー／オールスター）＋その中のフォルダ一覧。
+ * `onOpen` には `formatFolderKey(format, name)` を渡す（同じルリグタイプが別の枠にも出るため）。
+ * ⚠フォルダの data-testid（`deck-folder-<名前>`）は変えない＝実機ドライバはフォルダを順に開いて探す。
+ */
+export function DeckFormatSections({ sections, cardMap, accent, onOpen, selectedKey, thumbnailOf }: {
+  sections: DeckFormatSection<Deck>[];
+  cardMap: Map<string, CardData>;
+  accent: string;
+  onOpen: (key: string) => void;
+  selectedKey?: string | null;
+  thumbnailOf?: (folderName: string) => string | null | undefined;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {sections.map(s => (
+        <section key={s.format} data-testid={`deck-format-section-${s.format}`}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 14, color: accent, borderBottom: '1px solid #222', paddingBottom: 4 }}>
+            {DECK_FORMAT_JA[s.format]}<span style={{ marginLeft: 8, fontSize: 11, color: '#666', fontWeight: 'normal' }}>{s.count} デッキ</span>
+          </h3>
+          <DeckFolderGrid folders={s.folders} cardMap={cardMap} accent={accent} thumbnailOf={thumbnailOf}
+            onOpen={name => onOpen(formatFolderKey(s.format, name))}
+            selectedName={s.folders.find(f => formatFolderKey(s.format, f.name) === selectedKey)?.name ?? null} />
+        </section>
+      ))}
     </div>
   );
 }

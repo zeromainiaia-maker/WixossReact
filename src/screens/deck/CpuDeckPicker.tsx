@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { CardData, Deck } from '../../types';
-import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, folderThumbKey, groupDecksByFolder, pickRandomDeck, withAllLrigFolder } from '../../utils/deckFolders';
+import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, findFormatFolder, folderThumbKey, formatFolderKey, groupDecksByFolder, groupDecksByFormatAndFolder, pickRandomDeck, withAllLrigFolder } from '../../utils/deckFolders';
 import { DECK_FORMATS, DECK_FORMAT_JA, effectiveDeckFormat, type DeckFormat } from '../../utils/deckFormat';
-import { DeckFolderGrid, DeckFolderHeader } from './DeckFolderGrid';
+import { DeckFolderGrid, DeckFolderHeader, DeckFormatSections } from './DeckFolderGrid';
 
 /**
  * 🆕**CPU デッキの選択パネル**（2026-09-22・`MatchmakingScreen` の CPU デッキ選択から切り出し）。
@@ -17,7 +17,11 @@ import { DeckFolderGrid, DeckFolderHeader } from './DeckFolderGrid';
 export type CpuPickMode = 'pick' | 'random';
 
 export function useCpuDeckPicker(validCpuDecks: Deck[], cardMap: Map<string, CardData>, variantNumIndex: Parameters<typeof effectiveDeckFormat>[2]) {
-  const cpuFolders = useMemo(() => groupDecksByFolder(validCpuDecks, cardMap), [validCpuDecks, cardMap]);
+  // 🆕2026-10-21＝「デッキを選ぶ」はフォーマットの枠 → ルリグタイプ別フォルダ（開いているフォルダは `formatFolderKey`）。
+  const cpuSections = useMemo(
+    () => groupDecksByFormatAndFolder(validCpuDecks, cardMap, d => effectiveDeckFormat(d, cardMap, variantNumIndex)),
+    [validCpuDecks, cardMap, variantNumIndex],
+  );
   const [openFolder, setOpenFolder] = useState<string | null>(null);
   /** 決め方＝`pick`（デッキを選ぶ）／`random`（ルリグタイプを選んでその中からランダム）。 */
   const [mode, setMode] = useState<CpuPickMode>('pick');
@@ -54,7 +58,7 @@ export function useCpuDeckPicker(validCpuDecks: Deck[], cardMap: Map<string, Car
     : (validCpuDecks.find(d => d.id === deckId)?.name ?? null);
 
   return {
-    validCpuDecks, cpuFolders, openFolder, setOpenFolder, mode, setMode,
+    validCpuDecks, cpuSections, openFolder, setOpenFolder, mode, setMode,
     randomFolder, setRandomFolder, randomFormat, setRandomFormat, randomDecks, randomFolders,
     deckId, setDeckId, canStart, resolve, summary,
   };
@@ -127,7 +131,12 @@ export function CpuDeckPickerBody({ picker, cardMap, folderThumbnails, myUserId,
       </div>
     );
   }
-  const cpuOpen = p.openFolder ? p.cpuFolders.find(f => f.name === p.openFolder) : undefined;
+  const opened = findFormatFolder(p.cpuSections, p.openFolder);
+  const cpuOpen = opened?.folder;
+  const selectedKey = (() => {
+    for (const s of p.cpuSections) for (const f of s.folders) if (f.decks.some(d => d.id === p.deckId)) return formatFolderKey(s.format, f.name);
+    return null;
+  })();
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
       {p.mode === 'random' ? (
@@ -155,12 +164,11 @@ export function CpuDeckPickerBody({ picker, cardMap, folderThumbnails, myUserId,
           )}
         </>
       ) : !cpuOpen ? (
-        <DeckFolderGrid folders={p.cpuFolders} cardMap={cardMap} accent={accent} onOpen={p.setOpenFolder}
-          thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]}
-          selectedName={p.cpuFolders.find(f => f.decks.some(d => d.id === p.deckId))?.name ?? null} />
+        <DeckFormatSections sections={p.cpuSections} cardMap={cardMap} accent={accent} onOpen={p.setOpenFolder}
+          thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]} selectedKey={selectedKey} />
       ) : (
         <>
-          <DeckFolderHeader name={cpuOpen.name} count={cpuOpen.decks.length} accent={accent} onBack={() => p.setOpenFolder(null)} />
+          <DeckFolderHeader name={`${DECK_FORMAT_JA[opened!.format]}／${cpuOpen.name}`} count={cpuOpen.decks.length} accent={accent} onBack={() => p.setOpenFolder(null)} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {cpuOpen.decks.map(deck => (
               <DeckTile key={deck.id} deck={deck} isSelected={p.deckId === deck.id} color={accent}

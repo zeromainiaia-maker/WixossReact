@@ -4,10 +4,11 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
 import { deckLrigSetupProblem } from '../utils/deckLrigSetup';
-import { deckKindOf, folderThumbKey, groupDecksByFolder } from '../utils/deckFolders';
+import { deckKindOf, findFormatFolder, folderThumbKey, formatFolderKey, groupDecksByFormatAndFolder } from '../utils/deckFolders';
+import { DECK_FORMAT_JA, effectiveDeckFormat } from '../utils/deckFormat';
 import { deckFromRow, type DeckRow } from '../utils/deckRow';
 import { buildVariantNumIndex } from '../utils/cardSearch';
-import { DeckFolderGrid, DeckFolderHeader } from './deck/DeckFolderGrid';
+import { DeckFolderHeader, DeckFormatSections } from './deck/DeckFolderGrid';
 import { CpuDeckPickerBody, CpuDeckPickerTabs, DeckTile, useCpuDeckPicker } from './deck/CpuDeckPicker';
 
 interface Props {
@@ -56,7 +57,11 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
   const isPlayable = (deck: Deck) => deck.mainDeck.length === 40 && deckLrigSetupProblem(deck, cardMap) === null;
   // 🆕2026-09-17＝**自分が使うのは `player` のデッキだけ**（CPU デッキと混ぜない）。
   const validDecks = useMemo(() => decks.filter(d => deckKindOf(d) === 'player' && isPlayable(d)), [decks, cardMap]); // eslint-disable-line react-hooks/exhaustive-deps
-  const playerFolders = useMemo(() => groupDecksByFolder(validDecks, cardMap), [validDecks, cardMap]);
+  // 🆕2026-10-21＝フォーマットの枠 → ルリグタイプ別フォルダ（開いているフォルダは `formatFolderKey`）。
+  const playerSections = useMemo(
+    () => groupDecksByFormatAndFolder(validDecks, cardMap, d => effectiveDeckFormat(d, cardMap, variantNumIndex)),
+    [validDecks, cardMap, variantNumIndex],
+  );
   // 🆕CPU が使うのは `cpu` のデッキだけ。**`user_id` で絞らずに引く**＝いまは行ポリシーで自分の行だけが返り、
   //   リリース時に公開ポリシーを足すと他人（管理者）の CPU デッキも自動で並ぶ。
   const [cpuDecks, setCpuDecks] = useState<Deck[]>([]);
@@ -225,15 +230,17 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {(() => {
             // 🆕2026-09-17＝センタールリグのルリグタイプ別フォルダ（`utils/deckFolders.ts`）。
-            const open = playerOpenFolder ? playerFolders.find(f => f.name === playerOpenFolder) : undefined;
+            const opened = findFormatFolder(playerSections, playerOpenFolder);
+            const open = opened?.folder;
             if (!open) {
-              return <DeckFolderGrid folders={playerFolders} cardMap={cardMap} accent="#007bff" onOpen={setPlayerOpenFolder}
-                thumbnailOf={name => folderThumbnails[folderThumbKey('player', name)]}
-                selectedName={playerFolders.find(f => f.decks.some(d => d.id === selectedDeckId))?.name ?? null} />;
+              let selectedKey: string | null = null;
+              for (const sec of playerSections) for (const f of sec.folders) if (f.decks.some(d => d.id === selectedDeckId)) selectedKey = formatFolderKey(sec.format, f.name);
+              return <DeckFormatSections sections={playerSections} cardMap={cardMap} accent="#007bff" onOpen={setPlayerOpenFolder}
+                thumbnailOf={name => folderThumbnails[folderThumbKey('player', name)]} selectedKey={selectedKey} />;
             }
             return (
               <>
-                <DeckFolderHeader name={open.name} count={open.decks.length} accent="#007bff" onBack={() => setPlayerOpenFolder(null)} />
+                <DeckFolderHeader name={`${DECK_FORMAT_JA[opened!.format]}／${open.name}`} count={open.decks.length} accent="#007bff" onBack={() => setPlayerOpenFolder(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {open.decks.map(deck => <DeckTile key={deck.id} deck={deck} isSelected={selectedDeckId === deck.id} color="#007bff" onClick={() => setSelectedDeckId(deck.id)} cardMap={cardMap} myUserId={user.id} />)}
                 </div>

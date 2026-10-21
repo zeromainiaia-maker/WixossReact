@@ -12,7 +12,9 @@ import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
 import SpectateScreen from './screens/SpectateScreen';
 import { SPECTATE_ACTIVE_KEY } from './utils/spectateStore';
-import { copyDeckName, deckFolderOf, deckKindOf, DECK_KIND_JA, folderThumbKey, type DeckKind } from './utils/deckFolders';
+import { copyDeckName, deckFolderOf, deckKindOf, DECK_KIND_JA, folderThumbKey, formatFolderKey, type DeckKind } from './utils/deckFolders';
+import { effectiveDeckFormat } from './utils/deckFormat';
+import { buildVariantNumIndex } from './utils/cardSearch';
 import { deckFromRow } from './utils/deckRow';
 import { fetchCardCsvTexts } from './data/cardDataFetch';
 import { shouldGoToStartOnSignIn } from './utils/authNav';
@@ -285,6 +287,7 @@ export default function App() {
         <DeckListScreen
           decks={decks}
           cards={cards}
+          variantCards={variantCards}
           kind={deckListView.kind}
           openFolder={deckListView.openFolder}
           onChangeView={(kind, openFolder) => setDeckListView({ kind, openFolder })}
@@ -306,7 +309,9 @@ export default function App() {
           onDelete={handleDeleteDeck}
           onCopyToKind={kind => handleCopyDeckToKind(currentDeck, kind)}
           onBack={() => {
-            setDeckListView({ kind: deckKindOf(currentDeck), openFolder: deckFolderOf(currentDeck, new Map(cards.map(c => [c.CardNum, c] as const))) });
+            const cardMap = new Map(cards.map(c => [c.CardNum, c] as const));
+            const format = effectiveDeckFormat(currentDeck, cardMap, buildVariantNumIndex(variantCards));
+            setDeckListView({ kind: deckKindOf(currentDeck), openFolder: formatFolderKey(format, deckFolderOf(currentDeck, cardMap)) });
             setViewMode('DECK_LIST');
           }}
         />
