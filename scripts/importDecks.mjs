@@ -14,6 +14,8 @@
 //
 // 🔴**書き込み先は `harnessAccounts()` に限る**（`verifyAccounts.mjs` 冒頭の事故）＝
 //   `harness:false`（ユーザー本人）のアカウントへは**絶対に書かない**。
+//   🆕例外＝**`--allow-owner` を付けたときだけ**本人のアカウントへ書ける（2026-10-21・ユーザー指示「カルカドールにも CPU デッキを入れて」）。
+//   そのときは**新規作成だけ**＝同じ名前・種別の行が既にあれば中身が違っても触らない（ユーザーの山を上書きしない）。
 // 🔑**`player` と `cpu` の両方を作る**＝通し対戦は「自分＝player の山」「CPU＝cpu の山」から選ぶので、
 //   片方だけだと `verifyFullMatch.mjs` が「デッキがフォルダに見つからない」で落ちる（`verifySetupDeck.mjs` と同じ規約）。
 // 🔑**冪等**＝同じ名前・同じ種別が既にあれば、中身が違うときだけ更新する。
@@ -27,6 +29,7 @@ const FROM_FILE = argVal('--from');
 const FROM_USER = argVal('--from-user') ?? 'カルカドール';
 const TO_USER = argVal('--to') ?? harnessAccounts()[0].username;
 const NAME = argVal('--name');
+const ALLOW_OWNER = args.includes('--allow-owner');
 const KINDS = (argVal('--kinds') ?? 'player,cpu').split(',').map(s => s.trim()).filter(Boolean);
 
 const env = readFileSync('.env.local', 'utf-8');
@@ -35,11 +38,13 @@ const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
 if (!BASE || !ANON) { console.error('.env.local に VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY がありません'); process.exit(1); }
 
 // 🔴**取り込み先はハーネス用だけ**＝ユーザー本人のアカウントを書き換えない。
-const dest = harnessAccounts().find(a => a.username === TO_USER);
+const ownerDest = ALLOW_OWNER ? findAccount(TO_USER) : null;
+const dest = harnessAccounts().find(a => a.username === TO_USER) ?? ownerDest;
+const TO_OWNER = !!dest && dest.harness === false;
 if (!dest) {
   console.error(`取り込み先「${TO_USER}」はハーネス用アカウントではありません（書き込みを拒否しました）。`);
   console.error(`  使えるのは: ${harnessAccounts().map(a => a.username).join(' / ')}`);
-  console.error(`  ⚠ユーザー本人のアカウント（verify-accounts.json で harness:false）へは書きません。`);
+  console.error(`  ⚠ユーザー本人のアカウント（verify-accounts.json で harness:false）へは書きません（本人の指示があるときだけ --allow-owner）。`);
   process.exit(1);
 }
 
@@ -82,7 +87,7 @@ const valid = (d) => (d.main_deck?.length ?? 0) === 40 && (d.lrig_deck?.length ?
   const byName = new Map();
   for (const d of picked) if (!byName.has(d.name)) byName.set(d.name, d);
   const list = [...byName.values()];
-  console.log(`取り込み先: ${dest.username}（ハーネス用）   種別: ${KINDS.join(' + ')}`);
+  console.log(`取り込み先: ${dest.username}（${TO_OWNER ? '🔴ユーザー本人＝新規作成だけ' : 'ハーネス用'}）   種別: ${KINDS.join(' + ')}`);
   console.log(`対象: ${list.length}件${skipped > 0 ? `（メイン40枚でない／センター未設定の ${skipped}件は除外）` : ''}${NAME ? `／名前に「${NAME}」を含む` : ''}\n`);
   if (list.length === 0) { console.log('取り込むものがありません。'); return; }
 
@@ -109,6 +114,8 @@ const valid = (d) => (d.main_deck?.length ?? 0) === 40 && (d.lrig_deck?.length ?
         && cur.center_lrig === body.center_lrig
         && cur.assist_lrig_l === body.assist_lrig_l && cur.assist_lrig_r === body.assist_lrig_r
         && JSON.stringify(cur.cpu_plan ?? null) === JSON.stringify(body.cpu_plan);
+      // 🔴本人のアカウントでは既存の行を書き換えない
+      if (TO_OWNER && cur && !isSame) { console.log(`  [既存・触らない] ${d.name}  (${kind})`); same++; continue; }
       const verb = isSame ? '同一' : cur ? '更新' : '新規';
       console.log(`  [${verb}] ${d.name}  (${kind})  メイン${body.main_deck.length}枚 ルリグ${body.lrig_deck.length}枚${body.cpu_plan ? ' 作戦有' : ''}`);
       if (isSame) { same++; continue; }
