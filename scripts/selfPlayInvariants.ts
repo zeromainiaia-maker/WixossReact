@@ -274,6 +274,13 @@ function shapeIssues(r: BattleStateRow, cardMap: Map<string, CardData>): string[
     for (const id of s.lrig_trash) if (['シグニ', 'スペル'].includes(ty(id))) out.push(`${side}ルリグトラッシュにメイン系 ${id}(${ty(id)})`);
     s.field.signi.forEach((st, z) => { const top = st?.at(-1); if (top && !/^(シグニ|レゾナ)/.test(ty(top))) out.push(`${side}シグニ${z}の上が ${top}(${ty(top)})`); });
     const lt = s.field.lrig.at(-1); if (lt && !['ルリグ'].includes(ty(lt))) out.push(`${side}ルリグゾーンの上が ${lt}(${ty(lt)})`);
+    // 🆕付いている札が浮いている＝シグニのいないゾーンに【チャーム】【アクセ】【ソウル】が残る（場を離れる処理が後始末をしていない）
+    for (let z = 0; z < 3; z++) {
+      if (s.field.signi[z]?.length) continue;
+      if (s.field.signi_charms?.[z]) out.push(`${side}ゾーン${z}にシグニがいないのに【チャーム】 ${s.field.signi_charms[z]}`);
+      const ac = s.field.signi_acce?.[z]; if (Array.isArray(ac) ? ac.length : ac) out.push(`${side}ゾーン${z}にシグニがいないのに【アクセ】 ${ac}`);
+      if (s.field.signi_soul?.[z]) out.push(`${side}ゾーン${z}にシグニがいないのに【ソウル】 ${s.field.signi_soul[z]}`);
+    }
     if (!Number.isFinite(s.coins ?? 0) || (s.coins ?? 0) < 0) out.push(`${side} coins=${s.coins}`);
     for (const id of [...s.hand, ...s.deck, ...s.trash, ...s.energy]) if (!cardMap.has(numOf(id))) out.push(`${side} 未知のカード ${id}`);
   }
