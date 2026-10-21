@@ -28,6 +28,8 @@ import {allZoneBurstGrantMatches, hasNativeLifeBurst} from '../allZoneBurst';
 import {performAssistGrow as performAssistGrowImpl} from './performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './performLrigAttack';
 import {performLrigActivated as performLrigActivatedImpl} from './performLrigActivated';
+import {performKeyActivated as performKeyActivatedImpl} from './performKeyActivated';
+import {pickCpuKeyActivated} from '../cpuKeyActivate';
 import {performSigniActivated as performSigniActivatedImpl} from './performSigniActivated';
 import {performSummonSigni as performSummonSigniImpl} from './performSummonSigni';
 import {performGuardResponse as performGuardResponseImpl} from './performGuardResponse';
@@ -100,6 +102,8 @@ export interface CpuTurnActions {
   performLifeBurstResponse: ScreenWrapped<typeof performLifeBurstResponseImpl>;
   performSigniActivated: ScreenWrapped<typeof performSigniActivatedImpl>;
   performLrigActivated: ScreenWrapped<typeof performLrigActivatedImpl>;
+  /** 🆕2026-10-21＝キーの【起】（人間と同じ `performKeyActivated`）。 */
+  performKeyActivated: ScreenWrapped<typeof performKeyActivatedImpl>;
   resolvePendingSigniBattleFor: ScreenWrapped<typeof resolvePendingSigniBattleImpl>;
   handleCutinPass: () => Promise<void>;
 }
@@ -161,7 +165,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const {
     performSummonSigni, performGrow, performArts, performKeyPiece, performAssistGrow, performSpell,
     performSigniAttack, performLrigAttack, performGuardResponse, performLifeBurstResponse,
-    performSigniActivated, performLrigActivated, resolvePendingSigniBattleFor, handleCutinPass,
+    performSigniActivated, performLrigActivated, performKeyActivated, resolvePendingSigniBattleFor, handleCutinPass,
   } = d.actions;
   // 画面の派生値（`drawCount`・`useMemo` の `contBlocked`＝**見ている人（人間）基準**）を同じ式で作る。
   const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
@@ -412,6 +416,34 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
       energyPayPool: pool,
       sourceCardNum: choice.sourceCardNum,
+    });
+    return true;
+  };
+
+  /**
+   * 🆕2026-10-21＝CPU のキーの【起】を1つぶん試す（撃ったら `true`）。
+   * ⚠**判定は `keyActivateGate`・実行は `performKeyActivated`＝どちらも人間と同じ関数**。
+   * ⚠**安全弁**＝実行より先に台帳（`cpu_activated_effect_ids_this_turn`）へ刻む（実行側は支払い不能で黙って false を返しうる）。
+   * ⚠探索（`listCpuMoves`）の外の手＝自分のターンの MAIN／ATTACK_ARTS だけ（人間のボタンも自分のターンだけ）。
+   */
+  const tryCpuKeyActivated = async (actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
+    const input = cpuLrigActivatedInput(cpuMoveCtx(actorState), phase);
+    const choice = pickCpuKeyActivated({ ...input, turnPhase: phase });
+    if (!choice) return false;
+    appendBattleLogs([`[CPU] キーの【起】を発動: ${battleCardMap.get(choice.keyNum)?.CardName ?? choice.keyNum}`]);
+    const actActor: PlayerState = {
+      ...actorState,
+      cpu_activated_effect_ids_this_turn: [
+        ...(actorState.cpu_activated_effect_ids_this_turn ?? []), choice.effect.effectId,
+      ],
+    };
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: actActor }));
+    await performKeyActivated(choice.keyNum, choice.effect, {
+      costIndices: choice.costIndices, discardIndices: choice.discardIndices, artsNums: choice.artsNums,
+    }, {
+      actor: actActor, opponent: huSt,
+      actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+      energyPayPool: input.pool,
     });
     return true;
   };
@@ -1347,6 +1379,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuRise(newCpuSt)) return;
     // 🆕§5.6 `C-7`＝キー → ピース（1回ごとに state が動く＝再実行で次へ進む）。
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuKeyPiece(newCpuSt, 'MAIN')) return;
+    // 🆕2026-10-21＝キーの【起】（旧＝CPU には撃つ経路が無かった）。
+    if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuKeyActivated(newCpuSt, 'MAIN')) return;
 
     // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
     // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
@@ -1452,6 +1486,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS', pickCpuOffensiveArts)) return;
     // 🆕§5.6 `C-7`＝Timing が「アタックフェイズ」のピース（MAIN で使えなかった札）。
     if (await tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS')) return;
+    if (await tryCpuKeyActivated(cpuSt, 'ATTACK_ARTS')) return;
     // 🆕2026-09-26 `S-37`＝「攻め」と書いたアシストルリグを自分のアタックフェイズにグロウする。
     if (await tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')) return;
     // §8／§6.4 O-1 (c)＝《アタックフェイズアイコン》付きシグニ【起】（`timing:['ATTACK_ARTS']`）。

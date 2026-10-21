@@ -4,7 +4,6 @@ import { CHEER_ZONE, cheerCardOf, signiStackAt } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
-import type {CardEffect} from '../types/effects';
 import {calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectGuardTrashSelfSigni, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
 import {getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
@@ -44,14 +43,13 @@ interface Props {
 }
 
 import {randomInt} from '../engine/rng';
-import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, isPieceCardType} from './battle/battleUtils';
+import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, isPieceCardType} from './battle/battleUtils';
 import {recordEnergyPlacements} from '../engine/energyPlacement';
 import {performEnergyCharge, type EnergyChargeSource} from './battle/controller/performEnergyCharge';
 import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, applyGrowCostReduction, parseCoinCost, canAffordEnergyCostWithSubstitutes, paySelectedExceed} from './battle/costs';
 import {meetsRestriction, effectiveLrigClass, listGrowCandidates, declaredSigniOverride} from './battle/growLogic';
 import {cardNameUseBlocked} from './battle/cardNameUseBlock';
 import {computeFieldSigniLimit} from './battle/fieldLimit';
-import {matchesTrashArtsFromLrigDeckCost} from './battle/artsTrashCost';
 import {MAYU_ENCOUNTER_A} from './battle/mayuEncounter';
 import {computeEffectiveLrigLimit} from './battle/lrigLimit';
 import {resolveNegateEscapeChoice} from './battle/attackNegation';
@@ -123,6 +121,8 @@ import {makeTrigCtx} from './battle/controller/execCtxDeps';
 import {performAssistGrow as performAssistGrowImpl} from './battle/controller/performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './battle/controller/performLrigAttack';
 import {performLrigActivated as performLrigActivatedImpl} from './battle/controller/performLrigActivated';
+import {performKeyActivated as performKeyActivatedImpl} from './battle/controller/performKeyActivated';
+import {canActivateKeyEffect} from './battle/keyActivateGate';
 import {performSigniActivated as performSigniActivatedImpl} from './battle/controller/performSigniActivated';
 import {performSummonSigni as performSummonSigniImpl} from './battle/controller/performSummonSigni';
 import {performGuardResponse as performGuardResponseImpl} from './battle/controller/performGuardResponse';
@@ -147,7 +147,6 @@ import { resolveStackStep, type StackResolveDeps} from './battle/controller/stac
 import {makeEffectInteractionHandlers} from './battle/controller/effectInteraction';
 import {reduceBattle, type PlayerStateKey} from './battle/controller/battleController';
 import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
-import {removeKeyToLrigTrash} from './battle/keyZone';
 import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
@@ -2597,31 +2596,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 「対戦相手はルリグの【起】能力を使用できない」（`USE_LRIG_ACT`・§6.4 O-3 続き487）＝**ルリグ／アシストルリグ
   // の【起】だけ**を封じる。⚠既存の `USE_ACT` はシグニ・キー・付与も含む全【起】を止めるので流用できない。
   /**
-   * ルリグデッキ除外コスト（`exileLrigFromLrigDeck`）を払えるか（§6.4 O-11・`PR-469`）。
-   * ⚠**提示側にこのゲートが無いと、除外できないのに撃てて実質コスト0**になる。
-   */
-  const canPayExileLrigFromLrigDeck = (eff: CardEffect): boolean => {
-    const c = eff.cost?.exileLrigFromLrigDeck;
-    if (!c) return true;
-    const n = my.lrig_deck.filter(num => {
-      const card = battleCardMap.get(getCardNum(num));
-      if (!card) return false;
-      if (!c.story) return true;
-      return (card.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(c.story);
-    }).length;
-    return n >= c.count;
-  };
-  /**
-   * 🆕§5.3 `O-68`②（2026-09-02）＝「ルリグデッキからアーツN枚をルリグトラッシュに置く」を払えるか。
-   * ⚠これが無いと**在庫が無くても【起】が提示され**、支払いをすり抜けて撃てる（`canPayExileLrigFromLrigDeck` と同型）。
-   */
-  const canPayTrashArtsFromLrigDeck = (eff: CardEffect): boolean => {
-    const c = eff.cost?.trashArtsFromLrigDeck;
-    if (!c) return true;
-    return my.lrig_deck.filter(num => matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(num)), c)).length >= c.count;
-  };
-
-  /**
    * スペル（手札／スペル・クラフト）を使用できないか（§6.4 O-18・続き513）。
    *
    * 🔴**封じの軸は3つある**のに、ボタン生成側は `USE_SPELL` しか見ていなかった＝
@@ -3319,74 +3293,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ⚠**実体は上の「Rules of Hooks 対策」ブロック**（`if (!bs) return` より前）へ移した（2026-08-18 続き554）。
 
   // ── キーピース起動効果 ──
-  const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set(), artsNums: string[] = []) => {
+  // 🆕2026-10-21＝本体は `controller/performKeyActivated.ts`（CPU も同じ1本を通る）。ここは材料を渡すだけ。
+  const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set(), artsNums: string[] = [], attachedPicks?: string[]) => {
     if (loading) return;
-    setLoading(true);
     closeKeyActivated();
-    try {
-      const keyActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
-      const paidNums = keyActPay.paidNums;
-      const discardNums = [...discardIndices].map(i => my.hand[i]);
-      // 🆕**キー【起】の全捨てコスト**（§5.3 `O-46`）。⚠ここが無いと `WXK04-025-CB-E2`
-      //   「このキーを場からルリグトラッシュに置き、エナゾーンにあるすべてのカードをトラッシュに置く：」の
-      //   **エナ全損を提示だけして踏み倒せる**（キー経路はエナ／手札捨て／`trash_key` しか払っていなかった＝
-      //   `O-67` で見つけた「ルリグ【起】に場シグニ系コストの支払いが1行も無い」と同型）。
-      // ⚠`energyTrashAll` は**エナ支払い（`costIndices`）の控除後**を対象にする＝`keyActPay.energyAfter`
-      //   （シグニ【起】の `performSigniActivated` と同じ funnel の読み方）。
-      const keyEnergyTrashAllCards = effect.cost?.energyTrashAll ? [...keyActPay.energyAfter] : [];
-      const keyDiscardAllCards = effect.cost?.discardAll ? my.hand.filter((_, i) => !discardIndices.has(i)) : [];
-      const newHand = effect.cost?.discardAll ? [] : my.hand.filter((_, i) => !discardIndices.has(i));
-      // trash_key: このキーをルリグトラッシュに置く（コスト）
-      let newField = my.field;
-      let newLrigTrashKey = my.lrig_trash;
-      if (effect.cost?.trash_key) {
-        // §5.6 `C-9` `R-46`＝枠の見分けは `keyZone.ts` の1本（ここが唯一正しかった実装＝これを出した）。
-        const keyCostRemoval = removeKeyToLrigTrash(my.field, my.lrig_trash, cardNum);
-        if (keyCostRemoval.removed) {
-          newField = keyCostRemoval.field;
-          newLrigTrashKey = keyCostRemoval.lrigTrash;
-        }
-      }
-      // 🆕**キー【起】の「ルリグデッキからアーツN枚をルリグトラッシュに置く」**（§5.3 `O-68`②・`WXK10-006-E3`）。
-      //   🔴ここが無いあいだ、キー経路の支払いは**エナ／手札捨て／`trash_key`／全捨て**しか無く、
-      //   アーツ1枚というコストを**提示だけして踏み倒せた**（`O-46` の `energyTrashAll` と同型の穴）。
-      //   ⚠クラフトのアーツは `Type:'アーツ/クラフト'` なので `matchesTrashArtsFromLrigDeckCost` が
-      //   既に弾いている（原文「クラフトではないアーツ」＝追加の除外実装は不要）。
-      const keyArtsNums = effect.cost?.trashArtsFromLrigDeck ? artsNums : [];
-      const newLrigDeckKey = keyArtsNums.length > 0
-        ? my.lrig_deck.filter(n => !keyArtsNums.includes(n))
-        : my.lrig_deck;
-      let paid: PlayerState = keyActPay.applyTo({
-        ...my,
-        hand: newHand,
-        field: newField,
-        lrig_deck: newLrigDeckKey,
-        lrig_trash: [...newLrigTrashKey, ...keyArtsNums],
-        trash: [...my.trash, ...paidNums, ...discardNums, ...keyDiscardAllCards, ...keyEnergyTrashAllCards],
-        // ⚠`keyEnergyTrashAllCards` は**エナ**なので台帳に載せない（手札から捨てた分だけ）。
-        ...handDiscardHistoryRecord(my, [...discardNums, ...keyDiscardAllCards]),
-        actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
-          ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
-      });
-      // energyTrashAll: エナゾーンを空にする（funnel の index 控除のあとに当てる＝`performSigniActivated` と同じ順）
-      if (effect.cost?.energyTrashAll) paid = { ...paid, energy: [] };
-      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const entry: StackEntry = {
-        id: generateUUID(),
-        playerId: user.id,
-        cardNum,
-        effectId: effect.effectId,
-        label: `${cardName} の【起】効果`,
-        effect,
-      };
-      const turnPlayerId = bs.active_user_id ?? user.id;
-      const existingStack = bs?.effect_stack ?? null;
-      const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true }));
-    } finally {
-      setLoading(false);
-    }
+    await performKeyActivatedImpl(cardNum, effect, { costIndices, discardIndices, artsNums, attachedPicks }, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      energyPayPool: myEnergyPayPool,
+    }, performCtx());
   };
 
   // ── アシストルリグ グロウ ──
@@ -4198,6 +4113,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       performSummonSigni, performGrow, performArts, performKeyPiece, performAssistGrow, performSpell,
       performSigniAttack, performLrigAttack, performGuardResponse, performLifeBurstResponse,
       performSigniActivated, performLrigActivated, resolvePendingSigniBattleFor, handleCutinPass,
+      performKeyActivated: (a0, a1, a2, a3) => performKeyActivatedImpl(a0, a1, a2, a3, performCtx()),
     },
     allCards: cards,
     cpuPlan,
@@ -5478,23 +5394,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const allKeyNums = [my.field.key_piece, ...(my.field.key_piece_extra ?? [])];
     const result: CardAction[] = [];
     for (const keyNum of allKeyNums) {
-      const effects = effectsMap.get(keyNum) ?? [];
-      const activatable = effects.filter(e =>
-        e.effectType === 'ACTIVATED' &&
-        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
-        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
-        !e.costUnparsed &&
-        canPayExileLrigFromLrigDeck(e) &&
-        canPayTrashArtsFromLrigDeck(e) &&
-        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
-        !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
-        !(my.blocked_actions?.includes(e.effectId)) &&
-        !isActionBlocked('USE_ACT') &&
-        (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP' || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') &&
-        // timing↔phase 照合（(li)）＝MAIN専用はメインのみ／《アタックフェイズアイコン》専用はアタックフェイズのみ surface する
-        keyActivatedTimingMatchesPhase(e.timing, phase) &&
-        (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, keyNum, phase, effectivePowers)),
-      );
+      // 🆕2026-10-21＝判定は `keyActivateGate.canActivateKeyEffect` の1本（CPU の候補も同じ関数）。
+      //   🔴旧＝ここに手書きの判定があり、《コインアイコン》の所持枚数を見ていなかった。
+      const keyGateInput = { my, op, phase, effectsMap, cardMap: battleCardMap, blockedSelf: contBlocked.forSelf, effectivePowers };
+      const activatable = (effectsMap.get(keyNum) ?? []).filter(e => canActivateKeyEffect(e, keyGateInput, keyNum));
       for (const eff of activatable) {
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
         const costLabel = eff.cost

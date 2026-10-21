@@ -27,6 +27,7 @@ import { performGuardResponse as performGuardResponseImpl } from './performGuard
 import { performKeyPiece as performKeyPieceImpl } from './performKeyPiece';
 import { performLifeBurstResponse as performLifeBurstResponseImpl } from './performLifeBurstResponse';
 import { performLrigActivated as performLrigActivatedImpl } from './performLrigActivated';
+import { performKeyActivated as performKeyActivatedImpl } from './performKeyActivated';
 import { performLrigAttack as performLrigAttackImpl } from './performLrigAttack';
 import { performSigniActivated as performSigniActivatedImpl } from './performSigniActivated';
 import { performSigniAttack as performSigniAttackImpl } from './performSigniAttack';
@@ -219,6 +220,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       performLifeBurstResponse: wrap(performLifeBurstResponseImpl),
       performSigniActivated: wrap(performSigniActivatedImpl),
       performLrigActivated: wrap(performLrigActivatedImpl),
+      performKeyActivated: wrap(performKeyActivatedImpl),
       resolvePendingSigniBattleFor: wrap(resolvePendingSigniBattleForImpl),
       // 🆕§5.6 `C-12`（2026-09-22）＝**ピースのカットイン解決も共有の1本**（`controller/resolvePendingPiece.ts`）。
       //   🔴旧はここが no-op だったので、**ピース応答窓が開くと窓が閉じずに盤面が止まった**

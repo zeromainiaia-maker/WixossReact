@@ -2790,6 +2790,15 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4442**＝+14）｜実機 新設 **9本** PASS（`effectSourceHeader`・`effectAnnounce`・`vimanaSelfAttack`・`nanashiP0Redirect`・`cheerZoneAttack`・`cheerZoneTargeted`・`restrictionLoss`・`cheerAcce`・`cheerEnergyCharge`）／`verifyFullMatch cpu` PASS
   - 📏**計器**＝🆕`census:cheer`（チアゾーンでは対象に何も起きない効果）**2,464 → 51**（比べた 2,432・保存則の違反 0）
 
+## O-545 強制アタックの対象が1体に絞れない（2026-10-21 登録）
+
+**見つけ方**＝「対象とし」と書かれた効果を、候補が2つ以上ある盤面で実行して選択の対話が立つかを全数で見た（BUGFIXES 第538バッチ）。
+**いまの実装**＝`FORCE_SIGNI_ATTACK` は持ち主の state に `must_attack_signi`（真偽値）を立てるだけ＝**相手の全シグニ**に掛かる。
+- `WXDi-P13-035-E2`「対戦相手のシグニ１体を対象とし、このターン、それは可能ならばアタックしなければならない」＝1体を選ぶはず。
+- `WXDi-P08-030-E1`「対戦相手は自分のシグニを好きな数選ぶ。このターン、対戦相手は選んだシグニで可能ならばアタックしなければならず、それら以外のシグニでアタックできない」＝相手が選び、選ばなかったシグニはアタックできない。
+**受け皿**＝`collectForcedAttackZones`（強制の読み手）と `signiAttackGate`。シグニ単位の印（例＝`must_attack_signi_ids`）を足し、ターン終了時に消す一覧（`turnScopedState`）にも載せる。
+⚠どちらも【出】の自分のターンの効果＝相手のシグニは自分のターンにはアタックしないので、効くのは相手のターンに場に出たとき（実害は小さい）。
+
 ## O-543 追加パック WX26-P1 の受け皿待ち（2026-10-03 登録）
 
 **経緯**＝WX26-P1（97枚＋トークン3）を取り込み、逆翻訳 × 原文を全数照合した。parser 規則2本＋手書き53効果で直し、**受け皿の無いものは誤動作を消して `DEFERRED_*`（ラベルは `scripts/decompileEffects.ts` の `miscStubMap`）か PARTIAL にした**。どれも1種1〜2効果＝速いレーンで1件ずつ取る。定義は `src/data/manualEffects.ts` の「WX26-P1 BEGIN」区画（各カードの直前コメントに原文の読みと parser の誤りを書いてある）。

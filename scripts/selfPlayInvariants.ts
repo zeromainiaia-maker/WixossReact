@@ -122,7 +122,10 @@ const LOGS_OUT = arg('--logs-out', '');
 const USE_ALL_ARTS = argv.includes('--use-all-arts');
 function withAllArts(d: SelfPlayDeck, cardMap: Map<string, CardData>): SelfPlayDeck {
   if (!USE_ALL_ARTS) return d;
-  const arts = [...new Set(d.lrigDeck.map(n => String(n).split('#')[0]))].filter(n => ['アーツ', 'アシストルリグ', 'ルリグ'].includes(cardMap.get(n)?.Type ?? ''));
+  // 🔴2026-10-21＝**センターに立つルリグ（Type 'ルリグ'）は指名しない**＝指名（'both'）は「メインフェイズでは使わない」なので、
+  //   旧はこれを付けた走査で**センタールリグのメインフェイズの【起】が1つも撃たれなかった**（被覆の「ゲーム1回【起】の温存」の正体）。
+  //   ⚠アシストルリグはアシストグロウ先の指名に要るので残す（そのアシストのメインフェイズの【起】は撃たれない＝既知の死角）。
+  const arts = [...new Set(d.lrigDeck.map(n => String(n).split('#')[0]))].filter(n => ['アーツ', 'アシストルリグ'].includes(cardMap.get(n)?.Type ?? ''));
   return { ...d, plan: { ...d.plan, cardUse: { ...(d.plan?.cardUse ?? {}), ...Object.fromEntries(arts.map(n => [n, 'both' as const])) } } };
 }
 function applyStart(row: BattleStateRow): BattleStateRow {

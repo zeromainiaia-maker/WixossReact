@@ -17,9 +17,9 @@
 |---|---|
 | 🔥**次に取るもの** | 🏁本線キューは全部0＝**在庫が空のときは自己対戦の走査を回す**：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（ターン進行・CPU・ヘッドレスの回＝原文照合の在庫に触れていないので動かない） |
-| 📦**在庫** | 🏁実機 `V-nn` **0**／🏁機構 `O-nn` **0**（`O-544` はユーザー回答でクローズ＝RULES `R-57`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
-| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU は「手札を捨てる」「コイン」を払う任意【出】を使わない（エナの色コストだけ自動で包む＝強さの領域）｜⚠ルリグの「ゲーム1回」【起】は CPU が温存して撃たない（被覆の残りの主な塊） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4504**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-545`＝強制アタックが1体に絞れない・2効果）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| ⚠**直近の不具合** | `O-545` だけ｜⚠CPU はキーを失うキーの【起】（46効果）を既定では使わない（ポリシー `keyTrashAbility`＝走査では `--policy-set "keyTrashAbility=1"`）｜⚠`--use-all-arts` はアシストルリグを指名するので、アシストルリグのメインフェイズの【起】は走査で撃たれない（既知の死角） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4509**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
 | 🆕🔑**この回の芯** | ①**人間の進行（`phaseAdvance`/`endDiscard`）が呼ぶ関数のうち CPU（`cpuTurn`）が呼ばない関数を機械で列挙する**とCPU のターンだけ起きない処理が出る＝ターン終了／エンドフェイズ①／ドロー／フェイズ開始／相手側の後始末を共通の1本へ（`turnScopedState`・`turnEndStepOne`・`drawPhase`・`phaseEntry`・`nextTurnPlayer`）②**画面の見張り（useEffect）はヘッドレスに無い**＝印の処理は `controller/justFlags.ts`・`energyPowerWatch.ts`・`acceTriggers.ts` の共通の1本③**場を離れる処理は `removeFromField` だけ**（ゾーンを手で null にすると下のカードが消える）④golden の新しいテストは `withSavedCursor` で包む |
 ---
 
@@ -305,7 +305,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-🏁**残0**（`O-543` は 2026-10-14 にクローズ＝BUGFIXES 第516〜518バッチ・PLAN_DETAIL）
+| ID | 内容 | 母集団 | 規模 |
+|---|---|---|---|
+| `O-545` | 強制アタックが「対象の1体」「選んだシグニ」を表せず、相手の全シグニに掛かる | 2効果（WXDi-P13-035-E2・WXDi-P08-030-E1） | S |
+
+（`O-543` は 2026-10-14 にクローズ＝BUGFIXES 第516〜518バッチ・PLAN_DETAIL）
 
 （`O-533` は 2026-09-18 にクローズ＝PLAN_DETAIL）
 

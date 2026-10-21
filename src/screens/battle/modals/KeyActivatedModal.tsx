@@ -8,6 +8,8 @@ import { isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { getCardNum } from '../../../engine/execUtils';
+import { attachedOrUnderCostCandidates } from '../attachedOrUnderCost';
+import { effectiveCoinCost } from '../lrigActivateGate';
 import type { BattleModalCtx } from './types';
 
 interface KeyActivatedModalProps {
@@ -18,7 +20,7 @@ interface KeyActivatedModalProps {
   setSelectedKeyActivatedCost: Dispatch<SetStateAction<Set<number>>>;
   selectedKeyActivatedDiscard: Set<number>;
   setSelectedKeyActivatedDiscard: Dispatch<SetStateAction<Set<number>>>;
-  executeKeyActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>, artsNums?: string[]) => void;
+  executeKeyActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>, artsNums?: string[], attachedPicks?: string[]) => void;
 }
 
 export function KeyActivatedModal(p: KeyActivatedModalProps) {
@@ -29,10 +31,12 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
   //   開き直しで前回の選択が残らないよう**閉じる3経路すべて**でリセットする
   //   （effect 内の setState はカスケード再描画になるので使わない＝`react-hooks/set-state-in-effect`）。
   const [selectedKeyArts, setSelectedKeyArts] = useState<string[]>([]);
+  // 🆕2026-10-21＝「シグニに付いている／下にあるカード」をトラッシュに置くコスト（`WXK10-018-E2`）の選択。
+  const [selectedKeyAttached, setSelectedKeyAttached] = useState<string[]>([]);
   return (
     <>
       {pendingKeyActivated && createPortal(
-        <div onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); }}
+        <div onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); setSelectedKeyAttached([]); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()}
@@ -59,8 +63,14 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                 ? my.lrig_deck.filter(num => matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(num)), artsCost))
                 : [];
               const artsNeeded = artsCost?.count ?? 0;
+              const attachedNeeded = eff.cost?.attachedOrUnderTrash?.count ?? 0;
+              const attachedCands = attachedNeeded > 0 ? attachedOrUnderCostCandidates(my) : [];
+              // 《コインアイコン》＝支払いは `performKeyActivated`（提示ゲートと同じ `effectiveCoinCost`）。
+              const coinNeeded = effectiveCoinCost(eff, my);
               const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded
-                && selectedKeyArts.length === artsNeeded;
+                && selectedKeyArts.length === artsNeeded
+                && selectedKeyAttached.length === attachedNeeded
+                && coinNeeded <= (my.coins ?? 0);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>キー【起】効果を発動</p>
@@ -78,6 +88,8 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                           eff.cost?.energyTrashAll ? `エナをすべてトラッシュ（${my.energy.length}枚）` : null,
                           eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` : null,
                           artsCost ? `ルリグデッキからアーツ${artsCost.count}枚をルリグトラッシュ` : null,
+                          coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${my.coins ?? 0}）` : null,
+                          attachedNeeded > 0 ? `シグニに付いている／下にあるカード${attachedNeeded}枚をトラッシュ` : null,
                         ].filter(Boolean).join('・') || 'なし'}</p>
                       </div>
                     </div>
@@ -170,12 +182,37 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                       </div>
                     </>
                   )}
+                  {attachedNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        トラッシュに置くカードを選択: {selectedKeyAttached.length} / {attachedNeeded}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {attachedCands.map(num => {
+                          const c = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedKeyAttached.includes(num);
+                          return (
+                            <div key={num}
+                              onClick={() => setSelectedKeyAttached(prev => prev.includes(num)
+                                ? prev.filter(n => n !== num)
+                                : (prev.length >= attachedNeeded ? prev : [...prev, num]))}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); }} disabled={loading}
+                    <button onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); setSelectedKeyAttached([]); }} disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
-                    <button onClick={() => { executeKeyActivated(pendingKeyActivated.cardNum, eff, selectedKeyActivatedCost, selectedKeyActivatedDiscard, selectedKeyArts); setSelectedKeyArts([]); }} disabled={loading || !canAfford}
+                    <button onClick={() => { executeKeyActivated(pendingKeyActivated.cardNum, eff, selectedKeyActivatedCost, selectedKeyActivatedDiscard, selectedKeyArts, selectedKeyAttached); setSelectedKeyArts([]); setSelectedKeyAttached([]); }} disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>

@@ -10,6 +10,9 @@
  */
 import { cheerAttackTargets, pickCheerAttackTarget } from '../src/screens/battle/cheerAttack';
 import { performEnergyCharge } from '../src/screens/battle/controller/performEnergyCharge';
+import { performKeyActivated } from '../src/screens/battle/controller/performKeyActivated';
+import { canActivateKeyEffect, listActivatableKeyEffects } from '../src/screens/battle/keyActivateGate';
+import { pickCpuKeyActivated } from '../src/screens/battle/cpuKeyActivate';
 import fs from 'fs';
 import { join, sep } from 'path';
 import { execFileSync } from 'child_process';
@@ -47345,6 +47348,81 @@ test('ATTACH_CHARM: トラッシュのどの札を・どのシグニに付ける
   eq(r3.ownerState.field.signi_charms?.[1], t2, '🔴選んだ札（2枚目）が選んだシグニ（ゾーン1）に付く');
   eq(r3.ownerState.field.signi_charms?.[0] ?? null, null, '選ばなかったシグニには付かない');
   eq(r3.ownerState.trash.join(','), t1, 'トラッシュには選ばなかった札が残る');
+}));
+
+// 🆕2026-10-21＝キーの【起】：判定（`keyActivateGate`）・実行（`performKeyActivated`）・CPU の選択（`cpuKeyActivate`）。
+//   🔴旧＝判定と実行は `BattleScreen` にしか無く、①《コインアイコン》を確認も支払いもしていなかった（コイン0枚でも撃てた）
+//   ②CPU にはキーの【起】を撃つ経路そのものが無かった（自己対戦でキーの【起】69効果が1度も発動していない）。
+test('キーの【起】: 《コインアイコン》は所持枚数で判定し、撃つとコインが減る（WXK10-006-E2）', () => withSavedCursor(() => {
+  const KEY = 'WXK10-006';
+  const eff = (effectsMap.get(KEY) ?? []).find(e => e.effectId === 'WXK10-006-E2');
+  ok(!!eff && eff.cost?.coin === 1, 'WXK10-006-E2: live は《コイン》1');
+  if (!eff) return;
+  const HOST = 'user-host', GUEST = '__CPU__';
+  const owner = mkState({ hand: 2 });
+  owner.field.key_piece = KEY;
+  const other = mkState({ signi: [fresh(), null, null] });
+  const gate = (st: PlayerState) => ({ my: st, op: other, phase: 'MAIN' as const, effectsMap, cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set<string>() });
+  eq(canActivateKeyEffect(eff, gate({ ...owner, coins: 0 }), KEY), false, '🔴コイン0枚では撃てない');
+  eq(canActivateKeyEffect(eff, gate({ ...owner, coins: 1 }), KEY), true, 'コイン1枚なら撃てる');
+  eq(listActivatableKeyEffects(gate({ ...owner, coins: 1 })).some(x => x.effect.effectId === 'WXK10-006-E2'), true, '一覧にも出る');
+  eq(canActivateKeyEffect(eff, { ...gate({ ...owner, coins: 1 }), phase: 'ATTACK_ARTS' }, KEY), false, 'メインフェイズ専用はアタックフェイズに出ない');
+
+  const paidOwner: PlayerState = { ...owner, coins: 1 };
+  const row = {
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST, global_phase: 'PLAYING', setup_phase: null,
+    turn_phase: 'MAIN', active_user_id: HOST, turn_count: 3, host_state: paidOwner, guest_state: other,
+    game_logs: [], updated_at: '2026-10-21T00:00:00.000Z', host_lrig_selected: null, guest_lrig_selected: null,
+    host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
+    first_player_id: HOST, pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: false,
+  } as unknown as BattleStateRow;
+  const persist = createMemoryPersist(row);
+  const { io } = createHeadlessIo(persist);
+  const cm = new InstanceMap<CardData>(cardMap);
+  const trigCtx = () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
+    effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
+    suppressedSigniTriggerNums: new Set<string>() }) as never;
+  void performKeyActivated(KEY, eff, { costIndices: new Set<number>() }, {
+    actor: paidOwner, opponent: other, actorId: HOST, actorKey: 'host_state', energyPayPool: [],
+  }, { bs: row, cardMap: cm, effectsMap, trigCtx, io } as never);
+  const after = persist.current()!;
+  eq(after.host_state.coins ?? 0, 0, '🔴コインが減っていない（旧＝踏み倒し）');
+  eq(after.effect_stack?.queue.some(e => e.effectId === 'WXK10-006-E2') ?? false, true, '効果がスタックに積まれる');
+}));
+
+test('キーの【起】: CPU がキーの【起】を選ぶ／キーを失う【起】はポリシーで入切', () => withSavedCursor(() => {
+  const KEY = 'WXK10-006';
+  const owner = mkState({ hand: 2 });
+  owner.field.key_piece = KEY;
+  owner.coins = 1;
+  const other = mkState({ signi: [fresh(), null, null] });
+  const base = {
+    actor: owner, opponent: other, effectsMap, cardMap: cardMap as Map<string, CardData>, cards: [...cardMap.values()],
+    phase: 'MAIN' as const, energyPoolNums: [] as string[], blockedSelf: new Set<string>(), alreadyActivated: [] as string[],
+    isAffordable: () => true, turnPhase: 'MAIN' as const,
+  };
+  const pick = pickCpuKeyActivated({ ...base, policy: DEFAULT_CPU_POLICY });
+  ok(!!pick && pick.keyNum === KEY, `🔴CPU がキーの【起】を選ばない（${pick?.effect.effectId}）`);
+  eq(pick?.effect.cost?.trash_key ?? false, false, '既定ではキーを失う【起】を選ばない');
+  eq(pickCpuKeyActivated({ ...base, actor: { ...owner, coins: 0 }, policy: DEFAULT_CPU_POLICY })?.effect.effectId === 'WXK10-006-E2', false, 'コインが無ければ選ばない');
+  eq(pickCpuKeyActivated({ ...base, alreadyActivated: (effectsMap.get(KEY) ?? []).map(e => e.effectId), policy: DEFAULT_CPU_POLICY }), null, '同じターンに撃った【起】は選ばない');
+  eq(DEFAULT_CPU_POLICY.keyTrashAbility, 0, '既定は 0（キーを温存）');
+  const ct = fs.readFileSync('src/screens/battle/controller/cpuTurn.ts', 'utf8');
+  ok(/tryCpuKeyActivated\(newCpuSt, 'MAIN'\)/.test(ct) && /tryCpuKeyActivated\(cpuSt, 'ATTACK_ARTS'\)/.test(ct), '🔴CPU のターンがキーの【起】を試していない');
+}));
+
+test('WX05-023-E3: ＜原子＞3枚を下に置けない場合は「このシグニ」をトラッシュ（他のシグニではない）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX05-023') ?? []).find(e => e.effectId === 'WX05-023-E3');
+  ok(!!effect, 'WX05-023-E3: live effect exists');
+  if (!effect) return;
+  const self = 'WX05-023';
+  const other = fresh();
+  const ctx = mkCtx({ signi: [other, self, null], trash: 0 }, {}, self);
+  const r = run(effect.action, ctx);
+  eq(r.ownerState.field.signi[1]?.length ?? 0, 0, '🔴このシグニが場を離れる');
+  eq(r.ownerState.field.signi[0]?.at(-1), other, '他のシグニは場に残る');
+  eq(r.ownerState.trash.includes(self), true, 'このシグニはトラッシュへ');
 }));
 
 test('ATTACH_CHARM: WX05-080「このシグニを」は自分自身を付け先にしない（空のゾーンに【チャーム】を残さない）', () => withSavedCursor(() => {

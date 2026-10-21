@@ -1022,6 +1022,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   選べるのはエナが5枚以上のときだけ（選択肢の条件）＝払えない盤面で②を選んで空振りしない。
   ],
 
+  // ── WX05-023-E3 ／ 原文【出】：…＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、**このシグニを**場からトラッシュに置く。
+  // 🔴旧 live（AUTO）の else は `TRASH{SIGNI self count1}`＝「あなたのシグニ1体」で、このシグニではなく好きなシグニを選んでトラッシュできた。
+  'WX05-023': [
+    {"effectId":"WX05-023-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardType":"シグニ","excludeCardName":"羅原　Ｕ","story":"原子"},"minCount":3},"then":{"type":"PLACE_UNDER_SIGNI","source":"trash","count":3,"upToCount":false,"filter":{"cardType":"シグニ","excludeCardName":"羅原　Ｕ","story":"原子"}},"else":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+
   // ── WX05-080 ／ 原文【起】《ダウン》：あなたの＜悪魔＞のシグニ１体を対象とし、**このシグニを**それの【チャーム】にする。
   // 🔴旧 live（AUTO）は `charm:{type:'SIGNI',owner:'self'}` だけで「このシグニ」が無く、場の先頭のシグニをチャームにしていた
   //   （自分自身を付け先にも選べた＝シグニのいないゾーンに【チャーム】が残る。2026-10-21 `selfplay:inv` の SHAPE）。
