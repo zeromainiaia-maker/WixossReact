@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-21（第540バッチ）遊ぶための CPU デッキ79個を claude1 に作成／途中で見つけた3件
+
+- **やったこと**（ユーザー要望）＝ルリグ（フォーマット × ルリグタイプ）ごとに、**軸のカードを1枚決めて**組んだ候補を2つずつ（186デッキ）作り、同じフォーマットの別ルリグと 1,116 試合させて、ルリグごとに勝率が一番高い候補を勝率40%以上なら採用＝**79デッキ（ディーバ54・レガシー25）を claude1 の CPU デッキに保存**。道具＝`scripts/buildCpuDecks.ts`（組む）・`scripts/pickCpuDecks.ts`（対戦表・採用）・`selfplay:inv` の `--pairs-file`／`--games-out`。不採用14（ディーバのタマ・花代・マキナほか）は軸や組み方を変えれば上がる余地がある。
+- 🔴**①エンドフェイズから永久に進めない手詰まり（実機）**＝エンドフェイズに入ったときの自動処理（`BattleScreen` の見張り）は、操作中（`loading`）に盤面が届くと何もせず抜け、`loading` が解けても動き直さなかった（監視の対象に `loading` が無い）。その自動処理が立てる「①解決済み」の印が無いと「ターン終了」ボタンも受け付けない＝**両方止まる**。⇒ 監視の対象に `loading` を足した（二重には動かない＝`autoKey`）。新しいデッキで回した実機の通し対戦の2ターン目で発生。
+- 🔴**②パワー修正の差分が -Infinity になる**＝「他のシグニのパワーの合計と同じだけ－」（《翠英姫　ダーウィン》`WX26-P1-063-E1`）で、場にパワー「∞」のシグニがいると合計が Infinity になり、盤面データ（JSON）に書けない値を書いていた（パワーのコピー `COPY_TARGET_POWER` も同じ形）。⇒ 差分を ±1,000,000 に収める `finitePowerDelta`（∞ は CPU の評価と同じ 1,000,000 扱い）。
+- **③道具の不具合2つ**＝`importDecks.mjs` が `art_overrides` の無いデッキに `null` を送って 400（DB は空不可）→ `{}`。`verifyFullMatch.mjs` がデッキ名の「/」をそのままファイル名にして書けなかった → 「_」へ。
+- **検証**＝golden 新規1本（②・修正を外すと FAIL）・`npm run gates` 全緑（4511）・**実機 `verifyFullMatch cpu` を新しいデッキ2つで PASS**（①は時間差で起きる形＝1回の PASS は直った証明ではない）。⚠走査の残りの所見28件（DRAWLOG 11・CHARGELOG 8・VANISH 3・BANISHLOG 3・POWERZERO 2・STALL 1）は**未調査**（`scratchpad-cpudecks/findings.jsonl`）。
+
 ## 2026-10-21（第539バッチ）強制アタックを「対象の1体」に絞る（§5.3 `O-545` クローズ）
 
 - 🔴`WXDi-P13-035-E2`「対戦相手のシグニ１体を対象とし、このターン、それは可能ならばアタックしなければならない」＝live は `FORCE_SIGNI_ATTACK{targetOwner}` だけで、**相手の全シグニ**に強制が掛かっていた（対象も選ばせていなかった）。⇒ `FORCE_SIGNI_ATTACK.select`（選んだ個体だけ）と state `must_attack_signi_ids`（`collectForcedAttackZones` が読む・ターン終了で消える＝`turnScopedState` に登録）を足し、manual で書き直した。逆翻訳も `select` を描く。

@@ -47432,6 +47432,23 @@ test('O-545: WXDi-P13-035-E2「対戦相手のシグニ１体を対象とし、�
   })), JSON.stringify([1]), 'アタックフェイズで強制されるのはゾーン1だけ');
 }));
 
+// 🆕2026-10-21＝パワー「∞」の札が合計に混ざっても、パワー修正の差分は有限（盤面データは JSON＝Infinity は保存で壊れる）。
+test('WX26-P1-063-E1: 他のシグニのパワーの合計に「∞」が混ざっても差分は有限（-Infinity を書かない）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX26-P1-063') ?? []).find(e => e.effectId === 'WX26-P1-063-E1');
+  ok(!!eff, 'WX26-P1-063-E1: live effect exists');
+  if (!eff) return;
+  const INF = 'WXDi-P07-050';                       // 夢限//メモリア（パワー∞）
+  eq(cardMap.get(INF)?.Power, '∞', '前提＝パワー∞のシグニ');
+  const self = 'WX26-P1-063';
+  const base = mkCtx({ signi: [self, INF, null] }, {}, self);
+  const ctx: ExecCtx = { ...base, effectivePowers: new Map([[self, 12000], [INF, Infinity]]) };
+  const r = run(eff.action, ctx);
+  const mods = r.ownerState.power_mods_until_opp_turn ?? [];
+  eq(mods.length, 1, 'パワー修正が1つ載る');
+  eq(Number.isFinite(mods[0]?.delta), true, `🔴差分が有限でない（${mods[0]?.delta}）`);
+  ok((mods[0]?.delta ?? 0) <= -12000, 'このシグニのパワーは0以下になる（∞を引く）');
+}));
+
 test('WX05-023-E3: ＜原子＞3枚を下に置けない場合は「このシグニ」をトラッシュ（他のシグニではない）', () => withSavedCursor(() => {
   const effect = (effectsMap.get('WX05-023') ?? []).find(e => e.effectId === 'WX05-023-E3');
   ok(!!effect, 'WX05-023-E3: live effect exists');

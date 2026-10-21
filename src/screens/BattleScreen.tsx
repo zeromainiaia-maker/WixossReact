@@ -2083,8 +2083,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (turnEndAutoKeyRef.current === autoKey) return;
     turnEndAutoKeyRef.current = autoKey;
     doPhaseAdvanceRef.current?.();
+  // 🔴2026-10-21＝**`loading` も見る**（実機の通し対戦で手詰まり）＝操作中に盤面が届くと上の `loading` で抜け、
+  //   `loading` が解けても動き直さなかった＝「①を解決済み」の印が立たず、`handlePhaseAdvance` も
+  //   「自動解決が届くまで受け付けない」で止まる＝**エンドフェイズから永久に進めない**。⚠二重には動かない（`autoKey`）。
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * §6.4 O-10（続き515）＝`CHECK_ZONE_FLIP_FREE_GROW` の予約（`pending_flip_grow_card`）を消費して

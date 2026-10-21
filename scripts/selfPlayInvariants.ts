@@ -81,6 +81,8 @@ const names = listPlayableDeckNames(allCardMap, false, DECK_DIR);
 const pairs: [string, string][] = [];
 for (let k = 0; k < names.length; k++) pairs.push([names[k], names[(k * 7 + 3) % names.length]]);
 if (argv.includes('--a')) { pairs.length = 0; pairs.push([arg('--a',''), arg('--b','')]); }
+// 🆕2026-10-21＝`--pairs-file <f.json>`（`[[山A, 山B], …]`）＝対戦表をファイルで渡す（CPU デッキの候補を戦わせる＝`scripts/pickCpuDecks.ts`）。
+if (argv.includes('--pairs-file')) { pairs.length = 0; pairs.push(...(JSON.parse(fs.readFileSync(arg('--pairs-file', ''), 'utf-8')) as [string, string][])); }
 const [p0, p1] = arg('--pairs', `0-${pairs.length - 1}`).split('-').map(Number);
 const TRACE = argv.includes('--trace');
 /**
@@ -564,7 +566,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(argv.includes('--pairs-file') ? ['--pairs-file', arg('--pairs-file', '')] : []), '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));
@@ -574,6 +576,8 @@ async function runPairs(from: number, to: number) {
   const games = all.filter(l => / steps=/.test(l));
   const bad = all.filter(l => l.startsWith('  🔴'));
   for (const l of games.filter(l => !/: finished /.test(l))) console.log(l);
+  // 🆕2026-10-21＝`--games-out <f>`＝全試合の結果行（勝者つき）を書く（CPU デッキの候補の勝率＝`scripts/pickCpuDecks.ts`）。
+  if (argv.includes('--games-out')) fs.writeFileSync(arg('--games-out', ''), games.join('\n') + '\n', 'utf-8');
   if (ANSWER_FUZZ > 0) {
     const tot: Record<string, number> = {};
     for (const l of games) { const mm = l.match(/ fuzz=(\{[^}]*\})/); if (mm) for (const [k, v] of Object.entries(JSON.parse(mm[1]) as Record<string, number>)) tot[k] = (tot[k] ?? 0) + v; }

@@ -18,7 +18,7 @@ import {
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, isImmovableArtsFromLrigDeck, hasNoAbility, lrigZoneTops, designatedZones,
   deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
-  trapIconEffectOf, resolveFrontOfSelfCardNum, createTokenInstanceId,
+  trapIconEffectOf, resolveFrontOfSelfCardNum, createTokenInstanceId, finitePowerDelta,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -2585,13 +2585,13 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     ? (ctx.effectivePowers?.get(ctx.sourceCardNum)
       ?? (Number.parseInt(ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.Power ?? '', 10) || 0))
     : 0;
-  const delta = a.deltaFromSourcePower
+  const delta = finitePowerDelta(a.deltaFromSourcePower
     ? resolveNum(a.delta) * Math.floor(srcPowerBase / Math.max(1, a.deltaFromSourcePower.divisor))
     : a.deltaFromZone
     ? resolveCountRef(a.delta, ctx, a.deltaFromZone)
     : a.deltaPerLastProcessedCount
       ? resolveNum(a.delta) * lastProcessedUnits(a.perLastProcessed, ctx)
-      : resolveNum(a.delta);
+      : resolveNum(a.delta));
   // 直前処理倍率が0なら対象選択自体を出さない。0枚捨てた「1枚につき±N」は no-op。
   if (a.deltaPerLastProcessedCount && delta === 0) return done(ctx);
   const srcType = srcTypeOf(ctx);

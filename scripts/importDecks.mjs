@@ -98,7 +98,7 @@ const valid = (d) => (d.main_deck?.length ?? 0) === 40 && (d.lrig_deck?.length ?
     const body = {
       name: d.name, main_deck: d.main_deck, lrig_deck: d.lrig_deck,
       center_lrig: d.center_lrig, assist_lrig_l: d.assist_lrig_l ?? null, assist_lrig_r: d.assist_lrig_r ?? null,
-      thumbnail_card_num: d.thumbnail_card_num ?? null, art_overrides: d.art_overrides ?? null,
+      thumbnail_card_num: d.thumbnail_card_num ?? null, art_overrides: d.art_overrides ?? {},   // ⚠DB は空不可（null だと 400）
       cpu_plan: d.cpu_plan ?? null, deck_format: d.deck_format ?? null,
     };
     for (const kind of KINDS) {

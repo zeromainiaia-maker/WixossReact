@@ -15,11 +15,11 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🏁本線キューは全部0＝**在庫が空のときは自己対戦の走査を回す**：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
+| 🔥**次に取るもの** | 🆕**CPU デッキ79個の走査で出た所見28件が未調査**（BUGFIXES 第540バッチ・`scratchpad-cpudecks/findings.jsonl`＝git 外・`npx tsx scripts/buildCpuDecks.ts --candidates 2` → `pickCpuDecks.ts --plan` → `selfplay:inv -- --deck-dir scratchpad-cpudecks --pairs-file …` で作り直せる）｜それ以外は自己対戦の走査を回す：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（ターン進行・CPU・ヘッドレスの回＝原文照合の在庫に触れていないので動かない） |
 | 📦**在庫** | 🏁実機 `V-nn` **0**／🏁機構 `O-nn` **0**（`O-545` は同日クローズ）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
 | ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU はキーを失うキーの【起】（46効果）を既定では使わない（ポリシー `keyTrashAbility`＝走査では `--policy-set "keyTrashAbility=1"`）｜⚠`--use-all-arts` はアシストルリグを指名するので、アシストルリグのメインフェイズの【起】は走査で撃たれない（既知の死角） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4510**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4511**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
 | 🆕🔑**この回の芯** | ①**人間の進行（`phaseAdvance`/`endDiscard`）が呼ぶ関数のうち CPU（`cpuTurn`）が呼ばない関数を機械で列挙する**とCPU のターンだけ起きない処理が出る＝ターン終了／エンドフェイズ①／ドロー／フェイズ開始／相手側の後始末を共通の1本へ（`turnScopedState`・`turnEndStepOne`・`drawPhase`・`phaseEntry`・`nextTurnPlayer`）②**画面の見張り（useEffect）はヘッドレスに無い**＝印の処理は `controller/justFlags.ts`・`energyPowerWatch.ts`・`acceTriggers.ts` の共通の1本③**場を離れる処理は `removeFromField` だけ**（ゾーンを手で null にすると下のカードが消える）④golden の新しいテストは `withSavedCursor` で包む |
 ---
 

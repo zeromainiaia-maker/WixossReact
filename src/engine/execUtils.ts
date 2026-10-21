@@ -4956,3 +4956,15 @@ export function matchesRiseFilter(
   }
   return matchesFilter(card, filter);
 }
+
+/**
+ * 🆕2026-10-21＝**パワー修正の差分を有限の値に収める**（パワー「∞」の札は Infinity で数えるので、合計やコピーに混ざると
+ *   ±Infinity の差分になる）。🔴盤面データは JSON＝Infinity／NaN は保存で `null` に化けて壊れる
+ *   （自己対戦の SHAPE＝《翠英姫　ダーウィン》「他のシグニのパワーの合計と同じだけ－」で、場に ∞ のシグニがいた）。
+ * 🔑「∞」は 1,000,000 として扱う（CPU の評価 `cardStrength` と同じ）＝どのパワーと比べても結果は同じ。
+ */
+export const POWER_INFINITY_STAND_IN = 1_000_000;
+export function finitePowerDelta(d: number): number {
+  if (Number.isNaN(d)) return 0;
+  return Math.max(-POWER_INFINITY_STAND_IN, Math.min(POWER_INFINITY_STAND_IN, d));
+}

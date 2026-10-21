@@ -731,7 +731,8 @@ async function dumpPlayLogs(page, tag) {
     return (await r2.json())?.[0] ?? null;
   }, { SUPA_URL, ANON }).catch(() => null);
   if (!logs) { console.log(`   ⚠playlogs-${tag}: ログを取れなかった`); return; }
-  const out = `${SHOT}/playlogs-${tag}.json`;
+  // ⚠デッキ名に「/」が入ることがある（《幻獣神　LOVIT//THE DOOR》軸）＝ファイル名に使えない文字は「_」へ。
+  const out = `${SHOT}/playlogs-${tag.replace(/[\\/:*?"<>|]/g, '_')}.json`;
   writeFileSync(out, JSON.stringify({ turnCount: logs.turn_count, globalPhase: logs.global_phase, logs: (logs.game_logs ?? []).map(l => l.action) }, null, 1));
   console.log(`   機構踏破の入力: ${out}（${(logs.game_logs ?? []).length}行）→ npm run census:play -- --file ${out}`);
 }

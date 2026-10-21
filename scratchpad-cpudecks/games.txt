@@ -1,0 +1,1116 @@
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=291 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=329 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ヒラナ／大罠　バーニングチョリソー軸 s1: finished steps=184 turns=5 life H3/G0 winner=headless-host
+ディーバ／花代／幻獣神　LOVIT//ディソナ軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=299 turns=9 life H1/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=232 turns=7 life H3/G0 winner=headless-host
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=262 turns=7 life H0/G0 winner=headless-host
+ディーバ／マキナ／凶魔姫　アモノウル軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=267 turns=9 life H0/G0 winner=headless-host
+ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=237 turns=7 life H1/G0 winner=headless-host
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=245 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=239 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=287 turns=9 life H0/G0 winner=headless-host
+ディーバ／タウィル／紅将　ケンシン軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=259 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リゼ／聖天姫　アークゲイン軸 vs ディーバ／タウィル／紅将　ケンシン軸 s1: finished steps=256 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タウィル／紅将　ケンシン軸 vs ディーバ／エクス／コードライド　フライングカー軸 s1: finished steps=216 turns=7 life H2/G0 winner=headless-host
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／タウィル／紅将　ケンシン軸 s1: finished steps=154 turns=5 life H3/G0 winner=headless-host
+ディーバ／タウィル／紅将　ケンシン軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=297 turns=9 life H0/G0 winner=headless-host
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／タウィル／紅将　ケンシン軸 s1: finished steps=194 turns=7 life H3/G0 winner=headless-host
+ディーバ／タウィル／幻水姫　シィラ軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=325 turns=9 life H0/G0 winner=headless-host
+ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=278 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タウィル／幻水姫　シィラ軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=257 turns=7 life H2/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　Nフライングギター軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=254 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タウィル／幻水姫　シィラ軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=238 turns=7 life H3/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=275 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=229 turns=7 life H0/G0 winner=headless-host
+ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 vs ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 s1: finished steps=175 turns=7 life H5/G0 winner=headless-host
+ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=225 turns=7 life H2/G0 winner=headless-host
+ディーバ／マキナ／近衛ミナ軸 vs ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 s1: finished steps=171 turns=7 life H5/G0 winner=headless-host
+ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=271 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマゴ／猫塚ヒビキ軸 vs ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 s1: finished steps=186 turns=7 life H5/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=246 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=219 turns=9 life H2/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=230 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=198 turns=7 life H3/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 s1: finished steps=214 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=176 turns=7 life H3/G0 winner=headless-host
+ディーバ／リゼ／白洲アズサ(水着)軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=263 turns=7 life H0/G0 winner=headless-host
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=261 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リゼ／白洲アズサ(水着)軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=291 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=272 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リゼ／白洲アズサ(水着)軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=358 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=227 turns=7 life H2/G0 winner=headless-host
+ディーバ／リゼ／聖天姫　アークゲイン軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=241 turns=7 life H0/G0 winner=headless-host
+ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 vs ディーバ／リゼ／聖天姫　アークゲイン軸 s1: finished steps=262 turns=7 life H2/G0 winner=headless-host
+ディーバ／リゼ／聖天姫　アークゲイン軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=204 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／リゼ／聖天姫　アークゲイン軸 s1: finished steps=304 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リゼ／聖天姫　アークゲイン軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=207 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／リゼ／聖天姫　アークゲイン軸 s1: finished steps=287 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=326 turns=9 life H0/G0 winner=headless-host
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=240 turns=7 life H1/G0 winner=headless-host
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=297 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アン／翠天　アタランテ軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=229 turns=7 life H3/G0 winner=headless-host
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=217 turns=7 life H1/G0 winner=headless-host
+ディーバ／アンジュ／花の騎士ピュリティ軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=222 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=192 turns=7 life H2/G0 winner=headless-host
+ディーバ／アンジュ／花の騎士ピュリティ軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=269 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／大装　トビエル軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=213 turns=7 life H0/G0 winner=headless-host
+ディーバ／アンジュ／花の騎士ピュリティ軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=225 turns=7 life H2/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=265 turns=7 life H0/G0 winner=headless-host
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=192 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=244 turns=7 life H1/G0 winner=headless-host
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=251 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=228 turns=7 life H2/G0 winner=headless-host
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=260 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=216 turns=7 life H3/G0 winner=headless-host
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／タマゴ／蒼魔　グラシャラ軸 s1: finished steps=230 turns=7 life H0/G0 winner=headless-host
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=257 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=188 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=228 turns=7 life H2/G0 winner=headless-host
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=210 turns=7 life H1/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=239 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒラナ／大罠　バーニングチョリソー軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=257 turns=7 life H2/G0 winner=headless-host
+ディーバ／マドカ／羅輝石　インディゴライト軸 vs ディーバ／ヒラナ／大罠　バーニングチョリソー軸 s1: finished steps=262 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒラナ／大罠　バーニングチョリソー軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=303 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／ヒラナ／大罠　バーニングチョリソー軸 s1: finished steps=250 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヒラナ／大罠　バーニングチョリソー軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=240 turns=7 life H0/G0 winner=headless-host
+ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 vs ディーバ／ヒラナ／大罠　バーニングチョリソー軸 s1: finished steps=235 turns=7 life H0/G0 winner=headless-host
+ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=270 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 s1: finished steps=284 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 vs ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 s1: finished steps=276 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 s1: finished steps=313 turns=9 life H1/G0 winner=headless-host
+ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=347 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 s1: finished steps=288 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／メル／羅星姫　キャトミ軸 s1: finished steps=283 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=223 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=233 turns=7 life H2/G0 winner=headless-host
+ディーバ／ホシノ／翠英姫　アインシュタイン軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=326 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=223 turns=7 life H2/G0 winner=headless-host
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=295 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=292 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タウィル／幻水姫　シィラ軸 vs ディーバ／アキノ／コードラビリンス　デッカサイト軸 s1: finished steps=228 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=233 turns=7 life H2/G0 winner=headless-host
+ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 vs ディーバ／アキノ／コードラビリンス　デッカサイト軸 s1: finished steps=326 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／アキノ／コードラビリンス　デッカサイト軸 s1: finished steps=247 turns=7 life H0/G0 winner=headless-host
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=226 turns=7 life H0/G0 winner=headless-host
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=248 turns=7 life H2/G0 winner=headless-host
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=269 turns=7 life H1/G0 winner=headless-host
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=312 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=229 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=266 turns=9 life H0/G0 winner=headless-host
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=239 turns=7 life H1/G0 winner=headless-host
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 s1: finished steps=335 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=247 turns=7 life H1/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 s1: finished steps=246 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=250 turns=7 life H2/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 s1: finished steps=264 turns=7 life H2/G0 winner=headless-host
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／リップル／コードラビラント　ヨグソトス軸 s1: finished steps=261 turns=7 life H1/G0 winner=headless-host
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／LION／羅星姫　マゼラン軸 s1: finished steps=239 turns=7 life H2/G0 winner=headless-host
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／タマゴ／蒼魔　グラシャラ軸 s1: finished steps=374 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／LION／羅星姫　マゼラン軸 s1: finished steps=321 turns=9 life H1/G0 winner=headless-host
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／メル／幻怪姫　アザトース軸 s1: finished steps=288 turns=9 life H2/G0 winner=headless-host
+ディーバ／アンジュ／花の騎士ピュリティ軸 vs ディーバ／LION／羅星姫　マゼラン軸 s1: finished steps=252 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=357 turns=11 life H0/G0 winner=headless-host
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=230 turns=7 life H3/G0 winner=headless-host
+ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=358 turns=11 life H0/G0 winner=headless-host
+ディーバ／シュン／棗イロハ軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=166 turns=5 life H3/G0 winner=headless-host
+ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=268 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=234 turns=7 life H5/G0 winner=headless-host
+ディーバ／LOVIT／紅将姫　ノブナガ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=310 turns=9 life H2/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／LOVIT／紅将姫　ノブナガ軸 s1: finished steps=235 turns=7 life H0/G0 winner=headless-host
+ディーバ／LOVIT／紅将姫　ノブナガ軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／LOVIT／紅将姫　ノブナガ軸 s1: finished steps=238 turns=7 life H2/G0 winner=headless-host
+ディーバ／LOVIT／紅将姫　ノブナガ軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=232 turns=7 life H2/G0 winner=headless-host
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／LOVIT／紅将姫　ノブナガ軸 s1: finished steps=238 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=271 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 s1: finished steps=291 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 s1: finished steps=224 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／花代／紅魔姫　シュブニグラ軸 vs ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 s1: finished steps=256 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=258 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 s1: finished steps=248 turns=7 life H1/G0 winner=headless-host
+ディーバ／WOLF／羅植姫　ジャックビーンズ軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=256 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／WOLF／羅植姫　ジャックビーンズ軸 s1: finished steps=224 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／WOLF／羅植姫　ジャックビーンズ軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=196 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／WOLF／羅植姫　ジャックビーンズ軸 s1: finished steps=202 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／WOLF／羅植姫　ジャックビーンズ軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=247 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／WOLF／羅植姫　ジャックビーンズ軸 s1: finished steps=290 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／WOLF／ドライ＝インフルＤ型軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=328 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／WOLF／ドライ＝インフルＤ型軸 s1: finished steps=396 turns=13 life H0/G0 winner=headless-host
+ディーバ／WOLF／ドライ＝インフルＤ型軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=233 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サオリ／幻水姫　Ａナックル軸 vs ディーバ／WOLF／ドライ＝インフルＤ型軸 s1: finished steps=206 turns=7 life H4/G0 winner=headless-host
+ディーバ／WOLF／ドライ＝インフルＤ型軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=202 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／WOLF／ドライ＝インフルＤ型軸 s1: finished steps=221 turns=7 life H3/G0 winner=headless-host
+ディーバ／タマゴ／猫塚ヒビキ軸 vs ディーバ／ピルルク／蒼魔姫　フェンリル軸 s1: finished steps=392 turns=11 life H0/G0 winner=headless-host
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=280 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマゴ／猫塚ヒビキ軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=324 turns=9 life H0/G0 winner=headless-host
+ディーバ／ミーティア／翠天姫　ガイア軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=241 turns=7 life H4/G0 winner=headless-host
+ディーバ／タマゴ／猫塚ヒビキ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=310 turns=9 life H2/G0 winner=headless-host
+ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=235 turns=7 life H1/G0 winner=headless-host
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=387 turns=11 life H0/G0 winner=headless-host
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／タマゴ／蒼魔　グラシャラ軸 s1: finished steps=376 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 s1: finished steps=296 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／タマゴ／蒼魔　グラシャラ軸 s1: finished steps=261 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=307 turns=9 life H2/G0 winner=headless-host
+ディーバ／花代／紅魔姫　シュブニグラ軸 vs ディーバ／タマゴ／蒼魔　グラシャラ軸 s1: finished steps=317 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／聖魔姫　ドーマン軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=176 turns=5 life H5/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=307 turns=9 life H0/G0 winner=headless-host
+ディーバ／ノヴァ／聖魔姫　ドーマン軸 vs ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 s1: finished steps=243 turns=7 life H5/G0 winner=headless-host
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=313 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／聖魔姫　ドーマン軸 vs ディーバ／バン／翠天　ゼルエル軸 s1: finished steps=265 turns=9 life H2/G0 winner=headless-host
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=270 turns=7 life H2/G0 winner=headless-host
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=249 turns=7 life H1/G0 winner=headless-host
+ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=292 turns=9 life H0/G0 winner=headless-host
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=282 turns=9 life H1/G0 winner=headless-host
+ディーバ／エクス／コードライド　フライングカー軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=322 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／メル／羅星姫　キャトミ軸 s1: finished steps=300 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=306 turns=9 life H1/G0 winner=headless-host
+ディーバ／バン／桑上カホ軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=284 turns=9 life H2/G0 winner=headless-host
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／バン／桑上カホ軸 s1: finished steps=273 turns=7 life H2/G0 winner=headless-host
+ディーバ／バン／桑上カホ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=313 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／バン／桑上カホ軸 s1: finished steps=291 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／バン／桑上カホ軸 vs ディーバ／あきら／幻竜姫　シーホース軸 s1: finished steps=368 turns=12 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／バン／桑上カホ軸 s1: finished steps=309 turns=9 life H2/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 s1: finished steps=264 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／バン／翠天　ゼルエル軸 s1: finished steps=304 turns=9 life H0/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=256 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／バン／翠天　ゼルエル軸 s1: finished steps=204 turns=7 life H4/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=257 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／バン／翠天　ゼルエル軸 s1: finished steps=262 turns=7 life H1/G0 winner=headless-host
+ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=257 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒナ／ドライ＝クレオパトラ軸 vs ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 s1: finished steps=294 turns=9 life H1/G0 winner=headless-host
+ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=213 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 s1: finished steps=253 turns=7 life H1/G0 winner=headless-host
+ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 vs ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 s1: finished steps=291 turns=9 life H0/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 s1: finished steps=258 turns=7 life H3/G0 winner=headless-host
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=305 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウリス／羅星姫　イクリプス軸 vs ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 s1: finished steps=244 turns=7 life H3/G0 winner=headless-host
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=305 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 s1: finished steps=322 turns=9 life H1/G0 winner=headless-host
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=268 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 s1: finished steps=369 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／マドカ／羅輝石　インディゴライト軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=292 turns=9 life H0/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=163 turns=5 life H4/G0 winner=headless-host
+ディーバ／マドカ／羅輝石　インディゴライト軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=312 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=260 turns=7 life H1/G0 winner=headless-host
+ディーバ／マドカ／羅輝石　インディゴライト軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=324 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=243 turns=7 life H2/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=321 turns=9 life H0/G0 winner=headless-host
+ディーバ／LOVIT／紅将姫　ノブナガ軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=186 turns=5 life H4/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／バン／桑上カホ軸 s1: finished steps=305 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=195 turns=5 life H4/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 s1: finished steps=290 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=248 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=257 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=287 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=250 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=293 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=296 turns=9 life H2/G0 winner=headless-host
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=263 turns=7 life H2/G0 winner=headless-host
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=283 turns=9 life H0/G0 winner=headless-host
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=292 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=249 turns=7 life H1/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=260 turns=7 life H0/G0 winner=headless-host
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=280 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=327 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エクス／コードライド　フライングカー軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=249 turns=7 life H0/G0 winner=headless-host
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／エクス／コードライド　フライングカー軸 s1: finished steps=273 turns=9 life H0/G0 winner=headless-host
+ディーバ／エクス／コードライド　フライングカー軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=227 turns=7 life H2/G0 winner=headless-host
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／エクス／コードライド　フライングカー軸 s1: finished steps=225 turns=7 life H2/G0 winner=headless-host
+ディーバ／エクス／コードライド　フライングカー軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=262 turns=9 life H1/G0 winner=headless-host
+ディーバ／タウィル／紅将　ケンシン軸 vs ディーバ／エクス／コードライド　フライングカー軸 s1: finished steps=216 turns=7 life H2/G0 winner=headless-host
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=306 turns=9 life H0/G0 winner=headless-host
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=221 turns=7 life H2/G0 winner=headless-host
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=253 turns=7 life H1/G0 winner=headless-host
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=350 turns=12 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=273 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=228 turns=7 life H2/G0 winner=headless-host
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=263 turns=9 life H1/G0 winner=headless-host
+ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 vs ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 s1: finished steps=275 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=275 turns=9 life H1/G0 winner=headless-host
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／エルドラ／羅星姫　オリオン軸 s1: finished steps=305 turns=9 life H2/G0 winner=headless-host
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 s1: finished steps=233 turns=7 life H0/G0 winner=headless-host
+ディーバ／デウス／コードアンチ　オベリスク軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=217 turns=7 life H4/G0 winner=headless-host
+ディーバ／マキナ／凶魔姫　アモノウル軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=217 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／デウス／コードアンチ　オベリスク軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=143 turns=5 life H4/G0 winner=headless-host
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=288 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／デウス／コードアンチ　オベリスク軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=292 turns=9 life H2/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=239 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／マキナ／近衛ミナ軸 vs ディーバ／アザエラ／紅将　ギルガメジ軸 s1: finished steps=233 turns=7 life H1/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=290 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／マキナ／近衛ミナ軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: stall steps=159 turns=4 life H3/G3 winner=-
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=328 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／マキナ／近衛ミナ軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=213 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=231 turns=7 life H1/G0 winner=headless-host
+ディーバ／マキナ／凶魔姫　アモノウル軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=273 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=279 turns=9 life H0/G0 winner=headless-host
+ディーバ／マキナ／凶魔姫　アモノウル軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=274 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=252 turns=7 life H2/G0 winner=headless-host
+ディーバ／マキナ／凶魔姫　アモノウル軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=260 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=289 turns=9 life H0/G0 winner=headless-host
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=284 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=239 turns=7 life H2/G0 winner=headless-host
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=178 turns=5 life H2/G0 winner=headless-host
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=311 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 vs ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 s1: finished steps=212 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=350 turns=9 life H0/G0 winner=headless-host
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=237 turns=7 life H0/G0 winner=headless-host
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 s1: finished steps=302 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=311 turns=9 life H0/G0 winner=headless-host
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 s1: finished steps=282 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=235 turns=7 life H0/G0 winner=headless-host
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 s1: finished steps=227 turns=7 life H1/G0 winner=headless-host
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=238 turns=7 life H2/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 s1: finished steps=306 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=264 turns=7 life H0/G0 winner=headless-host
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 s1: finished steps=243 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／ネージュ／大装　エナジェ軸 s1: finished steps=273 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 s1: finished steps=282 turns=7 life H0/G0 winner=headless-host
+ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=331 turns=9 life H0/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　ナベリウス軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=232 turns=7 life H0/G0 winner=headless-host
+ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=163 turns=5 life H3/G0 winner=headless-host
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=177 turns=5 life H4/G0 winner=headless-host
+ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=331 turns=9 life H0/G0 winner=headless-host
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=289 turns=9 life H1/G0 winner=headless-host
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ミヤコ／蒼将　シンパチ軸 s1: finished steps=313 turns=9 life H1/G0 winner=headless-host
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 s1: finished steps=251 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=300 turns=9 life H1/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 s1: finished steps=317 turns=9 life H1/G0 winner=headless-host
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=188 turns=7 life H3/G0 winner=headless-host
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 s1: finished steps=322 turns=9 life H0/G0 winner=headless-host
+ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=266 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 s1: finished steps=334 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=299 turns=7 life H1/G0 winner=headless-host
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 s1: finished steps=358 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 vs ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 s1: finished steps=315 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 s1: finished steps=262 turns=7 life H2/G0 winner=headless-host
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=242 turns=7 life H3/G0 winner=headless-host
+ディーバ／WOLF／羅植姫　ジャックビーンズ軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=231 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=211 turns=7 life H2/G0 winner=headless-host
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=298 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=360 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=263 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードメイズ　サイバンショ軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=228 turns=7 life H2/G0 winner=headless-host
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=315 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードメイズ　サイバンショ軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=265 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=259 turns=7 life H0/G0 winner=headless-host
+ディーバ／リメンバ／コードメイズ　サイバンショ軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=280 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=244 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　ナベリウス軸 vs ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 s1: finished steps=260 turns=7 life H0/G0 winner=headless-host
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=230 turns=7 life H0/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　ナベリウス軸 vs ディーバ／メル／幻怪姫　アザトース軸 s1: finished steps=243 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=293 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　ナベリウス軸 vs ディーバ／ヤミノ／幻蟲　カゲロウ軸 s1: finished steps=297 turns=9 life H0/G0 winner=headless-host
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=271 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=279 turns=9 life H0/G0 winner=headless-host
+ディーバ／LOVIT／紅将姫　ノブナガ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=250 turns=7 life H3/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／花代／紅魔姫　シュブニグラ軸 s1: finished steps=225 turns=7 life H1/G0 winner=headless-host
+ディーバ／タウィル／幻水姫　シィラ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=280 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=201 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=275 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 s1: finished steps=237 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／イオナ／大装　カリバン軸 s1: finished steps=257 turns=7 life H0/G0 winner=headless-host
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=330 turns=9 life H0/G0 winner=headless-host
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／イオナ／大装　カリバン軸 s1: finished steps=236 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=337 turns=9 life H0/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／イオナ／大装　カリバン軸 s1: finished steps=251 turns=7 life H0/G0 winner=headless-host
+ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=251 turns=7 life H2/G0 winner=headless-host
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 s1: finished steps=217 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=228 turns=7 life H0/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 s1: finished steps=201 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=233 turns=7 life H1/G0 winner=headless-host
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 s1: finished steps=210 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／花代／幻獣神　LOVIT//ディソナ軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=249 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=210 turns=7 life H4/G0 winner=headless-host
+ディーバ／花代／幻獣神　LOVIT//ディソナ軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=266 turns=7 life H1/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=220 turns=7 life H2/G0 winner=headless-host
+ディーバ／花代／幻獣神　LOVIT//ディソナ軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=220 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=211 turns=7 life H1/G0 winner=headless-host
+ディーバ／花代／紅魔姫　シュブニグラ軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=259 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／幻闘水姫　ナマコズ軸 vs ディーバ／花代／紅魔姫　シュブニグラ軸 s1: finished steps=232 turns=7 life H0/G0 winner=headless-host
+ディーバ／花代／紅魔姫　シュブニグラ軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=203 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／花代／紅魔姫　シュブニグラ軸 s1: finished steps=221 turns=7 life H0/G0 winner=headless-host
+ディーバ／花代／紅魔姫　シュブニグラ軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=220 turns=7 life H0/G0 winner=headless-host
+ディーバ／リゼ／聖天姫　アークゲイン軸 vs ディーバ／花代／紅魔姫　シュブニグラ軸 s1: finished steps=221 turns=7 life H1/G0 winner=headless-host
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=276 turns=9 life H0/G0 winner=headless-host
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／メル／羅星姫　キャトミ軸 s1: finished steps=291 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 s1: finished steps=275 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／メル／羅星姫　キャトミ軸 s1: finished steps=333 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／イオナ／大装　カリバン軸 s1: finished steps=261 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／メル／羅星姫　キャトミ軸 s1: finished steps=266 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／緑子／連河チェリノ軸 s1: finished steps=295 turns=9 life H0/G0 winner=headless-host
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／メル／幻怪姫　アザトース軸 s1: finished steps=299 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=264 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／メル／幻怪姫　アザトース軸 s1: finished steps=265 turns=9 life H2/G0 winner=headless-host
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=328 turns=9 life H2/G0 winner=headless-host
+ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 vs ディーバ／メル／幻怪姫　アザトース軸 s1: finished steps=276 turns=9 life H1/G0 winner=headless-host
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=270 turns=7 life H2/G0 winner=headless-host
+ディーバ／アンジュ／蒼森ミネ軸 vs ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 s1: finished steps=223 turns=7 life H2/G0 winner=headless-host
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=276 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 s1: finished steps=225 turns=7 life H3/G0 winner=headless-host
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=268 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ゆかゆか／融合せし極門　ウトゥルス//メモリア軸 vs ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 s1: finished steps=263 turns=7 life H1/G0 winner=headless-host
+ディーバ／タマ／聖将　ゆきめ//ディソナ軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=267 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=237 turns=7 life H1/G0 winner=headless-host
+ディーバ／タマ／聖将　ゆきめ//ディソナ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=247 turns=7 life H1/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=256 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマ／聖将　ゆきめ//ディソナ軸 vs ディーバ／エルドラ／電音部　鳳凰火凛軸 s1: finished steps=271 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=232 turns=7 life H1/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=331 turns=11 life H1/G0 winner=headless-host
+ディーバ／リゼ／白洲アズサ(水着)軸 vs ディーバ／ピルルク／蒼魔姫　フェンリル軸 s1: finished steps=258 turns=7 life H2/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=267 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／ピルルク／蒼魔姫　フェンリル軸 s1: finished steps=259 turns=7 life H1/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=241 turns=7 life H3/G0 winner=headless-host
+ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 vs ディーバ／ピルルク／蒼魔姫　フェンリル軸 s1: finished steps=240 turns=7 life H1/G0 winner=headless-host
+ディーバ／ピルルク／早瀬ユウカ軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=285 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=255 turns=7 life H3/G0 winner=headless-host
+ディーバ／ピルルク／早瀬ユウカ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=293 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=307 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ピルルク／早瀬ユウカ軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=174 turns=7 life H4/G0 winner=headless-host
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=207 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=246 turns=7 life H2/G0 winner=headless-host
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／緑子／連河チェリノ軸 s1: finished steps=363 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=250 turns=7 life H1/G0 winner=headless-host
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／緑子／連河チェリノ軸 s1: finished steps=287 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=289 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 vs ディーバ／緑子／連河チェリノ軸 s1: finished steps=283 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／アキノ／大装　ツルマル軸 s1: finished steps=282 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=275 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=260 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=277 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=291 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=309 turns=9 life H0/G0 winner=headless-host
+ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 vs ディーバ／LION／羅星姫　マゼラン軸 s1: finished steps=244 turns=7 life H1/G0 winner=headless-host
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 s1: finished steps=213 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 vs ディーバ／リップル／コードラビラント　ヨグソトス軸 s1: finished steps=292 turns=9 life H0/G0 winner=headless-host
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 s1: finished steps=241 turns=7 life H2/G0 winner=headless-host
+ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=227 turns=7 life H2/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 s1: finished steps=304 turns=9 life H0/G0 winner=headless-host
+ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 vs ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 s1: finished steps=264 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=217 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 vs ディーバ／ユカリ／電音部　大神纏軸 s1: finished steps=149 turns=5 life H5/G0 winner=headless-host
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=252 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=155 turns=5 life H4/G0 winner=headless-host
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=280 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 vs ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 s1: finished steps=270 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／WOLF／ドライ＝インフルＤ型軸 vs ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 s1: finished steps=266 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 vs ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 s1: finished steps=265 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒナ／ドライ＝クレオパトラ軸 vs ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 s1: finished steps=268 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=283 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／ユヅキ／羅輝石　ヴォルカノ軸 s1: finished steps=261 turns=7 life H1/G0 winner=headless-host
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=273 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=246 turns=7 life H1/G0 winner=headless-host
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=242 turns=7 life H1/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=263 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=160 turns=5 life H3/G0 winner=headless-host
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=247 turns=7 life H1/G0 winner=headless-host
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=228 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／アン／幻獣神　サーベルタイガー軸 s1: finished steps=230 turns=7 life H4/G0 winner=headless-host
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／ヒラナ／羅輝石　ローズクォーツ軸 s1: finished steps=252 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／アン／幻獣神　サーベルタイガー軸 s1: finished steps=308 turns=9 life H2/G0 winner=headless-host
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=309 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 vs ディーバ／アン／幻獣神　サーベルタイガー軸 s1: finished steps=341 turns=11 life H1/G0 winner=headless-host
+ディーバ／アン／翠天　アタランテ軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=294 turns=9 life H1/G0 winner=headless-host
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=226 turns=7 life H1/G0 winner=headless-host
+ディーバ／アン／翠天　アタランテ軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=361 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=233 turns=7 life H1/G0 winner=headless-host
+ディーバ／アン／翠天　アタランテ軸 vs ディーバ／エルドラ／羅星姫　オリオン軸 s1: finished steps=302 turns=9 life H2/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=251 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=229 turns=7 life H2/G0 winner=headless-host
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 s1: finished steps=230 turns=7 life H1/G0 winner=headless-host
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=196 turns=7 life H1/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 s1: finished steps=257 turns=7 life H2/G0 winner=headless-host
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 s1: finished steps=293 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 s1: finished steps=251 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウリス／羅星姫　イクリプス軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=271 turns=9 life H1/G0 winner=headless-host
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=239 turns=7 life H2/G0 winner=headless-host
+ディーバ／ウリス／羅星姫　イクリプス軸 vs ディーバ／リップル／蒼将姫　コロンブス軸 s1: finished steps=240 turns=7 life H3/G0 winner=headless-host
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=258 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウリス／羅星姫　イクリプス軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=307 turns=9 life H0/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=223 turns=7 life H1/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=236 turns=7 life H0/G0 winner=headless-host
+ディーバ／アンジュ／花の騎士ピュリティ軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=233 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=286 turns=9 life H0/G0 winner=headless-host
+ディーバ／エクス／幻獣神　サラブレッド軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=233 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／エクス／幻獣神　サラブレッド軸 s1: finished steps=256 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サオリ／幻水姫　Ａナックル軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=240 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／ウムル／幻水姫　オトヒメ軸 s1: finished steps=160 turns=7 life H3/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=231 turns=7 life H2/G0 winner=headless-host
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=279 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=249 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／ムジカ／羅菌姫　ヘドニム//ディソナ軸 s1: finished steps=242 turns=7 life H1/G0 winner=headless-host
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=231 turns=7 life H2/G0 winner=headless-host
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／ナナシ／惨之遊姫　コイントス//THE DOOR軸 s1: finished steps=217 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／エルドラ／電音部　鳳凰火凛軸 s1: finished steps=261 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=228 turns=7 life H1/G0 winner=headless-host
+ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 vs ディーバ／エルドラ／電音部　鳳凰火凛軸 s1: finished steps=344 turns=11 life H0/G0 winner=headless-host
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=258 turns=7 life H2/G0 winner=headless-host
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／エルドラ／電音部　鳳凰火凛軸 s1: finished steps=208 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／アンジュ／花の騎士ピュリティ軸 s1: finished steps=269 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 vs ディーバ／エルドラ／羅星姫　オリオン軸 s1: finished steps=387 turns=11 life H1/G0 winner=headless-host
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=246 turns=7 life H1/G0 winner=headless-host
+ディーバ／ちより／コードハート　ＤンドウバＶ２軸 vs ディーバ／エルドラ／羅星姫　オリオン軸 s1: finished steps=307 turns=9 life H1/G0 winner=headless-host
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=319 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／とこ／幻竜姫　ダークゲツァル軸 vs ディーバ／エルドラ／羅星姫　オリオン軸 s1: finished steps=249 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／カーニバル／幻獣神　オサギツネ軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=272 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマ／聖将　ゆきめ//ディソナ軸 vs ディーバ／カーニバル／幻獣神　オサギツネ軸 s1: finished steps=281 turns=9 life H0/G0 winner=headless-host
+ディーバ／カーニバル／幻獣神　オサギツネ軸 vs ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 s1: finished steps=263 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミーティア／翠天姫　ガイア軸 vs ディーバ／カーニバル／幻獣神　オサギツネ軸 s1: finished steps=339 turns=11 life H1/G0 winner=headless-host
+ディーバ／カーニバル／幻獣神　オサギツネ軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=301 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／カーニバル／幻獣神　オサギツネ軸 s1: finished steps=296 turns=9 life H1/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=217 turns=7 life H2/G0 winner=headless-host
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／カーニバル／羅原　Ｇｅ軸 s1: finished steps=283 turns=9 life H2/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 s1: finished steps=266 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ガブリエラ／聖魔姫　オロチマル軸 vs ディーバ／カーニバル／羅原　Ｇｅ軸 s1: finished steps=293 turns=9 life H1/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／アン／翠天　アタランテ軸 s1: finished steps=240 turns=7 life H2/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／カーニバル／羅原　Ｇｅ軸 s1: finished steps=262 turns=9 life H2/G0 winner=headless-host
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=185 turns=5 life H1/G0 winner=headless-host
+ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=244 turns=7 life H0/G0 winner=headless-host
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 s1: finished steps=292 turns=7 life H0/G0 winner=headless-host
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=319 turns=9 life H0/G0 winner=headless-host
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／マキナ／凶魔姫　アモノウル軸 s1: finished steps=275 turns=7 life H0/G0 winner=headless-host
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=243 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 vs ディーバ／イオナ／大装　カリバン軸 s1: finished steps=247 turns=7 life H1/G0 winner=headless-host
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=224 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 vs ディーバ／ノヴァ／聖魔姫　ドーマン軸 s1: finished steps=246 turns=7 life H2/G0 winner=headless-host
+ディーバ／まほまほ／凶将姫　カーニバル//メモリア軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=266 turns=7 life H1/G0 winner=headless-host
+ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=246 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=224 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ガブリエラ／聖魔姫　オロチマル軸 vs ディーバ／LION／羅星姫　マゼラン軸 s1: finished steps=335 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=238 turns=7 life H0/G0 winner=headless-host
+ディーバ／ガブリエラ／聖魔姫　オロチマル軸 vs ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 s1: finished steps=306 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=280 turns=7 life H1/G0 winner=headless-host
+ディーバ／ガブリエラ／聖魔姫　オロチマル軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=318 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=375 turns=13 life H0/G0 winner=headless-host
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=333 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 s1: finished steps=258 turns=7 life H3/G0 winner=headless-host
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=242 turns=7 life H2/G0 winner=headless-host
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 s1: finished steps=247 turns=7 life H4/G0 winner=headless-host
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=292 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 s1: finished steps=225 turns=7 life H4/G0 winner=headless-host
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=320 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=273 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／ユカリ／電音部　大神纏軸 s1: finished steps=268 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=301 turns=9 life H0/G0 winner=headless-host
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=223 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ナナシ／惨之遊姫　グズ子//メモリア軸 vs ディーバ／アザエラ／羅婚石　ダイヤブライド軸 s1: finished steps=294 turns=9 life H1/G0 winner=headless-host
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=236 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／アザエラ／紅将　ギルガメジ軸 s1: finished steps=237 turns=7 life H2/G0 winner=headless-host
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=247 turns=7 life H3/G0 winner=headless-host
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／アザエラ／紅将　ギルガメジ軸 s1: finished steps=257 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／紅将　ギルガメジ軸 vs ディーバ／シュン／棗イロハ軸 s1: finished steps=232 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 vs ディーバ／アザエラ／紅将　ギルガメジ軸 s1: finished steps=266 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=339 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒラナ／大罠　バーニングチョリソー軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=286 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／とこ／幻竜姫　ダークゲツァル軸 s1: finished steps=197 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=297 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=286 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=272 turns=7 life H2/G0 winner=headless-host
+ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=284 turns=7 life H0/G0 winner=headless-host
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=311 turns=9 life H0/G0 winner=headless-host
+ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 vs ディーバ／タマゴ／猫塚ヒビキ軸 s1: finished steps=285 turns=7 life H0/G0 winner=headless-host
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=343 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 vs ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 s1: finished steps=255 turns=7 life H3/G0 winner=headless-host
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=269 turns=7 life H0/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ユカリ／桐生キキョウ軸 s1: finished steps=300 turns=9 life H1/G0 winner=headless-host
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=245 turns=7 life H0/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=336 turns=11 life H1/G0 winner=headless-host
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=237 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=297 turns=9 life H0/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=238 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=259 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アルフォウ／凶魔　ナベリウス軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=244 turns=7 life H2/G0 winner=headless-host
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／リゼ／白洲アズサ(水着)軸 s1: finished steps=242 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=274 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 s1: finished steps=270 turns=9 life H1/G0 winner=headless-host
+ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=184 turns=5 life H2/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　Nフライングギター軸 vs ディーバ／カーニバル／羅原　Ｇｅ軸 s1: finished steps=165 turns=5 life H4/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=242 turns=7 life H0/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　Nフライングギター軸 vs ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 s1: finished steps=272 turns=7 life H3/G0 winner=headless-host
+ディーバ／ピルルク／早瀬ユウカ軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=266 turns=7 life H0/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　Nフライングギター軸 vs ディーバ／タマ／聖将　ゆきめ//ディソナ軸 s1: finished steps=162 turns=5 life H3/G0 winner=headless-host
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／アズサ／羅星姫　Nフライングギター軸 s1: finished steps=238 turns=7 life H1/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／あきら／幻竜姫　シーホース軸 s1: finished steps=289 turns=7 life H0/G0 winner=headless-host
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／アズサ／羅星姫　オールトクラウド軸 s1: finished steps=270 turns=9 life H0/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／サンガ／小鳥遊ホシノ軸 s1: finished steps=348 turns=9 life H0/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／アズサ／羅星姫　オールトクラウド軸 s1: finished steps=276 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アズサ／羅星姫　オールトクラウド軸 vs ディーバ／レイ／羅星姫　ノヴァ//THE DOOR軸 s1: finished steps=269 turns=7 life H0/G0 winner=headless-host
+ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 vs ディーバ／アズサ／羅星姫　オールトクラウド軸 s1: finished steps=222 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=273 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 s1: finished steps=254 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=267 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エルドラ／羅星姫　オリオン軸 vs ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 s1: finished steps=357 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=288 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 s1: finished steps=273 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=286 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=322 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=269 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リゼ／白洲アズサ(水着)軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=259 turns=7 life H2/G0 winner=headless-host
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 s1: finished steps=262 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=328 turns=9 life H0/G0 winner=headless-host
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／花代／幻獣神　LOVIT//ディソナ軸 s1: finished steps=211 turns=7 life H1/G0 winner=headless-host
+ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=289 turns=9 life H1/G0 winner=headless-host
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 s1: finished steps=212 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=262 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻怪姫　翠子//メモリア軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=306 turns=9 life H0/G0 winner=headless-host
+ディーバ／マドカ／参ノ遊姫　フンスイショー軸 vs ディーバ／シロコ／幻怪姫　翠子//メモリア軸 s1: finished steps=299 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=326 turns=11 life H0/G0 winner=headless-host
+ディーバ／緑子／連河チェリノ軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=373 turns=11 life H0/G0 winner=headless-host
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=310 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=290 turns=9 life H1/G0 winner=headless-host
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=250 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／シロコ／幻獣神　グリズリ　軸 s1: finished steps=263 turns=9 life H2/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝クレオパトラ軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=171 turns=5 life H4/G0 winner=headless-host
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=305 turns=9 life H1/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝クレオパトラ軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=231 turns=7 life H2/G0 winner=headless-host
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=254 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヒナ／ドライ＝クレオパトラ軸 vs ディーバ／バン／翠天　ゼルエル軸 s1: finished steps=212 turns=7 life H3/G0 winner=headless-host
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=279 turns=9 life H2/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=295 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リメンバ／コードメイズ　サイバンショ軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=234 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=268 turns=9 life H1/G0 winner=headless-host
+ディーバ／バン／桑上カホ軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=229 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=295 turns=9 life H2/G0 winner=headless-host
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=264 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=217 turns=7 life H0/G0 winner=headless-host
+ディーバ／アキノ／大装　ツルマル軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=327 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=363 turns=11 life H1/G0 winner=headless-host
+ディーバ／メル／幻怪姫　アザトース軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=297 turns=9 life H2/G0 winner=headless-host
+ディーバ／るう子／電音部　黒鉄たま軸 vs ディーバ／グズ子／プリンセス・ミーティア＆ヴィオラ軸 s1: finished steps=213 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=384 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／LOVIT／紅天姫　ヒラナ//メモリア軸 s1: finished steps=325 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=270 turns=9 life H2/G0 winner=headless-host
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 s1: finished steps=464 turns=15 life H0/G0 winner=headless-host
+ディーバ／WOLF／ドライ＝インフルＤ型軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=287 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 s1: finished steps=306 turns=9 life H1/G0 winner=headless-host
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=296 turns=9 life H2/G0 winner=headless-host
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=255 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=249 turns=7 life H2/G0 winner=headless-host
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／ウリス／羅星姫　イクリプス軸 s1: finished steps=280 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=256 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／コードアート　Dレス軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=247 turns=7 life H1/G0 winner=headless-host
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=327 turns=11 life H0/G0 winner=headless-host
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／デウス／コードアンチ　オベリスク軸 s1: finished steps=256 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマ／聖魔姫　ハイティ//ディソナ軸 vs ディーバ／あきら／幻竜姫　シーホース軸 s1: finished steps=268 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 s1: finished steps=282 turns=9 life H0/G0 winner=headless-host
+ディーバ／サンガ／小鳥遊ホシノ軸 vs ディーバ／あきら／幻竜姫　シーホース軸 s1: finished steps=288 turns=7 life H0/G0 winner=headless-host
+ディーバ／あきら／幻竜姫　シーホース軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=277 turns=9 life H1/G0 winner=headless-host
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／あきら／幻竜姫　シーホース軸 s1: finished steps=237 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 s1: finished steps=274 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=326 turns=9 life H0/G0 winner=headless-host
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／アト／翠魔　ヘルゲト//ディソナ軸 s1: finished steps=249 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=298 turns=9 life H1/G0 winner=headless-host
+ディーバ／ひとえ／参ノ遊姫　ライブ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=272 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=236 turns=7 life H2/G0 winner=headless-host
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=282 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=317 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=303 turns=9 life H1/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=321 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ひとえ／コードラビリンス　ギロッポン軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=280 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネル／プリパラアイドル　紫京院ひびき軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=283 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=274 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=260 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／タウィル／幻水姫　シィラ軸 s1: finished steps=267 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=200 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／るう子／電音部　黒鉄たま軸 s1: finished steps=315 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／ちより／電音部　桜乃美々兎軸 s1: finished steps=251 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／コードハート　ＤンドウバＶ２軸 vs ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 s1: finished steps=239 turns=7 life H1/G0 winner=headless-host
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=274 turns=9 life H0/G0 winner=headless-host
+ディーバ／ちより／コードハート　ＤンドウバＶ２軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=246 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／大装　トビエル軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=194 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／コードハート　ＤンドウバＶ２軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=259 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／大装　カリバン軸 vs ディーバ／ちより／コードハート　ＤンドウバＶ２軸 s1: finished steps=238 turns=7 life H0/G0 winner=headless-host
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／リップル／蒼将姫　コロンブス軸 s1: finished steps=266 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アキノ／コードラビリンス　デッカサイト軸 vs ディーバ／ヤミノ／幻蟲　カゲロウ軸 s1: finished steps=272 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／ひとえ／コードラビリンス　ギロッポン軸 s1: finished steps=267 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ホシノ／翠美姫　アン//ディソナ軸 vs ディーバ／ヤミノ／幻蟲　カゲロウ軸 s1: finished steps=280 turns=9 life H2/G0 winner=headless-host
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／アキノ／コードラビリンス　デッカサイト軸 s1: finished steps=264 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 vs ディーバ／ヤミノ／幻蟲　カゲロウ軸 s1: finished steps=237 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／リメンバ／コードラビリンス　コネクト//ディソナ軸 s1: finished steps=248 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／バン／翠天　ゼルエル軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=205 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／アルフォウ／凶魔　ナベリウス軸 s1: finished steps=299 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=214 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／サンガ／ドライ＝パトラ軸 s1: finished steps=228 turns=7 life H3/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=236 turns=7 life H2/G0 winner=headless-host
+ディーバ／サオリ／幻水姫　Ａナックル軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=250 turns=7 life H0/G0 winner=headless-host
+ディーバ／リル／大装　トビエル軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=220 turns=7 life H0/G0 winner=headless-host
+ディーバ／サオリ／幻水姫　Ａナックル軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=231 turns=7 life H1/G0 winner=headless-host
+ディーバ／デウス／惨之遊姫　グズ子//ディソナ軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=220 turns=7 life H1/G0 winner=headless-host
+ディーバ／サオリ／幻水姫　Ａナックル軸 vs ディーバ／アンジュ／蒼森ミネ軸 s1: finished steps=155 turns=5 life H4/G0 winner=headless-host
+ディーバ／ヤミノ／幻蟲　カゲロウ軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=207 turns=7 life H1/G0 winner=headless-host
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=277 turns=7 life H0/G0 winner=headless-host
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=248 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=263 turns=7 life H3/G0 winner=headless-host
+ディーバ／アズサ／羅星姫　Nフライングギター軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=253 turns=7 life H1/G0 winner=headless-host
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=262 turns=7 life H2/G0 winner=headless-host
+ディーバ／ピルルク／蒼魔姫　フェンリル軸 vs ディーバ／サオリ／羅星姫　ペガサス軸 s1: finished steps=263 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 vs ディーバ／グズ子／羅菌　カンピロバクター軸 s1: finished steps=340 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=304 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 vs ディーバ／緑子／里浜ウミカ軸 s1: finished steps=296 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=367 turns=11 life H0/G0 winner=headless-host
+ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 vs ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 s1: finished steps=315 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ミヤコ／羅原姫　Ｈ２Ｏ軸 s1: finished steps=361 turns=11 life H0/G0 winner=headless-host
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=276 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／緑子／里浜ウミカ軸 vs ディーバ／ミヤコ／蒼将　シンパチ軸 s1: finished steps=317 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=251 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウリス／凶魔姫　ウリス//メモリア軸 vs ディーバ／ミヤコ／蒼将　シンパチ軸 s1: finished steps=298 turns=9 life H1/G0 winner=headless-host
+ディーバ／ミヤコ／蒼将　シンパチ軸 vs ディーバ／ジール／轟砲　パイソンガン軸 s1: finished steps=237 turns=7 life H1/G0 winner=headless-host
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／ミヤコ／蒼将　シンパチ軸 s1: finished steps=312 turns=9 life H1/G0 winner=headless-host
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／アン／幻獣神　サーベルタイガー軸 s1: finished steps=291 turns=9 life H3/G0 winner=headless-host
+ディーバ／ガブリエラ／幻闘怪姫　スノークイーン軸 vs ディーバ／ユカリ／桐生キキョウ軸 s1: finished steps=282 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=272 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／エルドラ／電音部　鳳凰火凛軸 vs ディーバ／ユカリ／桐生キキョウ軸 s1: finished steps=288 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／桐生キキョウ軸 vs ディーバ／ヒナ／ドライ＝クレオパトラ軸 s1: finished steps=298 turns=9 life H1/G0 winner=headless-host
+ディーバ／ウムル／蒼英姫　リメンバ//メモリア軸 vs ディーバ／ユカリ／桐生キキョウ軸 s1: finished steps=271 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=148 turns=5 life H4/G0 winner=headless-host
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／ユカリ／電音部　大神纏軸 s1: finished steps=272 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=222 turns=7 life H2/G0 winner=headless-host
+ディーバ／LION／羅星姫　マゼラン軸 vs ディーバ／ユカリ／電音部　大神纏軸 s1: finished steps=232 turns=7 life H3/G0 winner=headless-host
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／ヤミノ／大幻蟲　バクダンアリ軸 s1: finished steps=219 turns=7 life H2/G0 winner=headless-host
+ディーバ／アルフォウ／凶魔　アンナ・ミラージュ軸 vs ディーバ／ユカリ／電音部　大神纏軸 s1: finished steps=237 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／棗イロハ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=256 turns=7 life H0/G0 winner=headless-host
+ディーバ／デウス／コードアンチ　オベリスク軸 vs ディーバ／シュン／棗イロハ軸 s1: finished steps=184 turns=5 life H2/G0 winner=headless-host
+ディーバ／シュン／棗イロハ軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=226 turns=7 life H2/G0 winner=headless-host
+ディーバ／サオリ／羅星姫　ペガサス軸 vs ディーバ／シュン／棗イロハ軸 s1: finished steps=271 turns=7 life H0/G0 winner=headless-host
+ディーバ／シュン／棗イロハ軸 vs ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 s1: finished steps=256 turns=7 life H0/G0 winner=headless-host
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／シュン／棗イロハ軸 s1: finished steps=274 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／リメンバ／コードメイズ　サイバンショ軸 s1: finished steps=258 turns=7 life H1/G0 winner=headless-host
+ディーバ／るう子／コードラビリンス　アークルーブル軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=261 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=223 turns=7 life H1/G0 winner=headless-host
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=184 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／ミカエラ／コードアンシエンツ　Mドリルアーム軸 s1: finished steps=277 turns=7 life H0/G0 winner=headless-host
+ディーバ／タマ／聖将　ゆきめ//ディソナ軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=262 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／マドカ／参ノ遊姫　フンスイショー軸 s1: finished steps=292 turns=9 life H1/G0 winner=headless-host
+ディーバ／ユカリ／電音部　大神纏軸 vs ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 s1: finished steps=270 turns=9 life H1/G0 winner=headless-host
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／あきら／コードアート　Dレス軸 s1: finished steps=293 turns=9 life H1/G0 winner=headless-host
+ディーバ／リル／大装　ハルバード軸 vs ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 s1: finished steps=229 turns=7 life H1/G0 winner=headless-host
+ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 vs ディーバ／ピルルク／早瀬ユウカ軸 s1: finished steps=325 turns=9 life H0/G0 winner=headless-host
+ディーバ／サンガ／ドライ＝パトラ軸 vs ディーバ／ネージュ／コード２４３４　アルス・アルマル軸 s1: finished steps=297 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／アザエラ／紅将　ギルガメジ軸 s1: finished steps=266 turns=9 life H0/G0 winner=headless-host
+ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 vs ディーバ／ネージュ／大装　エナジェ軸 s1: finished steps=232 turns=7 life H2/G0 winner=headless-host
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／リル／大装　ハルバード軸 s1: finished steps=218 turns=7 life H2/G0 winner=headless-host
+ディーバ／メル／羅星姫　キャトミ軸 vs ディーバ／ネージュ／大装　エナジェ軸 s1: finished steps=297 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネージュ／大装　エナジェ軸 vs ディーバ／ガブリエラ／聖魔姫　オロチマル軸 s1: finished steps=275 turns=9 life H2/G0 winner=headless-host
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／ネージュ／大装　エナジェ軸 s1: finished steps=190 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=250 turns=7 life H2/G0 winner=headless-host
+ディーバ／ミカエラ／コードハート　セイヴ//ディソナ軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=233 turns=7 life H1/G0 winner=headless-host
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=202 turns=7 life H2/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=268 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／プリンセス・リップル＆ジール軸 vs ディーバ／美兎／大装　ムラマサ軸 s1: finished steps=230 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 vs ディーバ／ジール／プリンセス・リップル＆ジール軸 s1: finished steps=314 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／ゆかゆか／コード２４３４　椎名唯華軸 s1: finished steps=224 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／まほまほ／大幻蟲　ベル・クリケット軸 vs ディーバ／ジール／轟砲　パイソンガン軸 s1: finished steps=251 turns=7 life H0/G0 winner=headless-host
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／LION／幻怪姫　ドーナ//フェゾーネ軸 s1: finished steps=311 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ウムル／幻水姫　オトヒメ軸 vs ディーバ／ジール／轟砲　パイソンガン軸 s1: finished steps=229 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／轟砲　パイソンガン軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=252 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ジール／轟砲　パイソンガン軸 s1: finished steps=185 turns=5 life H4/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／リル／大装　トビエル軸 s1: finished steps=335 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ムジカ／羅星姫　ミュウ//メモリア軸 vs ディーバ／リップル／蒼将姫　コロンブス軸 s1: finished steps=303 turns=9 life H1/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=263 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ちより／コードハート　ＤンドウバＶ２軸 vs ディーバ／リップル／蒼将姫　コロンブス軸 s1: finished steps=251 turns=7 life H2/G0 winner=headless-host
+ディーバ／リップル／蒼将姫　コロンブス軸 vs ディーバ／リゼ／聖天姫　アークゲイン軸 s1: finished steps=280 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／イオナ／幻獣神　LOVIT//THE DOOR軸 vs ディーバ／リップル／蒼将姫　コロンブス軸 s1: finished steps=230 turns=7 life H1/G0 winner=headless-host
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／バン／桑上カホ軸 s1: finished steps=273 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／リップル／コードラビラント　ヨグソトス軸 s1: finished steps=248 turns=7 life H2/G0 winner=headless-host
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／エルドラ／電音部　鳳凰火凛軸 s1: finished steps=332 turns=9 life H0/G0 winner=headless-host
+ディーバ／みこみこ／大幻蟲　アロス・ピルルク//メモリア軸 vs ディーバ／リップル／コードラビラント　ヨグソトス軸 s1: finished steps=327 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／タウィル／紅将　ケンシン軸 s1: finished steps=241 turns=9 life H1/G0 winner=headless-host
+ディーバ／アザエラ／羅婚石　ダイヤブライド軸 vs ディーバ／リップル／コードラビラント　ヨグソトス軸 s1: finished steps=290 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 vs ディーバ／ひとえ／参ノ遊姫　ライブ軸 s1: finished steps=279 turns=9 life H1/G0 winner=headless-host
+ディーバ／アン／幻獣神　サーベルタイガー軸 vs ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 s1: finished steps=222 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=210 turns=7 life H1/G0 winner=headless-host
+ディーバ／シロコ／幻獣神　グリズリ　軸 vs ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 s1: finished steps=233 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 vs ディーバ／マキナ／近衛ミナ軸 s1: finished steps=206 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／ミーティア／コードハート　ピルルクＷ//メモリア軸 s1: finished steps=294 turns=9 life H0/G0 winner=headless-host
+ディーバ／ミーティア／翠天姫　ガイア軸 vs ディーバ／美兎／ドライ＝ランリョウオー軸 s1: finished steps=287 turns=9 life H0/G0 winner=headless-host
+ディーバ／タマゴ／蒼魔　グラシャラ軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=417 turns=12 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ミーティア／翠天姫　ガイア軸 vs ディーバ／ヒナ／ドライ＝厄姫パンドラ軸 s1: finished steps=311 turns=9 life H0/G0 winner=headless-host
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=274 turns=9 life H0/G0 winner=headless-host
+ディーバ／ミーティア／翠天姫　ガイア軸 vs ディーバ／タウィル／紅将　ケンシン軸 s1: finished steps=281 turns=9 life H0/G0 winner=headless-host
+ディーバ／カーニバル／羅原　Ｇｅ軸 vs ディーバ／ミーティア／翠天姫　ガイア軸 s1: finished steps=238 turns=7 life H2/G0 winner=headless-host
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=242 turns=7 life H0/G0 winner=headless-host
+ディーバ／美兎／ドライ＝ランリョウオー軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=281 turns=9 life H1/G0 winner=headless-host
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=287 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／タマゴ／猫塚ヒビキ軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=355 turns=11 life H0/G0 winner=headless-host
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=330 turns=9 life H0/G0 winner=headless-host
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 s1: finished steps=270 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 vs ディーバ／レイ／幻闘水姫　ナマコズ軸 s1: finished steps=303 turns=9 life H0/G0 winner=headless-host
+ディーバ／ちより／電音部　桜乃美々兎軸 vs ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 s1: finished steps=282 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 vs ディーバ／WOLF／ドライ＝インフルＤ型軸 s1: finished steps=249 turns=7 life H1/G0 winner=headless-host
+ディーバ／グズ子／羅菌　カンピロバクター軸 vs ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 s1: finished steps=302 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 vs ディーバ／シュン／コード２４３４　ニュイ・ソシエール軸 s1: finished steps=314 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ユヅキ／紅将姫　シモン・バール//THE DOOR軸 vs ディーバ／ヴィオラ／コード２４３４　鈴原るる軸 s1: finished steps=232 turns=7 life H0/G0 winner=headless-host
+ディーバ／ホシノ／翠美姫　アン//ディソナ軸 vs ディーバ／ノヴァ／幻水姫　アキノ//THE DOOR軸 s1: finished steps=301 turns=9 life H2/G0 winner=headless-host
+ディーバ／とこ／凶魔姫　エレシュキガル軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=203 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ホシノ／翠美姫　アン//ディソナ軸 vs ディーバ／みこみこ／羅原姫　ＺｒＯ２軸 s1: finished steps=321 turns=9 life H3/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=332 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ホシノ／翠美姫　アン//ディソナ軸 vs ディーバ／るう子／コードラビリンス　アークルーブル軸 s1: finished steps=273 turns=9 life H3/G0 winner=headless-host
+ディーバ／美兎／大装　ムラマサ軸 vs ディーバ／ホシノ／翠美姫　アン//ディソナ軸 s1: finished steps=257 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ホシノ／翠英姫　アインシュタイン軸 vs ディーバ／サオリ／幻水姫　Ａナックル軸 s1: finished steps=233 turns=7 life H2/G0 winner=headless-host
+ディーバ／リップル／コードラビラント　ヨグソトス軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=334 turns=11 life H0/G0 winner=headless-host
+ディーバ／ホシノ／翠英姫　アインシュタイン軸 vs ディーバ／マドカ／羅輝石　インディゴライト軸 s1: finished steps=307 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ヴィオラ／プリンセス・ネージュ＆ヴィオラ軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=254 turns=7 life H3/G0 winner=headless-host
+ディーバ／ホシノ／翠英姫　アインシュタイン軸 vs ディーバ／WOLF／ドライ＝インフルＤ型軸 s1: finished steps=211 turns=7 life H6/G0 winner=headless-host
+ディーバ／ネル／羅星姫　コスチュム//THE DOOR軸 vs ディーバ／ホシノ／翠英姫　アインシュタイン軸 s1: finished steps=297 turns=9 life H2/G0 winner=headless-host
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=141 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=138 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／メル／コードデリシャス　ビューフェ軸 s1: finished steps=239 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=161 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=150 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／千匹の童話　センショク軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=180 turns=7 life H3/G0 winner=headless-host
+レガシー／タマ／原槍　アークエナジェ軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=302 turns=9 life H1/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／タマ／原槍　アークエナジェ軸 s1: finished steps=275 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／原槍　アークエナジェ軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=249 turns=9 life H1/G0 winner=headless-host
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／タマ／原槍　アークエナジェ軸 s1: finished steps=261 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／原槍　アークエナジェ軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=259 turns=7 life H0/G0 winner=headless-host
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／タマ／原槍　アークエナジェ軸 s1: finished steps=177 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／撃弩炎　フレイスロ大将軸 vs レガシー／ウムル／コードアンチ　ナイトゴン軸 s1: finished steps=196 turns=7 life H1/G0 winner=headless-host
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=236 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／撃弩炎　フレイスロ大将軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=196 turns=7 life H1/G0 winner=headless-host
+レガシー／エルドラ／幻水姫　ナマコズ軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=238 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／撃弩炎　フレイスロ大将軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=234 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=207 turns=7 life H0/G0 winner=headless-host
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／緑子／幻怪　モモタロ軸 s1: finished steps=176 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／花代／羅輝石　アダマスフィア軸 s1: finished steps=265 turns=9 life H3/G0 winner=headless-host
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／ウリス／深淵との契約　ジルドレイ軸 s1: finished steps=191 turns=7 life H3/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／花代／羅輝石　アダマスフィア軸 s1: finished steps=188 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=260 turns=9 life H1/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／花代／羅輝石　アダマスフィア軸 s1: finished steps=232 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=248 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／千匹の童話　センショク軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=207 turns=7 life H1/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／ナナシ／羅菌姫　ボツリネス軸 s1: finished steps=285 turns=9 life H2/G0 winner=headless-host
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=292 turns=9 life H2/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=258 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=215 turns=7 life H2/G0 winner=headless-host
+レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=280 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=289 turns=9 life H1/G0 winner=headless-host
+レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 vs レガシー／ナナシ／羅菌染姫　ペズト軸 s1: finished steps=291 turns=9 life H1/G0 winner=headless-host
+レガシー／グズ子／死之遊姫　アタリナシ軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=283 turns=9 life H1/G0 winner=headless-host
+レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 vs レガシー／リメンバ／羅星姫　ペルセデス軸 s1: finished steps=237 turns=9 life H0/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=284 turns=9 life H0/G0 winner=headless-host
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／グズ子／死之遊姫　アタリナシ軸 s1: finished steps=257 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=283 turns=9 life H0/G0 winner=headless-host
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=197 turns=7 life H1/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=301 turns=9 life H0/G0 winner=headless-host
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=211 turns=7 life H0/G0 winner=headless-host
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=203 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=273 turns=9 life H4/G0 winner=headless-host
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／緑子／幻怪　モモタロ軸 s1: finished steps=273 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=269 turns=9 life H2/G0 winner=headless-host
+レガシー／アン／壁面の芸当　グラフィ軸 vs レガシー／緑子／幻怪　モモタロ軸 s1: finished steps=157 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／ウリス／幻竜姫　シファル軸 s1: finished steps=240 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／緑子／幻怪　モモタロ軸 s1: finished steps=262 turns=9 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=191 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／ウリス／深淵との契約　ジルドレイ軸 s1: finished steps=185 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=281 turns=10 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／ウリス／深淵との契約　ジルドレイ軸 s1: finished steps=266 turns=9 life H2/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=278 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／ウリス／深淵との契約　ジルドレイ軸 s1: finished steps=370 turns=11 life H0/G0 winner=headless-host
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=301 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／ウリス／幻竜姫　シファル軸 s1: finished steps=268 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=221 turns=7 life H2/G0 winner=headless-host
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／ウリス／幻竜姫　シファル軸 s1: finished steps=326 turns=11 life H0/G0 winner=headless-host
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=301 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／ウリス／幻竜姫　シファル軸 s1: finished steps=289 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／サシェ／羅星　ベガ軸 s1: finished steps=173 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=174 turns=7 life H2/G0 winner=headless-host
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=148 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=178 turns=7 life H3/G0 winner=headless-host
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=145 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=179 turns=7 life H3/G0 winner=headless-host
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=156 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 s1: finished steps=196 turns=9 life H3/G0 winner=headless-host
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=144 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 s1: finished steps=240 turns=9 life H1/G0 winner=headless-host
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=147 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 s1: finished steps=202 turns=7 life H1/G0 winner=headless-host
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=352 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=167 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=342 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=227 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=249 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=222 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻水姫　ナマコズ軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=280 turns=9 life H0/G0 winner=headless-host
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=263 turns=9 life H0/G0 winner=headless-host
+レガシー／エルドラ／幻水姫　ナマコズ軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=396 turns=12 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=260 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻水姫　ナマコズ軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=174 turns=7 life H2/G0 winner=headless-host
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=263 turns=9 life H0/G0 winner=headless-host
+レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 vs レガシー／サシェ／羅星　ベガ軸 s1: finished steps=273 turns=8 life H0/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=285 turns=9 life H0/G0 winner=headless-host
+レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=261 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=165 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=270 turns=9 life H0/G0 winner=headless-host
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=307 turns=9 life H0/G0 winner=headless-host
+レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=345 turns=10 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／リメンバ／羅星姫　ペルセデス軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=199 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=274 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=172 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=372 turns=11 life H0/G0 winner=headless-host
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=165 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=323 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=319 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／ハナレ／フィア＝ヴィリエ軸 s1: finished steps=302 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ナイトゴン軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=234 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=255 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=262 turns=9 life H3/G0 winner=headless-host
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=349 turns=11 life H0/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／イオナ／羅植　サイサ軸 s1: finished steps=260 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 s1: finished steps=252 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／イオナ／羅植　サイサ軸 s1: finished steps=323 turns=9 life H2/G0 winner=headless-host
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=235 turns=7 life H0/G0 winner=headless-host
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／イオナ／羅植　サイサ軸 s1: finished steps=152 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=236 turns=7 life H1/G0 winner=headless-host
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／ユヅキ／幻竜神姫　バハムート軸 s1: finished steps=243 turns=9 life H3/G0 winner=headless-host
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=180 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／ユヅキ／幻竜神姫　バハムート軸 s1: finished steps=294 turns=9 life H1/G0 winner=headless-host
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=180 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードオーダー　ステキ軸 vs レガシー／ユヅキ／幻竜神姫　バハムート軸 s1: finished steps=277 turns=9 life H0/G0 winner=headless-host
+レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=191 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／撃弩炎　フレイスロ大将軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=246 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=221 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=229 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=234 turns=7 life H1/G0 winner=headless-host
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=217 turns=7 life H0/G0 winner=headless-host
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=215 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／リメンバ／羅星姫　ペルセデス軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=141 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=212 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=238 turns=8 life H1/G0 winner=headless-host
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=231 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=226 turns=9 life H2/G0 winner=headless-host
+レガシー／アン／壁面の芸当　グラフィ軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=233 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=223 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／アン／壁面の芸当　グラフィ軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=231 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=267 turns=9 life H1/G0 winner=headless-host
+レガシー／アン／壁面の芸当　グラフィ軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=216 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=226 turns=9 life H2/G0 winner=headless-host
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=350 turns=10 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=197 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=230 turns=7 life H2/G0 winner=headless-host
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=218 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=230 turns=7 life H3/G0 winner=headless-host
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=220 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／ナナシ／羅菌染姫　ペズト軸 s1: finished steps=212 turns=7 life H3/G0 winner=headless-host
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=213 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=215 turns=7 life H2/G0 winner=headless-host
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=237 turns=7 life H1/G0 winner=headless-host
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=211 turns=7 life H3/G0 winner=headless-host
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=192 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ナイトゴン軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=224 turns=7 life H0/G0 winner=headless-host
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／ウムル／コードアンチ　ナイトゴン軸 s1: finished steps=216 turns=7 life H0/G0 winner=headless-host
+レガシー／ウムル／コードアンチ　ナイトゴン軸 vs レガシー／ママ／閃英の発明　＃エディソン＃軸 s1: finished steps=253 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／神罠　フーディナ軸 vs レガシー／ウムル／コードアンチ　ナイトゴン軸 s1: finished steps=283 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ナイトゴン軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=244 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／ウムル／コードアンチ　ナイトゴン軸 s1: finished steps=248 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=309 turns=9 life H0/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=281 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=278 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=287 turns=9 life H1/G0 winner=headless-host
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=307 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=310 turns=9 life H0/G0 winner=headless-host
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=227 turns=7 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=230 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=238 turns=8 life H1/G0 winner=headless-host
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=307 turns=9 life H0/G0 winner=headless-host
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／イオナ／羅植　サイサ軸 s1: finished steps=144 turns=5 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=210 turns=7 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=211 turns=7 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／サシェ／羅星　ベガ軸 s1: finished steps=173 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=211 turns=7 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／サシェ／羅星　ベガ軸 s1: finished steps=234 turns=8 life H2/G0 winner=headless-host
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=224 turns=7 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／サシェ／羅星　ベガ軸 s1: finished steps=184 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／リメンバ／羅星姫　ペルセデス軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=163 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／リメンバ／羅星姫　ペルセデス軸 s1: finished steps=184 turns=7 life H2/G0 winner=headless-host
+レガシー／リメンバ／羅星姫　ペルセデス軸 vs レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 s1: finished steps=200 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／リメンバ／羅星姫　ペルセデス軸 s1: finished steps=167 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／リメンバ／羅星姫　ペルセデス軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=144 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／リメンバ／羅星姫　ペルセデス軸 s1: finished steps=208 turns=7 life H2/G0 winner=headless-host
+レガシー／リメンバ／羅星姫　レオニズ軸 vs レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 s1: finished steps=187 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／原槍　アークエナジェ軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=201 turns=7 life H2/G0 winner=headless-host
+レガシー／リメンバ／羅星姫　レオニズ軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=184 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=197 turns=9 life H1/G0 winner=headless-host
+レガシー／リメンバ／羅星姫　レオニズ軸 vs レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 s1: finished steps=200 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／矜持の豪魔　オダノブ軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=152 turns=5 life H4/G0 winner=headless-host
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=250 turns=9 life H3/G0 winner=headless-host
+レガシー／グズ子／死之遊姫　アタリナシ軸 vs レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 s1: finished steps=212 turns=7 life H2/G0 winner=headless-host
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=222 turns=7 life H3/G0 winner=headless-host
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 s1: finished steps=325 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／リメンバ／羅星姫　ペルセデス軸 s1: finished steps=213 turns=7 life H4/G0 winner=headless-host
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 s1: finished steps=287 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／千匹の童話　センショク軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=185 turns=7 life H3/G0 winner=headless-host
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=270 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／千匹の童話　センショク軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=231 turns=7 life H2/G0 winner=headless-host
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=220 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／千匹の童話　センショク軸 vs レガシー／メル／コードデリシャス　ビューフェ軸 s1: finished steps=219 turns=7 life H2/G0 winner=headless-host
+レガシー／リル／矜持の豪魔　オダノブ軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=217 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=203 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=287 turns=9 life H0/G0 winner=headless-host
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=208 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=321 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／リメンバ／羅星姫　レオニズ軸 s1: finished steps=208 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=335 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=212 turns=7 life H2/G0 winner=headless-host
+レガシー／タマ／原槍　アークエナジェ軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=302 turns=9 life H1/G0 winner=headless-host
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=221 turns=7 life H2/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=254 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／羅星　エスキモ軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=218 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／撃弩炎　フレイスロ大将軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=194 turns=6 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=232 turns=9 life H1/G0 winner=headless-host
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=165 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=285 turns=9 life H0/G0 winner=headless-host
+レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=317 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／ユヅキ／幻竜神姫　バハムート軸 s1: finished steps=254 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／ハナレ／フィア＝パトラ軸 s1: finished steps=139 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／ウムル／コードアンチ　ナイトゴン軸 s1: finished steps=264 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／ハナレ／フィア＝ヴィリエ軸 s1: finished steps=218 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=218 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／ハナレ／フィア＝ヴィリエ軸 s1: finished steps=307 turns=9 life H2/G0 winner=headless-host
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=197 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／ハナレ／フィア＝ヴィリエ軸 s1: finished steps=292 turns=9 life H0/G0 winner=headless-host
+レガシー／あや／神罠　フーディナ軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=274 turns=9 life H0/G0 winner=headless-host
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／あや／神罠　フーディナ軸 s1: finished steps=263 turns=10 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／神罠　フーディナ軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=358 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／あや／神罠　フーディナ軸 s1: finished steps=330 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／神罠　フーディナ軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=347 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／あや／神罠　フーディナ軸 s1: finished steps=276 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／超罠　ギジドウ軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=197 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=382 turns=12 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／超罠　ギジドウ軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=242 turns=7 life H3/G0 winner=headless-host
+レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=362 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／あや／超罠　ギジドウ軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=406 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=288 turns=9 life H0/G0 winner=headless-host
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=194 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=280 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／アイヤイ／肆ノ遊姫　リアダシツ軸 s1: finished steps=213 turns=7 life H1/G0 winner=headless-host
+レガシー／タマ／撃弩砲　グスクル軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=232 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=212 turns=7 life H2/G0 winner=headless-host
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=226 turns=7 life H1/G0 winner=headless-host
+レガシー／リル／矜持の豪魔　オダノブ軸 vs レガシー／あや／超罠　ギジドウ軸 s1: finished steps=222 turns=7 life H3/G0 winner=headless-host
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=143 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／矜持の豪魔　オダノブ軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=275 turns=9 life H0/G0 winner=headless-host
+レガシー／イオナ／コードキャッスル　ヴェルサ軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=171 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／リル／矜持の豪魔　オダノブ軸 vs レガシー／タマ／原槍　アークエナジェ軸 s1: finished steps=229 turns=7 life H2/G0 winner=headless-host
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=226 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／アン／高尚たる二筆　カツホク軸 s1: finished steps=157 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／メル／コードデリシャス　ビューフェ軸 s1: finished steps=248 turns=7 life H2/G0 winner=headless-host
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／ウムル／コードアンチ　ヨグソトス軸 s1: finished steps=310 turns=9 life H0/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／メル／コードデリシャス　ビューフェ軸 s1: finished steps=302 turns=9 life H1/G0 winner=headless-host
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／緑子／幻獣神　ライアン軸 s1: finished steps=230 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／メル／コードデリシャス　ビューフェ軸 s1: finished steps=303 turns=9 life H0/G0 winner=headless-host
+レガシー／メル／コードオーダー　ステキ軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=202 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／メル／コードオーダー　ステキ軸 s1: finished steps=244 turns=7 life H3/G0 winner=headless-host
+レガシー／メル／コードオーダー　ステキ軸 vs レガシー／ナナシ／羅菌姫　ボツリネス軸 s1: finished steps=205 turns=7 life H3/G0 winner=headless-host
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／メル／コードオーダー　ステキ軸 s1: finished steps=263 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードオーダー　ステキ軸 vs レガシー／タマ／原槍　アークエナジェ軸 s1: finished steps=314 turns=9 life H0/G0 winner=headless-host
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／メル／コードオーダー　ステキ軸 s1: finished steps=233 turns=7 life H1/G0 winner=headless-host
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=153 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／ナナシ／羅菌染姫　ペズト軸 s1: finished steps=309 turns=9 life H2/G0 winner=headless-host
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／緑子／幻怪　モモタロ軸 s1: finished steps=160 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻深水姫　デメニギス軸 vs レガシー／ナナシ／羅菌染姫　ペズト軸 s1: finished steps=346 turns=11 life H0/G0 winner=headless-host
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=313 turns=10 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／ナナシ／羅菌染姫　ペズト軸 s1: finished steps=236 turns=7 life H1/G0 winner=headless-host
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／あや／神罠　フーディナ軸 s1: finished steps=164 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／ナナシ／羅菌姫　ボツリネス軸 s1: finished steps=259 turns=7 life H3/G0 winner=headless-host
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=155 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ウリス／幻竜姫　シファル軸 vs レガシー／ナナシ／羅菌姫　ボツリネス軸 s1: finished steps=236 turns=7 life H1/G0 winner=headless-host
+レガシー／ナナシ／羅菌姫　ボツリネス軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=165 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜神姫　バハムート軸 vs レガシー／ナナシ／羅菌姫　ボツリネス軸 s1: finished steps=225 turns=7 life H4/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／アイヤイ／伍ノ遊姫王　ノポポン軸 s1: finished steps=299 turns=9 life H0/G0 winner=headless-host
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=251 turns=7 life H2/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／ハナレ／フィア＝ヴィリエ軸 s1: finished steps=374 turns=11 life H0/G0 winner=headless-host
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=279 turns=9 life H2/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=243 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／タウィル／天空の主神　ゼウシアス軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=143 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=208 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／リメンバ／羅星姫　レオニズ軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=158 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 s1: finished steps=246 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／アン／高尚たる二筆　カツホク軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=222 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／カーニバル／羅星姫　ヒミコ軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=205 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／花代／羅輝石　アダマスフィア軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=202 turns=7 life H3/G0 winner=headless-host
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=347 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／ママ／閃英の発明　＃エディソン＃軸 s1: finished steps=271 turns=9 life H0/G0 winner=headless-host
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=263 turns=8 life H0/G0 winner=headless-host
+レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 vs レガシー／ママ／閃英の発明　＃エディソン＃軸 s1: finished steps=252 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／閃英の発明　＃エディソン＃軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=327 turns=9 life H1/G0 winner=headless-host
+レガシー／グズ子／期之遊姫王　†ブラジャック†軸 vs レガシー／ママ／閃英の発明　＃エディソン＃軸 s1: finished steps=207 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=323 turns=9 life H3/G0 winner=headless-host
+レガシー／メル／コードデリシャス　ビューフェ軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=248 turns=9 life H0/G0 winner=headless-host
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=341 turns=9 life H0/G0 winner=headless-host
+レガシー／緑子／幻獣神　ライアン軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=172 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／ママ／電英の交流　ニコラテス軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=264 turns=9 life H2/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=359 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／リル／覚悟の飛将　リョフホウ軸 s1: finished steps=186 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／エルドラ／幻水姫　ナマコズ軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=396 turns=12 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=277 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／緑子／幻怪　モモタロ軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=276 turns=9 life H3/G0 winner=headless-host
+レガシー／ドーナ／幻怪妖姫　タマモゼン軸 vs レガシー／メル／コードオーダー　ステキ軸 s1: finished steps=226 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=332 turns=9 life H2/G0 winner=headless-host
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／アン／壁面の芸当　グラフィ軸 s1: finished steps=235 turns=9 life H1/G0 winner=headless-host
+レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=245 turns=7 life H3/G0 winner=headless-host
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／ピルルク／コードラブハート　Ｃ・Ｍ・Ｒ軸 s1: finished steps=317 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／グズ子／期之遊姫王　†ブラジャック†軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=251 turns=7 life H2/G0 winner=headless-host
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=219 turns=9 life H1/G0 winner=headless-host
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／ドーナ／幻怪姫　スノークイーン軸 s1: finished steps=284 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／グズ子／期之遊姫王　†ブラジャック†軸 vs レガシー／ユヅキ／幻竜神姫　バハムート軸 s1: finished steps=284 turns=9 life H0/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=243 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／グズ子／期之遊姫王　†ブラジャック†軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=215 turns=7 life H2/G0 winner=headless-host
+レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=239 turns=7 life H0/G0 winner=headless-host
+レガシー／グズ子／期之遊姫王　†ブラジャック†軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=303 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／ユヅキ／幻竜姫　レッドドラゴン軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=239 turns=7 life H0/G0 winner=headless-host
+レガシー／グズ子／死之遊姫　アタリナシ軸 vs レガシー／ママ／電英の交流　ニコラテス軸 s1: finished steps=194 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 vs レガシー／グズ子／死之遊姫　アタリナシ軸 s1: finished steps=228 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／グズ子／死之遊姫　アタリナシ軸 vs レガシー／ミュウ／特大幻蟲　ヨロズハタヒメ軸 s1: finished steps=225 turns=7 life H1/G0 winner=headless-host
+レガシー／サシェ／羅星　ベガ軸 vs レガシー／グズ子／死之遊姫　アタリナシ軸 s1: finished steps=224 turns=7 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／グズ子／死之遊姫　アタリナシ軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=230 turns=7 life H0/G0 winner=headless-host
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／グズ子／死之遊姫　アタリナシ軸 s1: finished steps=224 turns=7 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／ミュウ／羅星　エスキモ軸 s1: finished steps=312 turns=9 life H1/G0 winner=headless-host
+レガシー／ハナレ／フィア＝ヴィリエ軸 vs レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 s1: finished steps=347 turns=10 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=314 turns=9 life H1/G0 winner=headless-host
+レガシー／リル／覚悟の飛将　リョフホウ軸 vs レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 s1: finished steps=294 turns=9 life H0/G0 winner=headless-host
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／メル／コードオーダー　ステキ軸 s1: finished steps=296 turns=9 life H1/G0 winner=headless-host
+レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 vs レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 s1: finished steps=341 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／アルフォウ／千匹の童話　センショク軸 s1: finished steps=318 turns=9 life H0/G0 winner=headless-host
+レガシー／ハナレ／フィア＝パトラ軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=375 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／タマ／撃弩砲　グスクル軸 s1: finished steps=256 turns=9 life H1/G0 winner=headless-host
+レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=256 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／カーニバル／羅星姫　ヒミコ軸 s1: finished steps=322 turns=9 life H0/G0 winner=headless-host
+レガシー／ドーナ／幻怪姫　スノークイーン軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=353 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／ドーナ／幻怪妖姫　タマモゼン軸 s1: finished steps=237 turns=7 life H1/G0 winner=headless-host
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=194 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／イオナ／コードキャッスル　ヴェルサ軸 s1: finished steps=216 turns=7 life H0/G0 winner=headless-host
+レガシー／ウムル／コードアンチ　ヨグソトス軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=191 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／エルドラ／幻水姫　ナマコズ軸 s1: finished steps=166 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／LoV／炎魔の先駆　アークゲイン軸 s1: finished steps=333 turns=10 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=158 turns=6 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／ミルルン／羅原理姫　Ｗ軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=230 turns=7 life H2/G0 winner=headless-host
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／レイラ／コードアクセル　アパッチ軸 s1: finished steps=237 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／アルフォウ／彷徨変異の超悪　ソユラギ軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=266 turns=9 life H2/G0 winner=headless-host
+レガシー／LoV／乗装　モンケーン軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=192 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／サシェ／羅星宙姫　ノーザンセブン軸 vs レガシー／LoV／乗装　モンケーン軸 s1: finished steps=223 turns=7 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／ピルルク／コードハート　Ａ・Ｃ・Ｒ軸 s1: finished steps=233 turns=7 life H2/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=257 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=239 turns=7 life H3/G0 winner=headless-host
+レガシー／ミルルン／羅原姫　Ｙｂ軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=236 turns=7 life H1/G0 winner=headless-host
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／カーニバル／羅星宙姫　≡ラアー≡軸 s1: finished steps=239 turns=7 life H3/G0 winner=headless-host
+レガシー／レイラ／コードアクセル　アパッチ軸 vs レガシー／にじさんじ／コードＶＬ　物述有栖軸 s1: finished steps=268 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 vs レガシー／ミルルン／羅原姫　Ｙｂ軸 s1: finished steps=273 turns=7 life H1/G0 winner=headless-host
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=198 turns=8 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=275 turns=9 life H2/G0 winner=headless-host
+レガシー／ナナシ／羅菌染姫　ペズト軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=238 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 vs レガシー／リル／矜持の豪魔　オダノブ軸 s1: finished steps=266 turns=7 life H1/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／にじさんじ／コードＶＬ　飛鳥ひな軸 s1: finished steps=272 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／エルドラ／幻深水姫　デメニギス軸 s1: finished steps=239 turns=8 life H0/G4 winner=00000000-0000-0000-0000-000000000001
+レガシー／にじさんじ／コードＶＬ　物述有栖軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=259 turns=7 life H2/G0 winner=headless-host
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／サシェ／羅星宙姫　ノーザンセブン軸 s1: finished steps=232 turns=8 life H0/G0 winner=headless-host
+レガシー／タウィル／遠矢の名手　≡アポロシン≡軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=156 turns=6 life H0/G5 winner=00000000-0000-0000-0000-000000000001
+レガシー／エマ／ＧＦ　イザベラ軸 vs レガシー／ミルルン／羅原理姫　Ｗ軸 s1: finished steps=268 turns=7 life H1/G0 winner=headless-host
+レガシー／レイラ／コードドライブ　ファイヤーエンジン軸 vs レガシー／エマ／ＧＦ　イザベラ軸 s1: finished steps=305 turns=9 life H0/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／グズ子／期之遊姫王　†ブラジャック†軸 s1: finished steps=211 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／イオナ／羅植　サイサ軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=223 turns=7 life H2/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／花代／撃弩炎　フレイスロ大将軸 s1: finished steps=185 turns=6 life H0/G3 winner=00000000-0000-0000-0000-000000000001
+レガシー／LoV／炎魔の先駆　アークゲイン軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=224 turns=7 life H2/G0 winner=headless-host
+レガシー／エマ／ＧＦ　クローネ軸 vs レガシー／タウィル／天空の主神　ゼウシアス軸 s1: finished steps=205 turns=7 life H3/G0 winner=headless-host
+レガシー／ウリス／深淵との契約　ジルドレイ軸 vs レガシー／エマ／ＧＦ　クローネ軸 s1: finished steps=244 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001

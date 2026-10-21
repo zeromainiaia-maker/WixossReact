@@ -9,7 +9,7 @@ import { randomInt, shuffle as rngShuffle } from './rng';
 import { textHasKeyword } from '../utils/keywords';
 import { effectiveCardOf, nameRuleScopeCards } from './nameIdentityRules';
 import {
-  done, doneFailed, addLog, logCardLabel, needsInteraction, ownerState, setOwnerState,
+  done, doneFailed, addLog, finitePowerDelta, logCardLabel, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
   getCardNum,
   createTokenInstanceId,
@@ -547,7 +547,8 @@ export function execStubPart2(
     }
     const targetPwCTP = ctx.effectivePowers?.get(targetCnCTP) ?? parseInt(ctx.cardMap.get(targetCnCTP)?.Power ?? '0', 10);
     const selfPwCTP = ctx.effectivePowers?.get(selfCnCTP) ?? parseInt(ctx.cardMap.get(selfCnCTP)?.Power ?? '0', 10);
-    const deltaCTP = targetPwCTP - selfPwCTP;
+    // ⚠「∞」の札（Infinity）が混ざると差分が ±Infinity／NaN になる＝有限に収める（`finitePowerDelta`）。
+    const deltaCTP = finitePowerDelta(targetPwCTP - selfPwCTP);
     const modCTP = { cardNum: selfCnCTP, delta: deltaCTP, srcCardNum: ctx.sourceCardNum };
     const newOwnerCTP = stub.copyTargetPowerUntilOppTurnEnd
       ? { ...ctx.ownerState, power_mods_until_opp_turn: [...(ctx.ownerState.power_mods_until_opp_turn ?? []), modCTP] }

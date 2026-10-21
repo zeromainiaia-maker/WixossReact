@@ -1,0 +1,16 @@
+ディーバ／アト／夢限//メモリア軸 vs ディーバ／ヴィオラ／夢限//メモリア軸 s1: finished steps=225 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／ジール／紅将　ケンシン軸 vs ディーバ／アト／夢限//メモリア軸 s1: finished steps=204 turns=6 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／夢限//メモリア軸 vs ディーバ／ヒラナ／夢限//メモリア軸 s1: finished steps=234 turns=8 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／花代／夢限//メモリア軸 vs ディーバ／アト／夢限//メモリア軸 s1: finished steps=243 turns=7 life H0/G0 winner=headless-host
+ディーバ／アト／夢限//メモリア軸 vs ディーバ／とこ／凶魔姫　エレシュキガル軸 s1: finished steps=235 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／メル／夢限//メモリア軸 vs ディーバ／アト／夢限//メモリア軸 s1: finished steps=290 turns=9 life H0/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／アズサ／夢限//メモリア軸 s1: finished steps=246 turns=7 life H2/G0 winner=headless-host
+ディーバ／マキナ／紅将　ケンシン軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=292 turns=9 life H2/G0 winner=headless-host
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ウリス／凶魔姫　エレシュキガル軸 s1: finished steps=288 turns=8 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／とこ／夢限//メモリア軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=195 turns=6 life H0/G2 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アト／翠英姫　ダーウィン軸 vs ディーバ／ヒナ／凶魔姫　エレシュキガル軸 s1: finished steps=350 turns=10 life H0/G0 winner=00000000-0000-0000-0000-000000000001
+ディーバ／リル／夢限//メモリア軸 vs ディーバ／アト／翠英姫　ダーウィン軸 s1: finished steps=288 turns=9 life H1/G0 winner=headless-host
+ディーバ／タウィル／夢限//メモリア軸 vs ディーバ／ジール／夢限//メモリア軸 s1: finished steps=211 turns=7 life H3/G0 winner=headless-host
+ディーバ／リゼ／凶魔姫　エレシュキガル軸 vs ディーバ／タウィル／夢限//メモリア軸 s1: finished steps=239 turns=9 life H0/G0 winner=headless-host
+ディーバ／タウィル／夢限//メモリア軸 vs ディーバ／エクス／夢限//メモリア軸 s1: finished steps=252 turns=8 life H0/G1 winner=00000000-0000-0000-0000-000000000001
+ディーバ／アンジュ／夢限//メモリア軸 vs ディーバ／タウィル／夢限//メモリア軸 s1: finished steps=233 turns=9 life H0/G0 winner=headless-host
