@@ -1301,16 +1301,11 @@ export async function resolvePendingSigniBattleFor(
           if (isForcedMZA || myPowerMZA >= oppPowerMZA) {
             if (myPowerMZA >= oppPowerMZA) {
               // バニッシュ（追加ゾーンなのでダメージなし）
-              const oppSigniMZA = [...newOpState.field.signi] as (string[] | null)[];
-              oppSigniMZA[oppZiMZA] = null;
-              const oppDownMZA = [...(newOpState.field.signi_down ?? [false, false, false])];
-              oppDownMZA[oppZiMZA] = false;
               // 🆕§5.3 `O-321` 第275＝バトルバニッシュ（追加ゾーン）＝`cause:'rule'`。
-              newOpState = recordEnergyPlacements({
-                ...newOpState,
-                energy: [...newOpState.energy, ...oppStackMZA],
-                field: { ...newOpState.field, signi: oppSigniMZA, signi_down: oppDownMZA },
-              }, oppStackMZA, 'rule');
+              // 🔴2026-10-21＝場を離れる処理は共通の1本（`removeFromField`）＝下のカード・【チャーム】【アクセ】はトラッシュ、エナへ行くのはバニッシュされたシグニだけ。
+              //   旧＝重なり全体をエナへ置き、付いていた札は浮いて残った。
+              const leftMZA = removeFromField(oppTopMZA, newOpState);
+              newOpState = recordEnergyPlacements({ ...leftMZA, energy: [...leftMZA.energy, oppTopMZA] }, [oppTopMZA], 'rule');
               appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}をバニッシュ（追加ゾーン・ダメージなし）`]);
             } else {
               appendBattleLogs([`${myCardName}（${myPowerMZA}）vs ${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}（${oppPowerMZA}）：追加ゾーンバトル負け`]);
@@ -1344,16 +1339,10 @@ export async function resolvePendingSigniBattleFor(
           const oppZiAZA = 2 - bestAZAZi;
           const oppStackAZA = [...(newOpState.field.signi[oppZiAZA] ?? [])];
           const oppTopAZA = oppStackAZA.at(-1)!;
-          const oppSigniAZA = [...newOpState.field.signi] as (string[] | null)[];
-          oppSigniAZA[oppZiAZA] = null;
-          const oppDownAZA = [...(newOpState.field.signi_down ?? [false, false, false])];
-          oppDownAZA[oppZiAZA] = false;
           // 🆕§5.3 `O-321` 第275＝バトルバニッシュ（隣ゾーン追加バトル）＝`cause:'rule'`。
-          newOpState = recordEnergyPlacements({
-            ...newOpState,
-            energy: [...newOpState.energy, ...oppStackAZA],
-            field: { ...newOpState.field, signi: oppSigniAZA, signi_down: oppDownAZA },
-          }, oppStackAZA, 'rule');
+          // 🔴2026-10-21＝追加ゾーンのバトルと同じく共通の1本（`removeFromField`）＝下のカード・付いていた札はトラッシュ、エナへはシグニだけ。
+          const leftAZA = removeFromField(oppTopAZA, newOpState);
+          newOpState = recordEnergyPlacements({ ...leftAZA, energy: [...leftAZA.energy, oppTopAZA] }, [oppTopAZA], 'rule');
           appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopAZA)?.CardName ?? oppTopAZA}をバニッシュ（英知=10隣ゾーン追加バトル）`]);
         }
       }

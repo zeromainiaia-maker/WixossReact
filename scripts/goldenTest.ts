@@ -72264,6 +72264,10 @@ test('2026-10-21 自己対戦（VANISH）: 場を離れるシグニの下のカ�
     { ...mkCtx({}, {}), otherState: stacked, lastProcessedCards: ['WD01-012#1'] } as ExecCtx);
   ok(trap.otherState.trash.includes('UNDER#1'), '🔴トラップ化で下のカードが消えた');
   eq(trap.otherState.field.signi_traps?.[0], 'WD01-012#1', 'トラップに置かれていない');
+  // 同じ形の残り（2026-10-21）＝追加ゾーン／隣ゾーンのバトルのバニッシュは重なり全体をエナへ置いていた・宣言色の外れで全シグニをトラッシュは付いていた札が浮いた。
+  const rsb = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  ok(!/energy: \[\.\.\.newOpState\.energy, \.\.\.oppStack(MZA|AZA)\]/.test(rsb) && /removeFromField\(oppTopMZA, newOpState\)/.test(rsb) && /removeFromField\(oppTopAZA, newOpState\)/.test(rsb),
+    '🔴追加ゾーン／隣ゾーンのバトルが下のカードまでエナへ置いている');
 }));
 
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {

@@ -2899,14 +2899,15 @@ export function execStubPart3(
     const logMsg = `公開: ${revealName}（色: ${cardColorIOCC}）/ 宣言: ${declaredColor} → ${colorMatchIOCC ? '一致（ペナルティなし）' : '不一致→相手全シグニトラッシュ'}`;
     if (!colorMatchIOCC) {
       // 相手の全シグニをトラッシュへ（スタック下のカードも含めて）
+      // 🔴2026-10-21＝場を離れる処理の共通の1本（`removeFromField`）を通す＝【チャーム】【アクセ】はトラッシュ・【ソウル】はルリグトラッシュ
+      //   （旧＝ゾーンを手で null にしていた＝付いていた札が浮いて残った）。下のカードは removeFromField がトラッシュへ置く。
       let newOtherIOCC = ctx.otherState;
-      const newSigniIOCC = [...newOtherIOCC.field.signi] as (string[] | null)[];
-      const trashedIOCC: string[] = [];
       for (let zi = 0; zi < 3; zi++) {
-        const stack = newSigniIOCC[zi];
-        if (stack && stack.length > 0) { trashedIOCC.push(...stack); newSigniIOCC[zi] = null; }
+        const topIOCC = newOtherIOCC.field.signi[zi]?.at(-1);
+        if (!topIOCC) continue;
+        newOtherIOCC = removeFromField(topIOCC, newOtherIOCC);
+        newOtherIOCC = { ...newOtherIOCC, trash: [...newOtherIOCC.trash, topIOCC] };
       }
-      newOtherIOCC = { ...newOtherIOCC, field: { ...newOtherIOCC.field, signi: newSigniIOCC }, trash: [...newOtherIOCC.trash, ...trashedIOCC] };
       return done(addLog({ ...ctx, otherState: newOtherIOCC }, logMsg));
     }
     return done(addLog(ctx, logMsg));
