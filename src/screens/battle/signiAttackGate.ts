@@ -80,7 +80,9 @@ export function collectForcedAttackZones(p: ForcedAttackScanInput): number[] {
   // アタックはアタッカーのターンにしか起きないので isViewerTurn は常に true。
   const front = collectForcedFrontAttackZones(attacker, defender, true, effectsMap, cardMap);
   const all = resolveForcedSigniAttack(attacker, defender, true, effectsMap, cardMap);
-  if (!all.forced && front.size === 0) return [];
+  // 🆕§5.3 `O-545`＝効果で選んだ個体だけの強制（`must_attack_signi_ids`）。
+  const forcedIds = attacker.must_attack_signi_ids ?? [];
+  if (!all.forced && front.size === 0 && forcedIds.length === 0) return [];
   const down = attacker.field.signi_down ?? [false, false, false];
   const virus = attacker.field.signi_virus ?? [0, 0, 0];
   const zones: number[] = [];
@@ -88,8 +90,8 @@ export function collectForcedAttackZones(p: ForcedAttackScanInput): number[] {
     const top = attacker.field.signi[i]?.at(-1);
     if (!top) continue;
     if (down[i]) continue;                                   // 既にアタック済み（ダウン）
-    const byFront = front.has(i);
-    if (!all.forced && !byFront) continue;                   // 全体強制でなければ正面強制のゾーンだけ
+    const byFront = front.has(i) || forcedIds.includes(top);
+    if (!all.forced && !byFront) continue;                   // 全体強制でなければ正面強制（と選ばれた個体）のゾーンだけ
     if (all.forced && all.infectedOnly && (virus[i] ?? 0) === 0 && !byFront) continue; // 感染限定
     if (signiAttackBlockReason({ ...p, attackerNum: top, skipForcedOrderRule: true }) !== null) continue;
     zones.push(i);

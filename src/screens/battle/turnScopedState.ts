@@ -218,6 +218,8 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   damaged_just: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'attack damage marker read by the crash-resolution funnel; expired here as a safety net' },
   // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
   must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
+  // 🆕§5.3 `O-545`＝効果で選んだ個体だけの強制（「このターン」）。
+  must_attack_signi_ids: { boundaries: ['turn-end'], reset: undefined, reason: 'forced-attack signi instances chosen by an effect this turn' },
   // 「このターン使用禁止のカード名」は課されたグローバルターンだけ有効（§6.4 O-3 続き498 で登録）。
   // ⚠登録前は BattleScreen の turn-end で**ターンプレイヤー側だけ**手書きクリアしており、相手に課した分は
   //   「相手の次のターンが終わるまで」＝1ターン長く残っていた。次ターン予約は別フィールド。

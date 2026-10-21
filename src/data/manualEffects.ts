@@ -1022,6 +1022,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   選べるのはエナが5枚以上のときだけ（選択肢の条件）＝払えない盤面で②を選んで空振りしない。
   ],
 
+  // ── WXDi-P13-035-E2 ／ 原文【出】《無》：対戦相手のシグニ１体を対象とし、このターン、**それは**可能ならばアタックしなければならない。
+  // 🔴旧 live（AUTO）は `FORCE_SIGNI_ATTACK{targetOwner}` だけ＝相手の**全シグニ**に強制が掛かっていた（§5.3 `O-545`）。
+  'WXDi-P13-035': [
+    {"effectId":"WXDi-P13-035-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"FORCE_SIGNI_ATTACK","targetOwner":"opponent","select":{"count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+
   // ── WX05-023-E3 ／ 原文【出】：…＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、**このシグニを**場からトラッシュに置く。
   // 🔴旧 live（AUTO）の else は `TRASH{SIGNI self count1}`＝「あなたのシグニ1体」で、このシグニではなく好きなシグニを選んでトラッシュできた。
   'WX05-023': [

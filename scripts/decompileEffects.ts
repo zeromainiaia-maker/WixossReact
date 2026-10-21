@@ -3260,6 +3260,11 @@ function actionJa(a?: Action, effectType?: string): string {
     // ⚠所有者は `target.owner` ではなく `targetOwner`（型は ForceSigniAttackAction）。
     //   従来は `a.target?.owner` を見ていて常に空＝「誰のシグニが強制されるのか」が逆翻訳から落ちていた。
     case 'FORCE_SIGNI_ATTACK':
+      // 🆕§5.3 `O-545`＝選んだシグニだけを強制する形。
+      if (a.select) {
+        const n = a.select.count === 'ALL' ? (a.select.upTo ? '好きな数' : 'すべて') : `${a.select.count}体${a.select.upTo ? 'まで' : ''}`;
+        return `${a.select.chooser === 'opponent' ? '対戦相手が選んだ' : ''}${ownerJa(a.targetOwner)}シグニ${n}を対象とし、このターン、それは可能ならばアタックしなければならない`;
+      }
       return `${a.duration === 'NEXT_TURN' ? `次の${a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間、` : ''}${ownerJa(a.targetOwner)}${a.infectedOnly ? '感染状態の' : ''}シグニは可能ならばアタックしなければならない`;
     case 'COST_REDUCTION': {
       const red = Array.isArray(a.reduction) && a.reduction.length > 0

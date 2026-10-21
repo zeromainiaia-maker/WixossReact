@@ -4947,6 +4947,15 @@ export interface ForceSigniAttackAction {
   targetOwner: Owner;
   infectedOnly?: boolean; // 感染状態のシグニのみを強制対象とする（WX16-047等）
   duration?: 'NEXT_TURN'; // 省略時は即時（このターン）、NEXT_TURN は対象側 state へ予約
+  /**
+   * 🆕2026-10-21（§5.3 `O-545`）＝**選んだシグニだけ**を強制する（無い＝持ち主の全シグニ）。`WXDi-P13-035-E2`。
+   * `count` 体を選ぶ（`'ALL'` かつ `upTo`＝好きな数）。`chooser:'opponent'`＝**対象の持ち主が選ぶ**。
+   * ⚠「選んだシグニ以外はアタックできない」（`WXDi-P08-030-E1`）は `SIGNI_ATTACK_BAN{exceptTargetsStored}`＋全体強制で書ける
+   *   （強制は「可能ならば」＝禁止されたシグニのゾーンを `collectForcedAttackZones` が外す）＝この口は使わない。
+   */
+  select?: { count: number | 'ALL'; upTo?: boolean; chooser?: 'self' | 'opponent' };
+  /** 内部用: 選択の応答待ち。JSON には書かない。 */
+  _picked?: boolean;
 }
 
 // このシグニの正面のシグニ（＝対戦相手の、このシグニと向かい合うゾーンのシグニ）は

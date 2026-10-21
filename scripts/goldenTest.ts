@@ -6260,10 +6260,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 42, '命名規約外のターン限定フィールド数（🆕 42＝2026-10-21 自己対戦のログで lrig_riding_signi（ドライブ状態＝「ターン終了時まで」）を登録。41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
+  eq(irregular.length, 43, '命名規約外のターン限定フィールド数（🆕 43＝2026-10-21 §5.3 `O-545` で must_attack_signi_ids（効果で選んだ個体だけの強制＝「このターン」）を登録。42＝2026-10-21 自己対戦のログで lrig_riding_signi（ドライブ状態＝「ターン終了時まで」）を登録。41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 110, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 110＝2026-10-21 lrig_riding_signi を登録。109＝2026-10-14 §5.3 `O-543` 第3巡で3件登録。106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 111, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 111＝2026-10-21 §5.3 `O-545` で must_attack_signi_ids を登録。110＝2026-10-21 lrig_riding_signi を登録。109＝2026-10-14 §5.3 `O-543` 第3巡で3件登録。106＝2026-10-14 §5.3 `O-543` で lrig_attack_negate_immune_this_turn も登録。105＝同日 double_power_minus_infected_this_turn を登録。104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -47410,6 +47410,26 @@ test('キーの【起】: CPU がキーの【起】を選ぶ／キーを失う�
   eq(DEFAULT_CPU_POLICY.keyTrashAbility, 0, '既定は 0（キーを温存）');
   const ct = fs.readFileSync('src/screens/battle/controller/cpuTurn.ts', 'utf8');
   ok(/tryCpuKeyActivated\(newCpuSt, 'MAIN'\)/.test(ct) && /tryCpuKeyActivated\(cpuSt, 'ATTACK_ARTS'\)/.test(ct), '🔴CPU のターンがキーの【起】を試していない');
+}));
+
+// 🆕2026-10-21（§5.3 `O-545`）＝強制アタックを「対象の1体」に絞る（旧＝相手の全シグニに掛かっていた）。
+test('O-545: WXDi-P13-035-E2「対戦相手のシグニ１体を対象とし、それは可能ならばアタックしなければならない」は選んだ1体だけ', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P13-035') ?? []).find(e => e.effectId === 'WXDi-P13-035-E2');
+  ok(!!eff, 'WXDi-P13-035-E2: live effect exists');
+  if (!eff) return;
+  const o1 = fresh(), o2 = fresh(), o3 = fresh();
+  const ctx = mkCtx({}, { signi: [o1, o2, o3] }, 'WXDi-P13-035');
+  const r1 = runEffect(eff.action, ctx);
+  ok(!r1.done, '対象を選ぶ対話が立つ');
+  if (r1.done) return;
+  eq([...(r1.pending as { candidates: string[] }).candidates].sort().join(','), [o1, o2, o3].sort().join(','), '候補＝相手のシグニ3体');
+  const c1: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+  const r2 = finish(resumeSelectTarget([o2], r1.pending as never, c1), c1);
+  eq(r2.otherState.must_attack_signi ?? false, false, '🔴全体の強制は立たない（旧＝全シグニに掛かった）');
+  eq(JSON.stringify(r2.otherState.must_attack_signi_ids), JSON.stringify([o2]), '選んだ1体だけが強制');
+  eq(JSON.stringify(collectForcedAttackZones({
+    attacker: r2.otherState, defender: r2.ownerState, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  })), JSON.stringify([1]), 'アタックフェイズで強制されるのはゾーン1だけ');
 }));
 
 test('WX05-023-E3: ＜原子＞3枚を下に置けない場合は「このシグニ」をトラッシュ（他のシグニではない）', () => withSavedCursor(() => {

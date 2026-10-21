@@ -106,6 +106,12 @@ const MIRROR = argv.includes('--mirror');
  * ⚠乱数は試合の乱数とは別の列（seed 由来）＝試合の乱数位置は変えるが再現はできる。
  */
 const ANSWER_FUZZ = Number(arg('--answer-fuzz', '0'));
+// 🔴2026-10-21＝**比べる検査（`--mirror`／`--resume-every`）と同時に使えない**＝差し替えの乱数は盤面データの外にあるので、
+//   作り直した試合・席を入れ替えた試合と答えが揃わず、**食い違いが全部誤報になる**（実測＝60戦で所見62件・外すと0件）。
+if (ANSWER_FUZZ > 0 && (MIRROR || RESUME_EVERY > 0)) {
+  console.error('--answer-fuzz は --mirror／--resume-every と同時に使えない（乱数の答えが揃わず食い違いが全部誤報になる）');
+  process.exit(2);
+}
 /**
  * 🆕`--start <変種,…>`＝**開始盤面を極端にする**（カードは置き場を移すだけ＝保存則の検査はそのまま効く）。
  *   `lowdeck`＝両者のデッキを8枚まで減らしてトラッシュへ（リフレッシュ・デッキ切れを早く踏む）／

@@ -580,6 +580,8 @@ export interface PlayerState {
   signi_trigger_abilities_suppressed_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
+  /** 🆕§5.3 `O-545`＝このターン「可能ならばアタックしなければならない」**個体**（instance id）。 */
+  must_attack_signi_ids?: string[];
   // 次の自分のターン開始時に must_attack_signi へ昇格する予約
   must_attack_signi_next_turn?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）

@@ -2799,6 +2799,9 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 **受け皿**＝`collectForcedAttackZones`（強制の読み手）と `signiAttackGate`。シグニ単位の印（例＝`must_attack_signi_ids`）を足し、ターン終了時に消す一覧（`turnScopedState`）にも載せる。
 ⚠どちらも【出】の自分のターンの効果＝相手のシグニは自分のターンにはアタックしないので、効くのは相手のターンに場に出たとき（実害は小さい）。
 
+🏁**2026-10-21 同日クローズ**（BUGFIXES 第539バッチ）＝`FORCE_SIGNI_ATTACK.select`（選んだ個体だけ）＋`must_attack_signi_ids`（`collectForcedAttackZones` が読む・ターン終了で消える）。
+⚠**`WXDi-P08-030-E1` は登録時の見立てが誤り＝既に正しかった**（`SIGNI_ATTACK_BAN{exceptTargetsStored}`＋全体強制＝強制は「可能ならば」なので、禁止されたシグニのゾーンを `collectForcedAttackZones` が外し、選んだシグニへの強制に縮む）。直したのは `WXDi-P13-035-E2` だけ。
+
 ## O-543 追加パック WX26-P1 の受け皿待ち（2026-10-03 登録）
 
 **経緯**＝WX26-P1（97枚＋トークン3）を取り込み、逆翻訳 × 原文を全数照合した。parser 規則2本＋手書き53効果で直し、**受け皿の無いものは誤動作を消して `DEFERRED_*`（ラベルは `scripts/decompileEffects.ts` の `miscStubMap`）か PARTIAL にした**。どれも1種1〜2効果＝速いレーンで1件ずつ取る。定義は `src/data/manualEffects.ts` の「WX26-P1 BEGIN」区画（各カードの直前コメントに原文の読みと parser の誤りを書いてある）。

@@ -10745,6 +10745,23 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
 }
 
 function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
+  // 🆕§5.3 `O-545`（2026-10-21）＝**選んだシグニだけ**を強制する形（旧＝相手の全シグニに掛かっていた）。
+  //   `WXDi-P13-035-E2`「対戦相手のシグニ１体を対象とし、このターン、それは可能ならばアタックしなければならない」
+  if (a.select) {
+    const st = ownerState(a.targetOwner, ctx);
+    const cands = fieldCandidates(st, undefined, ctx.cardMap, ctx.effectivePowers);
+    if (!a._picked) {
+      if (cands.length === 0) return done(addLog(ctx, '強制アタックの対象がいない'));
+      const count = a.select.count === 'ALL' ? cands.length : Math.min(a.select.count, cands.length);
+      const scope: TargetScope = a.targetOwner === 'opponent' ? 'opp_field' : 'self_field';
+      return selectOrInteract(cands, count, !!a.select.upTo, scope, { ...a, _picked: true } as EffectAction, undefined, ctx,
+        a.select.chooser === 'opponent' && a.targetOwner === 'opponent');
+    }
+    const picked = (ctx.lastProcessedCards ?? []).filter(n => cands.includes(n));
+    const newS: PlayerState = { ...st, must_attack_signi_ids: [...(st.must_attack_signi_ids ?? []), ...picked] };
+    const names = picked.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・') || 'なし';
+    return done(addLog(setOwnerState(a.targetOwner, newS, ctx), `このターン、${names}は可能ならばアタックしなければならない`));
+  }
   const s = ownerState(a.targetOwner, ctx);
   const newS: PlayerState = a.duration === 'NEXT_TURN'
     ? {
