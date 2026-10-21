@@ -2795,13 +2795,16 @@ export function execStubPart2(
       if ((ctx.otherState.field.signi[zi] ?? []).includes(targetIOSTT)) { zoneIdxIOSTT = zi; break; }
     }
     if (zoneIdxIOSTT < 0) return done(addLog(ctx, 'INTERNAL_OPP_SIGNI_TO_TRAP: ゾーン特定失敗'));
-    const newOppSigniIOSTT = [...ctx.otherState.field.signi] as (string[] | null)[];
-    newOppSigniIOSTT[zoneIdxIOSTT] = null;
-    const newOppTrapsIOSTT = [...(ctx.otherState.field.signi_traps ?? [null, null, null])] as (string | null)[];
-    const newOppTrashIOSTT = [...ctx.otherState.trash];
+    // 🔴2026-10-21＝場を離れる処理の共通の1本（`removeFromField`）を通す＝下に重なっていたカード・【チャーム】【アクセ】はトラッシュ。
+    //   旧＝ゾーンを丸ごと null にしていた＝下のカードが消え、付いていた札が浮いて残った。
+    const leftIOSTT = ctx.otherState.field.signi[zoneIdxIOSTT]?.at(-1) === targetIOSTT
+      ? removeFromField(targetIOSTT, ctx.otherState)
+      : { ...ctx.otherState, field: { ...ctx.otherState.field, signi: ctx.otherState.field.signi.map((st, i) => i === zoneIdxIOSTT ? null : st) } };
+    const newOppTrapsIOSTT = [...(leftIOSTT.field.signi_traps ?? [null, null, null])] as (string | null)[];
+    const newOppTrashIOSTT = [...leftIOSTT.trash];
     if (newOppTrapsIOSTT[zoneIdxIOSTT]) newOppTrashIOSTT.push(newOppTrapsIOSTT[zoneIdxIOSTT]!);
     newOppTrapsIOSTT[zoneIdxIOSTT] = targetIOSTT;
-    const newOtherIOSTT = { ...ctx.otherState, trash: newOppTrashIOSTT, field: { ...ctx.otherState.field, signi: newOppSigniIOSTT, signi_traps: newOppTrapsIOSTT } };
+    const newOtherIOSTT = { ...leftIOSTT, trash: newOppTrashIOSTT, field: { ...leftIOSTT.field, signi_traps: newOppTrapsIOSTT } };
     return done(addLog({ ...ctx, otherState: newOtherIOSTT, trapSetOwners: [...(ctx.trapSetOwners ?? []), 'opponent'] }, `相手シグニ→トラップ: ゾーン${zoneIdxIOSTT + 1}`));
   }
   // TRAP_TO_SIGNI_IF_ZONE_EMPTY: このカードのゾーンにシグニがない場合、signi_traps[zone]→signi[zone]

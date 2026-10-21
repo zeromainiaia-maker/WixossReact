@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/effectExecutor';
-import { resolvePendingExiles } from '../../engine/execUtils';
+import { removeFromField, resolvePendingExiles } from '../../engine/execUtils';
 import { resolveTurnEndPreventionMill } from './damagePrevention';
 import { resolveTurnEndLrigDeckReturn } from './turnEndLrigDeckReturn';
 import { resolveTurnEndHandReturn } from './turnEndHandReturn';
@@ -38,6 +38,8 @@ export function resolveTurnEndStepOne(endState: PlayerState, cardMap: Map<string
   let field = { ...endState.field, beat_zone: beat };
   let energy = endState.energy;
   let lrigDeckReturned: string[] = [];
+  /** 場を離れたシグニの【ソウル】の行き先（ルリグトラッシュ）。 */
+  let lrigTrashExtra: string[] | null = null;
   if (!resolved && (endState.turn_end_mill_count ?? 0) > 0) {
     const r = resolveTurnEndPreventionMill({ ...endState, deck, trash });
     deck = r.state.deck; trash = r.state.trash;
@@ -52,34 +54,30 @@ export function resolveTurnEndStepOne(endState: PlayerState, cardMap: Map<string
     logs.push(`ターン終了時：カードを${drawn.length}枚引く`);
   }
   // COIN_SPEND_CONDITION: コインを使わなかったら対象のシグニをトラッシュ
-  if (!resolved && (endState.coin_condition_signi_instances ?? []).length > 0 && !(endState.actions_done ?? []).includes('COIN_SPENT')) {
-    const signi = [...field.signi] as (string[] | null)[];
-    for (const instId of endState.coin_condition_signi_instances ?? []) {
-      for (let zi = 0; zi < 3; zi++) {
-        if (signi[zi]?.includes(instId)) {
-          trash = [...trash, ...signi[zi]!];
-          signi[zi] = null;
-          logs.push(`コイン消費なし → ${nameOf(instId)}をトラッシュ`);
-        }
-      }
-    }
-    field = { ...field, signi };
-  }
   // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
-  if (!resolved && (endState.turn_end_field_trash_targets ?? []).length > 0) {
-    const signi = [...field.signi] as (string[] | null)[];
+  // 🔴2026-10-21＝どちらも**場を離れる処理の共通の1本（`removeFromField`）を通す**＝下に重なっていたカード・【チャーム】【アクセ】はトラッシュ・
+  //   【ソウル】はルリグトラッシュ。旧＝「このシグニをトラッシュ」は一番上だけトラッシュへ置き下のカードが消えた／コイン条件は付いていた札が浮いて残った。
+  const coinTargets = !resolved && (endState.coin_condition_signi_instances ?? []).length > 0 && !(endState.actions_done ?? []).includes('COIN_SPENT')
+    ? endState.coin_condition_signi_instances ?? [] : [];
+  const fieldTargets = !resolved ? endState.turn_end_field_trash_targets ?? [] : [];
+  if (coinTargets.length > 0 || fieldTargets.length > 0) {
+    let tmp: PlayerState = { ...endState, hand, deck, trash, field, energy };
+    const leave = (top: string) => { tmp = removeFromField(top, tmp); tmp = { ...tmp, trash: [...tmp.trash, top] }; };
+    for (const instId of coinTargets) {
+      const top = tmp.field.signi.find(st => st?.includes(instId))?.at(-1);
+      if (!top) continue;
+      leave(top);
+      logs.push(`コイン消費なし → ${nameOf(instId)}をトラッシュ`);
+    }
     const trashed: string[] = [];
-    for (const targetId of endState.turn_end_field_trash_targets!) {
-      const zi = signi.findIndex(stack => stack?.at(-1) === targetId);
-      if (zi < 0) continue;
-      signi[zi] = null;
+    for (const targetId of fieldTargets) {
+      if (!tmp.field.signi.some(st => st?.at(-1) === targetId)) continue;
+      leave(targetId);
       trashed.push(targetId);
     }
-    if (trashed.length > 0) {
-      trash = [...trash, ...trashed];
-      field = { ...field, signi };
-      logs.push(`ターン終了時：${trashed.map(nameOf).join('・')}をトラッシュへ`);
-    }
+    if (trashed.length > 0) logs.push(`ターン終了時：${trashed.map(nameOf).join('・')}をトラッシュへ`);
+    hand = tmp.hand; trash = tmp.trash; field = { ...tmp.field, beat_zone: beat };
+    lrigTrashExtra = tmp.lrig_trash;
   }
   // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（TRASH_ENERGY_AT_TURN_END）
   if (!resolved) {
@@ -128,6 +126,7 @@ export function resolveTurnEndStepOne(endState: PlayerState, cardMap: Map<string
       hand: ex.hand, deck: ex.deck, trash: ex.trash,
       field: { ...ex.field, beat_zone: ex.field.beat_zone ?? [] },
       excluded: ex.excluded, energy,
+      ...(lrigTrashExtra ? { lrig_trash: lrigTrashExtra } : {}),
       ...(lrigDeckReturned.length > 0
         ? { lrig_deck: [...endState.lrig_deck, ...lrigDeckReturned], turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined }
         : {}),

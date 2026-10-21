@@ -2005,15 +2005,10 @@ export function payBeatSigniCost(
     return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（対象シグニ不足）' };
   }
 
-  // 場から除去（down/frozen リセット）→ addToBeatZone で beat_zone へ（beat_became_just＝ON_BECOME_BEAT 用）
-  const newSigni = signi.map((s, zi) => (movedZones.has(zi) ? null : s));
-  const down = [...(state.field.signi_down ?? [false, false, false])];
-  const frozen = [...(state.field.signi_frozen ?? [false, false, false])];
-  movedZones.forEach(zi => { down[zi] = false; frozen[zi] = false; });
-  const removed: PlayerState = {
-    ...state,
-    field: { ...state.field, signi: newSigni, signi_down: down, signi_frozen: frozen },
-  };
+  // 場から除去 → addToBeatZone で beat_zone へ（beat_became_just＝ON_BECOME_BEAT 用）
+  // 🔴2026-10-21＝**場を離れる処理の共通の1本（`removeFromField`）を通す**＝下に重なっていたカードはトラッシュ・【チャーム】【アクセ】はトラッシュ・
+  //   【ソウル】はルリグトラッシュ・ダウン／凍結の解除。旧＝ゾーンを丸ごと null にしていた＝**下のカードが消えた**（自己対戦の VANISH で発見）。
+  const removed: PlayerState = moved.reduce((st, cn) => removeFromField(cn, st), state);
   const newState = addToBeatZone(removed, moved);
   const names = moved.map(cn => cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・');
   return { state: newState, moved, ok: true, log: `${names}を【ビート】にする（コスト）` };

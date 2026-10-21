@@ -72252,6 +72252,20 @@ test('2026-10-21 ヘッドレスは「〜した直後」の印（手札・ゾー
   ok(/const cpuRevealedHJ = cpuHandRevealedRef \?\? \[\];/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')), '🔴画面が CPU の手札公開の印を処理しない');
 }));
 
+test('2026-10-21 自己対戦（VANISH）: 場を離れるシグニの下のカードは消えない（【ビート】の支払い・トラップ化・ターン終了時のトラッシュ）', () => withSavedCursor(() => {
+  // 🔴旧＝ゾーンを丸ごと null にしていた3経路で、下に重なっていたカードがどこにも置かれず消えた（自己対戦で発見・《博愛の集束　サニエル》）。
+  const st = mkState({});
+  const stacked = { ...st, field: { ...st.field, signi: [['UNDER#1', 'WD01-012#1'], null, null] } } as PlayerState;
+  const beat = payBeatSigniCost(stacked, 'X#9', cardMap as Map<string, CardData>, { count: 1 } as never, [0]);
+  ok(beat.ok && beat.state.trash.includes('UNDER#1'), '🔴【ビート】の支払いで下のカードが消えた');
+  const end = resolveTurnEndStepOne({ ...stacked, turn_end_field_trash_targets: ['WD01-012#1'] } as PlayerState, cardMap as Map<string, CardData>);
+  ok(end.state.trash.includes('UNDER#1') && end.state.trash.includes('WD01-012#1'), '🔴ターン終了時のトラッシュで下のカードが消えた');
+  const trap = executeAction({ type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_TRAP' } as unknown as EffectAction,
+    { ...mkCtx({}, {}), otherState: stacked, lastProcessedCards: ['WD01-012#1'] } as ExecCtx);
+  ok(trap.otherState.trash.includes('UNDER#1'), '🔴トラップ化で下のカードが消えた');
+  eq(trap.otherState.field.signi_traps?.[0], 'WD01-012#1', 'トラップに置かれていない');
+}));
+
 test('2026-10-21 フェイズに入るときの「このゲームの間」の処理は人間と CPU が同じ1本（applyPhaseEntryState）', () => withSavedCursor(() => {
   // 🔴旧＝`phaseAdvance` にだけ書かれ、CPU のターンではリミット＋・リミット修正の予約・開始時ドロー／エナチャージが一度も起きなかった。
   const st = { ...mkState(), game_grow_phase_limit_plus: 1, pending_lrig_limit_mod: -1, game_main_draw: true, game_energy_phase_draw: true, game_energy_phase_charge: 1 } as unknown as PlayerState;
