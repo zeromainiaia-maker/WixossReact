@@ -11,16 +11,16 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-10-01〜02＝カード CSV のパック別再編（`public/data/CardDatas/`）／ユーザー要望とバグ報告の対応 13件（v0.609〜0.621）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第502〜514バッチ。前回（チアゾーンの機構の完成）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+**直近＝2026-10-20〜21＝自己対戦の検査（`selfplay:inv`）を広げてバグを探す（v0.627〜0.642）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第519〜534バッチ。前回（カード CSV のパック別再編）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🏁**本線キューは全部0**（索引H も 0）＝次の一手はユーザーの設計判断（CPU の強さ・作戦データの入力・リリース作業）か新しい発見器。🆕**2026-10-20＝新しい発見器 `npm run selfplay:inv`（自己対戦の不変条件走査）を作り4系統を直した**（第519バッチ）＝**シードを変えて回すたびに新しい試合を踏む**ので、在庫が空のときはまずこれを回す（1シード40戦≒2.5分・8並列）。🆕**同日＝`npm run synth:decks`（未発動カードを種にデッキを生成）で被覆 7% → 74%・10系統を修正**（第520バッチ）＝🆕**第521バッチで 84%・第522バッチで 86%（伸びは1巡約20枚＝飽和）**（CPU がコスト付き任意【出】を使う `onPlayCostPay`・生成デッキのルリグ/コイン）。残りの主な塊＝**ルリグ【起】を探索が撃たない**（エナだけで払える64件＝強さの領域）。⚠iPhone の「前面に戻ったら取り直す」（`V-292`）は**実機の iPhone で未確認**＝ユーザーに試してもらう |
-| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（画面・ルール処理・データ配置の回＝原文照合の在庫に触れていないので動かない） |
-| 📦**在庫** | 🏁実機 `V-nn` **0**（`V-295` を返済）／🏁機構 `O-nn` **0**（`O-543` を 2026-10-14 にクローズ）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー）／作戦データの入力（ユーザー） |
-| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠**「処理中（`loading`）なら抜ける」effect のうち、処理を進める側（スタック解決・バトル解決ほか約15本）は依存配列に `loading` が無いまま**＝ルール処理5本だけ直した（第512バッチ）。止まる報告が来たらまずここ｜⚠iOS がタブを破棄して読み込み直した場合、対戦・観戦以外の画面はタイトルへ戻る |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4451**）｜実機 新設 **10本**（`V-288`〜`V-294`）PASS・CPU 通し対戦・PvP 2台（`verifyRewind`）PASS |
-| 🆕🔑**この回の芯** | ①**カード CSV を読むコードは `scripts/cardDataFiles.mjs`／`src/data/cardDataFetch.ts` の1本だけ**（並びの正本は `CardDatas/index.json`・パックを足したら `node scripts/cardDataIndex.mjs`）②**実機の `ExecCtx` には `effectsMap` がほぼ無い**＝engine の判定は `makeFillDeployCaps` で先に載せた値を読む（`lrigLimitSelf` を足した）③**golden の盤面生成（`mkCtx`）は共有カーソルを進める**＝新しい盤面は `withSavedCursor` で包む |
+| 🔥**次に取るもの** | 🏁本線キューは全部0＝**在庫が空のときは自己対戦の走査を回す**：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（ターン進行・CPU・ヘッドレスの回＝原文照合の在庫に触れていないので動かない） |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／🏁機構 `O-nn` **0**（`O-544` はユーザー回答でクローズ＝RULES `R-57`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU は「手札を捨てる」「コイン」を払う任意【出】を使わない（エナの色コストだけ自動で包む＝強さの領域）｜⚠ルリグの「ゲーム1回」【起】は CPU が温存して撃たない（被覆の残りの主な塊） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4504**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
+| 🆕🔑**この回の芯** | ①**人間の進行（`phaseAdvance`/`endDiscard`）が呼ぶ関数のうち CPU（`cpuTurn`）が呼ばない関数を機械で列挙する**とCPU のターンだけ起きない処理が出る＝ターン終了／エンドフェイズ①／ドロー／フェイズ開始／相手側の後始末を共通の1本へ（`turnScopedState`・`turnEndStepOne`・`drawPhase`・`phaseEntry`・`nextTurnPlayer`）②**画面の見張り（useEffect）はヘッドレスに無い**＝印の処理は `controller/justFlags.ts`・`energyPowerWatch.ts`・`acceTriggers.ts` の共通の1本③**場を離れる処理は `removeFromField` だけ**（ゾーンを手で null にすると下のカードが消える）④golden の新しいテストは `withSavedCursor` で包む |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -499,11 +499,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-10-02 時点**（カード CSV のパック別再編・ユーザー要望とバグ報告の対応・v0.609〜0.621）
-  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（原文照合の在庫に触れていない回＝動かない）
-  - 📦**在庫**＝🏁機構 worklist **0**（索引H も **0**）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4451**＝+9）｜実機 新設 **10本** PASS（`v288NaturalTrap*` 3・`v289ResonaFromCheer`・`v290PlaceUnderCheer`・`v291ChooseOrderAndLabels`・`v292ResumeRefetch`・`v293PlaceLimitTrash*` 2・`v294SigniStackSwipeShowsAcce`）
-  - 📦**データ**＝カード CSV **124 パック**＋`_TK.csv`（47）＋`_Variants.csv`（2,572）＝本体 **6,666 枚**（`public/data/CardDatas/index.json`）
+- **2026-10-21 時点**（自己対戦の検査を広げてバグを探す・v0.627〜0.642）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝🏁機構 worklist **0**（索引H も **0**＝`O-544` をクローズ）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4504**＝+53）｜実機 `verifyFullMatch cpu` PASS（src/screens を触った各回）
+  - 🔎**自己対戦の被覆**＝**5,476 / 6,036枚（91%）**（生成デッキ・`selfplay:inv --cov-out` の和集合）｜最後の数百戦は所見0
 ---
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが直さない）— 毎回まず除外

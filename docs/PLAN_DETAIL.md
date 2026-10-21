@@ -2774,6 +2774,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-10-02 カード CSV のパック別再編・PLAN §6 から退避）
+
+- **2026-10-02 時点**（カード CSV のパック別再編・ユーザー要望とバグ報告の対応・v0.609〜0.621）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝🏁機構 worklist **0**（索引H も **0**）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4451**＝+9）｜実機 新設 **10本** PASS（`v288NaturalTrap*` 3・`v289ResonaFromCheer`・`v290PlaceUnderCheer`・`v291ChooseOrderAndLabels`・`v292ResumeRefetch`・`v293PlaceLimitTrash*` 2・`v294SigniStackSwipeShowsAcce`）
+  - 📦**データ**＝カード CSV **124 パック**＋`_TK.csv`（47）＋`_Variants.csv`（2,572）＝本体 **6,666 枚**（`public/data/CardDatas/index.json`）
+
 ## 恒久指標アーカイブ（2026-10-01 チアゾーンの機構の完成・PLAN §6 から退避）
 
 - **2026-10-01 時点**（チアゾーンの機構の完成＝`O-538` 段階4・5／`O-539`／`O-540`／`O-541`・v0.598〜0.608）
