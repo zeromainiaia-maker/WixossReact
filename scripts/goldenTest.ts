@@ -174,7 +174,7 @@ import { createHeadlessBattle } from '../src/screens/battle/controller/headlessB
 import { performAssistGrow } from '../src/screens/battle/controller/performAssistGrow';
 import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
 import { mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
-import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
+import { powerZeroBanishCandidates, resolvePendingSigniBattleFor } from '../src/screens/battle/controller/resolveSigniBattle';
 import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
@@ -201,6 +201,7 @@ import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGat
 import { drawPhaseDraw } from '../src/screens/battle/drawPhase';
 import { processSeatJustFlags } from '../src/screens/battle/controller/justFlags';
 import { makeTrigCtx } from '../src/screens/battle/controller/execCtxDeps';
+import { collectArtsUseForResolution, collectOppArtsUseForResolution } from '../src/screens/battle/controller/artsUseTriggers';
 import { collectEnergyPowerTriggers } from '../src/screens/battle/controller/energyPowerWatch';
 import { collectOnAcceTriggers } from '../src/screens/battle/controller/acceTriggers';
 import { clearNextTurnPlayerState } from '../src/screens/battle/nextTurnPlayer';
@@ -95180,6 +95181,167 @@ test('§5.3 O-543 WX26-P1-049＝レベル2のアシストをルリグデッキ�
     '🔴予約を消費する hook が無い／flip グロウの hook と同じ区画（早期 return より前）に無い');
 }));
 
+// ── 2026-10-22＝CPU デッキ79個の走査の所見（第543バッチ） ───────────────
+test('場を離れたシグニは per-card の修正を持ち越さない（removeFromField・同じ個体が戻ってもパワー修正が復活しない）', () => withSavedCursor(() => {
+  // 🔴自己対戦の STALL＝パワー-8000 でバニッシュされたシグニが同じターンに場へ戻り、修正が復活してパワー0以下のまま居座った。
+  const s = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) > 0);
+  const st = { ...mkState({ signi: [s, null, null] }), temp_power_mods: [{ cardNum: s, delta: -8000 }], keyword_grants: { [s]: ['ランサー'] } } as unknown as PlayerState;
+  const out = removeFromField(s, st);
+  eq(out.field.signi[0], null, '場から離れていない');
+  eq(JSON.stringify(out.temp_power_mods ?? []), '[]', '🔴場を離れたシグニのパワー修正が残っている（同じ個体が戻ると復活する）');
+  eq(out.keyword_grants?.[s], undefined, '🔴場を離れたシグニの付与キーワードが残っている');
+  // チアゾーンへの移動は場の中の移動＝同じシグニのまま（落とさない）
+  const ch = moveToCheerZone(st, s);
+  eq(JSON.stringify(ch?.temp_power_mods), JSON.stringify([{ cardNum: s, delta: -8000 }]), '🔴チアゾーンへ移っただけでパワー修正が消えた');
+}));
+
+test('【マジックボックス】を表向きにしてシグニにするとき、シグニが居るゾーンは上書きしない（WX24-P3-018-E1）', () => withSavedCursor(() => {
+  // 🔴自己対戦の VANISH＝表向きにしたカードでゾーンを上書きし、居たシグニがゲームから消えた。
+  const here = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) > 0);
+  const mb = findCard(c => isSigni(c) && c.CardNum !== here);
+  const mb2 = findCard(c => isSigni(c) && c.CardNum !== here && c.CardNum !== mb);
+  const ctx = mkCtx({ signi: [here, null, null] }, {}, 'WX24-P3-018');
+  ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_magic_boxes: [mb, mb2, null] } };
+  const r = executeAction({ type: 'STUB', id: 'INTERNAL_MAGIC_BOX_REVEAL', magicBoxRevealZones: [0, 1] } as unknown as EffectAction, ctx);
+  eq(JSON.stringify(r.ownerState.field.signi[0]), JSON.stringify([here]), '🔴シグニが居るゾーンを【マジックボックス】で上書きした（居たシグニが消える）');
+  eq(r.ownerState.field.signi_magic_boxes?.[0], mb, 'シグニが居るゾーンの【マジックボックス】が消えた');
+  eq(JSON.stringify(r.ownerState.field.signi[1]), JSON.stringify([mb2]), '空いたゾーンの【マジックボックス】がシグニにならない');
+  const ch = executeAction({ type: 'STUB', id: 'MAGIC_BOX_REVEAL', magicBoxReveal: { count: 3, filter: { cardType: 'シグニ' } } } as unknown as EffectAction, ctx);
+  const labels = ch.done ? [] : ((ch.pending as { options?: { label: string }[] }).options ?? []).map(o => o.label).join(' / ');
+  ok(!String(labels).includes('シグニゾーン1'), `🔴シグニが居るゾーンの【マジックボックス】が候補に出ている（${labels}）`);
+}));
+
+test('チェックゾーンでライフクロスの処理が終わるまでシグニのバトルを解決しない（resolvePendingSigniBattleFor）', () => withSavedCursor(() => {
+  // 🔴自己対戦の VANISH＝【自】（アタックしたとき）でクラッシュしたライフがバーストを待つあいだにバトルを解決し、
+  //   バトルのクラッシュがチェックゾーンを上書きして前のカードが消えた（《コードドリフト　ファイトラ》）。
+  const atk = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) > 0);
+  const lifeCard = findCard(c => isSigni(c) && c.CardNum !== atk);
+  const me = { ...mkState({ signi: [atk, null, null] }), pending_signi_battle: { zoneIndex: 0 } } as unknown as PlayerState;
+  const op0 = mkState({});
+  const op = { ...op0, field: { ...op0.field, check: lifeCard } } as PlayerState;
+  let touched = 0;
+  const spy = () => { touched++; return Promise.resolve(); };
+  const c = { bs: { active_user_id: 'a', host_id: 'a', guest_id: 'b' }, cardMap: new Map(), effectsMap: new Map(), effectivePowers: new Map(), userId: 'a',
+    io: { commit: spy, appendLogs: spy, setLoading: spy }, trigCtx: () => ({}) } as never;
+  resolvePendingSigniBattleFor(me, op, 'host_state', 'a', 'b', c).catch(() => {});
+  eq(touched, 0, '🔴相手のチェックゾーンにカードがあるのにバトルの解決を始めた（チェックゾーンが上書きされて消える）');
+}));
+
+test('アーツを使用したときの【自】は「誰が使ったか」で両側とも集める（解決した client がどちらでも）', () => withSavedCursor(() => {
+  // 🔴自己対戦の MIRROR＝スタックの項目を解決するのは片方の client だけなのに、旧は「使用者の client だけが ON_ARTS_USE」
+  //   「相手の client だけが ON_OPP_ARTS_USE」を集めていた＝使用者が解決すると相手の《幻怪　モモキジ》が、
+  //   相手が解決すると（CPU 戦の CPU のアーツ）使用者自身の「アーツを使用したとき」が発動しなかった。
+  const arts = findCard(c => c.Type === 'アーツ');
+  const hostSt = mkState({});
+  const guestSt = mkState({ signi: [null, 'WXK10-046', 'WXK03-071'] });
+  const bs = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'MAIN', host_state: hostSt, guest_state: guestSt } as unknown as BattleStateRow;
+  const deps = { bs, cardMap: cardMap as Map<string, CardData>, userId: 'H', isHost: true,
+    trigCtx: () => makeTrigCtx({ bs, effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' }) };
+  // ① host（解決する client）がアーツを使った＝guest の「対戦相手がアーツを使用したとき」
+  const opp = collectOppArtsUseForResolution(deps, { artsOwnerId: 'H', artsCardNum: arts, effectId: `${arts}-E1`,
+    beforeHost: hostSt, beforeGuest: guestSt, afterHost: hostSt, afterGuest: guestSt });
+  ok(!!opp && opp.entries.some(e => e.effectId === 'WXK03-071-E2' && e.playerId === 'G'), '🔴使用者の client が解決すると相手の「アーツを使用したとき」が集まらない');
+  eq(opp?.iAmHost, false, '反応する側（guest）を返していない');
+  // ② guest がアーツを使い、host の client が解決した（CPU 戦の CPU のアーツ）＝guest 自身の「アーツを使用したとき」
+  const own = collectArtsUseForResolution(deps, { artsOwnerId: 'G', artsCardNum: arts, effectId: `${arts}-E1`, afterHost: hostSt, afterGuest: guestSt });
+  ok(!!own && own.entries.some(e => e.effectId === 'WXK10-046-E1' && e.playerId === 'G'), '🔴相手の client が解決すると使用者の「アーツを使用したとき」が集まらない');
+  eq(own?.casterIsHost, false, '使用者の側を返していない');
+}));
+
+test('WXDi-P07-084-E1: デッキの一番下がシグニ以外なら場に出さずトラッシュ（スペルをシグニゾーンに出さない）', () => withSavedCursor(() => {
+  // 🔴自己対戦の SHAPE＝《コードメイズ　レースコース》が公開したスペル《芽吹》をシグニゾーンに出していた。
+  const eff = (effectsMap.get('WXDi-P07-084') ?? []).find(e => e.effectId === 'WXDi-P07-084-E1')!;
+  const sig = findCard(c => isSigni(c));
+  const ctx = mkCtx({}, {}, 'WXDi-P07-084');
+  ctx.ownerState = { ...ctx.ownerState, deck: [sig, 'WX24-D4-25#9'] };
+  const r = executeEffect({ ...eff, cost: undefined } as CardEffect, ctx);
+  ok(!r.ownerState.field.signi.some(z => z?.includes('WX24-D4-25#9')), '🔴スペルがシグニゾーンに出た');
+  ok(r.ownerState.trash.includes('WX24-D4-25#9'), 'シグニ以外の公開カードがトラッシュに置かれない');
+}));
+
+test('出所の無い「場に出す」（＝デッキの一番上）を原文の出所へ直した3枚（WXDi-P13-054／WXDi-P13-004A／PR-474）', () => withSavedCursor(() => {
+  // 🔴旧＝3枚とも出所の無い ADD_TO_FIELD＝engine は**デッキの一番上**を出す（トラッシュに置いた札／裏返したピース／ライフの一番上ではなく）。
+  const sig = findCard(c => isSigni(c) && c.CardNum !== 'WXDi-P13-054');
+  const blk = findCard(c => (c.Color ?? '') === '黒');
+  // ① WXDi-P13-054-E1＝トラッシュに置いた「そのカード」を出す
+  const e1 = (effectsMap.get('WXDi-P13-054') ?? []).find(e => e.effectId === 'WXDi-P13-054-E1')!;
+  const c1 = mkCtx({ signi: ['WXDi-P13-054', null, null] }, {}, 'WXDi-P13-054');
+  c1.ownerState = { ...c1.ownerState, deck: [sig, 'WD01-012'], energy: [blk, blk] };
+  const r1 = executeEffect(e1, c1);
+  ok(!r1.done && r1.pending.type === 'CHOOSE', '前提: シグニなので任意コストを問う');
+  const r1b = resumeOptionalCost('pay', [blk, blk], r1.pending as never, { ...c1, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs, lastProcessedCards: (r1 as { lastProcessedCards?: string[] }).lastProcessedCards } as ExecCtx);
+  const placed1 = r1b.done ? r1b.ownerState.field.signi.flat().filter(Boolean) : [(r1b.pending as { cardNum?: string }).cardNum, ...((r1b.pending as { candidates?: string[] }).candidates ?? [])];
+  ok(placed1.includes(sig), `🔴トラッシュに置いたシグニを場に出さない（出そうとした札=${JSON.stringify(placed1)}）`);
+  ok(!placed1.includes('WD01-012'), '🔴デッキの次の札を場に出そうとしている');
+  // ② WXDi-P13-004A-E1＝使ったピース自身を裏面のシグニとして出す
+  const e4 = (effectsMap.get('WXDi-P13-004A') ?? [])[0];
+  const c4 = mkCtx({}, {}, 'WXDi-P13-004A#1');
+  c4.ownerState = { ...c4.ownerState, lrig_trash: ['WXDi-P13-004A#1'], deck: ['WD01-012', ...c4.ownerState.deck] };
+  const r4 = executeEffect({ ...e4, cost: undefined } as CardEffect, c4);
+  ok(r4.done && r4.ownerState.field.signi.some(z => z?.includes('WXDi-P13-004A#1')), '🔴ピース自身が場に出ない');
+  eq(r4.ownerState.card_identity_overrides?.['WXDi-P13-004A#1'], 'WXDi-P13-004B', '裏面として扱われない');
+  ok(!r4.ownerState.lrig_trash.includes('WXDi-P13-004A#1'), '🔴ルリグトラッシュにも残っている（二重存在）');
+  ok((r4.ownerState.pending_exile_nums ?? []).includes('WXDi-P13-004A#1'), '場を離れたら除外する印が付かない');
+  // ③ PR-474-E1＝ライフの一番上がスペルなら場に出さず「使う」を問う／シグニならそのシグニを出す
+  const eL = (effectsMap.get('PR-474') ?? [])[0];
+  const spell = findCard(c => c.Type === 'スペル');
+  const cS = mkCtx({}, {}, 'PR-474'); cS.ownerState = { ...cS.ownerState, life_cloth: ['WD01-012', spell] };
+  const rS = executeEffect({ ...eL, cost: undefined } as CardEffect, cS);
+  const optS = rS.done ? [] : ((rS.pending as { options?: { id: string }[] }).options ?? []).map(o => o.id);
+  eq(JSON.stringify(optS), JSON.stringify(['use', 'skip']), '🔴ライフの一番上のスペルを「使う」の問いにならない');
+  const cG = mkCtx({}, {}, 'PR-474'); cG.ownerState = { ...cG.ownerState, life_cloth: ['WD01-012', sig] };
+  const rG = executeEffect({ ...eL, cost: undefined } as CardEffect, cG);
+  ok(!rG.done && rG.pending.type === 'CHOOSE', '前提: 場に出すかを問う');
+  const rG2 = resumeChoose('place', rG.pending as never, { ...cG, ownerState: rG.ownerState, otherState: rG.otherState, logs: rG.logs } as ExecCtx);
+  eq((rG2 as { pending?: { cardNum?: string } }).pending?.cardNum, sig, '🔴ライフの一番上のシグニではない札を場に出そうとしている');
+  ok(!rG2.ownerState.life_cloth.includes(sig), 'ライフクロスから抜けていない（二重存在）');
+}));
+
+test('WXK10-053-E2: 公開したカードを手札に加える（選択系の外の ADD_TO_HAND は no-op だった）', () => withSavedCursor(() => {
+  // 🔴旧＝最後の段が `ADD_TO_HAND`（選択系の外）＝engine はログだけ書いて何もせず、公開したカードはデッキの一番上に残った。
+  const e = (effectsMap.get('WXK10-053') ?? []).find(x => x.effectId === 'WXK10-053-E2')!;
+  const sig = findCard(c => isSigni(c) && c.Level === '2');
+  const opp = findCard(c => isSigni(c) && c.Level === '3');
+  const ctx = mkCtx({ signi: ['WXK10-053', null, null] }, { signi: [opp, null, null] }, 'WXK10-053');
+  ctx.ownerState = { ...ctx.ownerState, deck: [sig, ...ctx.ownerState.deck] };
+  let r = executeEffect({ ...e, cost: undefined } as CardEffect, ctx); let c: ExecCtx = ctx;
+  for (let k = 0; k < 5 && !r.done; k++) {
+    c = { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs, lastProcessedCards: (r as { lastProcessedCards?: string[] }).lastProcessedCards } as ExecCtx;
+    if (r.pending.type === 'LOOK_AND_REORDER') r = settleReorder(r, c);
+    else if (r.pending.type === 'SELECT_TARGET') r = resumeSelectTarget([(r.pending as { candidates: string[] }).candidates[0]], r.pending as never, c);
+    else break;
+  }
+  ok(r.done, '前提: 解決が終わる');
+  ok(r.ownerState.hand.includes(sig), '🔴公開したカードが手札に入らない');
+  ok(r.ownerState.deck[0] !== sig, '🔴公開したカードがデッキの一番上に残っている');
+  ok(JSON.stringify(r.otherState).includes('"delta":-2'), 'レベルの－（公開したシグニのレベル分）が落ちた');
+}));
+test('「デッキの一番上を公開し、それを手札に加える」が手札に入る（TRANSFER_TO_HAND{DECK_CARD} は fromTop が無いと何もしない）', () => withSavedCursor(() => {
+  // 🔴旧＝`DECK_CARD` に `fromTop:true` が無く、engine の fail-closed 分岐で**何も起きなかった**（選択系の外の3効果）。
+  const drive = (id: string, top: string) => {
+    const cn = id.replace(/-(E\d+\w*|BURST)$/, '');
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id)!;
+    const ctx = mkCtx({ signi: [cn, null, null] }, {}, cn);
+    ctx.ownerState = { ...ctx.ownerState, deck: (id === 'WDK07-E11-BURST' ? ['WD01-012', top] : [top]).concat(['WD01-013', ...ctx.ownerState.deck]) };
+    const r = executeEffect({ ...e, cost: undefined } as CardEffect, ctx);
+    ok(r.done && r.ownerState.hand.includes(top), `🔴${id}: 公開したカードが手札に入らない`);
+  };
+  drive('WDK04-011-E1', 'WD01-012');      // レベル2＝偶数
+  drive('WDK07-E11-BURST', 'PR-384');     // ＜調理＞
+  // 選択系の外にはもう残っていない（REVEAL_AND_PICK の then は選んだ札を受け取る別経路で動く）
+  const picks = new Set(['SEARCH', 'REVEAL_AND_PICK', 'REVEAL_UNTIL', 'LOOK_AND_PICK', 'LOOK_PICK_CHAIN', 'REVEAL_UNTIL_TO_HAND', 'SEARCH_DECK', 'SELECT_TARGET']);
+  const bad: string[] = [];
+  const walk = (a: unknown, eid: string, up: boolean): void => {
+    if (!a || typeof a !== 'object') return;
+    if (Array.isArray(a)) { a.forEach(x => walk(x, eid, up)); return; }
+    const o = a as { type?: string; source?: { type?: string; fromTop?: boolean } };
+    if (!up && o.type === 'TRANSFER_TO_HAND' && o.source?.type === 'DECK_CARD' && o.source.fromTop !== true) bad.push(eid);
+    if (!up && o.type === 'ADD_TO_HAND') bad.push(eid);
+    for (const v of Object.values(o)) walk(v, eid, up || picks.has(o.type ?? ''));
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e.effectId, false);
+  eq(JSON.stringify([...new Set(bad)]), JSON.stringify(['WXK06-029-E1']), '🔴選択系の外で何もしない「手札に加える」が増えた（WXK06-029-E1 は機構待ち＝§5.3 O-546）');
+}));
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

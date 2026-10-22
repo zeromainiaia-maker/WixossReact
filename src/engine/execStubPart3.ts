@@ -2703,6 +2703,9 @@ export function execStubPart3(
     const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
     const eligibleZones = mbsReveal.flatMap((mbCard, zone) => {
       if (!mbCard) return [];
+      // 🔴2026-10-22＝シグニが居るゾーンの【マジックボックス】はシグニにできない（置き場が無い）＝候補に出さない。
+      //   旧＝表向きにしたカードでゾーンを**上書き**し、居たシグニがゲームから消えた（自己対戦の VANISH・《ちより　第三章》）。
+      if (ctx.ownerState.field.signi[zone]?.length) return [];
       const cardData = ctx.cardMap.get(getCardNum(mbCard));
       return cardData?.Type === 'シグニ' && matchesFilter(cardData, stub.magicBoxReveal!.filter)
         ? [zone] : [];
@@ -2752,6 +2755,7 @@ export function execStubPart3(
       if (revealedCards.length >= revealLimit) break;
       if (i < 0 || i >= 3) continue;
       if (!mbsReveal[i]) continue;
+      if (newSigniReveal[i]?.length) continue;   // シグニが居るゾーンは上書きしない（上の候補と同じ規約）
       const mbCard = mbsReveal[i]!;
       const cardData = ctx.cardMap.get(getCardNum(mbCard));
       // 中身がシグニでない、またはpayloadのクラス等を満たさないMBは裏向きのまま残す。
@@ -5725,6 +5729,68 @@ export function execStubPart3(
       ...ctx.ownerState,
       pending_exile_nums: [...new Set([...(ctx.ownerState.pending_exile_nums ?? []), src])],
     } }, `${ctx.cardMap.get(getCardNum(src))?.CardName ?? src}を遅延除外対象に登録`));
+  }
+
+  // PIECE_FLIP_SELF_TO_FIELD: 使ったピース自身を裏返し、裏面（`value`＝裏面のカード番号）のシグニとして場に出す（`WXDi-P13-004A-E1`）。
+  // 🔴2026-10-22＝旧 live は出所の無い `ADD_TO_FIELD`＝**デッキの一番上**を出していた（ピースは場に出なかった）。
+  // ⚠ピースは使った時点でルリグトラッシュにある（`performKeyPiece`）＝そこから抜いて置き、裏面として扱う
+  //   （`card_identity_overrides`＝`PLACE_REV_SIGNI` と同じ受け皿・場を離れれば `removeFromField` が消す）。
+  // 表示: このカードを裏返して、裏面を場に出す
+  if (stub.id === 'PIECE_FLIP_SELF_TO_FIELD') {
+    const backPF = typeof stub.value === 'string' ? stub.value : null;
+    const srcPF = ctx.sourceCardNum;
+    if (!backPF || !srcPF) return done(addLog(ctx, '裏返すカードがない'));
+    const stPF = ctx.ownerState;
+    const backName = ctx.cardMap.get(backPF)?.CardName ?? backPF;
+    const zonePF = stPF.field.signi.findIndex(s => !s || s.length === 0);
+    if (zonePF < 0) return done(addLog(ctx, `空きシグニゾーンなし（${backName}配置不可）`));
+    const signiPF = [...stPF.field.signi] as (string[] | null)[];
+    signiPF[zonePF] = [srcPF];
+    const nextPF: PlayerState = {
+      ...stPF,
+      lrig_trash: stPF.lrig_trash.filter(n => n !== srcPF),
+      field: { ...stPF.field, signi: signiPF, check: stPF.field.check === srcPF ? null : stPF.field.check },
+      card_identity_overrides: { ...(stPF.card_identity_overrides ?? {}), [srcPF]: backPF },
+    };
+    return done({ ...addLog(setOwnerState('self', nextPF, ctx), `${backName}をゾーン${zonePF + 1}に場に出す（裏返し）`), lastProcessedCards: [srcPF] });
+  }
+
+  // LIFE_TOP_SIGNI_TO_FIELD_OR_SPELL_FREE: 「あなたのライフクロスの一番上を見る。それがシグニの場合、場に出してもよい。
+  //   それがスペルの場合、コストを支払わずに使用してもよい」（`PR-474-E1`《ラッキー・パンチ》）。
+  // 🔴2026-10-22＝旧 live は出所の無い `ADD_TO_FIELD`＝**デッキの一番上**を（種類も見ずに）出していた。
+  // 表示: ライフクロスの一番上を見て、シグニなら場に出してもよい／スペルならコストを支払わずに使用してもよい
+  if (stub.id === 'LIFE_TOP_SIGNI_TO_FIELD_OR_SPELL_FREE') {
+    const topLT = ctx.ownerState.life_cloth.at(-1);
+    if (!topLT) return done(addLog(ctx, 'ライフクロスがない'));
+    const cdLT = ctx.cardMap.get(topLT) ?? ctx.cardMap.get(getCardNum(topLT));
+    const nameLT = cdLT?.CardName ?? topLT;
+    const lookedLT = addPrivateLog(addLog(ctx, 'ライフクロスの一番上を見た'), `ライフクロスの一番上：${nameLT}`);
+    const skipLT = { type: 'SEQUENCE', steps: [] } as unknown as EffectAction;
+    if (cdLT?.Type === 'シグニ' && ctx.ownerState.field.signi.some(z => !z || z.length === 0)) {
+      return needsInteraction(lookedLT, { type: 'CHOOSE', count: 1, options: [
+        { id: 'place', label: `${nameLT}を場に出す`, action: { type: 'STUB', id: 'INTERNAL_LIFE_TOP_TO_FIELD' } as StubAction as EffectAction, available: true },
+        { id: 'skip', label: '場に出さない', action: skipLT, available: true },
+      ] });
+    }
+    if (cdLT?.Type === 'スペル') {
+      return needsInteraction(lookedLT, { type: 'CHOOSE', count: 1, options: [
+        { id: 'use', label: `${nameLT}をコストを支払わずに使用する`, action: { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'INTERNAL_LIFE_TOP_TAKE' },
+          { type: 'STUB', id: 'PLAY_FREE', carriedCardNum: topLT },
+        ] } as unknown as EffectAction, available: true },
+        { id: 'skip', label: '使用しない', action: skipLT, available: true },
+      ] });
+    }
+    return done(lookedLT);
+  }
+  // 表示: ライフクロスの一番上のシグニを場に出す
+  if (stub.id === 'INTERNAL_LIFE_TOP_TO_FIELD' || stub.id === 'INTERNAL_LIFE_TOP_TAKE') {
+    const topIL = ctx.ownerState.life_cloth.at(-1);
+    if (!topIL) return done(ctx);
+    const takenIL = setOwnerState('self', { ...ctx.ownerState, life_cloth: ctx.ownerState.life_cloth.slice(0, -1) }, ctx);
+    if (stub.id === 'INTERNAL_LIFE_TOP_TAKE') return done({ ...takenIL, lastProcessedCards: [topIL] });
+    // デッキの一番上を出す経路（`execAddToField` の出所なし分岐）と同じ形＝元の領域から抜いてからゾーンを選ばせる
+    return needsInteraction({ ...takenIL, lastProcessedCards: [topIL] }, { type: 'SELECT_ZONE', cardNum: topIL, owner: 'self' });
   }
 
   // MARK_PLACED_DELAYED_EXILE: この解決で**場に出したカード**（lastProcessedCards）を遅延除外対象にする

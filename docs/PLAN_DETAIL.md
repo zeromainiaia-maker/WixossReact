@@ -2790,6 +2790,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4442**＝+14）｜実機 新設 **9本** PASS（`effectSourceHeader`・`effectAnnounce`・`vimanaSelfAttack`・`nanashiP0Redirect`・`cheerZoneAttack`・`cheerZoneTargeted`・`restrictionLoss`・`cheerAcce`・`cheerEnergyCharge`）／`verifyFullMatch cpu` PASS
   - 📏**計器**＝🆕`census:cheer`（チアゾーンでは対象に何も起きない効果）**2,464 → 51**（比べた 2,432・保存則の違反 0）
 
+## O-546 デッキを探している間に割り込む【常】（2026-10-22 登録）
+
+**見つけ方**＝選択系の外にある「手札に加える」（`ADD_TO_HAND`／`fromTop` の無い `TRANSFER_TO_HAND{DECK_CARD}`）を全数で洗った（BUGFIXES 第545バッチ）。ほかの3効果は直し、これだけ受け皿が無い。
+- `WXK06-029-E1`《フリーダム団　ワイルドライガー》「【常】：あなたがデッキからカードを探している間、このカードをデッキから公開し《青》《無》を支払ってもよい。そうした場合、これを手札に加える。」
+**いまの実装**＝`CONTINUOUS` に `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN, TRANSFER_TO_HAND{DECK_CARD}}]` が載っているだけ＝【常】の action はどこからも実行されない（実行しても `DECK_CARD` は `fromTop` が無いので何もしない）。
+**要るもの**＝デッキ検索（`SEARCH` from deck）の対話を出す地点で、自分のデッキにこのカードがあれば「公開して払って手札に加える」を差し込む口（人間は検索画面のボタン・CPU は払えれば使う）。払った後の検索の続き（このカードは候補から外れる）も要る。
+⚠**原文はこのカードがデッキにあるときだけ働く**＝場の【常】を集める `effectEngine` の経路には乗らない。
+
 ## O-545 強制アタックの対象が1体に絞れない（2026-10-21 登録）
 
 **見つけ方**＝「対象とし」と書かれた効果を、候補が2つ以上ある盤面で実行して選択の対話が立つかを全数で見た（BUGFIXES 第538バッチ）。

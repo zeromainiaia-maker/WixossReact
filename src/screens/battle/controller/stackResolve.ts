@@ -414,7 +414,7 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
     // §5.3 `O-131`＝収集は `collectOppArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
     const artsTriggers = deps.collectOppArtsUseForResolution({
       artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
-      beforeMine: deps.isHost ? bs.host_state : bs.guest_state,
+      beforeHost: bs.host_state, beforeGuest: bs.guest_state,
       afterHost: hostState, afterGuest: guestState,
       autoTargetedCards: result.autoTargetedCards,
     });
@@ -435,7 +435,7 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
     }
 
     // ON_ARTS_USE: 自分がアーツを使用した場合、使用者自身の ON_ARTS_USE トリガーを収集（ON_SPELL_USE のアーツ版）。
-    // caster の client のみが収集する（entry.playerId === deps.userId）＝ON_OPP_ARTS_USE と裏表で二重押しを防ぐ。
+    // 使用者の側を集める（どの client が解決しても＝`artsUseTriggers.ts` 冒頭）。
     // §5.3 `O-131`＝収集は `collectArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
     const au = deps.collectArtsUseForResolution({
       artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
@@ -446,12 +446,12 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
         const baseStackAU = stackAcc ?? null;
         stackAcc = baseStackAU
           ? pushToStack(baseStackAU, au.entries)
-          : initStack(deps.userId, au.entries);
+          : initStack(entry.playerId, au.entries);
         // usageLimit（《ターン1回/2回》）を caster の actions_done に永続化
         if (au.usedIds.length > 0) {
-          const baseStAU = deps.isHost ? hostAcc : guestAcc;
+          const baseStAU = au.casterIsHost ? hostAcc : guestAcc;
           const withUsed = { ...baseStAU, actions_done: [...(baseStAU.actions_done ?? []), ...au.usedIds] };
-          if (deps.isHost) hostAcc = withUsed; else guestAcc = withUsed;
+          if (au.casterIsHost) hostAcc = withUsed; else guestAcc = withUsed;
         }
       }
     }

@@ -325,7 +325,7 @@ export function makeEffectInteractionHandlers(c: PerformCtx, p: EffectInteractio
         //   （過小side。`O-113` の「盤面に出る影響だけを見る」方針と同じ向き）。
         const artsTrigRe = collectOppArtsUseForResolution({
           artsOwnerId: pe.sourcePlayerId, artsCardNum: pe.sourceCardNum, effectId: pe.effectId,
-          beforeMine: isHost ? bs.host_state : bs.guest_state,
+          beforeHost: bs.host_state, beforeGuest: bs.guest_state,
           afterHost: hostAcc, afterGuest: guestAcc,
           autoTargetedCards: result.autoTargetedCards,
         });
@@ -345,9 +345,9 @@ export function makeEffectInteractionHandlers(c: PerformCtx, p: EffectInteractio
         if (auRe) {
           if (auRe.entries.length > 0) pendingEntries.push(...auRe.entries);
           if (auRe.usedIds.length > 0) {
-            const baseAuRe = isHost ? hostAcc : guestAcc;
+            const baseAuRe = auRe.casterIsHost ? hostAcc : guestAcc;
             const withUsedAu = { ...baseAuRe, actions_done: [...(baseAuRe.actions_done ?? []), ...auRe.usedIds] };
-            if (isHost) hostAcc = withUsedAu; else guestAcc = withUsedAu;
+            if (auRe.casterIsHost) hostAcc = withUsedAu; else guestAcc = withUsedAu;
           }
         }
         if (pendingEntries.length > 0) {

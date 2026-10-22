@@ -262,6 +262,13 @@ function locate(r: BattleStateRow) {
   return { loc, dup };
 }
 
+/** 値の中の文字列を全部（盤面データの外に一時的に持たれたカード ID を拾う）。 */
+function findStrings(o: unknown, out: string[] = []): string[] {
+  if (typeof o === 'string') out.push(o);
+  else if (o && typeof o === 'object') for (const x of Object.values(o)) findStrings(x, out);
+  return out;
+}
+
 function findPaths(o: unknown, id: string): string[] {
   const hits: string[] = [];
   (function walk(v: unknown, path: string) {
@@ -436,30 +443,36 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
       const toAscii = (x: string) => x.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
       if (!stepLogs.some(l => /代わりに|置換/.test(l))) {
         const sides = [[prevRow.host_state, r.host_state], [prevRow.guest_state, r.guest_state]] as [PlayerState, PlayerState][];
+        // ⚠「デッキの上を公開／見る」（`LOOK_AND_REORDER`）は対話のあいだカードをデッキから抜いて `pending_effect` に持つ
+        //   ＝前の盤面のデッキに居ない札が、その対話の解決と同じ手でエナ・手札へ入る（実測＝《羅原　Ｄｙ》《幻獣　ぷにとー》）＝出所に含める。
+        const pendingIds = new Set(findStrings(prevRow.pending_effect));
         const moved = (from: (s: PlayerState) => string[], to: (s: PlayerState) => string[]) =>
-          sides.reduce((n, [a0, a1]) => { const f = new Set(from(a0)); return n + to(a1).filter(id => f.has(id) && !to(a0).includes(id)).length; }, 0);
+          sides.reduce((n, [a0, a1]) => { const f = new Set([...from(a0), ...pendingIds]); return n + to(a1).filter(id => f.has(id) && !to(a0).includes(id)).length; }, 0);
         const deckMin = Math.min(prevRow.host_state.deck.length, prevRow.guest_state.deck.length);
         const drawN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^(?:\[CPU\] )?(\d+)枚ドロー$/)?.[1] ?? 0), 0);
         // ⚠同じ手で手札からデッキへ戻したカードを引く形（「デッキの一番上へ」→「1枚ドロー」）は前の盤面のデッキに無い＝数えない
         if (drawN > 0 && drawN <= deckMin && !stepLogs.some(l => /デッキの一番上へ|デッキに戻/.test(l))) {
-          const got = moved(st => st.deck, st => st.hand);
+          // ⚠「引いて、手札を見ないで1枚捨てる」（《羅原　ＣＺ》ほか）は引いた札そのものが捨てられうる＝同じ手に手札を捨てるログがあればトラッシュ行きも数える。
+          const got = moved(st => st.deck, st => st.hand) + (stepLogs.some(l => /^手札から.*トラッシュへ$/.test(l)) ? moved(st => st.deck, st => st.trash) : 0);
           if (got < drawN) once(`DRAWLOG:${stepLogs.find(l => /ドロー$/.test(l))}`, { kind: 'DRAWLOG', step, turn: r.turn_count, detail: `ログはドロー${drawN}枚・デッキ→手札は${got}枚`, logs: m.logs.slice(-8) });
         }
         const chargeN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^エナチャージ(\d+)$/)?.[1] ?? 0), 0);
-        if (chargeN > 0 && chargeN <= deckMin) {
+        // ⚠同じ手でカードをデッキへ戻してからエナチャージする形（《獣群邁進》＝全部デッキに加えてシャッフル→【エナチャージ４】）は前の盤面のデッキに無い＝数えない（ドローと同じ）
+        if (chargeN > 0 && chargeN <= deckMin && !stepLogs.some(l => /デッキの一番上へ|デッキに戻|デッキ上に置く|デッキ上へ|デッキに加え/.test(l))) {
           const got = moved(st => st.deck, st => st.energy);
           if (got < chargeN) once(`CHARGELOG:${stepLogs.find(l => /^エナチャージ/.test(l))}`, { kind: 'CHARGELOG', step, turn: r.turn_count, detail: `ログはエナチャージ${chargeN}・デッキ→エナは${got}枚`, logs: m.logs.slice(-8) });
         }
         for (const l of stepLogs) {
           const nm = l.match(/^(?:.+?が)?(.+)をバニッシュ$/)?.[1];
           if (!nm) continue;
-          const onField = (st: PlayerState) => st.field.signi.filter(z => z?.length && cardMap.get(numOf(z.at(-1)!))?.CardName === nm).length;
+          // ⚠チアゾーン（`field.cheer`）のシグニも場＝同名の札がシグニゾーンとチアゾーンに居ると、チアゾーンの側がバニッシュされても数が変わらない（実測＝《コードライド　アンビュランス》＝自分をチアガールにする）
+          const onField = (st: PlayerState) => [...st.field.signi.map(z => z?.at(-1)), st.field.cheer].filter(n => n && cardMap.get(numOf(n))?.CardName === nm).length;
           // ⚠ログ行は盤面の変化より1手遅れて届くことがある（実測＝バトルのバニッシュ）＝2手前の盤面と比べる
           const before = Math.max(onField(prevRow.host_state) + onField(prevRow.guest_state), prev2Row ? onField(prev2Row.host_state) + onField(prev2Row.guest_state) : 0), after = onField(r.host_state) + onField(r.guest_state);
           // ⚠「同じカードになる」等でカード名が上書きされた札は、印刷名では数えられない＝実機と同じ材料（上書きを当てた表）で数え直す
           const recount = () => {
             const cnt = (row: BattleStateRow) => { const mt = buildBattleMaterials({ bs: row, cards: uniqCards, userId: row.host_id, baseEffectsMap: effectsMap });
-              return [row.host_state, row.guest_state].reduce((n, st) => n + st.field.signi.filter(z => z?.length && mt.cardMap.get(z.at(-1)!)?.CardName === nm).length, 0); };
+              return [row.host_state, row.guest_state].reduce((n, st) => n + [...st.field.signi.map(z => z?.at(-1)), st.field.cheer].filter(x => x && mt.cardMap.get(x)?.CardName === nm).length, 0); };
             return { b: Math.max(cnt(prevRow), prev2Row ? cnt(prev2Row) : 0), a: cnt(r) };
           };
           if (before > 0 && after >= before && (() => { const x = recount(); return x.b > 0 && x.a >= x.b; })()) once(`BANISHLOG:${nm}`, { kind: 'BANISHLOG', step, turn: r.turn_count, detail: `ログは《${nm}》をバニッシュ・場の《${nm}》は ${before}→${after}`, logs: m.logs.slice(-8) });
@@ -485,7 +498,11 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
     }
     // POWERZERO＝落ち着いた盤面（スタック・対話・スペル待ちなし）でバニッシュされるはずのシグニが残り続ける
     if (!r.effect_stack && !r.pending_effect && !r.pending_spell) {
-      const pz = powerZeroBanishCandidates(r, r.host_state, r.guest_state, effectsMap, instMap);
+      // ⚠実機と同じ材料（付与・【レイヤー】で配られた能力を足した効果表）で判定する＝静的な効果表だと
+      //   「相手の効果によってパワーは増減しない」を配られたシグニを0以下と誤認する（実測＝《幻怪　フゥライ》のレイヤー）。
+      const pz0 = powerZeroBanishCandidates(r, r.host_state, r.guest_state, effectsMap, instMap);
+      const pz = pz0.length === 0 ? pz0 : (() => { const mt = buildBattleMaterials({ bs: r, cards: uniqCards, userId: r.host_id, baseEffectsMap: effectsMap });
+        return powerZeroBanishCandidates(r, r.host_state, r.guest_state, mt.effectsMap, mt.cardMap); })();
       if (pz.length > 0) { if (pzSince < 0) pzSince = step; else if (step - pzSince >= 15) once(`POWERZERO:${pz.join(',')}`, { kind: 'POWERZERO', step, turn: r.turn_count, detail: `${pz.join(',')} が${step - pzSince}手 残っている`, logs: m.logs.slice(-10) }); }
       else pzSince = -1;
     }
@@ -536,6 +553,8 @@ async function mirrorCompare(row0: BattleStateRow, logs0: string[], deps: any, r
     const a = snaps[i], b = ySnaps[i];
     if (!a || !b) { report('MIRROR:len', { kind: 'MIRROR', step: i, turn: (a ?? b)?.turn, detail: `ターン数が違う（元 ${snaps.length}／入れ替え ${ySnaps.length}・入れ替え側の終わり=${k}）`, logs: (a ?? b)!.logs }); return; }
     const keys = rowDiffKeys(pick(b.row), pick(mir(a.row)));
+    // 🆕`MIRROR_DEBUG=1`＝食い違った値を両方出す（どちらの席の処理が割れたかを読む）
+    if (keys.length > 0 && process.env.MIRROR_DEBUG) { const pa: any = pick(b.row), pb: any = pick(mir(a.row)); for (const kk of keys) { const [s1, f1] = kk.split('.'); console.log('DBG', kk, ' KAE', JSON.stringify(pa[s1]?.[f1]), ' MOTO', JSON.stringify(pb[s1]?.[f1])); } }
     if (keys.length > 0) { report(`MIRROR:${keys.join(',')}`, { kind: 'MIRROR', step: i, turn: a.turn, detail: `T${a.turn} で席を入れ替えた試合と食い違い 差=${keys.join(',')}（入れ替え側は host/guest が逆）`, logs: [...a.logs.map(l => `元| ${l}`), ...b.logs.map(l => `替| ${l}`)] }); return; }
   }
   const yw = y.row().winner_id, xw = finalRow.winner_id;

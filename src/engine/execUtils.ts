@@ -4150,7 +4150,7 @@ export function evalUseCondition(
  *   ここでは触らない（二重に処理すると行き先が2回積まれる）。
  * ⚠**ゾーンに属する状態（ウィルス・`field_grants_*`）は落とさない**＝あれはシグニではなくゾーンの持ち物。
  */
-export function clearOnFieldAcquiredState(state: PlayerState, cardNum: string): PlayerState {
+export function clearOnFieldAcquiredState(state: PlayerState, cardNum: string, opts?: { keepAbilityLoss?: boolean }): PlayerState {
   // ⚠**空になっても `undefined` へ潰さない**＝既存の読み手・golden が `[]`（長さ0）を見ている。
   const dropArr = (a: string[] | undefined): string[] | undefined =>
     a?.length ? a.filter(n => n !== cardNum) : a;
@@ -4173,10 +4173,14 @@ export function clearOnFieldAcquiredState(state: PlayerState, cardNum: string): 
     keyword_grants: dropKey(state.keyword_grants),
     keyword_grants_until_opp_turn: dropKey(state.keyword_grants_until_opp_turn),
     keyword_abilities_removed: dropKey(state.keyword_abilities_removed),
-    abilities_removed: dropArr(state.abilities_removed),
-    abilities_removed_next_turn: dropArr(state.abilities_removed_next_turn),
-    abilities_removed_until_next_own_turn: dropKey(state.abilities_removed_until_next_own_turn),
-    granted_abilities_removed: dropArr(state.granted_abilities_removed),
+    // ⚠`keepAbilityLoss`＝能力喪失は場以外の置き場にも掛かる（「手札と場とエナゾーンとトラッシュにあるシグニは能力を失う」
+    //   → 続けてシグニを手札に戻す＝`SPDi47-01-E2`）＝場を離れただけでは落とさない。
+    ...(opts?.keepAbilityLoss ? {} : {
+      abilities_removed: dropArr(state.abilities_removed),
+      abilities_removed_next_turn: dropArr(state.abilities_removed_next_turn),
+      abilities_removed_until_next_own_turn: dropKey(state.abilities_removed_until_next_own_turn),
+      granted_abilities_removed: dropArr(state.granted_abilities_removed),
+    }),
     attack_phase_level_overrides: dropKey(state.attack_phase_level_overrides),
     base_level_overrides_until_opp_turn: dropKey(state.base_level_overrides_until_opp_turn),
     base_level_overrides_until_next_own_turn: dropKey(state.base_level_overrides_until_next_own_turn),
@@ -4185,7 +4189,14 @@ export function clearOnFieldAcquiredState(state: PlayerState, cardNum: string): 
   };
 }
 
-export function removeFromField(cardNum: string, state: PlayerState): PlayerState {
+/**
+ * 場（シグニゾーン・チアゾーン）からカードを離す唯一の funnel。
+ * 🔴2026-10-22＝**場に居たあいだに得た per-card の状態（パワー修正・付与キーワード・レベルの上書き・アタック済み）もここで落とす**
+ *   （`clearOnFieldAcquiredState`）。旧＝落としていなかったため、同じターンに同じ個体（instance ID）が場へ戻ると
+ *   修正がそのまま復活し、パワー-8000 を受けて消えたシグニが戻った瞬間からパワー0以下のまま居座った（自己対戦で STALL）。
+ * ⚠`keepAcquired`＝場の中での移動（シグニゾーン→チアゾーン）は同じシグニのまま＝落とさない。
+ */
+export function removeFromField(cardNum: string, state: PlayerState, opts?: { keepAcquired?: boolean }): PlayerState {
   const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
   const newSigni = state.field.signi.map((stack, i) => {
     if (!stack) return null;
@@ -4259,7 +4270,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     const filtered = newLrigRiding.filter(cn => cn !== cardNum);
     newLrigRiding = filtered.length > 0 ? filtered : undefined;
   }
-  return {
+  const out: PlayerState = {
     ...state,
     card_identity_overrides: newIdentityOverrides,
     card_identity_overrides_this_turn: newIdentityOverridesThisTurn,
@@ -4288,6 +4299,9 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       ...(state.field.cheer === cardNum ? { cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] } : {}),
     },
   };
+  const wasOnField = zoneIdx >= 0 || state.field.cheer === cardNum;
+  // ⚠能力喪失は残す（場以外の置き場にも掛かる効果がある＝`clearOnFieldAcquiredState` の `keepAbilityLoss`）。
+  return wasOnField && !opts?.keepAcquired ? clearOnFieldAcquiredState(out, cardNum, { keepAbilityLoss: true }) : out;
 }
 
 /** 遅延除外マークを、場を離れた直後またはターン終了時に専用ゾーンへ移す。 */

@@ -7,15 +7,15 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-10-20）
+## サマリー（最終生成: 2026-10-22）
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 597 |
-| 　└ ハンドラ実装あり | 555 |
+| JSON で使用中の STUB id 種類 | 599 |
+| 　└ ハンドラ実装あり | 557 |
 | 　└ フォールバック（execStub 未処理） | 42 |
-| 総 STUB ノード件数 | 3803 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 379 |
+| 総 STUB ノード件数 | 3804 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 381 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -257,7 +257,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_SIGNI_ATTACK_POWER_RESTRICT` | 2 | 2 | WXDi-P05-031, WXDi-CP01-017 | 相手シグニアタック時パワー制限 |
 | `OPP_SIGNI_LEAVE_TO_TRASH` | 2 | 2 | WX24-P4-002, WXDi-P04-037 | 「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」。 |
 | `PLACE_SIGNI_UNDER_SIGNI` | 2 | 2 | WXDi-P05-060, WXDi-P09-078 | シグニをあなたの場のシグニの下に置く |
-| `PLAY_FREE` | 2 | 2 | PR-474, WX07-014 | この方法で処理したカードをコストを支払わずに使用する |
 | `POWER_DOUBLE_ALL` | 2 | 2 | WX04-049, WX07-029 | 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加） |
 | `POWER_MOD_BY_ATTACKER_LEVEL` | 2 | 1 | WXK10-084 | アタックしたシグニのレベルに基づくパワー修正 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価と対象の奇偶は payload（`powerPerUnit`）で受け取る。**   🔴`WXK10-084` は奇偶… |
 | `POWER_MOD_MIRROR` | 2 | 2 | WXEX1-23, WXK06-049 | 捨てたシグニのパワーを±として対象に適用 |
@@ -327,6 +326,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PLACE_LRIG_FROM_DECK_ON_TOP` | 1 | 1 | WXEX1-20 | ルリグデッキから＜X＞のルリグ１枚をこのルリグの上に置く（【グロウ】やグロウコストは無視） |
 | `PLACE_VIRUS_CENTER` | 1 | 1 | WXEX2-79 | 相手の中央のシグニゾーンにウィルスを設置 |
 | `PLAY_EFFECT_TARGET_CLASS_CHANGE` | 1 | 1 | WX14-032 |  |
+| `PLAY_FREE` | 1 | 1 | WX07-014 | この方法で処理したカードをコストを支払わずに使用する |
 | `POWER_COPY_FROM_DOWNED` | 1 | 1 | WXDi-P16-052 | ダウンしたシグニのパワーを自シグニに加算 |
 | `POWER_EQUAL_TO_SELF_POWER` | 1 | 1 | WXK02-038 | 自シグニのパワーに等しく相手シグニのパワーを設定 |
 | `POWER_EQUALS_FRONT_SIGNI` | 1 | 1 | PR-K021 | 前のシグニのパワーと等しく設定（自シグニを前シグニのパワーに） |
@@ -375,7 +375,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
-### execStubPart3.ts（266 種）
+### execStubPart3.ts（268 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -549,6 +549,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_KIYOHIME_CHOOSE` | 1 | 1 | WDK08-L14 | 以下の3つから1つを選ぶ（血晶武装状態なら代わりに3つまで選び、同じ選択肢を2回以上選んでもよい）。①ターン終了時まで対戦相手のすべてのシグニのパワーを－1000する ②対戦相手のシグニ1体を対象とし、それのパワーが4000以下の場合それ… |
 | `INTERNAL_OPEN_MB_SKIP` | 1 | 1 | WX24-P3-050 | 【マジックボックス】を表向きにしない（「〜してもよい」を断った枝） |
 | `LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT` | 1 | 1 | WXEX1-62 | このカード自身のレベル参照をLv4として扱う（デッキ/手札/トラッシュ在中） |
+| `LIFE_TOP_SIGNI_TO_FIELD_OR_SPELL_FREE` | 1 | 1 | PR-474 | ライフクロスの一番上を見て、シグニなら場に出してもよい／スペルならコストを支払わずに使用してもよい |
 | `LIMIT_OPP_ATTACK_ONCE` | 1 | 1 | WD13-010 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `LOOK_DECK_BOTTOM` | 1 | 1 | WXDi-P13-049 | デッキ下を1枚確認 |
 | `LOOK_TOP_BOTTOM` | 1 | 1 | WXDi-P08-046 | デッキ上1枚とデッキ下1枚を確認 |
@@ -595,6 +596,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPPONENT_OPTIONAL_ENERGY_CHARGE` | 1 | 1 | WXDi-P06-011 | 対戦相手は【エナチャージ】をしてもよい（するかどうかは対戦相手が選ぶ） |
 | `OPTIONAL_HAND_REVEAL_NAMED` | 1 | 1 | WX05-038 | 名称指定で手札カードを任意公開 |
 | `OPTIONAL_SELF_MILL_TOP` | 1 | 1 | WX24-P4-085 | あなたのデッキの一番上のカードをトラッシュに置いてもよい |
+| `PIECE_FLIP_SELF_TO_FIELD` | 1 | 1 | WXDi-P13-004A | このカードを裏返して、裏面を場に出す |
 | `PLACE_CHOKKIN` | 1 | 1 | WX17-034 | このシグニがあるシグニゾーンに【貯菌】カウンターを1つ置く |
 | `PLACE_DECK_TOP_UNDER_WEAPON_SIGNI` | 1 | 1 | WXK08-088 | ウェポンシグニの下にデッキ上を置く |
 | `PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 | あなたの対象のシグニ1体を選び、デッキの上から2枚のうち1枚をその下に置き、残りをデッキの一番下に置く |
@@ -649,7 +651,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 379 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 381 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -805,6 +807,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_LCLTR_TRASH` | 0 | 0 |  |  |
 | `INTERNAL_LEAVE_TO_TRASH` | 0 | 0 |  | 選択シグニをトラッシュに置く |
 | `INTERNAL_LIFE_TO_HAND_DO` | 0 | 0 |  |  |
+| `INTERNAL_LIFE_TOP_TAKE` | 0 | 0 |  | ライフクロスの一番上のシグニを場に出す |
+| `INTERNAL_LIFE_TOP_TO_FIELD` | 0 | 0 |  | ライフクロスの一番上のシグニを場に出す |
 | `INTERNAL_LOOKED_CARD_UNDER_APPLY` | 0 | 0 |  |  |
 | `INTERNAL_LRIG_DECK_TO_LRIG_TRASH` | 0 | 0 |  |  |
 | `INTERNAL_LRIG_PILE_PICK_ARTS` | 0 | 0 |  | 選んだ束を見て、その中からアーツ1枚を対戦相手のルリグトラッシュに置く（O-307 の3段目） |

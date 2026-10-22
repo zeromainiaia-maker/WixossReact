@@ -250,6 +250,11 @@ export async function resolvePendingSigniBattleFor(
   };
 
     if (!myS.pending_signi_battle) return;
+    // 🔴2026-10-22＝**どちらかのチェックゾーンでライフクロスの処理（ライフバースト）が終わるまでバトルしない**。
+    //   旧＝【自】（アタックしたとき）の効果でクラッシュしたライフがチェックゾーンでバーストを待つあいだにバトルを解決し、
+    //   バトルのクラッシュが**チェックゾーンを上書きして前のカードが消えた**（《コードドリフト　ファイトラ》・自己対戦の VANISH）。
+    //   チェックゾーンが空けば盤面が変わる＝呼び手（画面の見張り・CPU・ヘッドレス）はそこで呼び直す。
+    if (myS.field.check || opS.field.check || (myS.pending_crashed_cards?.length ?? 0) > 0 || (opS.pending_crashed_cards?.length ?? 0) > 0) return;
     // ⚠`loading`（画面の操作ロック）の確認は画面側のラッパが行う。
     const { zoneIndex, targetOpZone } = myS.pending_signi_battle;
     const isSideAttack = targetOpZone !== undefined; // 【側面アタック】: 指定ゾーンを攻撃・ライフダメージなし

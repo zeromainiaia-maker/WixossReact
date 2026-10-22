@@ -1041,6 +1041,41 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-080-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"ATTACH_CHARM","charm":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"to":{"type":"SIGNI","owner":"self","count":1,"filter":{"story":"悪魔"}},"toOther":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
+  // ── WXDi-P07-084 ／ 原文【出】《緑》：あなたのデッキの一番下のカードを公開する。そのカードを場に出すかトラッシュに置く。
+  // 🔴旧 live（AUTO）は公開したカードの種類を絞っておらず、**スペル（《芽吹》）をシグニゾーンに出していた**
+  //   （2026-10-22 `selfplay:inv` の SHAPE）。場に出せるのはシグニだけ＝シグニ以外はトラッシュへ。
+  'WXDi-P07-084': [
+    {"effectId":"WXDi-P07-084-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"REVEAL_AND_PICK","owner":"self","from":"deck_bottom","revealCount":1,"filter":{"cardType":"シグニ"},"pickCount":1,"pickUpTo":true,"then":{"type":"ADD_TO_FIELD","owner":"self"},"remainder":{"location":"trash","position":"any"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","onPlayIcon":true},
+  ],
+
+  // ── 2026-10-22＝出所の無い `ADD_TO_FIELD`（＝engine は**デッキの一番上**を出す）を、原文の出所へ直した3枚。
+  // WXDi-P13-054 ／ 原文【自】《ターン１回》：…あなたのデッキの一番上のカードをトラッシュに置く。そのカードがシグニの場合、
+  //   《黒》《無》を支払ってもよい。そうした場合、**そのカードを**ダウン状態で場に出す。
+  //   🔴旧＝トラッシュに置いた札ではなく、デッキの**次の**一番上を出していた。
+  'WXDi-P13-054': [
+    {"effectId":"WXDi-P13-054-E1","effectType":"AUTO","timing":["ON_TARGETED"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ"}},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["黒","無"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","asDown":true,"source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"targetsLastProcessed":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  // WXDi-P13-004A ／ 原文：チェックゾーンにあるこのカードを裏返して《UNKNOWN-CODE-RU-》を場に出す。
+  //   この方法で場に出た《UNKNOWN-CODE-RU-》が場を離れる場合、代わりにゲームから除外される。
+  //   🔴旧＝デッキの一番上を出していた（ピースは場に出なかった）。
+  'WXDi-P13-004A': [
+    {"effectId":"WXDi-P13-004A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"PIECE_FLIP_SELF_TO_FIELD","value":"WXDi-P13-004B"},{"type":"STUB","id":"MARK_PLACED_DELAYED_EXILE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // PR-474 ／ 原文：あなたのライフクロスの一番上を見る。それがシグニの場合、そのシグニを場に出してもよい。
+  //   それがスペルの場合、そのスペルを手札にあるかのようにコストを支払わずに使用してもよい。
+  //   🔴旧＝デッキの一番上を（種類も見ずに）出していた。
+  'PR-474': [
+    {"effectId":"PR-474-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"STUB","id":"LIFE_TOP_SIGNI_TO_FIELD_OR_SPELL_FREE"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXK10-053 ／ 原文【起】《ターン１回》《黒》：あなたのデッキの一番上を公開する。その後、対戦相手のシグニ１体を対象とし、
+  //   ターン終了時まで、それのレベルをこの方法で公開されたシグニのレベルと同じだけ－する。**公開したカードを手札に加える。**
+  // 🔴旧 live（AUTO）は最後が選択系の外の `ADD_TO_HAND`＝engine では**ログだけの no-op**（「カードを手札に加える」と出て
+  //   デッキの一番上に残っていた）。live で同じ形はこの1効果だけ。公開したカードはデッキの一番上にある＝そこから手札へ。
+  'WXK10-053': [
+    {"effectId":"WXK10-053-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"LEVEL_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-1,"until":"UNTIL_END_OF_TURN","deltaPerLastProcessedCount":true,"perLastProcessed":{"filter":{"cardType":"シグニ"},"unit":"level_sum"}},{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1,"fromTop":true}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
   // ── WXEX1-28 ／ 原文【起】…《黒×0》：**対象の対戦相手のシグニ１体を**対象の対戦相手の**他の**シグニ１体の
   //   【チャーム】にする。
   // 🔴旧 live は `charm:{type:'SIGNI'}` を書いていたのに engine に SIGNI 分岐が無く、既定枝（手札／エナ）へ
@@ -8520,6 +8555,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: false,
       parseStatus: 'MANUAL',
     },
+    // 【ライフバースト】：カードを１枚引く。あなたのデッキの一番上を公開する。それが＜調理＞のシグニの場合、それを手札に加える。
+    // 🔴旧 live（AUTO）は `TRANSFER_TO_HAND{DECK_CARD}` に `fromTop` が無く engine では**何もしない**（fail-closed の分岐）＝公開したまま手札に入らなかった。
+    {"effectId":"WDK07-E11-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"REVEAL_DECK_TOP","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"調理"}},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1,"fromTop":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // WXK05-039-E1：選んだ＜調理＞を storedTargetCards に固定し、デッキ上2枚の閲覧・
@@ -11422,7 +11460,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"PR-K054-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000,"duration":"UNTIL_OPP_TURN_END"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WDK04-011": [
-    {"effectId":"WDK04-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_DECK_TOP","owner":"self","count":1},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","levelParity":"even"}},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","levelParity":"odd"}},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH_REVEALED","owner":"self"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000,"duration":"UNTIL_END_OF_TURN"}]}}]}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+    {"effectId":"WDK04-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_DECK_TOP","owner":"self","count":1},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","levelParity":"even"}},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1,"fromTop":true}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","levelParity":"odd"}},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH_REVEALED","owner":"self"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000,"duration":"UNTIL_END_OF_TURN"}]}}]}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
   "WDK06-R01": [
     {"effectId":"WDK06-R01-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ","story":"アーム"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteLastProcessed":true},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
