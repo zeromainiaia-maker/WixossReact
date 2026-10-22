@@ -1,5 +1,4 @@
 import type { CardData, PlayerState } from '../../../types';
-import { getCardNum } from '../../../engine/execUtils';
 import { pickCpuMulliganIndices } from '../cpuHandLimit';
 import type { CpuPolicy } from '../cpuPolicy';
 import { applyMulligan } from '../mulligan';
@@ -30,11 +29,12 @@ export function performCpuMulligan(p: {
 }): { state: PlayerState; logs: string[] } {
   const { state, cardMap } = p;
   const idx = pickCpuMulliganIndices(state.hand, cardMap, undefined, p.policy);
-  const name = (i: number) => cardMap.get(getCardNum(state.hand[i]))?.CardName ?? state.hand[i];
   return {
     state: applyMulligan(state, idx),
+    // 🔴2026-10-23（ユーザー指摘）＝**戻した札は非公開**（裏のままデッキへ戻る）＝ログは枚数だけ。
+    //   旧＝`（札名・札名）` まで書いていた＝CPU の手札の中身が人間に見えていた。
     logs: [idx.length > 0
-      ? `[CPU] 引き直し: ${idx.length}枚（${idx.map(name).join('・')}）`
+      ? `[CPU] 引き直し: ${idx.length}枚`
       : '[CPU] 引き直さない'],
   };
 }

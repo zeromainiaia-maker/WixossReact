@@ -632,6 +632,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.global_phase]);
 
   // ── CPU 対戦：セットアップ自動行動 ──────────────────────────
+  // 🔴🆕2026-10-23（ユーザー報告＝「バージョンアップ後の初回だけ、じゃんけんが『相手の選択を待っています』で止まる」）
+  //   ＝CPU が手を出す機会は**盤面を読んだ直後の1回だけ**だった＝その書き込みが届かない／通知を取りこぼすと
+  //   （キャッシュが空で接続の立ち上がりが遅い初回）、人間が手を出しても CPU は出し直さず永久に待つ。
+  //   ⇒ **人間の手（`host_janken`）が入ったら、CPU の手がまだ見えていなければ出し直す**（依存に足した）。
+  //   出し直しは同じ欄（`guest_janken`）の上書きなので、DB に既に手があっても害は無い（通知が来て画面が進む）。
   useEffect(() => {
     if (!bs || !isCpuBattle || bs.global_phase !== 'SETUP') return;
     if (bs.setup_phase === 'JAN_KEN'     && bs.guest_janken)        return;
@@ -641,7 +646,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
     cpuTimerRef.current = setTimeout(() => { cpuSetupRef.current?.(); }, CPU_ACTION_DELAY);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
-  }, [isCpuBattle, bs?.setup_phase, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.setup_phase, bs?.host_janken, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── CPU 対戦：ターン自動行動 ──────────────────────────────────
   // 🔴🆕§5.1 `V-247`（2026-09-17）＝**CPU の起動を3点で守る**（判定は `cpuDriver.ts`）。
@@ -2248,6 +2253,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const phase = bs.setup_phase;
 
     if (phase === 'JAN_KEN') {
+      // 🆕2026-10-23＝**DB に CPU の手が既にあれば出し直さない**（通知を取りこぼしただけ＝盤面を読み直して画面を進める）。
+      //   出し直すと手が変わり、人間側で計算済みの勝敗と食い違う。
+      const { data: latest } = await persist.fetchState();
+      if (latest?.setup_phase === 'JAN_KEN' && latest.guest_janken) { setBs(latest); return; }
+      if (latest && latest.setup_phase !== 'JAN_KEN') { setBs(latest); return; }
       const choices = ['GU', 'CHOKI', 'PA'];
       const pick = choices[randomInt(choices.length)];
       await persist.commit(reduceBattle(bs, { type: 'SUBMIT_JANKEN', isHost: false, pick }));

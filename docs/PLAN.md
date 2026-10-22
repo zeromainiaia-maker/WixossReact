@@ -11,16 +11,16 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-10-20〜21＝自己対戦の検査（`selfplay:inv`）を広げてバグを探す（v0.627〜0.642）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第519〜534バッチ。前回（カード CSV のパック別再編）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+**直近＝2026-10-22〜23＝カード知識ベース全6,763枚／レガシー CPU デッキ作り直し／バグ報告と対戦開始まわり（v0.648〜0.650）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第546〜550バッチ。前回（自己対戦の検査を広げる）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🆕🔥**レガシーの CPU デッキ作り直しの続き**（ユーザー依頼・BUGFIXES 第542バッチ）＝基準＝**ナナシテスト用に10戦中4勝**。①`npx tsx scripts/climbCpuDecks.ts --dir scratchpad-cpudecks-legacy/climb20 --seeds 1,2,3,4,5,6,7,8,9,10 --iters 5 --target 12 --pass 8`（20戦判定の山登り・3巡済み・1巡≒30分）②`--validate --seeds 11,12,13,14,15` で未使用シードの勝数を出す③届かない下位（サシェ・ミュウ・あや・アイヤイ・ミルルン・ウリス）は入れ替え先を広げる④採用分を claude1・カルカドールへ（**旧レガシー CPU デッキ25個の扱いはユーザーに確認してから**）⑤そのあとディーバも同じ方式で作り直す｜それ以外は自己対戦の走査を回す：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
-| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（ターン進行・CPU・ヘッドレスの回＝原文照合の在庫に触れていないので動かない） |
+| 🔥**次に取るもの** | 🆕🔥**カードの説明書（カード知識ベース）をもとに CPU 用デッキを作る**（ユーザー指示・2026-10-23）＝入力は `src/data/cardKnowledge.json`（1枚ごとに要約 `s`・役割 `role`・使う手番 `when`・相性 `syn`＝`class:`/`name:`/`mech:`/`color:`/`team:`・LB・価値 `v`）／読む用は `docs/CARD_KNOWLEDGE.md`（`node scripts/genCardKnowledgeMd.mjs` で再生成）。①ルリグごとに相性（`syn`）で核を決め、役割の偏り（除去・守り・ドロー・エナ）と `v` で40枚を組む ②強さは `climbCpuDecks.ts --validate`（学習に使わないシード）で測る ③**ディーバは第548バッチで旧生成分を削除済み＝作り直しが要る**／レガシーは合格16デッキ（claude1・カルカドール）＝届かない14ルリグが残り ④採用デッキの作戦データ（いつ使うか・選ぶ先・コンボ）を1枚ずつ書く｜⚠カード知識は**原文と照らし直していない**（書いたまま）＝デッキ作りで食い違いを見つけたら JSON を直す |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
 | 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
-| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU はキーを失うキーの【起】（46効果）を既定では使わない（ポリシー `keyTrashAbility`＝走査では `--policy-set "keyTrashAbility=1"`）｜⚠`--use-all-arts` はアシストルリグを指名するので、アシストルリグのメインフェイズの【起】は走査で撃たれない（既知の死角） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4519**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
-| 🆕🔑**この回の芯** | ①**人間の進行（`phaseAdvance`/`endDiscard`）が呼ぶ関数のうち CPU（`cpuTurn`）が呼ばない関数を機械で列挙する**とCPU のターンだけ起きない処理が出る＝ターン終了／エンドフェイズ①／ドロー／フェイズ開始／相手側の後始末を共通の1本へ（`turnScopedState`・`turnEndStepOne`・`drawPhase`・`phaseEntry`・`nextTurnPlayer`）②**画面の見張り（useEffect）はヘッドレスに無い**＝印の処理は `controller/justFlags.ts`・`energyPowerWatch.ts`・`acceTriggers.ts` の共通の1本③**場を離れる処理は `removeFromField` だけ**（ゾーンを手で null にすると下のカードが消える）④golden の新しいテストは `withSavedCursor` で包む |
+| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU 戦のじゃんけん停止（第549）は「更新直後の初回」を再現して確かめていない＝次のバージョンアップ直後に止まらないかを見る |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4521**・lint は git 外の `tmp_artcount.ts` だけ）｜実機 `verifyFullMatch cpu` PASS（第549・550） |
+| 🆕🔑**この回の芯** | ①**ログに札の名前を出すときは `hiddenInfo.ts` を通す**（公開領域にあるときだけ名前／自分だけの行は `addPrivateLog`）＝マリガン・ライフクロス→手札が素通りしていた ②**CPU の自動行動は「1回だけ起動」にしない**＝相手（人間）の入力でも張り直す（じゃんけん） |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -503,11 +503,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-10-21 時点**（自己対戦の検査を広げてバグを探す・v0.627〜0.642）
+- **2026-10-23 時点**（カード知識ベース・レガシー CPU デッキ・バグ報告・v0.648〜0.650）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
-  - 📦**在庫**＝🏁機構 worklist **0**（索引H も **0**＝`O-544` をクローズ）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4504**＝+53）｜実機 `verifyFullMatch cpu` PASS（src/screens を触った各回）
-  - 🔎**自己対戦の被覆**＝**5,476 / 6,036枚（91%）**（生成デッキ・`selfplay:inv --cov-out` の和集合）｜最後の数百戦は所見0
+  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4521**＝+17・lint は git 外の作業ファイルだけ）｜実機 `verifyFullMatch cpu` PASS
+  - 📚**カード知識ベース**＝**6,763 / 6,763枚**（レガシー 3,910・ディーバ 2,853）｜原文との照合は未実施
 ---
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが直さない）— 毎回まず除外

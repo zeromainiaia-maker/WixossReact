@@ -1,5 +1,18 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-10-20〜21＝自己対戦の検査を広げてバグを探す（v0.627〜0.642・PLAN §1 から退避）
+
+**直近＝2026-10-20〜21＝自己対戦の検査（`selfplay:inv`）を広げてバグを探す（v0.627〜0.642）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第519〜534バッチ。前回（カード CSV のパック別再編）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🆕🔥**レガシーの CPU デッキ作り直しの続き**（ユーザー依頼・BUGFIXES 第542バッチ）＝基準＝**ナナシテスト用に10戦中4勝**。①`npx tsx scripts/climbCpuDecks.ts --dir scratchpad-cpudecks-legacy/climb20 --seeds 1,2,3,4,5,6,7,8,9,10 --iters 5 --target 12 --pass 8`（20戦判定の山登り・3巡済み・1巡≒30分）②`--validate --seeds 11,12,13,14,15` で未使用シードの勝数を出す③届かない下位（サシェ・ミュウ・あや・アイヤイ・ミルルン・ウリス）は入れ替え先を広げる④採用分を claude1・カルカドールへ（**旧レガシー CPU デッキ25個の扱いはユーザーに確認してから**）⑤そのあとディーバも同じ方式で作り直す｜それ以外は自己対戦の走査を回す：①`npm run selfplay:inv -- --deck-dir scratchpad-synth4 --policy legacy-greedy --use-all-arts --answer-fuzz 0.5 --jobs 8`（生成デッキ・1シード60戦≒3.5分・⚠`scratchpad-synth*/` と被覆の記録 `node_modules/.tmp/cov_*.jsonl` は git 外＝無ければ `npm run synth:decks -- --out scratchpad-synth4` で作り直す）②人間と CPU の進行の差の機械列挙を**アタックフェイズ周り**へ広げる（今回これで CPU のターンだけ抜ける処理が7系統出た）③被覆の巡回（`synth:decks --covered …` で組み直し・いま **5,476 / 6,036枚＝91%**）④CPU観戦の画面をブラウザで確かめる（カード集合の1行・未確認） |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（ターン進行・CPU・ヘッドレスの回＝原文照合の在庫に触れていないので動かない） |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU はキーを失うキーの【起】（46効果）を既定では使わない（ポリシー `keyTrashAbility`＝走査では `--policy-set "keyTrashAbility=1"`）｜⚠`--use-all-arts` はアシストルリグを指名するので、アシストルリグのメインフェイズの【起】は走査で撃たれない（既知の死角） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4519**）｜実機 `verifyFullMatch cpu` は src/screens を触った各回で PASS |
+| 🆕🔑**この回の芯** | ①**人間の進行（`phaseAdvance`/`endDiscard`）が呼ぶ関数のうち CPU（`cpuTurn`）が呼ばない関数を機械で列挙する**とCPU のターンだけ起きない処理が出る＝ターン終了／エンドフェイズ①／ドロー／フェイズ開始／相手側の後始末を共通の1本へ（`turnScopedState`・`turnEndStepOne`・`drawPhase`・`phaseEntry`・`nextTurnPlayer`）②**画面の見張り（useEffect）はヘッドレスに無い**＝印の処理は `controller/justFlags.ts`・`energyPowerWatch.ts`・`acceTriggers.ts` の共通の1本③**場を離れる処理は `removeFromField` だけ**（ゾーンを手で null にすると下のカードが消える）④golden の新しいテストは `withSavedCursor` で包む |
+
 ## 2026-10-01〜02＝カード CSV のパック別再編・ユーザー要望とバグ報告 13件（PLAN §1 から退避）
 
 **直近＝2026-10-01〜02＝カード CSV のパック別再編（`public/data/CardDatas/`）／ユーザー要望とバグ報告の対応 13件（v0.609〜0.621）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第502〜514バッチ。前回（チアゾーンの機構の完成）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭

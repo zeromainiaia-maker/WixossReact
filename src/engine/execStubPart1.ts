@@ -3874,8 +3874,11 @@ export function execStubPart1(
       life_cloth: st.life_cloth.slice(0, -1),
       hand: [...st.hand, top],
     };
+    // 🔴2026-10-23＝**ライフクロスは非公開**（`hiddenInfo.ts`）＝共有ログに名前を出さない。
+    //   名前は手札に加えた本人（self）にだけ自分だけの行で配る（相手の手札に入った札は誰にも見せない）。
     const name = ctx.cardMap.get(top)?.CardName ?? top;
-    return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）を手札へ`));
+    const movedCtx = addLog(setOwnerState(target, newSt, ctx), `ライフクロスの一番上を${target === 'self' ? 'あなた' : '対戦相手'}の手札へ`);
+    return done(target === 'self' ? addPrivateLog(movedCtx, `ライフクロスから手札へ：${name}`) : movedCtx);
   }
   // 対象プレイヤーのライフクロス上1枚を、そのプレイヤーのエナゾーンへ置く。
   // クラッシュではないためライフバースト/check は発生させない。

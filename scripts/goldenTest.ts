@@ -70101,6 +70101,18 @@ test('§5.3 O-60 第53: CRASH_LIFE_TO_HAND は payload の owner で動く（旧
     eq(r.otherState.life_cloth.length, 4, '対戦相手のライフが1枚減る');
     eq(r.otherState.hand.length, 6, '対戦相手の手札が1枚増える（5→6）');
     eq(r.ownerState.life_cloth.length, 7, '自分のライフは動かない');
+    // 🔴2026-10-23＝**ライフクロスは非公開**＝共有ログにも自分だけの行にも、相手の手札に入った札の名前を出さない。
+    const movedOpp = r.otherState.hand[r.otherState.hand.length - 1];
+    const nameOpp = cardMap.get(movedOpp.split('#')[0])?.CardName ?? movedOpp;
+    ok(!r.logs.some(l => l.includes(nameOpp)), `🔴相手のライフクロスから手札へ入った札の名前がログに出ている（${nameOpp}）`);
+    // 自分のライフ → 自分の手札＝共有ログには名前を出さず、自分だけの行で名前を配る
+    const rSelf = run({ type: 'STUB', id: 'CRASH_LIFE_TO_HAND', owner: 'self' } as unknown as EffectAction, mkCtx({ life: 7 }, { life: 5 }, 'WXDi-P07-001'));
+    ok(rSelf.done); if (!rSelf.done) return;
+    const movedSelf = rSelf.ownerState.hand[rSelf.ownerState.hand.length - 1];
+    const nameSelf = cardMap.get(movedSelf.split('#')[0])?.CardName ?? movedSelf;
+    const visSelf = splitLogsByVisibility(rSelf.logs);
+    ok(!visSelf.shared.some(l => l.includes(nameSelf)), `🔴自分のライフクロスから手札へ入った札の名前が共有ログに出ている（${nameSelf}）`);
+    ok(visSelf.own.some(l => l.includes(nameSelf)), '自分だけの行に手札へ入った札の名前が無い');
     // 反転＝owner を落とすと何もしない（fail-closed）。旧既定 self は「自分のライフを手札に加える」＝原文と逆向き。
     const r2 = run({ type: 'STUB', id: 'CRASH_LIFE_TO_HAND' } as unknown as EffectAction, mkCtx({ life: 7 }, { life: 5 }, 'WXDi-P07-001'));
     ok(r2.done); if (!r2.done) return;
@@ -91377,7 +91389,8 @@ test('§5.7 S-24 マリガン：自己対戦も引き直す／レベル1を優�
   const done = performCpuMulligan({ state: st24, cardMap });
   eq(done.state.hand.length + done.state.deck.length + done.state.life_cloth.length, 25, '🔴マリガンでカードが増減した');
   eq(done.state.life_cloth.length, 7, 'ライフクロスが7枚でない');
-  ok(/^\[CPU\] 引き直し: 2枚（/.test(done.logs[0]), `🔴引き直しのログが計器の文言と違う（${done.logs[0]}）`);
+  // 🔴2026-10-23（ユーザー指摘）＝**戻した札は非公開**＝ログは枚数だけ（札の名前を出さない）。
+  eq(done.logs[0], '[CPU] 引き直し: 2枚', `🔴引き直しのログが計器の文言と違う／戻した札の名前を出している（${done.logs[0]}）`);
   eq(performCpuMulligan({ state: { ...st24, hand: [l1, guard3, spell] } as PlayerState, cardMap }).logs[0],
     '[CPU] 引き直さない', '🔴引き直さないときのログが違う（⚠`引き直し` に当たると踏破に数えてしまう）');
 
@@ -92607,6 +92620,15 @@ test('§5.1 V-284 じゃんけんの解決は再レンダーで作り直さな�
   // ④ クリック経路の第2の解決も同じ予約を見る（あいこ直後に CPU が選び直した手を古いパッチで消さない）
   ok(/!transitioningRef\.current && !jankenResolveRef\.current/.test(srcV284),
     '🔴クリック経路が effect の予約を見ていない（二重に commit する）');
+  // ⑥ 🆕2026-10-23（ユーザー報告＝バージョンアップ後の初回だけ「相手の選択を待っています」で止まる）
+  //   ＝CPU の手は盤面を読んだ直後の1回だけ出していた＝届かなければ永久に待つ。
+  //   ⇒ **人間の手が入ったら CPU の起動を張り直す**（依存に `host_janken`）＋**DB に手があれば出し直さず読み直す**。
+  const cpuSetupDeps = srcV284.slice(srcV284.indexOf('// ── CPU 対戦：セットアップ自動行動'), srcV284.indexOf('// ── CPU 対戦：ターン自動行動'));
+  ok(/\[isCpuBattle, bs\?\.setup_phase, bs\?\.host_janken, bs\?\.guest_janken/.test(cpuSetupDeps),
+    '🔴CPU のセットアップ起動が人間の手（host_janken）で張り直されない（CPU の手が届かないと永久に待つ）');
+  const cpuJk = srcV284.slice(srcV284.indexOf('const cpuSetupAction = async'), srcV284.indexOf("if (phase === 'LRIG_SELECT' && cpuDeckData)"));
+  ok(/persist\.fetchState\(\)/.test(cpuJk) && /latest\.guest_janken\) \{ setBs\(latest\); return; \}/.test(cpuJk),
+    '🔴CPU が DB の手を確かめずに出し直す（手が変わり、計算済みの勝敗と食い違う）');
 
   // ⑤ ルール側＝**あいこなら両者の手を捨てて選び直しへ**（reducer は純関数なので直接確かめる）
   const bsJk = { setup_phase: 'JAN_KEN', host_janken: 'グー', guest_janken: 'グー' } as never;
