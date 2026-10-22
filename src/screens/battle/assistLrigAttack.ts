@@ -28,6 +28,8 @@ export function assistLrigAttackableSlots(
     const top = stack?.at(-1);
     if (!top) return;
     if (isDown || isFrozen) return;                     // アタック済み／凍結中は不可
+    // 🆕2026-10-22（バグ報告 212005fc と同じ型）＝効果で付与された「アタックできない」（実行側 `performLrigAttack` は見ていた）。
+    if ((state.keyword_grants?.[top] ?? []).includes('アタックできない')) return;
     // ⚠レベルは**カード表記**で見る（アシストルリグに LEVEL_MODIFY を載せる語彙は現状無い）。
     // 🆕§5.3 `O-375`＝instance で先に引く（期間つきのレベル上書きは instance キー）。
     const level = parseInt((cardMap.get(top) ?? cardMap.get(baseNum(top)))?.Level ?? '', 10);

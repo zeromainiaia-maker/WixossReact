@@ -495,7 +495,7 @@ WDK08-L17-E1	empty/both	ドロー: ログ1枚／移動0件
 WDK12-001-E1	empty/both	エナチャージ: ログ1枚／移動0件
 WDK14-017-E1	empty/both	ドロー: ログ1枚／移動0件
 
-## I5（56効果）
+## I5（57効果）
 WX01-024-E1	nofield/both	相S対象0: パワー+5000
 WX02-034-E1	nofield/both	相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
 WX02-034-BURST	nofield/both	相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
@@ -516,6 +516,7 @@ WX11-006-E2	base/both	相S対象0: 相シグニ0(上) → 相エナ
 WX12-038-E1	base/both	相S丙: 相シグニ2(上) → 相エナ
 WX13-013-E1	nofield/both	相S対象0: 相シグニ0(上) → 相エナ
 WX13-018-E1	nofield/both	相S対象0: パワー+4000
+WX16-001-E3	base/both	相制限: [なし]→[SIGNI_ATTACK_STEP]
 WX17-032-BURST	base/both	相S対象0: 相シグニ0(上) → 相エナ ; 相状態 energy_placed_this_turn: なし → ["WX01-076:effect"]
 WX19-007-E1	nofield/both	相S対象0: 相シグニ0(上) → 相手札 ; 相状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 相状態 turn_signi_returned_to_hand: なし → true
 WX20-074-E1	nofield/both	相S対象0: パワー-2000

@@ -61005,14 +61005,6 @@ scenarios.effectAnnounce = {
         body: JSON.stringify({ p_room_id: roomId, p_logs: [{ timestamp: new Date().toISOString(), user_id: sess.user.id, action }] }) });
       return r.status;
     }, { SUPA_URL, ANON, action });
-    const readToast = async (ticks) => {
-      for (let s = 0; s < ticks; s++) {
-        await page.waitForTimeout(250);
-        const t = await page.getByTestId('effect-announce-toast').first().textContent({ timeout: 100 }).catch(() => null);
-        if (t) return t;
-      }
-      return null;
-    };
     await injectScenario(page, scenarios.effectAnnounce.spec);
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(2500);
@@ -61020,22 +61012,45 @@ scenarios.effectAnnounce = {
     const caption = await page.getByTestId('option-source-caption').first().textContent({ timeout: 5000 }).catch(() => null);
     await page.screenshot({ path: `${SHOT}/effect-announce-01-banish-substitute.png`, fullPage: true });
     H.log(`③ caption=${caption}`);
-    // ② 自分の行では出ない（反転）
-    const st2 = await appendLog('[自分] サーバント O の【起】効果');
-    const own = await readToast(12);
-    H.log(`② append=${st2} toast=${own}`);
-    // ① CPU の行では出る
-    const st1 = await appendLog('[CPU] アーツを使用: 母性本能');
-    const opp = await readToast(20);
-    await page.screenshot({ path: `${SHOT}/effect-announce-02-toast.png`, fullPage: true });
-    H.log(`① append=${st1} toast=${opp}`);
     if (caption !== '《幻水　クリオネ》の効果') return { pass: false, detail: `🔴身代わりバニッシュの選択肢に出所が無い（${caption}）` };
-    if (own) return { pass: false, detail: `🔴自分の行で告知が出た（${own}）` };
-    if (opp !== '相手が《母性本能》を使用') return { pass: false, detail: `🔴CPU の効果開始で告知が出ない／文言が違う（append=${st1} toast=${opp}）` };
-    return { pass: true, detail: `③「${caption}」 ②自分の行は告知なし ①「${opp}」` };
+    return { pass: true, detail: `③「${caption}」（①②の告知は 2026-10-22 に撤去＝ログのリンクはシナリオ logCardLink）` };
   },
 };
 order.push('effectAnnounce');
+
+// ── 🆕2026-10-22＝**ログのカード名が色付きのリンクになり、タップで拡大が開く**（ユーザー要望）／上部の告知は撤去 ──
+// 観測点＝場にいるカードの名前を含む行をログ追記 RPC で流す → ①リンクが出る ②タップで拡大（card-detail-modal） ③告知の帯は出ない
+scenarios.logCardLink = {
+  title: 'ログのカード名リンク→拡大（上部の告知なし）',
+  spec: { hostSet: { 'field.signi': [['WX04-080#1'], null, null] }, top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 } },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.logCardLink.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    const st = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' };
+      const roomId = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user.id}&status=eq.PLAYING&select=id`, { headers: h })).json())?.[0]?.id;
+      const r = await fetch(`${SUPA_URL}/rest/v1/rpc/append_battle_logs`, { method: 'POST', headers: h,
+        body: JSON.stringify({ p_room_id: roomId, p_logs: [{ timestamp: new Date().toISOString(), user_id: sess.user.id, action: '[CPU] 【起】を発動: 幻水　クリオネ' }] }) });
+      return r.status;
+    }, { SUPA_URL, ANON });
+    const linkLoc = page.getByTestId('log-card-link').filter({ hasText: '幻水　クリオネ' }).first();
+    let link = null;
+    for (let s = 0; s < 20 && !link; s++) { await page.waitForTimeout(250); link = await linkLoc.textContent({ timeout: 100 }).catch(() => null); }
+    const toast = await page.getByTestId('effect-announce-toast').count();
+    if (link) await linkLoc.click();
+    const zoom = await page.getByTestId('card-detail-modal').first().textContent({ timeout: 3000 }).catch(() => null);
+    await page.screenshot({ path: `${SHOT}/log-card-link-01.png`, fullPage: true });
+    H.log(`append=${st} link=${link} toast=${toast} zoom=${zoom?.slice(0, 40)}`);
+    if (toast) return { pass: false, detail: '🔴撤去した告知の帯が出ている' };
+    if (!link) return { pass: false, detail: `🔴ログのカード名がリンクにならない（append=${st}）` };
+    if (!zoom?.includes('幻水　クリオネ')) return { pass: false, detail: `🔴ログのカード名をタップしても拡大が開かない（${zoom}）` };
+    return { pass: true, detail: `ログのリンク「${link}」→拡大／告知の帯なし` };
+  },
+};
+order.push('logCardLink');
 
 // ── 🆕2026-10-01（バグ報告 89430a18）＝**ルリグの【常】BANISH_REDIRECT がパワー0のバニッシュで効く**（WX21-005 ナナシ　其ノ後）──
 // 観測点＝相手の場に元のパワー0の `WX09-019`（エナ0枚ならパワー0）を置き、ルール処理でバニッシュさせる。

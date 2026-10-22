@@ -103,7 +103,7 @@ import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspec
 import { handCountLogLines, lifeCountLogLines } from '../src/screens/battle/handCountLog';
 import { banishRedirectHolders } from '../src/engine/effectEngine';
 import { effectSourceInfo, effectWaitingLine, sourceCardCaption } from '../src/screens/battle/effectSourceInfo';
-import { opponentEffectAnnouncement } from '../src/screens/battle/effectAnnounce';
+import { buildLogCardMatcher, splitLogByCardNames } from '../src/screens/battle/logCardLinks';
 import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
@@ -292,7 +292,7 @@ import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldAc
 import { payTrashActivateCost, emptyTrashActivateSelections } from '../src/screens/battle/trashActivateCost';
 import { activatedEnergyCostStr } from '../src/screens/battle/cpuActivate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
-import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, listCpuLrigActivated, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
+import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, listCpuLrigActivated, pickCpuLrigActivated, skipsOwnAttackThisTurn } from '../src/screens/battle/cpuLrigActivate';
 import { facedownPeek } from '../src/screens/battle/facedownPeek';
 import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
 import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
@@ -93440,41 +93440,18 @@ test('2026-10-01 効果の出所（段5）：身代わりバニッシュ・ダ�
   ok(banish.includes('sourceCardCaption(opt.sourceNum') && crash.includes('sourceCardCaption(opt.sourceCardNum'), '🔴確認画面が出所を添えていない');
 }));
 
-test('2026-10-01 相手の効果の告知（段4）：ログの文型ごとに相手の効果の開始だけを拾う', () => withSavedCursor(() => {
-  const me = 'u1', opp = 'u2';
-  const ann = (user_id: string, action: string) => opponentEffectAnnouncement({ user_id, action }, me);
-  // PvP：相手が書いた行（相手の画面では「自分」＝こちらでは「相手」に入れ替わる）。
-  eq(ann(opp, '[自分] 母性本能 の【自】効果'), '相手が《母性本能》の【自】を発動', 'スタック解決の行');
-  eq(ann(opp, '母性本能 を使用（コストを支払う）'), '相手が《母性本能》を使用', '相手のアーツ使用の行');
-  eq(ann(opp, '[自分] 母性本能を使用（カットイン）'), '相手が《母性本能》を使用', 'カットインの行');
-  eq(ann(opp, '[カットイン] 母性本能を使用'), '相手が《母性本能》を使用', 'カットインの行（別書式）');
-  eq(ann(opp, 'X の【出】/【自】効果'), '相手が《X》の【出】を発動', '【出】/【自】の行');
-  eq(ann(opp, 'X の【ライフバースト】（付与）'), '相手が《X》のライフバーストを発動', '付与ライフバーストの行');
-  eq(ann(opp, 'サーバント O の【出】効果（任意）'), '相手が《サーバント O》の【出】を発動', '相手の【出】の行（名前の空白を保つ）');
-  // CPU 戦：CPU の行はホスト（＝自分）が書く。
-  eq(ann(me, '[CPU] アーツを使用: 母性本能'), '相手が《母性本能》を使用', 'CPU のアーツ');
-  eq(ann(me, '[CPU] アーツを使用'), null, '🔴名前なしの行を「《アーツ》を使用」にしている');
-  eq(ann(opp, 'Xの【出】能力は発動しない（抑止効果）'), null, '🔴「発動しない」の説明文を開始と誤読している');
-  eq(ann(me, '[CPU] スペルを発動: X'), '相手が《X》を使用', 'CPU のスペル');
-  eq(ann(me, '[CPU] 【起】を発動: X'), '相手が《X》の【起】を発動', 'CPU の【起】');
-  eq(ann(me, '[CPU] ルリグの【起】を発動: X'), '相手が《X》の【起】を発動', 'CPU のルリグの【起】');
-  eq(ann(me, '[CPU] ライフクロスをオープン: X（ライフバースト発動）'), '相手が《X》のライフバーストを発動', 'CPU のライフバースト');
-  eq(ann(me, '[相手] X の【自】効果'), '相手が《X》の【自】を発動', 'CPU のスタック解決（ホストが「相手」と書く）');
-  // 出さない行。
-  eq(ann(me, '[自分] X の【起】効果'), null, '🔴自分の効果まで告知している');
-  eq(ann(me, 'X を使用（コストを支払う）'), null, '🔴自分の操作まで告知している');
-  eq(ann(opp, '[相手] X の【自】効果'), null, '🔴相手が解決した「こちらの」効果を相手の効果として告知している');
-  eq(ann(me, '[CPU] ライフクロスをオープン: X（ライフバーストなし）'), null, 'バーストなしは効果が始まっていない');
-  eq(ann(opp, '対戦相手はこのターン、アーツを使用できない'), null, '🔴「使用できない」の説明文を使用と誤読している');
-  eq(ann(opp, '[自分] メインフェイズ'), null, 'フェイズ行を告知している');
-  // 🔴ログの文言が契約＝告知が拾う文型がソースに残っていること（文言を変えると黙って告知が消える）。
-  const src = [battleScreenSource(),
-    ...['cpuTurn.ts', 'controller/stackResolve.ts'].filter(f => fs.existsSync(join(root, 'src/screens/battle', f)))
-      .map(f => fs.readFileSync(join(root, 'src/screens/battle', f), 'utf8'))].join('\n');
-  for (const anchor of ['アーツを使用: ', 'スペルを発動: ', '【起】を発動: ', '（ライフバースト発動）', '[${who}] ${entry.label}']) {
-    ok(src.includes(anchor), `🔴告知が拾うログの文言が消えた：${anchor}`);
-  }
-  ok(battleScreenSource().includes('opponentEffectAnnouncement(') && battleScreenSource().includes('<EffectAnnounceToast'), '🔴告知が画面に配線されていない');
+test('2026-10-22 ログのカード名を区切る（色付き・タップで拡大）／相手の効果の上部告知は撤去', () => withSavedCursor(() => {
+  const mk = (CardName: string, CardNum: string) => ({ CardName, CardNum } as CardData);
+  const m = buildLogCardMatcher([mk('羅原　Ｎｅ', 'A'), mk('羅原姫　Ｎｅ', 'B'), mk('母性本能', 'C'), mk('Ｕ', 'D'), mk('母性本能', 'E')]);
+  const seg = (t: string) => splitLogByCardNames(t, m).map(x => x.card ? `[${x.text}:${x.card.CardNum}]` : x.text).join('');
+  eq(seg('[CPU] アーツを使用: 母性本能'), '[CPU] アーツを使用: [母性本能:C]', 'アーツの行');
+  eq(seg('羅原姫　Ｎｅ が羅原　Ｎｅをバニッシュ'), '[羅原姫　Ｎｅ:B] が[羅原　Ｎｅ:A]をバニッシュ', '🔴長い名前を先に当てていない（羅原姫の途中で切れる）');
+  eq(seg('Ｕターンして終了'), 'Ｕターンして終了', '🔴1文字の名前を普通の語の中で当てている');
+  eq(seg('メインフェイズ'), 'メインフェイズ', 'カード名の無い行');
+  eq(splitLogByCardNames('x', buildLogCardMatcher([])).length, 1, 'カードが無いとき');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battle.includes('splitLogByCardNames(text, logCardMatcher)') && battle.includes('data-testid="log-card-link"') && battle.includes('<CardModal card={logZoomCard}'), '🔴ログのカード名がリンクになっていない／拡大が配線されていない');
+  ok(!battle.includes('<EffectAnnounceToast'), '🔴撤去した上部の告知が戻っている（ユーザー要望＝邪魔なので出さない）');
 }));
 
 test('2026-10-01 バグ報告 c7242f30：「対戦相手のシグニがアタックしたとき」がアタッカー自身のアタックで誘発しない（WD07-012 ヴィマナ）', () => withSavedCursor(() => {
@@ -95342,6 +95319,36 @@ test('「デッキの一番上を公開し、それを手札に加える」が�
   for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e.effectId, false);
   eq(JSON.stringify([...new Set(bad)]), JSON.stringify(['WXK06-029-E1']), '🔴選択系の外で何もしない「手札に加える」が増えた（WXK06-029-E1 は機構待ち＝§5.3 O-546）');
 }));
+test('2026-10-22 バグ報告 212005fc：「アタックできない」を付与されたルリグはボタン・CPU の候補にも出さない', () => withSavedCursor(() => {
+  const st0 = mkState({ lrig: ['WD19-001#1'] });
+  eq(centerLrigAttackBlock(st0), null, '前提: 付与なしならアタックできる');
+  const banned = { ...st0, keyword_grants: { 'WD19-001#1': ['アタックできない'] } } as PlayerState;
+  eq(centerLrigAttackBlock(banned), 'GRANTED_CANNOT_ATTACK', '🔴付与された「アタックできない」を共通判定が見ていない（ボタンは出るのに押しても無反応）');
+  const lv = findCard(c => c.Type === 'アシストルリグ' && parseInt(c.Level ?? '', 10) >= 1);
+  const assist = { ...mkState({ assistL: [lv] }), assist_lrig_attack_min_level: 0 } as PlayerState;
+  eq(JSON.stringify(assistLrigAttackableSlots(assist, cardMap as Map<string, CardData>)), JSON.stringify(['assist_l']), '前提: アシストはアタックできる');
+  eq(JSON.stringify(assistLrigAttackableSlots({ ...assist, keyword_grants: { [lv]: ['アタックできない'] } } as PlayerState, cardMap as Map<string, CardData>)), '[]', '🔴アシストの判定が付与された「アタックできない」を見ていない');
+  ok(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').includes("lrigBlockALK === 'GRANTED_CANNOT_ATTACK'"), '🔴ボタンが「アタック不可」を示していない');
+}));
+
+test('2026-10-22 バグ報告 bb60942b：「このターン、シグニアタックフェイズをスキップする」はターンプレイヤーのアタックを飛ばす／CPU は自分のターンに撃たない', () => withSavedCursor(() => {
+  // 原文（WX16-001-E3《ドーナ　ＦＯＵＲＴＨ》エスケープ）＝持ち主を書かない「このターン」＝相手のターンに撃つ防御札。
+  const e = (effectsMap.get('WX16-001') ?? []).find(x => x.effectId === 'WX16-001-E3')!;
+  ok(JSON.stringify(e.action).includes('"bothPlayers":true'), '🔴使用者だけに封じを積んでいる（相手のターンに撃っても相手のアタックが飛ばない）');
+  // 相手のターンに撃つ＝ctx の owner（ドーナ）は非ターンプレイヤー、other がターンプレイヤー
+  const ctx = mkCtx({}, {}, 'WX16-001');
+  const r = executeAction(e.action, ctx);
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', r.otherState), 'ATTACK_LRIG', '🔴相手のターンに撃っても相手のシグニアタックフェイズが飛ばない');
+  // 「対戦相手の〜をスキップする」は従来どおり相手だけ（自分のターンに撃つ札）
+  const cheer = (effectsMap.get('WXK01-007') ?? [])[0];
+  ok((JSON.stringify(cheer.action).match(/"bothPlayers":true/g) ?? []).length === 2, '🔴《ドーナ　ＣＨＥＥＲ》の付与（このターン、〜ステップをスキップ）が両者に積んでいない');
+  ok(skipsOwnAttackThisTurn(e), '🔴CPU 判定：自分のアタックを飛ばす【起】と見ていない');
+  const idol = (effectsMap.get('WX09-Re02') ?? [])[0];
+  ok(!skipsOwnAttackThisTurn(idol), '「対戦相手の〜をスキップ」を自分のアタックを飛ばす札と誤認している');
+  ok(fs.readFileSync(join(root, 'src/screens/battle/cpuLrigActivate.ts'), 'utf8').includes('if (p.isMyTurn !== false && skipsOwnAttackThisTurn(effect)) continue;'), '🔴CPU が自分のターンにスキップの【起】を撃つ');
+  ok(fs.readFileSync(join(root, 'src/screens/battle/cpuLrigActivate.ts'), 'utf8').includes('centerUsable.filter(u => p.isMyTurn === false && skipsOwnAttackThisTurn(u.effect) && planAllowsUseIn(p.plan, centerLrig, window, false))'), '🔴CPU が相手のターンに守りのスキップ【起】を撃てない（作戦データの指定が無いと撃たない）');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

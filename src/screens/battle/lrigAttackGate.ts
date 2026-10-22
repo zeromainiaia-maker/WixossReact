@@ -30,7 +30,8 @@ import type { PlayerState } from '../../types';
  */
 export type CenterLrigAttackBlockReason =
   | 'ALREADY_DOWN'  // ダウンしている（＝アタック済みでまだアップされていない）
-  | 'ATTACK_LIMIT'; // 付与された「1ターンにアタックできる上限」に達した（§5.3 `O-236`）
+  | 'ATTACK_LIMIT'   // 付与された「1ターンにアタックできる上限」に達した（§5.3 `O-236`）
+  | 'GRANTED_CANNOT_ATTACK'; // 効果で「アタックできない」を付与されている（2026-10-22 バグ報告 212005fc）
 
 export function centerLrigAttackBlock(my: PlayerState): CenterLrigAttackBlockReason | null {
   // 🆕**§5.3 `O-236`＝「1ターンにこのルリグがアタックできる上限は N になる」**。
@@ -43,5 +44,9 @@ export function centerLrigAttackBlock(my: PlayerState): CenterLrigAttackBlockRea
   //   ⚠このフラグは `LRIG_ATTACK_LIMIT{whileDown}` からしか立たない＝**必ず上限とセット**なので、
   //     上のカウント比較が止め役になる（ダウン中に無限にアタックできる状態は作れない）。
   if (my.field.lrig_down && !my.lrig_attack_while_down_this_turn) return 'ALREADY_DOWN';
+  // 🆕2026-10-22（バグ報告 212005fc）＝**効果で付与された「アタックできない」**。旧＝実行（`performLrigAttack`）だけが見ていて、
+  //   ここ（ボタンの生成・CPU の手の候補）は見ていなかった＝**ボタンは出るのに押しても何も起きない**（`O-366` と同じ型）。
+  const top = my.field.lrig.at(-1);
+  if (top && (my.keyword_grants?.[top] ?? []).includes('アタックできない')) return 'GRANTED_CANNOT_ATTACK';
   return null;
 }

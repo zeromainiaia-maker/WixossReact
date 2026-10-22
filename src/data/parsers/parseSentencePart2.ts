@@ -306,8 +306,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   スキップ機構が消費するのは `SIGNI_ATTACK_STEP`（「シグニアタック**ステップ**」の綴り）だけで、
   //   ここが吐く `SIGNI_ATTACK_PHASE` はどこにも消費地点が無く `WX16-001-E3`（コイン3の【起】）は
   //   **一度も効いていなかった**。「シグニアタックフェイズ」と「シグニアタックステップ」は同じもの。
+  // 🆕2026-10-22（バグ報告 bb60942b）＝持ち主を書かない「このターン、〜をスキップする」は**そのターンのターンプレイヤー**のステップ
+  //   ＝使用者が誰でも飛ぶ（相手のターンに撃つ防御札）。スキップの判定はターンプレイヤーの封じを見るので**両者に積む**（`bothPlayers`）。
+  //   旧＝使用者だけに積んでいた＝相手のターンに撃っても相手のアタックは飛ばず、自分のターンに撃つと自分のアタックが飛んだ（`WX16-001-E3`）。
+  const skipBoth = !t.includes('対戦相手') && !t.includes('あなたの') ? { bothPlayers: true } : {};
   if (t.match(/シグニアタックフェイズをスキップする/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN' };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN', ...skipBoth };
   }
 
   // ---- 手札からパワーN以上のシグニを場に出せない ----
@@ -528,13 +532,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // ---- ルリグアタックステップスキップ ----
   if (t.match(/ルリグアタックステップをスキップする/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'LRIG_ATTACK_STEP', until: 'END_OF_TURN' };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'LRIG_ATTACK_STEP', until: 'END_OF_TURN', ...(owner === 'self' && !t.includes('あなたの') ? { bothPlayers: true } : {}) };
   }
 
   // ---- シグニアタックステップスキップ ----
   if (t.match(/シグニアタックステップをスキップする/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN' };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN', ...(owner === 'self' && !t.includes('あなたの') ? { bothPlayers: true } : {}) };
   }
 
   // ---- アーツとスペル使用禁止（§6.4 O-3 続き459）----

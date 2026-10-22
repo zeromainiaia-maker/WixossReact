@@ -23,6 +23,8 @@ const ROUNDS = arg('--pool', ['r5', 'r6', 'r7', 'r8'].map(r => `${BASE}/pool/${r
 const REF = arg('--ref', `${BASE}/decks_ref.json`);
 const REF_NAME = JSON.parse(fs.readFileSync(REF, 'utf8'))[0].name as string;
 const DIR = arg('--dir', `${BASE}/climb20`); const SEEDS = arg('--seeds', '1,2,3,4,5');
+/** 同時に走らせる対戦プロセス数（1つ数百MB＝メモリが厳しいときは下げる）。 */
+const JOBS = arg('--jobs', '15');
 const card = new Map<string, any>();
 for (const f of cardCsvRelPaths()) { const p = join('public/data', f); if (!fs.existsSync(p) || /_TK|_Var/.test(f)) continue;
   for (const r of Papa.parse<any>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true }).data) if (r.CardNum) card.set(r.CardNum, r); }
@@ -85,7 +87,7 @@ function runGames(dir: string, decks: any[]): Record<string, number> {
   fs.writeFileSync(`${dir}/decks_cpu.json`, JSON.stringify(decks));
   fs.copyFileSync(REF, `${dir}/decks_ref.json`);
   fs.writeFileSync(`${dir}/pairs.json`, JSON.stringify(decks.flatMap(d => [[d.name, REF_NAME], [REF_NAME, d.name]])));
-  spawnSync(process.execPath, ['--import', 'tsx', 'scripts/selfPlayInvariants.ts', '--deck-dir', dir, '--pairs-file', `${dir}/pairs.json`, '--seeds', SEEDS, '--jobs', '15', '--games-out', `${dir}/games.txt`], { stdio: 'ignore' });
+  spawnSync(process.execPath, ['--import', 'tsx', 'scripts/selfPlayInvariants.ts', '--deck-dir', dir, '--pairs-file', `${dir}/pairs.json`, '--seeds', SEEDS, '--jobs', JOBS, '--games-out', `${dir}/games.txt`], { stdio: 'ignore' });
   const wins: Record<string, number> = {};
   for (const line of fs.readFileSync(`${dir}/games.txt`, 'utf8').split('\n')) {
     const m = line.match(/^(.*) vs (.*) s\d+: \w+ .*winner=(\S+)/); if (!m) continue;

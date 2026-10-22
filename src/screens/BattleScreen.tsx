@@ -12,7 +12,7 @@ import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTri
 import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers} from '../engine/triggerCollect';
 import {coinLedger} from '../engine/coinAbilityNegation';
 import {allAcceCards, normalizeAcceSlots} from '../utils/acce';
-import {C, HandCards, PlayerField} from '../components/BoardComponents';
+import {C, CardModal, HandCards, PlayerField} from '../components/BoardComponents';
 import type {CardAction} from '../components/BoardComponents';
 import {consumeLifeCrashReplaceDecision} from './battle/lifeCrashReplace';
 import {payLifeOnPlayCost} from './battle/lifeCost';
@@ -30,6 +30,7 @@ import {performCutinUse} from './battle/controller/performCutinUse';
 import {payUnderAnySigniTrash} from './battle/underAnySigniCost';
 import {buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry} from './battle/energyPaySource';
 import {logTextFor} from './battle/logPerspective';
+import {buildLogCardMatcher, splitLogByCardNames} from './battle/logCardLinks';
 import {handCountLogLines, lifeCountLogLines} from './battle/handCountLog';
 import {resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending} from './battle/rewind';
 import {RewindConsentDialog, RewindWaitDialog} from './battle/modals/RewindDialogs';
@@ -91,9 +92,7 @@ import {SpellCutinOverlays} from './battle/modals/SpellCutinOverlays';
 import {EndConfirmModal} from './battle/modals/EndConfirmModal';
 import {FinishedPopup} from './battle/modals/FinishedPopup';
 import {SystemOverlays} from './battle/modals/SystemOverlays';
-import {EffectAnnounceToast} from './battle/modals/EffectAnnounceToast';
 import {cheerAttackTargets} from './battle/cheerAttack';
-import {opponentEffectAnnouncement} from './battle/effectAnnounce';
 import {useGrowModal} from './battle/hooks/useGrowModal';
 import {useArtsModal} from './battle/hooks/useArtsModal';
 import {useSpellCast} from './battle/hooks/useSpellCast';
@@ -396,25 +395,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   }, [bs?.game_logs]);
 
-  // 🆕**相手の効果が始まったことの告知**（2026-10-01 ユーザー要望）。判定は `battle/effectAnnounce.ts`。
-  //   ログの増分だけを見る（初回の読み込み・手を戻したときの入れ替えでは出さない）。
-  const [effectAnnounce, setEffectAnnounce] = useState<string[]>([]);
-  const announceSeenRef = useRef<number | null>(null);
-  const announceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!user) return;
-    const seen = announceSeenRef.current;
-    announceSeenRef.current = battleLogs.length;
-    if (seen === null || battleLogs.length <= seen) return;
-    const lines = battleLogs.slice(seen)
-      .map(l => opponentEffectAnnouncement(l, user.id))
-      .filter((t): t is string => t !== null);
-    if (lines.length === 0) return;
-    setEffectAnnounce(prev => [...prev, ...lines].slice(-3));
-    if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
-    announceTimerRef.current = setTimeout(() => setEffectAnnounce([]), 4000);
-  }, [battleLogs, user]);
-  useEffect(() => () => { if (announceTimerRef.current) clearTimeout(announceTimerRef.current); }, []);
+  // 🏁2026-10-22＝「相手の効果が始まった」の上部告知（`EffectAnnounceToast`）は撤去した（ユーザー要望＝邪魔）。
+  //   代わりにログのカード名を色付き・タップで拡大にした（下のバトルログ）。
+  const [logZoomCard, setLogZoomCard] = useState<CardData | null>(null);
 
   const appendBattleLogs = useCallback((entries: string[], opts?: { defer?: boolean }) => {
     if (entries.length === 0 || !user) return;
@@ -981,6 +964,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const battleCards = useMemo(() => [...battleCardMap.entries()]
     .filter(([key]) => battleCardNums.has(getCardNum(key)))
     .map(([, card]) => card), [battleCardMap, battleCardNums]);
+  // ログのカード名（色付き・タップで拡大）の照合器＝対戦のカードの名前だけから当てる（`battle/logCardLinks.ts`）。
+  const logCardMatcher = useMemo(() => buildLogCardMatcher(battleCards), [battleCards]);
 
   // CONTINUOUS 効果マップ（ベース: カードデータのみ、静的）
   const baseEffectsMap = useMemo(
@@ -5361,7 +5346,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ⚠**同じ式を2箇所に書いたときの典型**（§5.1 の教訓「片方だけ直すと全ゲート緑のまま
       //     実際に使われる経路にだけ実装が無い」）。
       //   🆕**§5.3 `O-366`（2026-09-14）＝その2箇所を `centerLrigAttackBlock` の1本に統合した。**
-      if (centerLrigAttackBlock(my) !== null) return []; // ダウン中／付与された上限に達した
+      const lrigBlockALK = centerLrigAttackBlock(my);
+      // 効果で「アタックできない」＝押せないことをボタンで示す（出さないと理由が分からない・出して無反応はもっと分からない）。
+      if (lrigBlockALK === 'GRANTED_CANNOT_ATTACK') return [{ label: 'アタック不可（効果）', color: C.textDim, onClick: () => {} }];
+      if (lrigBlockALK !== null) return []; // ダウン中／付与された上限に達した
       if (op.field.lrig_attacked) return []; // ガード応答待ち
       const lrigTopALK = my.field.lrig.at(-1);
       const driveCanAttack = !!(lrigTopALK && (effectsMap.get(lrigTopALK) ?? []).some(e =>
@@ -5791,7 +5779,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <div key={i} data-testid={own ? 'private-log-line' : undefined}
                   style={{ fontSize: 10, color: own ? '#d0bd6a' : i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {no !== null && <span style={{ color: '#5a6f6f', marginRight: 4 }}>{no}.</span>}
-                  {own ? `🔒 ${text}` : text}
+                  {own && '🔒 '}
+                  {splitLogByCardNames(text, logCardMatcher).map((seg, j) => seg.card
+                    ? <span key={j} data-testid="log-card-link"
+                        onClick={e => { e.stopPropagation(); setLogZoomCard(seg.card!); }}
+                        style={{ color: '#ffd27a', textDecoration: 'underline dotted', cursor: 'zoom-in' }}>{seg.text}</span>
+                    : seg.text)}
                 </div>
               );
             });
@@ -5850,7 +5843,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* ===== 観戦表示＋長押し拡大＋終了ボタン ===== */}
       <SystemOverlays ctx={modalCtx} expandedPickImgUrl={expandedPickImgUrl} setShowEndConfirm={setShowEndConfirm} />
-      <EffectAnnounceToast lines={effectAnnounce} />
+      {logZoomCard && <CardModal card={logZoomCard} onClose={() => setLogZoomCard(null)} />}
 
     </div>
   );

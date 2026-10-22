@@ -96,6 +96,25 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   'trapToHand',
 ]);
 
+/**
+ * 🆕2026-10-22（バグ報告 bb60942b）＝**「このターン、〈アタックの段〉をスキップする」の【起】**か。
+ *   相手のターンに撃って相手のアタックを止める防御札（《ドーナ　ＦＯＵＲＴＨ》エスケープ・《ドーナ　ＣＨＥＥＲ》の付与）＝
+ *   **自分のターンに撃つと自分のアタックを捨てるだけ**。旧＝CPU が自分のアーツステップで撃っていた。
+ * ⚠「対戦相手の〜をスキップする」（`owner:'opponent'` だけで `bothPlayers` なし）は自分のターンに撃つ札＝除かない。
+ */
+const OWN_ATTACK_SKIP_IDS = new Set(['SIGNI_ATTACK_STEP', 'SIGNI_ATTACK_PHASE', 'LRIG_ATTACK_STEP', 'ATTACK_PHASE']);
+export function skipsOwnAttackThisTurn(effect: CardEffect): boolean {
+  const walk = (a: unknown): boolean => {
+    if (!a || typeof a !== 'object') return false;
+    if (Array.isArray(a)) return a.some(walk);
+    const o = a as { type?: string; actionId?: string; until?: string; bothPlayers?: boolean; target?: { owner?: string } };
+    if (o.type === 'BLOCK_ACTION' && OWN_ATTACK_SKIP_IDS.has(o.actionId ?? '') && o.until === 'END_OF_TURN'
+        && (o.bothPlayers || o.target?.owner === 'self')) return true;
+    return Object.values(o).some(walk);
+  };
+  return walk(effect.action);
+}
+
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
 export function cpuCanAutoPayLrigCost(effect: CardEffect): boolean {
   const cost = effect.cost;
@@ -182,11 +201,16 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
   const window = p.isMyTurn === false ? 'oppAttack' : cpuUseWindowOf(p.phase);
   const allowed = (num: string) => planAllowsUseIn(p.plan, num, window, p.isMyTurn === false);
   const centerLrig = p.actor.field.lrig.at(-1);
-  const usable: { effect: CardEffect; sourceCardNum?: string }[] = centerLrig && !allowed(centerLrig) ? [] : [
+  const centerUsable = [
     ...listActivatableLrigEffects(gateInput),
     ...listActivatableGrantedLrigEffects(gateInput, granted),
     ...listActivatableInheritedLrigEffects(gateInput),
   ].map(effect => ({ effect }));
+  // 🆕2026-10-22（バグ報告 bb60942b）＝「このターン、〈アタックの段〉をスキップする」は**それ自体が守りの札**＝
+  //   相手のターンなら作戦データの指定が無くても撃つ（「使わない」「攻めのみ」と書かれていれば撃たない）。
+  //   旧＝相手のターンは指定のある札しか撃たず、自分のターンには撃っていた（自分のアタックを捨てるだけ）。
+  const usable: { effect: CardEffect; sourceCardNum?: string }[] = !centerLrig || allowed(centerLrig) ? centerUsable
+    : centerUsable.filter(u => p.isMyTurn === false && skipsOwnAttackThisTurn(u.effect) && planAllowsUseIn(p.plan, centerLrig, window, false));
   // 🆕2026-09-28＝**アシストルリグの【起】**（ユーザー指示「アシストルリグの【起】も整備」）＝判定は人間のボタンと同じ
   //   `listActivatableAssistLrigEffects`（`canActivateLrigEffect`）・実行も同じ `performLrigActivated`（`sourceCardNum`）。
   for (const side of ['l', 'r'] as const) {
@@ -196,6 +220,7 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
   }
   for (const { effect, sourceCardNum } of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
+    if (p.isMyTurn !== false && skipsOwnAttackThisTurn(effect)) continue;   // 自分のアタックを飛ばすだけ＝相手のターンに撃つ
     if (!cpuCanAutoPayLrigCost(effect)) continue;
     const costIndices = selectEnergyIndicesForCost({
       poolNums: p.energyPoolNums, cards: p.cards,
