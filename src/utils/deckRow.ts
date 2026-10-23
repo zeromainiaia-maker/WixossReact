@@ -1,6 +1,7 @@
 import type { Deck } from '../types';
 import { normalizeCpuDeckPlan } from '../screens/battle/cpuDeckPlan';
 import { DECK_FORMATS, type DeckFormat } from './deckFormat';
+import { migrateMergedCardNums } from './mergedCardNums';
 
 /** `decks` テーブルの1行（クライアントが読む列だけ）。 */
 export interface DeckRow {
@@ -22,7 +23,9 @@ export interface DeckRow {
 }
 
 /** DB の行 → `Deck`（App の自分のデッキ一覧と、マッチングの CPU デッキ一覧で共用）。 */
-export const deckFromRow = (d: DeckRow): Deck => ({
+export const deckFromRow = (row: DeckRow): Deck => deckFromMigratedRow(migrateMergedCardNums(row));
+
+const deckFromMigratedRow = (d: DeckRow): Deck => ({
   id: d.id,
   userId: d.user_id,
   name: d.name,

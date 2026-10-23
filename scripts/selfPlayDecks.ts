@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { CardData } from '../src/types';
+import { migrateMergedCardNums } from '../src/utils/mergedCardNums';
 import { deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA, lrigRolesOfRow, type DeckLrigRoles } from '../src/utils/deckLrigSetup';
 import { isEmptyCpuDeckPlan, normalizeCpuDeckPlan, pruneCpuDeckPlan, EMPTY_CPU_DECK_PLAN, type CpuDeckPlan } from '../src/screens/battle/cpuDeckPlan';
 
@@ -72,7 +73,7 @@ export function loadExportedDeckRows(dir = DECK_EXPORT_DIR): DeckRow[] {
   if (!existsSync(dir)) return [];
   const out: DeckRow[] = [];
   for (const f of readdirSync(dir).filter(x => /^decks_.*\.json$/.test(x))) {
-    out.push(...(JSON.parse(readFileSync(join(dir, f), 'utf-8')) as DeckRow[]));
+    out.push(...(JSON.parse(readFileSync(join(dir, f), 'utf-8')) as DeckRow[]).map(migrateMergedCardNums));
   }
   return out;
 }

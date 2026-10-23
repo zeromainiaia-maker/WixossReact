@@ -1,5 +1,5 @@
 # 実行結果の不変条件センサス（R6-1）
-# トレース: node_modules\.tmp\traceinv_traces.json（効果 9545件）
+# トレース: node_modules\.tmp\traceinv_traces.json（効果 9527件）
 
 ## I1（0効果）
 

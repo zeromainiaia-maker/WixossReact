@@ -222,6 +222,7 @@ import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat
 import { ALL_LRIG_FOLDER, withAllLrigFolder } from '../src/utils/deckFolders';
 import { applyFolderReorder, copyDeckName, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, groupDecksByFormatAndFolder, findFormatFolder, formatFolderKey, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
+import { MERGED_CARD_NUMS } from '../src/utils/mergedCardNums';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
 import { planRiseSummon } from '../src/screens/battle/riseSummon';
@@ -5108,7 +5109,7 @@ test('スコープつきキーワード直後のブロックを飲み込まな�
   }
   // (b) 同型（スコープが「スペル」）＝2枚。live は古い値で凍っていたが parser も同じ穴を持っていた
   //     （`_idset_fresh` に居座り、id 集合がズレたまま parser の出力が届かない状態だった）。
-  for (const id of ['WXDi-P09-048', 'WX25-P2-118']) {
+  for (const id of ['WXDi-P09-048']) { // WX25-P2-118 は 2026-10-23 に絵柄違いへ統合（表記ゆれ）
     const e = effs(id);
     eq(e.length, 3, `${id}: 3ブロックに割れる`);
     eq(e[0].action.keyword, 'シャドウ:{"cardType":"スペル"}', `${id}-E1 シャドウ（スペル）`);
@@ -36804,7 +36805,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   **ピースの正準形 `ACTIVATED/['MAIN']` へ直した**ぶんの1減（旧＝`AUTO/['ON_PLAY']`・mandatory）。
     //   ⚠**発火は減っていない**＝`queueCardEffects` はピースに `['AUTO','ACTIVATED']` を積むので同じく走る。
     //   この集合から抜けたのは「AUTO の【出】watcher ではなくピース本体だから」＝**分類の是正**。
-    eq(eligible.length, 1475, '段階2 mandatory集合'); // 1474→1475（2026-10-14 §5.3 `O-543`＝`WX26-P1-072-E2` を「1枚まで下に置く」強制【出】で表した）／1465→1474（2026-10-03 WX26-P1 追加で+9）
+    eq(eligible.length, 1470, '段階2 mandatory集合'); // 1475→1470（2026-10-23 表記ゆれの本体17枚を絵柄違いへ統合）／ 1474→1475（2026-10-14 §5.3 `O-543`＝`WX26-P1-072-E2` を「1枚まで下に置く」強制【出】で表した）／1465→1474（2026-10-03 WX26-P1 追加で+9）
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -36827,14 +36828,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   （`WDK05-T14-E1` / `WX03-034-E1` / `WX09-025-E1` / `WX21-051-E1` / `WX21-Re06-E2` / `WX22-048-E1` /
     //   `WXK02-095-E1` / `WXK07-088-E1` / `WXK08-027-E1` のうち ON_PLAY mandatory のもの）の条件を
     //   **効果レベルから宣言の後ろ（木の中）へ移した**＝**較正**（条件は消えていない・集合の総数も不変）。
-    eq(eligible.length - conditional.length, 1421, // 1420→1421（2026-10-14 `O-543`＝`WX26-P1-072-E2`）／1411→1420（2026-10-03 WX26-P1 追加で+9）
+    eq(eligible.length - conditional.length, 1416, // 1421→1416（2026-10-23 表記ゆれの本体17枚を統合）／ 1420→1421（2026-10-14 `O-543`＝`WX26-P1-072-E2`）／1411→1420（2026-10-03 WX26-P1 追加で+9）
       '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 54, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
     //   `WXDi-CP02-100-E1`（`trashToDeckBottom`）の costUnparsed を解いた分。
     // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝`WXDi-P03-019-E1` の costUnparsed を解いた分。
-    eq(optionalCost.length, 976, '任意costあり（+O-68① の1効果＝fieldTrashAll）'); // 965→976（2026-10-03 WX26-P1 追加で+11）
+    eq(optionalCost.length, 972, '任意costあり（+O-68① の1効果＝fieldTrashAll）'); // 976→972（2026-10-23 表記ゆれ17枚を統合）／ 965→976（2026-10-03 WX26-P1 追加で+11）
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
     // 🆕20→18＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
@@ -36888,8 +36889,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` の costUnparsed を解いた分。
-    eq(optionalCost.length, 976, '母集団（+O-68① の1効果）'); // 965→976（2026-10-03 WX26-P1 追加で+11）
-    eq(mapped.length, 976, "OPTIONAL_COST へ写せる（fieldTrashAll も 'ALL' 規約で写せる）"); // 965→976（2026-10-03 WX26-P1 追加で+11）
+    eq(optionalCost.length, 972, '母集団（+O-68① の1効果）'); // 976→972（2026-10-23 表記ゆれの本体17枚を統合）／ 965→976（2026-10-03 WX26-P1 追加で+11）
+    eq(mapped.length, 972, "OPTIONAL_COST へ写せる（fieldTrashAll も 'ALL' 規約で写せる）"); // 976→972（2026-10-23 表記ゆれ17枚を統合）／ 965→976（2026-10-03 WX26-P1 追加で+11）
     eq(optionalCost.length - mapped.length, 0, '未対応の外側 cost は0件');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -62457,14 +62458,14 @@ test('Sheet1 B2: 印字キーワードの付与は thisCardOnly（自分の任�
     'WX08-061-E1: 対象宣言つきの付与に thisCardOnly を付けない');
 }));
 
-test('Sheet1 B2: サーバント18枚のマルチエナは parser が1本だけ持つ（manual 影武者を撤去して解凍）', () => withSavedCursor(() => {
+test('Sheet1 B2: サーバント17枚のマルチエナは parser が1本だけ持つ（manual 影武者を撤去して解凍）', () => withSavedCursor(() => {
   // 🔴この18枚は `manualEffects.ts` に `-MULTIENA` の手書きコピーを持っていたため
   //   `docs/_idset_fresh.json` に落ち続け、**このカードへの parser 改善が何ひとつ live に届かなかった**。
   //   撤去して parser（`-E2`）に所有権を返した。ここが崩れたら凍結が再発している。
   const SERVANTS = [
     'WD01-016', 'WD01-017', 'WD04-016', 'WD04-017', 'WX01-051', 'WX01-100',
     'WX02-077', 'WX02-078', 'WX10-097', 'WX10-098', 'WX10-099', 'WX10-100',
-    'WXDi-D01-020', 'WXDi-D03-020', 'WXK01-119', 'WXK01-120', 'WXK01-121', 'WXK01-122',
+    'WXDi-D01-020', 'WXK01-119', 'WXK01-120', 'WXK01-121', 'WXK01-122',
   ] as const;
   for (const cardNum of SERVANTS) {
     const effects = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []);
@@ -66697,8 +66698,11 @@ test('V-100② ON_ATTACK_SIGNI の遅延は専用コレクタだけが拾う（�
 // ⚠枚数はどの位置でも同じ＝**順序でしか観測できない**。だからデッキの中身を全部別 id にして index で見る。
 test('V-100③ TRANSFER_TO_DECK: 場のシグニでも top/second/third/bottom が位置どおりに入る', () => {
   const deck5 = ['D#1', 'D#2', 'D#3', 'D#4', 'D#5'];
+  // ⚠POOL から引くと並びしだいで「場を離れる場合に代わりに〜」を持つ札を引く（2026-10-23 カード統合で《早瀬ユウカ》を引いた）＝能力の無いシグニを決め打ち。
+  const VANILLA = [...cardMap.values()].find(c => isSigni(c) && (!c.EffectText || c.EffectText === '-') && (!c.BurstText || c.BurstText === '-'))!.CardNum;
   const at = (position: string | undefined): string[] => {
-    const oppSigni = fresh();
+    fresh(); // POOL の位置を旧来どおり進める（後続テストの引きを変えない）
+    const oppSigni = VANILLA;
     const ctx = mkCtx({}, { signi: [oppSigni, null, null] });
     ctx.otherState.deck = [...deck5];
     const act = {
@@ -81819,8 +81823,9 @@ test('§5.3 O-312 levelEqLrigOffset：センタールリグ±1 ちょうどの�
   const ctx5 = mkCtx({ lrig: [lrigL5], energy: 9 }, { signi: [l2, l4, null] });
   const seen5: PendingInteractionDef[] = [];
   finishSeen(executeEffect(eff, ctx5), ctx5, seen5, () => []);
-  const sel5 = seen5.find(p => p.type === 'SELECT_TARGET') as { candidates: string[] } | undefined;
-  ok(!sel5 || sel5.candidates.length === 0, '反転確認: ルリグがレベル5なら＋1（＝6）は候補ゼロ（fail-closed）');
+  // ⚠後段（−1側＝レベル4を場に出す）の選択は自分の山・トラッシュの札を候補にしうる（POOL の並びで変わる）＝見るのは相手の場の2体だけ。
+  ok(!seen5.some(p => p.type === 'SELECT_TARGET' && ((p as { candidates: string[] }).candidates.includes(l4) || (p as { candidates: string[] }).candidates.includes(l2))),
+    '反転確認: ルリグがレベル5なら＋1（＝6）は候補ゼロ（fail-closed）');
 }));
 
 test('§5.3 O-314 SigniDeployBan.fromNextTurn / bySource:"normal_summon"：追加ターンだけ手札から出せない', () => withSavedCursor(() => {
@@ -84932,7 +84937,11 @@ test('O-367後 WX20-Re20 c1: 手札から好きな枚数出し、その個体群
   eq(JSON.stringify(st.turn_end_field_trash_targets), JSON.stringify(RE20_VANILLA),
     '🔴ターン終了時トラッシュの予約が出した個体群と一致しない');
   // 🔴対照＝能力を持つシグニは `noAbilities` で弾かれる（filter が落ちたら場に出てしまう）。
-  const withAbility = { ...ctx, ownerState: { ...ctx.ownerState, hand: fill(3) } } as ExecCtx;
+  // ⚠POOL から引くと並びしだいで能力なしシグニを引く（2026-10-23 カード1枚減で実際に引いた）＝能力ありのシグニを決め打ちで選ぶ。
+  const ABILITY_SIGNI = [...cardMap.values()].filter(c => isSigni(c) && !!c.EffectText && c.EffectText !== '-').slice(0, 3).map(c => c.CardNum);
+  eq(ABILITY_SIGNI.length, 3, '能力ありのシグニが3枚見つからない');
+  fill(3); // POOL の位置を旧来どおり進める（後続テストの引きを変えない）
+  const withAbility = { ...ctx, ownerState: { ...ctx.ownerState, hand: ABILITY_SIGNI } } as ExecCtx;
   const st2 = run(choose.choices[1].action, withAbility).ownerState as PlayerState;
   eq(st2.field.signi.filter(z => z && z.length > 0).length, 0,
     '🔴能力を持つシグニまで場に出た＝`noAbilities` が落ちている');
@@ -88812,6 +88821,43 @@ test('2026-10-23 デッキ編成の絞り込み：「/」で区切られたタ�
     '🔴絞り込みが分けた値で照合していない');
 }));
 
+test('2026-10-23 《サーバント　#》の全角「＃」表記を半角へ統一（本体は WXDi-D01-020 の1枚・WXDi-D03-020 は絵柄違い）／保存済みデッキの番号は読み込みで付け替える', () => withSavedCursor(() => {
+  // 🔑ユーザー要望＝「サーバント＃が全角と半角で同じなのに2種類になっている。多いほうに統一。絵柄違いも調整」＝半角79枚・全角11枚。
+  ok(cardMap.has('WXDi-D01-020') && cardMap.get('WXDi-D01-020')!.CardName === 'サーバント　#', '本体《サーバント　#》が無い');
+  ok(!cardMap.has('WXDi-D03-020'), '🔴WXDi-D03-020 が本体に残っている（デッキ編成に2種類出る）');
+  ok(![...cardMap.values()].some(c => c.CardName === 'サーバント　＃'), '🔴全角「＃」の本体が残っている');
+  const variantText = fs.readFileSync(variantsCsvPath(), 'utf-8');
+  ok(!variantText.includes('サーバント　＃'), '🔴絵柄違いに全角「＃」が残っている（本体の絵柄一覧に出ない）');
+  ok(/^WXDi-D03-020,サーバント　#,/m.test(variantText), '🔴WXDi-D03-020 が絵柄違いに無い（絵柄が選べなくなる）');
+  eq(MERGED_CARD_NUMS['WXDi-D03-020'], 'WXDi-D01-020', '付け替え表に無い');
+  // 同日「残りも直して」＝全角・半角などの違いだけで本体が2枚に割れた17組も同じ形でまとめた。
+  //   🔴再発防止＝表記を揃えた（NFKC＋空白除去＋＝→=）名前で本体が2枚以上にならない／絵柄違いの名前も本体と1字違わない。
+  const normName = (n: string) => n.normalize('NFKC').replace(/\s+/g, '').replace(/＝/g, '=');
+  const bodyByNorm = new Map<string, string[]>();
+  for (const c of cardMap.values()) if (!/-TK/.test(c.CardNum) && !(c.Type ?? '').includes('トークン') && !(c.Type ?? '').includes('クラフト'))
+    bodyByNorm.set(normName(c.CardName), [...(bodyByNorm.get(normName(c.CardName)) ?? []), c.CardName]);
+  // ⚠表記が同じ名前の重複は数えない（cardMap にはトークン CSV の同名シグニも入る）＝見るのは「表記が割れているか」だけ。
+  const split = [...bodyByNorm.values()].map(v => [...new Set(v)]).filter(v => v.length > 1);
+  eq(split.length, 0, `🔴表記ゆれで本体が割れている: ${split.slice(0, 3).map(v => v.join('／')).join(' ')}`);
+  const vRows = Papa.parse<Record<string, string>>(variantText.replace(/^﻿/, ''), { header: true, skipEmptyLines: true }).data;
+  const vMismatch = vRows.filter(r => { const b = bodyByNorm.get(normName(r.CardName)); return b && b[0] !== r.CardName; });
+  eq(vMismatch.length, 0, `🔴絵柄違いの名前が本体と表記違い（絵柄一覧に出ない）: ${vMismatch.slice(0, 3).map(r => r.CardNum).join(',')}`);
+  for (const [from, to] of Object.entries(MERGED_CARD_NUMS)) {
+    ok(!cardMap.has(from) && cardMap.has(to), `🔴付け替え表 ${from}→${to} が本体の在否と食い違う`);
+    ok(vRows.some(r => r.CardNum === from && r.CardName === cardMap.get(to)?.CardName), `🔴${from} が ${to} の絵柄違いに無い`);
+  }
+  // 保存済みデッキ＝番号を本体へ付け替え、元の番号は絵柄として残す
+  const d = deckFromRow({ id: 'x', name: 'x', main_deck: ['WXDi-D03-020', 'WXDi-D03-020', 'WX01-001'], lrig_deck: [], thumbnail_card_num: 'WXDi-D03-020',
+    cpu_plan: { keyCards: ['WXDi-D03-020'] } });
+  eq(d.mainDeck.join(','), 'WXDi-D01-020,WXDi-D01-020,WX01-001', '🔴保存済みデッキの番号が付け替わらない（対戦で未知のカードになる）');
+  eq(d.artOverrides?.['WXDi-D01-020'], 'WXDi-D03-020', '🔴元の絵柄が消えた');
+  eq(d.thumbnailCardNum, 'WXDi-D01-020', 'サムネイルが付け替わらない');
+  const e = deckFromRow({ id: 'y', name: 'y', main_deck: ['WXDi-D03-020'], lrig_deck: [], art_overrides: { 'WXDi-D01-020': 'WXDi-P01-099' } });
+  eq(e.artOverrides?.['WXDi-D01-020'], 'WXDi-P01-099', '既に選んでいた絵柄を上書きした');
+  eq(deckFromRow({ id: 'z', name: 'z', main_deck: ['WX01-001'], lrig_deck: [] }).artOverrides && Object.keys(deckFromRow({ id: 'z', name: 'z', main_deck: ['WX01-001'], lrig_deck: [] }).artOverrides!).length, 0,
+    '関係ないデッキに絵柄の指定を足した');
+}));
+
 test('2026-10-23 発動中の効果欄：ゾーンに設置する効果（WX10-051《クローズ・ゾーン》）＝どのゾーンかを画面の位置で出す／相手のターン開始で昇格しても残る／そのターンの終わりに消える', () => withSavedCursor(() => {
   // 🔑ユーザー質問「WX10-051 のようなゾーンに設置する効果も正しく表示されるか」。
   //   原文＝「シグニゾーン１つを指定する。次のターンの間、対戦相手は指定されたシグニゾーンにシグニを新たに配置することができない。」
@@ -90585,15 +90631,15 @@ test('デッキフォーマット: 再録を含めた全印刷で判定し、フ
     ).data as unknown as CardData[];
     for (const r of rows) if (r.CardNum) sheet.push(r);
   }
-  eq(sheet.length, 6763, '🔴シートのカード枚数が変わった（以下の錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）
+  eq(sheet.length, 6745, '🔴シートのカード枚数が変わった（以下の錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）→6762（2026-10-23 WXDi-D03-020《サーバント　＃》を絵柄違いへ統合で-1）→6745（同日 表記ゆれの本体17枚を統合）
   let dOnly = 0, lOnly = 0, both = 0;
   for (const c of sheet) {
     const p = cardPoolsOf(c, vIdx);
     if (p.diva && p.legacy) both++; else if (p.diva) dOnly++; else lOnly++;
   }
   eq(both, 91, '🔴再録で両プールに居る札の数が変わった（判定の前提が動いた＝測り直す）');
-  eq(dOnly + both, 2944, 'ディーバで使えるカード数が変わった'); // 2847→2944（2026-10-03 WX26-P1 追加で+97）
-  eq(lOnly + both, 3910, 'レガシーで使えるカード数が変わった');
+  eq(dOnly + both, 2938, 'ディーバで使えるカード数が変わった'); // →2938（同日 表記ゆれ17枚を統合）／ 2847→2944（2026-10-03 WX26-P1 追加で+97）→2943（2026-10-23 サーバント統合で-1）
+  eq(lOnly + both, 3898, 'レガシーで使えるカード数が変わった'); // 3910→3898（2026-10-23 表記ゆれの本体17枚を統合＝ディーバ-5・レガシー-12）
 
   // ④ 中身からの推定＝「そのプールにしか無い札」で決める。
   const detect = (nums: string[]) => detectDeckFormat(nums, cardMap, vIdx);
@@ -93290,7 +93336,10 @@ test('§5.6 C-13 レゾナのカットインを CPU が使う（出す先・支�
   // ── ④ **ルリグレベルより高いレゾナは出さない** ──
   eq(pickC13({ budget: { lrigLevel: 0, lrigLimit: 12, fieldSigniTotal: 0 } }), null, '🔴ルリグレベルを超えるレゾナを出した');
   // ── ⑤ **支払えないなら出さない** ──
-  eq(pickC13({ hand: fill(5) }), null, '🔴出現条件を払えないのにレゾナを出した');
+  // ⚠POOL から引くと並びしだいで＜宇宙＞を引く（2026-10-23 カード統合で実際に引いた）＝＜宇宙＞でないシグニを決め打ち。
+  fill(5); // POOL の位置を旧来どおり進める
+  const noUchu = [...cardMap.values()].filter(c => isSigni(c) && !(c.CardClass ?? '').includes('宇宙')).slice(0, 5).map(c => c.CardNum);
+  eq(pickC13({ hand: noUchu }), null, '🔴出現条件を払えないのにレゾナを出した');
 
   // ── ⑥ 配線＝実行は人間と同じ `performSummonSigni`（`performCutinUse` はレゾナを受けない）──
   const turnSrcC13 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
@@ -94796,7 +94845,7 @@ test('2026-10-01 カード CSV（パック別）＝index とフォルダが一�
       seen.add(r.CardNum);
     }
   }
-  eq(rows, 6763, '🔴パック CSV の総枚数が変わった（カードを足したならこの錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）
+  eq(rows, 6745, '🔴パック CSV の総枚数が変わった（カードを足したならこの錨を測り直す）'); // 6666→6763（2026-10-03 WX26-P1 追加で+97）→6762（2026-10-23 サーバント統合で-1）→6745（同日 表記ゆれ17枚を統合）
   eq(packOf('SP01-001') + '/' + packOf('SPDi43-21') + '/' + packOf('SPK01-14'), 'SP/SPDi/SPK', '🔴SP・SPDi・SPK はそれぞれ1ファイル（ユーザー指定）');
   eq(packOf('WXDi-P11-010A') + '/' + packOf('WX24-P1-044') + '/' + packOf('WX22-035'), 'WXDi-P11/WX24-P1/WX22', 'パック番号の規則');
   ok(!fs.readdirSync(join(root, 'public/data')).some(f => /^CardData_.*\.csv$/.test(f)), '🔴旧 CardData_*.csv が残っている（どちらを読むか割れる）');
