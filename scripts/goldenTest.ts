@@ -223,6 +223,7 @@ import { ALL_LRIG_FOLDER, withAllLrigFolder } from '../src/utils/deckFolders';
 import { applyFolderReorder, copyDeckName, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, groupDecksByFormatAndFolder, findFormatFolder, formatFolderKey, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
 import { MERGED_CARD_NUMS } from '../src/utils/mergedCardNums';
+import { mainDeckStats, lrigDeckStats } from '../src/utils/deckStats';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
 import { planRiseSummon } from '../src/screens/battle/riseSummon';
@@ -88857,6 +88858,42 @@ test('2026-10-23 《サーバント　#》の全角「＃」表記を半角へ�
   eq(deckFromRow({ id: 'z', name: 'z', main_deck: ['WX01-001'], lrig_deck: [] }).artOverrides && Object.keys(deckFromRow({ id: 'z', name: 'z', main_deck: ['WX01-001'], lrig_deck: [] }).artOverrides!).length, 0,
     '関係ないデッキに絵柄の指定を足した');
 }));
+
+test('2026-10-23 統合した番号の DB 書き直し SQL（docs/sql/2026-10-23_merge_card_nums.sql）が MERGED_CARD_NUMS と一致する', () => {
+  // 🔑SQL を流したあとはアプリの付け替えを消せる＝対応表が1件でもズレると、そのカードのデッキだけ未知のカードになる。
+  const sql = fs.readFileSync(join(root, 'docs/sql/2026-10-23_merge_card_nums.sql'), 'utf8');
+  // 対応表は $m$…$m$ のドル引用に「旧>新」をカンマ区切りで並べてある（単引用符はコピーで化けるので使わない）。
+  const lists = [...sql.matchAll(/\$m\$([A-Za-z0-9>,-]+)\$m\$/g)].map(m => m[1]);
+  eq(lists.length, 2, 'SQL の対応表（書き換え・確認の2か所）が見つからない');
+  eq(lists[0], lists[1], '🔴書き換えと確認で対応表が食い違う');
+  const pairs = (lists[0] ?? '').split(',').sort();
+  ok(!sql.split('\n').filter(l => !l.trimStart().startsWith('--')).some(l => l.includes("'")), '🔴SQL 本文に単引用符がある（チャットからコピーすると化けて構文エラーになる）');
+  eq(pairs.join(','), Object.entries(MERGED_CARD_NUMS).map(([a, b]) => `${a}>${b}`).sort().join(','), '🔴SQL の対応表が MERGED_CARD_NUMS と食い違う');
+});
+
+test('2026-10-23 デッキの内訳（utils/deckStats.ts）：種別・シグニのレベル・色（多色は1色ずつ）・ガード・LB・クラス（下位だけ）／ルリグデッキの種別とレベル', () => {
+  const mk = (CardNum: string, o: Partial<CardData>) => ({ CardNum, CardName: CardNum, ImgURL: '', Type: 'シグニ', CardClass: '-', Color: '白', Level: '1',
+    GrowCost: '-', Cost: '-', Limit: '-', Power: '1000', Restriction: '-', Team: '-', Timing: '-', Guard: '0', Coin: '-', Story: '-', LifeBurst: '0',
+    EffectText: '', BurstText: '', effects: [], ...o }) as CardData;
+  const m = new Map<string, CardData>([
+    ['S1', mk('S1', { Guard: '1', LifeBurst: '1', Color: '無', CardClass: '奏元' })],
+    ['S3', mk('S3', { Level: '3', Color: '赤青', CardClass: '精武：アーム/ウェポン', LifeBurst: '1' })],
+    ['SP', mk('SP', { Type: 'スペル', Level: '-', Color: '黒' })],
+    ['L3', mk('L3', { Type: 'ルリグ', Level: '3' })],
+    ['A1', mk('A1', { Type: 'アーツ', Level: '-' })],
+  ]);
+  const s = mainDeckStats(['S1', 'S1#2', 'S3', 'SP', 'XX'], m);
+  eq(`${s.total}/${s.signi}/${s.spell}/${s.other}`, '5/3/1/1', '🔴種別の枚数（知らない番号は「その他」）');
+  eq(JSON.stringify(s.signiLevels), '{"1":2,"3":1}', '🔴シグニのレベル別（個体番号 #2 を本体として数えない）');
+  eq(`${s.colors['無']}/${s.colors['赤']}/${s.colors['青']}/${s.colors['黒']}`, '2/1/1/1', '🔴多色を1色ずつ数えない');
+  eq(`${s.guard}/${s.lifeBurst}`, '2/3', '🔴ガード（Guard=1）・LB の枚数');
+  eq(s.classes.map(([k, n]) => `${k}${n}`).join(','), '奏元2,アーム1,ウェポン1', '🔴クラスを下位だけで数えない（R-58）');
+  const l = lrigDeckStats(['L3', 'A1', 'A1'], m);
+  eq(l.byType.map(([t, n]) => `${t}${n}`).join(','), 'アーツ2,ルリグ1', 'ルリグデッキの種別');
+  eq(JSON.stringify(l.lrigLevels), '{"3":1}', 'ルリグのレベル');
+  const editor = fs.readFileSync(join(root, 'src/screens/DeckEditorScreen.tsx'), 'utf8');
+  ok(/<DeckStatsPanel mainDeck=\{current\.mainDeck\} lrigDeck=\{current\.lrigDeck\}/.test(editor), '🔴「内訳」タブが画面に配線されていない');
+});
 
 test('2026-10-23 発動中の効果欄：ゾーンに設置する効果（WX10-051《クローズ・ゾーン》）＝どのゾーンかを画面の位置で出す／相手のターン開始で昇格しても残る／そのターンの終わりに消える', () => withSavedCursor(() => {
   // 🔑ユーザー質問「WX10-051 のようなゾーンに設置する効果も正しく表示されるか」。

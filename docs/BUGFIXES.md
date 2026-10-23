@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-23（第560バッチ）Supabase の権限を締める（security advisor）
+- 🔴**S1** `append_battle_logs`（SECURITY DEFINER）に対戦者の確認が無く anon からも呼べた＝部屋 ID が分かれば誰でもどの対戦のログにも書き足せた ⇒ `auth.uid()` が host/guest の行だけ更新・anon から EXECUTE を外す。トリガー専用の `battle_states_save_snapshot` は RPC から外し、`rewind_battle` は anon だけ外した（本体で対戦者を確認済み）。
+- 🔴**S2** `rooms`／`battle_states` の UPDATE に「guest_id IS NULL なら誰でも」＝相手の入る前の部屋を他人が書き換えられた ⇒ battle_states は該当ポリシーを削除（guest_id が NULL の行を作らない）。rooms は参加にこの条件が要るので残し、トリガー `rooms_guard_update` で「当事者は何でも／他人は空き部屋のゲスト列を自分にするだけ」に絞った。
+- 🔴**S3** `battle_states` の「誰でも読める（true）」を削除（対戦者だけ読める）。**S4** decks の重複ポリシー2本を削除・関数3本の search_path を固定。
+- SQL＝`docs/sql/2026-10-23_security_hardening.sql`（MCP の `apply_migration` で適用）。⚠`append_battle_logs` の `LIMIT 200` は集約の後に掛かるので効いていない（ログは切り詰められない）＝巻き戻しが手番号でログを引くので触っていない。
+- **検証**＝claude1/claude2 の REST で、参加・退出・ホストの変更は通り、他人のパスコード改ざん・参加ついでの状態変更・anon の参加・anon の RPC・他人の盤面の読み取りは弾かれることを確認。実機 `verifyRewind.mjs`（PvP の参加・ログ追記・同意・巻き戻し）PASS。
+
+## 2026-10-23（第559バッチ）統合した番号の DB 書き直し SQL／カード知識ベースの後始末／デッキ編成に「内訳」タブ（ユーザー要望＝改善案 1〜3）
+- **①DB の書き直し**＝`docs/sql/2026-10-23_merge_card_nums.sql`（全ユーザーの `decks` と `deck_folders` の番号を本体へ付け替え、元の絵柄は `art_overrides` に残す。列の型に依存しない・冪等・最後に残数を出す）。🏁**本番へ適用済み**（2026-10-23・MCP で確認＝残数0）。アプリの読み込み時の付け替え（`utils/mergedCardNums.ts`）は古い端末・書き出しのために残す。golden が SQL の対応表と `MERGED_CARD_NUMS` の一致を検査する。
+- **②カード知識ベース**＝絵柄違いへ移した18枚の項目を `cardKnowledge.json` から削除し、`CARD_KNOWLEDGE.md`（6745 / 6745 枚）と `cpuArtsKnowledgeUse.ts` を再生成。
+- **③デッキの内訳**＝「デッキ内容」に3つ目のタブ「内訳」（`screens/deck/DeckStatsPanel.tsx`・集計は純関数 `utils/deckStats.ts`）。メイン＝シグニ／スペル／LB有／ガード（`Guard === '1'`＝対戦の判定と同じ）・シグニのレベル別の棒・色（多色は1色ずつ）・クラス（下位だけ＝R-58）／ルリグデッキ＝種別・ルリグのレベル。
+- **検証**＝golden 新規2本（SQL と付け替え表の一致／内訳の集計＝種別・レベル・多色・ガード・LB・クラス・配線）＝クラスと色の数え方を壊すと FAIL（反転確認）。golden 4533/4533・`npm run gates` は lint 以外緑（lint は git 外の `tmp_artcount.ts`）。⑤実機＝`src/screens/` を触ったので実施＝claude1 の「採用／エマ」で PC 幅・スマホ幅（390px）とも内訳が出る・横スクロールなし・ページエラー0（シグニ 38＝レベル別の合計と一致）。
+
 ## 2026-10-23（第558バッチ）《サーバント　#》の全角「＃」表記を半角へ統一（ユーザー要望＝本体が2種類に割れていた）
 - **要望**＝「サーバント＃が全角と半角で同じなのに2種類になっている。多いほうに統一、絵柄違いも調整」。実測＝半角「サーバント　#」79枚（本体 WXDi-D01-020＋絵柄違い78）／全角「サーバント　＃」11枚（本体 WXDi-D03-020＋絵柄違い10）。本文は2枚の本体で完全一致。
 - **直し方**＝全角の10枚を半角へ改名し、WXDi-D03-020 を本体から `_Variants.csv` へ移した（本体は WXDi-D01-020 の1枚＝絵柄の選択は89種）。effects_WXDi.json の WXDi-D03-020 は手で削除（収穫マージは CSV に無いカードの live を残すため）。

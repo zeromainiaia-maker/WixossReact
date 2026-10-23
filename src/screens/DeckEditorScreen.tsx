@@ -14,6 +14,7 @@ import { DECK_FORMAT_JA, cardAllowedInFormat, effectiveDeckFormat, outOfFormatCa
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 import { DeckFormatModal } from './deck/DeckFormatModal';
 import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
+import { DeckStatsPanel } from './deck/DeckStatsPanel';
 import { knownPrefixedClasses, splitCardClasses, splitCardTypes } from '../utils/cardFilterValues';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
@@ -60,7 +61,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [filterClass, setFilterClass] = useState('');
   // 🆕2026-10-23（ユーザー要望）＝フォーマット（レガシー／ディーバ）で絞る。判定はデッキの適合チェックと同じ `cardAllowedInFormat`（再録も見る）。
   const [filterFormat, setFilterFormat] = useState<'' | 'legacy' | 'diva'>('');
-  const [deckTab, setDeckTab] = useState<'main' | 'lrig'>('main');
+  const [deckTab, setDeckTab] = useState<'main' | 'lrig' | 'stats'>('main');
   const [screenTab, setScreenTab] = useState<'deck' | 'search'>('deck');
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(deck.name);
@@ -388,14 +389,14 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
       {/* デッキ内容タブ */}
       <div style={{ flex: 1, display: screenTab === 'deck' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #c8bce8', flexShrink: 0, backgroundColor: '#ede8f5' }}>
-            {(['main', 'lrig'] as const).map(tab => (
-              <button key={tab} onClick={() => setDeckTab(tab)} style={{
+            {(['main', 'lrig', 'stats'] as const).map(tab => (
+              <button key={tab} data-testid={`deck-subtab-${tab}`} onClick={() => setDeckTab(tab)} style={{
                 flex: 1, padding: '10px', border: 'none',
                 backgroundColor: deckTab === tab ? '#d5c8f0' : 'transparent',
                 color: deckTab === tab ? '#5533aa' : '#888',
                 fontSize: '13px', fontWeight: deckTab === tab ? 'bold' : 'normal',
               }}>
-                {tab === 'main' ? `メイン ${current.mainDeck.length}/${MAIN_MAX}` : `${lrigSetupProblem ? '⚠' : ''}ルリグ ${regularLrigCount}/${LRIG_MAX} ＋${extraLrigCount}/${LRIG_EXTRA_MAX}`}
+                {tab === 'main' ? `メイン ${current.mainDeck.length}/${MAIN_MAX}` : tab === 'lrig' ? `${lrigSetupProblem ? '⚠' : ''}ルリグ ${regularLrigCount}/${LRIG_MAX} ＋${extraLrigCount}/${LRIG_EXTRA_MAX}` : '内訳'}
               </button>
             ))}
           </div>
@@ -405,7 +406,9 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             </div>
           )}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-            {deckTab === 'main' ? (
+            {deckTab === 'stats' ? (
+              <DeckStatsPanel mainDeck={current.mainDeck} lrigDeck={current.lrigDeck} cardMap={cardMap} />
+            ) : deckTab === 'main' ? (
               <>
                 <div style={sectionHeaderStyle('#ddeeff', '#1a3a6a')}>LB有 ({mainLbYesCount}/20)</div>
                 {mainLbYes.map(([num, count]) => renderDeckRow(num, count, 'main'))}
