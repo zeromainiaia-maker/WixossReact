@@ -311,7 +311,7 @@ import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 import { isResumeEvent } from '../src/utils/resumeSync';
 import { signiPlaceableByLimit } from '../src/engine/placeLimitGate';
 import { signiStackView } from '../src/components/BoardComponents';
-import { handCardActions, type CardActionCtx, type CardActionHandlers } from '../src/screens/battle/cardActions';
+import { handCardActions, signiZoneActions, type CardActionCtx, type CardActionHandlers, type FieldActionCtx, type FieldActionHandlers } from '../src/screens/battle/cardActions';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -94266,7 +94266,7 @@ test('2026-09-28 アシストルリグの【起】＝センタールリグと同
   ok(!!after, '🔴アシストルリグの【起】を先読みで解けない');
   eq((after!.opp.field.signi[0] ?? []).length, 0, '🔴先読みでバニッシュが起きていない');
   // ④ 配線＝人間も CPU も `performLrigActivated`（発生源を渡す）
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  const battle = screenWithCardActions();
   ok(battle.includes('listActivatableAssistLrigEffects({'), '🔴人間のボタンが共通の判定を通っていない');
   ok(/await performLrigActivated\(effect, \{ costIndices, handDiscardIndices: discardIndices(, virusZones)? \}, \{[\s\S]{0,200}sourceCardNum: cardNum,/.test(battle),'🔴人間の実行が performLrigActivated（発生源つき）を通っていない');
   ok(!battle.includes('const assistActPay = planEnergyPayment('), '🔴手書きの支払いが画面に残っている');
@@ -95753,7 +95753,7 @@ test('2026-10-22 バグ報告 212005fc：「アタックできない」を付与
   const assist = { ...mkState({ assistL: [lv] }), assist_lrig_attack_min_level: 0 } as PlayerState;
   eq(JSON.stringify(assistLrigAttackableSlots(assist, cardMap as Map<string, CardData>)), JSON.stringify(['assist_l']), '前提: アシストはアタックできる');
   eq(JSON.stringify(assistLrigAttackableSlots({ ...assist, keyword_grants: { [lv]: ['アタックできない'] } } as PlayerState, cardMap as Map<string, CardData>)), '[]', '🔴アシストの判定が付与された「アタックできない」を見ていない');
-  ok(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').includes("lrigBlockALK === 'GRANTED_CANNOT_ATTACK'"), '🔴ボタンが「アタック不可」を示していない');
+  ok(screenWithCardActions().includes("lrigBlockALK === 'GRANTED_CANNOT_ATTACK'"), '🔴ボタンが「アタック不可」を示していない');
 }));
 
 test('2026-10-22 バグ報告 bb60942b：「このターン、シグニアタックフェイズをスキップする」はターンプレイヤーのアタックを飛ばす／CPU は自分のターンに撃たない', () => withSavedCursor(() => {
@@ -95838,6 +95838,33 @@ test('2026-10-24 手札の操作一覧（cardActions.ts）を盤面から直接�
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(screen.includes('handCardActions(cardActionCtx, cardActionHandlers, cardNum, handIndex)'), '🔴画面が手札の操作一覧を cardActions.ts から引いていない');
   ok(!screen.includes('planRiseSummon('), '🔴召喚の判定が画面に書き戻されている（cardActions.ts の1本にする）');
+}));
+
+test('2026-10-24 場のシグニの操作一覧（cardActions.ts の signiZoneActions）を盤面から直接引く＝場からのエナチャージ', () => withSavedCursor(() => {
+  const calls: string[] = [];
+  const h = {
+    handleEnergyChargeFromSigni: (z: number) => { calls.push(`charge:${z}`); },
+  } as unknown as FieldActionHandlers;
+  const mk = (o: { signi?: (string | null)[]; actionsDone?: string[] } = {}) => {
+    const st = mkState({ signi: o.signi ?? [SIGNI, null, null] });
+    if (o.actionsDone) st.actions_done = o.actionsDone as PlayerState['actions_done'];
+    return st;
+  };
+  const ctx = (o: Partial<FieldActionCtx> & { phase?: string } = {}): FieldActionCtx => ({
+    loading: false, isMyTurn: true, bs: { turn_phase: o.phase ?? 'ENERGY', pending_spell: null } as unknown as BattleStateRow,
+    my: mk(), op: mkState(), battleCardMap: cardMap, effectsMap: new Map(), effectivePowers: new Map(), myEnergyPayPool: [],
+    contBlocked: { forSelf: new Set(), forOther: new Set(), cannotAttackSigni: new Set(), cannotAttackSigniUnlessPayColorless: new Map() },
+    dynamicKeywords: { my: {}, op: {} }, grantedMyLrigEffects: [], isActionBlocked: () => false,
+    lrigAttackCostInfo: () => ({ blocked: false, colorless: 0, fieldTrash: 0 }), getAssistGrowCandidates: () => [], ...o,
+  } as unknown as FieldActionCtx);
+  const labels = (c: FieldActionCtx, z = 0) => JSON.stringify(signiZoneActions(c, h, z).map(a => a.label));
+  eq(labels(ctx()), JSON.stringify(['エナチャージ']), '🔴エナフェイズに場のシグニから「エナチャージ」が出ない');
+  signiZoneActions(ctx(), h, 0)[0].onClick();
+  eq(calls.at(-1), 'charge:0', '🔴押してもそのゾーンのシグニをエナへ置かない');
+  eq(labels(ctx(), 1), '[]', '🔴空のゾーンに「エナチャージ」が出る');
+  eq(labels(ctx({ my: mk({ actionsDone: ['ENERGY'] }) })), '[]', '🔴エナチャージ済みなのにもう一度出る');
+  eq(labels(ctx({ isMyTurn: false })), '[]', '🔴相手のエナフェイズにボタンが出る');
+  eq(labels(ctx({ loading: true })), '[]', '🔴処理中にボタンが出る（二度押し）');
 }));
 
 test('2026-10-24 CPU の召喚も人間の「召喚」ボタンと同じ条件＝限定条件・宣言したシグニ（レベル0・限定無視）・場の合計レベル', () => withSavedCursor(() => {

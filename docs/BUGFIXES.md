@@ -1,5 +1,10 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第566バッチ）BattleScreen の分割（続き）：場のシグニ・ルリグ・キー・アシストの操作一覧も `cardActions.ts` へ（挙動は変えない）
+- **移したもの**＝`signiZoneActions`／`lrigFieldActions`／`keyPieceActions`／`assistActions`（約470行）。第564と同じ形＝盤面の事実（`FieldActionCtx`）と押したときの処理（`FieldActionHandlers`）を受け取る純関数・本文は一字も変えずにスクリプトで移設（本文内の `import('../types/effects')` だけ置き場の深さに合わせて `../../` へ）。チアゾーンの2行（`getMyFreeZoneActions`）は画面に残した。本体 5,409行 → **4,941行**（今日の分割で 5,902 → 4,941）。
+- **golden**＝新規1本（場のシグニの「エナチャージ」を盤面から直接引く＝空のゾーン・チャージ済み・相手ターン・処理中）＝チャージ済みの判定を外すと FAIL（反転確認）。本体だけを読んでいた配線検査2本（アシストルリグの【起】／`212005fc` のアタック不可表示）を `cardActions.ts` も読むように変更。全件 4537/4537・`npm run gates` 全緑。
+- **実機**＝CPU 通し対戦 PASS（7ターン/181手・人間側はルリグアタック4回・手札のエナチャージ3回）／PvP の `verifyRewind.mjs` PASS／**シグニのアタックボタン**は通し対戦の人間側が押さないので `verifyBattleDrive.mjs b16banish3 b16banish2`（「アタック」を押してバトルの後のアップを見る）で確認＝両方 PASS。
+
 ## 2026-10-24（第565バッチ）CPU の召喚が人間の「召喚」ボタンと食い違っていた（限定条件・効果込みのリミット・宣言したシグニ）
 - 🔴**真因**＝CPU が手札からシグニを出す判定（`cpuMoves.ts` の `cpuDeployPlaceable`／`cpuDeployBudget`）は、人間の「召喚」ボタン（`cardActions.ts`）と別に書かれており ①**「○○限定」を見ていなかった**（違うルリグでも出せた）②リミットを**印刷値**で見ていた（人間は効果で増減したリミット＝`computeEffectiveLrigLimit`）③「宣言したシグニ（`WXK09-001-E3`）はレベル0・限定無視」を見ていなかった。ライズ（`listCpuRises`）・レゾナは既に人間と同じ式だった＝**召喚だけが片側**。第564の分割中に見つけた。
 - **直し方**＝枠は `cpuSummonBudget` の1本へ寄せた（`cpuDeployBudget` はそれを返すだけ）・レベルは `cpuHandSigniLevel`（宣言でレベル0）・置けるかに限定条件（人間と同じ `meetsRestriction` ＋ `hasIgnoreLrigRestriction` ＋ 宣言の限定無視）を追加。CPU の召喚ループ（`cpuTurn.ts`）で場の合計に足すレベルも同じ数え方にした。
