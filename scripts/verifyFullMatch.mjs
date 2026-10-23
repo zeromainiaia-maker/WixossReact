@@ -682,6 +682,14 @@ const consoleTail = [];
 
 async function runCpuMatch(browser, url) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // 🆕2026-10-23＝`DROP_REALTIME_SETUP=1`＝**セットアップの間だけ Realtime の接続を切る**（通知が1通も届かない）。
+  //   Realtime が休眠から起動し直す途中の書き込みは通知されない（実測）＝それでもセットアップの見張り（`setupResyncDue`）
+  //   だけで PLAYING まで進むかを見る。セットアップを抜けたら接続を通す（クライアントが自分で張り直す）。
+  let realtimeBlocked = process.env.DROP_REALTIME_SETUP === '1';
+  if (realtimeBlocked) {
+    await ctx.routeWebSocket(/\/realtime\/v1\/websocket/, ws => { if (realtimeBlocked) ws.close(); else ws.connectToServer(); });
+    console.log('   ⚠DROP_REALTIME_SETUP=1＝セットアップの間 Realtime を切る');
+  }
   const page = await ctx.newPage();
   const errs = [];
   page.on('console', m => {
@@ -722,6 +730,7 @@ async function runCpuMatch(browser, url) {
     await page.getByRole('button', { name: '対戦開始' }).click();
     await page.waitForTimeout(3500);
     if (!(await driveSetup([S], 'cpu'))) return { pass: false, detail: 'セットアップが PLAYING へ到達しなかった', errs };
+    if (realtimeBlocked) { realtimeBlocked = false; console.log('   セットアップ通過（Realtime なし）→ 接続を通す'); }
     const r = await playToFinish([S], 'cpu');
     // §5.6 `C-3`＝機構踏破計器の入力。**決着しなくても書く**（途中で詰まった試合も「どこまで踏んだか」の材料）。
     await dumpPlayLogs(page, DECK_NAME === 'VERIFY_DECK' && CPU_DECK_NAME === DECK_NAME ? 'cpu' : `cpu-${DECK_NAME}${CPU_DECK_NAME === DECK_NAME ? '' : `-vs-${CPU_DECK_NAME}`}`);

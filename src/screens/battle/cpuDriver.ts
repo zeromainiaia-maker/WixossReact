@@ -101,3 +101,23 @@ export function lastCommitArrived(p: { pendingCommits: number; localUpdatedAt: s
   if (!p.lastCommitUpdatedAt) return true;
   return updatedAtKey(p.localUpdatedAt) >= updatedAtKey(p.lastCommitUpdatedAt);
 }
+
+/** セットアップの見張りが DB を読み直すまでの「盤面が動かない」時間（ms）。 */
+export const SETUP_RESYNC_IDLE_MS = 2500;
+
+/**
+ * 🔴🆕2026-10-23（ユーザー報告＝CPU 戦のじゃんけんの後「次のフェイズへ移行中...」で止まる）
+ *   ＝**セットアップ中に DB を読み直すか**。Realtime がしばらく使われず休眠していると、対戦の開始で起動し直し、
+ *   **監視が始まる前の書き込みは通知されない**（実測＝13:26:13 起動開始 → 13:26:15.4 じゃんけんの解決を書く → 13:26:16.8 監視開始。
+ *   DB は LRIG_SELECT へ進んだのに画面は JAN_KEN のまま）。CPU の見張りは CPU が動く場面しか見ない（`cpuShouldAct`）ので、
+ *   セットアップには見張りが無かった。⇒ **セットアップ中は盤面が一定時間動かなければ読み直す**（PvP も同じ＝相手の書き込みも落ちうる）。
+ */
+export function setupResyncDue(p: { globalPhase: string | null | undefined; now: number; lastChangeAt: number }): boolean {
+  return p.globalPhase === 'SETUP' && p.now - p.lastChangeAt >= SETUP_RESYNC_IDLE_MS;
+}
+
+/** 読み直した行が手元より新しいか（新しいときだけ差し替える＝通知と競っても盤面を巻き戻さない）。 */
+export function fetchedRowIsNewer(fetchedUpdatedAt: string | null | undefined, localUpdatedAt: string | null | undefined): boolean {
+  const f = updatedAtKey(fetchedUpdatedAt);
+  return f !== '' && f > updatedAtKey(localUpdatedAt);
+}

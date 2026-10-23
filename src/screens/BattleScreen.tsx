@@ -150,7 +150,7 @@ import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
 import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
-import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu} from './battle/cpuDriver';
+import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, setupResyncDue, fetchedRowIsNewer} from './battle/cpuDriver';
 import {normalizeCpuDeckPlan} from './battle/cpuDeckPlan';
 // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝CPU の対話応答の振り分け（純関数）。
 import {decideCpuInteractionResponse} from './battle/cpuInteractionRespond';
@@ -745,6 +745,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }, 2000);
     return () => clearInterval(id);
   }, [isCpuBattle]);
+
+  // セットアップの見張り（`setupResyncDue`）＝Realtime の起動し直しで落ちた書き込みに追いつく（CPU 戦・PvP とも）。
+  const setupLastChangeAtRef = useRef(Date.now());
+  useEffect(() => { setupLastChangeAtRef.current = Date.now(); }, [bs?.updated_at]);
+  useEffect(() => {
+    if (bs?.global_phase !== 'SETUP') return;
+    const id = setInterval(async () => {
+      if (!setupResyncDue({ globalPhase: bsRef.current?.global_phase, now: Date.now(), lastChangeAt: setupLastChangeAtRef.current })) return;
+      setupLastChangeAtRef.current = Date.now();   // 読み直しの連打を防ぐ
+      const { data } = await persist.fetchState();
+      if (data && fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)) {
+        console.warn(`[setup watchdog] 盤面を DB から読み直して反映（setup=${(data as BattleStateRow).setup_phase}）`);
+        setBs(data as BattleStateRow);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.global_phase]);
 
 
   // CPU対戦：effectスタック整列をCPUが自動確定

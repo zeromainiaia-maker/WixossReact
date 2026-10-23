@@ -184,7 +184,7 @@ import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardP
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
-import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
+import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, SETUP_RESYNC_IDLE_MS, setupResyncDue, fetchedRowIsNewer } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices, spellChargeKeep } from '../src/screens/battle/cpuHandLimit';
 import { cpuShouldChargeEnergy, fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
@@ -95756,6 +95756,21 @@ test('2026-10-22 バグ報告 bb60942b：「このターン、シグニアタッ
   ok(!skipsOwnAttackThisTurn(idol), '「対戦相手の〜をスキップ」を自分のアタックを飛ばす札と誤認している');
   ok(fs.readFileSync(join(root, 'src/screens/battle/cpuLrigActivate.ts'), 'utf8').includes('if (p.isMyTurn !== false && skipsOwnAttackThisTurn(effect)) continue;'), '🔴CPU が自分のターンにスキップの【起】を撃つ');
   ok(fs.readFileSync(join(root, 'src/screens/battle/cpuLrigActivate.ts'), 'utf8').includes('centerUsable.filter(u => p.isMyTurn === false && skipsOwnAttackThisTurn(u.effect) && planAllowsUseIn(p.plan, centerLrig, window, false))'), '🔴CPU が相手のターンに守りのスキップ【起】を撃てない（作戦データの指定が無いと撃たない）');
+}));
+
+test('2026-10-23 CPU 戦のじゃんけんの後「次のフェイズへ移行中...」で止まる：セットアップ中は盤面が動かなければ DB を読み直す', () => withSavedCursor(() => {
+  // 実測＝Realtime が休眠から起動し直す途中に書いた RESOLVE_JANKEN の通知が届かず、DB は LRIG_SELECT・画面は JAN_KEN のまま。
+  const t0 = 1_000_000;
+  ok(setupResyncDue({ globalPhase: 'SETUP', now: t0 + SETUP_RESYNC_IDLE_MS, lastChangeAt: t0 }), '🔴セットアップで盤面が動かないのに読み直さない（じゃんけんの後に止まる）');
+  ok(!setupResyncDue({ globalPhase: 'SETUP', now: t0 + SETUP_RESYNC_IDLE_MS - 1, lastChangeAt: t0 }), '盤面が動いた直後に読み直している（連打）');
+  ok(!setupResyncDue({ globalPhase: 'PLAYING', now: t0 + 60_000, lastChangeAt: t0 }), '対戦中まで読み直している（対戦中は CPU の見張りの担当）');
+  ok(fetchedRowIsNewer('2026-10-23T13:26:15.424928+00:00', '2026-10-23T13:26:12.1+00:00'), '🔴DB の新しい行を反映しない');
+  ok(!fetchedRowIsNewer('2026-10-23T13:26:12.1+00:00', '2026-10-23T13:26:15.424928+00:00'), '🔴古い行で手元の盤面を巻き戻す');
+  ok(!fetchedRowIsNewer('2026-10-23T13:26:15.424928+00:00', '2026-10-23 13:26:15.424928+00'), '同じ時刻（表記違い）を新しいと見ている');
+  ok(!fetchedRowIsNewer(null, '2026-10-23T13:26:15+00:00'), '時刻の無い行を新しいと見ている');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(src.includes('setupResyncDue({ globalPhase: bsRef.current?.global_phase'), '🔴画面がセットアップの見張りを使っていない');
+  ok(src.includes('fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)'), '🔴読み直した行を新旧を見ずに反映している');
 }));
 
 if (listMode) {

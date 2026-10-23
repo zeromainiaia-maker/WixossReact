@@ -1,5 +1,10 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-23（第561バッチ）CPU 戦のじゃんけんの後「次のフェイズへ移行中...」で止まる（ユーザー報告・第549の続き）
+- 🔴**真因（実測）**＝Supabase の Realtime がしばらく使われないと休眠し、対戦の開始で**起動し直す**。その途中の書き込みは通知されない＝Realtime のログで 13:26:13 起動開始 → **13:26:15.4 じゃんけんの解決（RESOLVE_JANKEN）を書く** → 13:26:16.8 監視開始。DB は `LRIG_SELECT` へ進んだのに画面は JAN_KEN（両者の手と勝敗＋「次のフェイズへ移行中...」）のまま。「更新直後の初回だけ」なのはデプロイ等で間が空くと休眠するから。第549は CPU が手を出し直す側だけを直していた。⚠同日の権限変更（第560）とは無関係（DB の行は届く権限で書けていた）。
+- **直し方**＝セットアップ中は盤面が 2.5 秒動かなければ DB を読み直し、手元より新しい行だけ反映する（`cpuDriver.ts` の `setupResyncDue`／`fetchedRowIsNewer`・`BattleScreen` の見張り）。CPU の見張りは CPU が動く場面（`cpuShouldAct`）しか見ないので、セットアップには見張りが無かった。PvP も同じ見張りが働く。
+- **検証**＝golden 新規1本（見張りを外すと FAIL を確認）・全件 4534/4534・`npm run gates` は lint 以外緑（git 外の `tmp_artcount.ts`）。**実機**＝通し対戦に `DROP_REALTIME_SETUP=1`（セットアップの間 Realtime を切る＝通知が1通も来ない）を新設して `verifyFullMatch cpu` PASS（決着まで）・**見張りを外すと「セットアップが PLAYING へ到達しなかった」で FAIL**（反転確認）。
+
 ## 2026-10-23（第560バッチ）Supabase の権限を締める（security advisor）
 - 🔴**S1** `append_battle_logs`（SECURITY DEFINER）に対戦者の確認が無く anon からも呼べた＝部屋 ID が分かれば誰でもどの対戦のログにも書き足せた ⇒ `auth.uid()` が host/guest の行だけ更新・anon から EXECUTE を外す。トリガー専用の `battle_states_save_snapshot` は RPC から外し、`rewind_battle` は anon だけ外した（本体で対戦者を確認済み）。
 - 🔴**S2** `rooms`／`battle_states` の UPDATE に「guest_id IS NULL なら誰でも」＝相手の入る前の部屋を他人が書き換えられた ⇒ battle_states は該当ポリシーを削除（guest_id が NULL の行を作らない）。rooms は参加にこの条件が要るので残し、トリガー `rooms_guard_update` で「当事者は何でも／他人は空き部屋のゲスト列を自分にするだけ」に絞った。
