@@ -1,4 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
+import { signiClassesOf } from './cardClasses';
 import { fieldSigniStacks, signiDownOf, withSigniDown, isZoneFrozen, placeUnderFieldSigni } from './cheerZoneView';
 import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
@@ -9312,18 +9313,19 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       cands = cands.filter(n => matchesFilter(cur.cardMap.get(getCardNum(n)), resolved));
     }
     if (stage.sharesClassWithPrev) {
-      const prevClasses = prevPicks.flatMap(p => (cur.cardMap.get(getCardNum(p))?.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean));
+      // 🆕2026-10-23＝クラスの照合は `signiClassesOf` の集合どうし（旧＝原文の部分文字列＝`精武：アーム` が `精武` だけで当たりえた）。
+      const prevClasses = prevPicks.flatMap(p => signiClassesOf(cur.cardMap.get(getCardNum(p))?.CardClass));
       cands = prevClasses.length === 0 ? [] : cands.filter(n => {
-        const cls = cur.cardMap.get(getCardNum(n))?.CardClass ?? '';
+        const cls = signiClassesOf(cur.cardMap.get(getCardNum(n))?.CardClass);
         return prevClasses.some(pc => cls.includes(pc));
       });
     }
     // 直前ステージのピックと**共通クラスを持たない**もののみ（「そのシグニと共通するクラスを持たないシグニ」）。
     // 直前が空振り（prevPicks 無し）なら参照先が無い＝制限なしのまま通す。
     if (stage.notSharesClassWithPrev && prevPicks.length > 0) {
-      const prevClasses = prevPicks.flatMap(p => (cur.cardMap.get(getCardNum(p))?.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean));
+      const prevClasses = prevPicks.flatMap(p => signiClassesOf(cur.cardMap.get(getCardNum(p))?.CardClass));
       cands = cands.filter(n => {
-        const cls = cur.cardMap.get(getCardNum(n))?.CardClass ?? '';
+        const cls = signiClassesOf(cur.cardMap.get(getCardNum(n))?.CardClass);
         return !prevClasses.some(pc => cls.includes(pc));
       });
     }

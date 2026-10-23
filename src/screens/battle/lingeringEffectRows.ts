@@ -9,7 +9,7 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { abilityBlockTextOf } from '../../data/effectParser';
 import { getCardNum } from '../../engine/execUtils';
-import { durationLabel, keyExpiryLabel, liveLingeringNotes, noteTargetCandidates, type LingeringNote } from './lingeringEffects';
+import { durationLabel, keyExpiryLabel, liveLingeringNotes, noteTargetCandidates, noteZoneIndexes, type LingeringNote } from './lingeringEffects';
 
 export interface LingeringEffectRow {
   key: string;
@@ -72,8 +72,12 @@ export function lingeringEffectRows(
         ?? keyExpiryLabel(n.key) ?? textExpiryLabel(abilityText),
     };
     const cardTargets = noteTargetCandidates(n).filter(id => cardMap.has(getCardNum(id)) && visible.has(id));
+    // ゾーンは**画面の見た目の位置**で言う＝自分の場は添字0が左、相手の場は左右が反転して並ぶ（`PlayerField` の `displaySigni`）。
+    const zoneName = (zi: number) => `${holderIsMe ? 'あなた' : '相手'}の${['左', '中央', '右'][holderIsMe ? zi : 2 - zi]}のシグニゾーン`;
+    const zones = noteZoneIndexes(n);
     const targets: { cardNum?: string; name: string }[] = cardTargets.length > 0
       ? cardTargets.map(id => ({ cardNum: id, name: cardMap.get(getCardNum(id))?.CardName ?? id }))
+      : zones.length > 0 ? zones.map(zi => ({ name: zoneName(zi) }))
       : [{ name: holderIsMe ? 'あなた' : '相手' }];
     for (const t of targets) {
       if (!row.targets.some(x => x.name === t.name && x.cardNum === t.cardNum)) row.targets.push(t);

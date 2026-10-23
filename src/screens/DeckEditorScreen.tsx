@@ -14,6 +14,7 @@ import { DECK_FORMAT_JA, cardAllowedInFormat, effectiveDeckFormat, outOfFormatCa
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 import { DeckFormatModal } from './deck/DeckFormatModal';
 import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
+import { knownPrefixedClasses, splitCardClasses, splitCardTypes } from '../utils/cardFilterValues';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
@@ -96,7 +97,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
   const regularLrigCount = current.lrigDeck.length - extraLrigCount;
 
-  const types = useMemo(() => [...new Set(cards.map(c => c.Type).filter(Boolean))].sort(), [cards]);
+  // 🆕2026-10-23＝「/」で区切られたタイプ・クラスは1つずつの選択肢にする（`utils/cardFilterValues.ts`）。
+  const types = useMemo(() => [...new Set(cards.flatMap(c => splitCardTypes(c.Type)))].sort(), [cards]);
   const colors = useMemo(() => {
     const COLOR_ORDER = ['無', '白', '緑', '赤', '青', '黒'];
     const all = [...new Set(cards.map(c => c.Color).filter(Boolean))];
@@ -120,7 +122,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
       return a.localeCompare(b);
     });
   }, [cards]);
-  const classes = useMemo(() => [...new Set(cards.map(c => c.CardClass).filter(Boolean))].sort(), [cards]);
+  const knownClasses = useMemo(() => knownPrefixedClasses(cards), [cards]);
+  const classes = useMemo(() => [...new Set(cards.flatMap(c => splitCardClasses(c.CardClass, knownClasses)))].sort(), [cards, knownClasses]);
 
   // 番号検索を避難先（variant）の番号にも当てるための索引（`utils/cardSearch.ts`）。
   const variantNumIndex = useMemo(() => buildVariantNumIndex(variantCards), [variantCards]);
@@ -132,13 +135,13 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const filteredCards = useMemo(() => cards.filter(c => {
     if (!cardMatchesSearch(c, search, variantNumIndex)) return false;
     if (!cardMatchesEffectSearch(c, effectSearch)) return false;
-    if (filterType && c.Type !== filterType) return false;
+    if (filterType && !splitCardTypes(c.Type).includes(filterType)) return false;
     if (filterColor && c.Color !== filterColor) return false;
     if (filterLevel && c.Level !== filterLevel) return false;
-    if (filterClass && c.CardClass !== filterClass) return false;
+    if (filterClass && !splitCardClasses(c.CardClass, knownClasses).includes(filterClass)) return false;
     if (filterFormat && !cardAllowedInFormat(c, filterFormat, variantNumIndex)) return false;
     return true;
-  }), [cards, search, effectSearch, variantNumIndex, filterType, filterColor, filterLevel, filterClass, filterFormat]);
+  }), [cards, search, effectSearch, variantNumIndex, filterType, filterColor, filterLevel, filterClass, filterFormat, knownClasses]);
 
   // 🆕2026-10-01（ユーザー要望）＝検索結果を 200 件ずつページ送り（旧＝先頭200件だけ表示）。
   //   🔑**条件を変えたら1ページ目へ戻す**＝ページ番号は「どの条件の組で付けたか」のキーと一緒に持ち、キーが変われば 0 とみなす。
@@ -436,7 +439,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
           <div style={{ position: 'relative', padding: '10px 12px 32px', borderBottom: '1px solid #c8bce8', display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0, backgroundColor: '#ede8f5' }}>
             <input data-testid="search-name" placeholder="カード名・番号で検索" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
             <input data-testid="search-effect" placeholder="カード効果で検索（空白で複数語）" value={effectSearch} onChange={e => setEffectSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
+            <select data-testid="search-type" value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
               <option value="">タイプ：すべて</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -448,7 +451,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               <option value="">レベル：すべて</option>
               {levels.map(l => <option key={l} value={l}>Lv.{l}</option>)}
             </select>
-            <select value={filterClass} onChange={e => setFilterClass(e.target.value)} style={selectStyle}>
+            <select data-testid="search-class" value={filterClass} onChange={e => setFilterClass(e.target.value)} style={selectStyle}>
               <option value="">クラス：すべて</option>
               {classes.map(cl => <option key={cl} value={cl}>{cl}</option>)}
             </select>

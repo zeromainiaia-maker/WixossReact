@@ -51,7 +51,7 @@ import { coinLedger, collectCoinNegationRemovals, isCoinAbility, negateCoinAbili
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
 import { countEnergyPlacedThisTurn } from '../src/engine/energyPlacement';
-import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, maxConstrainedSelectionSize, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, maxConstrainedSelectionSize, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant, splitClasses } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone, sweepOnDone, refreshPlayersIfDeckEmpty,
@@ -117,8 +117,10 @@ import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/s
 import { enforceResonaZoneRule, resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd, refreshTurnEndDiscardCount } from '../src/screens/battle/refreshTurnEnd';
-import { isLingeringKey, updateLingeringNotes } from '../src/screens/battle/lingeringEffects';
+import { isLingeringKey, leavesOf, updateLingeringNotes } from '../src/screens/battle/lingeringEffects';
 import { lingeringEffectRows } from '../src/screens/battle/lingeringEffectRows';
+import { knownPrefixedClasses, splitCardClasses, splitCardTypes } from '../src/utils/cardFilterValues';
+import { signiClassesOf } from '../src/engine/cardClasses';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess, planRestrictionLoss } from '../src/screens/battle/limitExcess';
@@ -652,6 +654,8 @@ function test(name: string, fn: () => void) {
   ranCount++;
   const __t0 = __TIMING_DEBUG__ ? process.hrtime.bigint() : 0n;
   try { fn(); pass++; } catch (e) { fails.push(`${name}: ${(e as Error).message}`); }
+  // 🆕2026-10-23＝`GOLDEN_CURSOR_TRACE=1` で各テスト後の POOL カーソルを出す（無関係なテストが落ちたら、2つの版の出力の diff で最初にずれたテストが分かる）。
+  if (process.env.GOLDEN_CURSOR_TRACE) console.error(`CURSOR ${cursor} :: ${name}`);
   if (__TIMING_DEBUG__) {
     const ms = Number(process.hrtime.bigint() - __t0) / 1e6;
     if (ms > 50) console.error(`TIMING ${ms.toFixed(1)}ms :: ${name}`);
@@ -45373,8 +45377,19 @@ test('task12(lxx) Batch A WXK10-006-E1: クラス種類数・精元除外を収�
   };
   eq(collect(['WXK10-006', servant, servant]).length, 0, '精元だけでは除外後0種類なので発火しない');
   eq(collect(['WXK10-006', servant, null]).length, 0, '1種類以下では発火しない');
-  const entries = collect(['WXK10-006', arm, null]);
-  eq(entries.length, 1, '規則解釈: 精武：アーム1体を上位・下位の2種類として発火する');
+  // 🆕2026-10-23（ユーザー裁定＝「精武はクラスではなくその上位の分類」）＝精武：アーム は アーム の1種類。
+  //   旧＝上位・下位の2種類と数えて1体で発火していた。
+  // ⚠足した抽選（`findCard`・盤面を作る `collect`）は位置を戻す＝このテストは withSavedCursor の外なので、
+  //   増やすと後続の全テストが引くカードがずれる（2026-10-23 に4本が無関係に落ちた）。
+  let weapon = '';
+  withSavedCursor(() => {
+    eq(collect(['WXK10-006', arm, null]).length, 0, '🔴精武：アーム1体を2種類と数えた（上位の分類はクラスではない）');
+    const armWeapon = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精武：アーム/ウェポン');
+    eq(collect(['WXK10-006', armWeapon, null]).length, 1, '🔴精武：アーム/ウェポン1体（アーム・ウェポンの2種類）で発火しない');
+    weapon = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精武：ウェポン');
+  });
+  const entries = collect(['WXK10-006', arm, weapon]);
+  eq(entries.length, 1, 'アームとウェポンの2体（2種類）で発火しない');
   for (const [choice, hand, energy] of [['c0', 1, 0], ['c1', 0, 1]] as const) {
     const ctx = mkCtx({ hand: 0, energy: 0 }, {});
     const opened = executeEffect(entries[0].effect, ctx);
@@ -62479,7 +62494,7 @@ test('Sheet1 B2: サーバント18枚のマルチエナは parser が1本だけ�
 //    `SEQUENCE[DRAW 4, DRAW 3]` ＝**常に7枚ドロー**になっていた。
 // 🔑受け皿は**新設**（`Condition.FIELD_SIGNI_SHARE_CLASS`）。既存の `FIELD_SIGNI_ALL_DISTINCT_CLASS` は
 //    **否定形**（場の全シグニが互いに異クラス）なので流用してはいけない（§5-5e）。
-// ⚠クラスの刻みは `splitClasses`（「精武：アーム」＝上位「精武」＋下位「アーム」の2トークン）に一本化。
+// ⚠クラスの刻みは `splitClasses` に一本化（🆕2026-10-23 ユーザー裁定＝下位だけ＝「精武：アーム」は アーム の1つ。旧＝上位＋下位の2トークン）。
 //    ⇒ **上位クラスが同じなら共有扱い**になる。下のフィクスチャは上位クラスまで別のものを選んである。
 // ══════════════════════════════════════════════════════════════════════════════
 test('Sheet1 B3: 「共通するクラスを持つ場合」が live に載り、両枝が排他になる', () => withSavedCursor(() => {
@@ -66356,7 +66371,7 @@ for (const [cardNum, effectId, tokens] of [
 
 // ①-1 FIELD_SIGNI_ALL_DISTINCT_CLASS（ActiveCondition 側・\`WX25-P1-088-E1\`）
 test('Stage2 B47-752 FIELD_SIGNI_ALL_DISTINCT_CLASS honors both directions in checkActiveCondition', () => withSavedCursor(() => {
-  const classOf = (n: string) => (cardMap.get(n)?.CardClass ?? '').split('／').map(x => x.trim()).filter(Boolean);
+  const classOf = (n: string) => signiClassesOf(cardMap.get(n)?.CardClass);
   const a = findCard(c => isSigni(c) && classOf(c.CardNum).length > 0);
   const aCls = classOf(a);
   const sameCls = findCard(c => isSigni(c) && c.CardNum !== a && classOf(c.CardNum).some(x => aCls.includes(x)));
@@ -88746,6 +88761,100 @@ test('2026-10-23 発動中の効果欄：解決で増えた付与・禁止を発
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   const iPanel = screen.indexOf('<LingeringEffectsPanel'), iLog = screen.indexOf('{/* バトルログ */}'), iOpp = screen.indexOf('{/* 相手盤面 */}');
   ok(iLog >= 0 && iLog < iPanel && iPanel < iOpp, '🔴発動中の効果欄がログと相手の盤面の間に無い');
+}));
+
+test('2026-10-23 シグニのクラスは下位だけを数える（ユーザー裁定＝精武はクラスではなく上位の分類）／「/」も全角「／」も分ける／engine の数え方を1本にした', () => withSavedCursor(() => {
+  eq(signiClassesOf('精武：アーム').join('|'), 'アーム', '🔴上位の分類（精武）をクラスに数えた');
+  eq(signiClassesOf('精武：アーム/ウェポン').join('|'), 'アーム|ウェポン', '🔴精武：アーム/ウェポン がアーム・ウェポンの2種類にならない');
+  eq(signiClassesOf('精像：悪魔/精械：電機').join('|'), '悪魔|電機', '頭つき2つが分かれない');
+  eq(signiClassesOf('精像：天使／悪魔').join('|'), '天使|悪魔', '全角「／」で分かれない');
+  eq(signiClassesOf('精元').join('|'), '精元', '「：」の無いクラスが崩れた');
+  eq(signiClassesOf('解放派/奏像：武勇').join('|'), '解放派|武勇', 'チームのクラスが崩れた');
+  eq(signiClassesOf('-').length + signiClassesOf(undefined).length, 0, 'クラス無しを1つと数えた');
+  eq(splitClasses('精武：アーム/ウェポン').join('|'), 'アーム|ウェポン', '🔴splitClasses（クラス種類数の唯一の式）が裁定どおりでない');
+  // 🔴「場のシグニが互いに共通するクラスを持たない」＝旧は全角「／」だけで分け、半角「/」の複数クラスを1つの塊として比べていた
+  const multi = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精像：天使/悪魔');
+  const devil = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精像：悪魔');
+  const angel = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精像：天使');
+  const cond = { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS', owner: 'self' } as const;
+  const empty = mkState({ signi: [null, null, null] });
+  ok(!checkActiveCondition(cond, mkState({ signi: [multi, devil, null] }), empty, true, cardMap, multi), '🔴天使/悪魔 と 悪魔 を「共通するクラスなし」と判定した（半角「/」を分けていない）');
+  // 🔴上位の分類だけが同じ（精像：天使 と 精像：悪魔）は共通するクラスではない
+  ok(checkActiveCondition(cond, mkState({ signi: [angel, devil, null] }), empty, true, cardMap, angel), '🔴上位の分類（精像）だけが同じ2体を「共通するクラスあり」と判定した');
+  // 🔑engine にクラスの分け方を手書きで戻さない（全角「／」だけで分ける・「：」で分けて上位を数える）
+  const engineSrc = ['effectEngine.ts', 'execUtils.ts', 'effectExecutor.ts', 'execStubPart1.ts'].map(f => fs.readFileSync(join(root, 'src/engine', f), 'utf8')).join('\n');
+  ok(!engineSrc.includes("CardClass ?? '').split('／')"), '🔴engine に全角「／」だけで CardClass を分ける箇所が戻った');
+  ok(!engineSrc.split('\n').some(l => l.includes('CardClass') && l.includes(".split('：')")), '🔴engine に「：」で CardClass を分けて上位を数える箇所が戻った');
+}));
+
+test('2026-10-23 デッキ編成の絞り込み：「/」で区切られたタイプ・クラスを1つずつの選択肢にする（頭を省いた後ろ側は実在するときだけ補う）', () => withSavedCursor(() => {
+  // 🔑ユーザー要望＝「カード追加の絞込で『/』で分けてあるのに一つの項目として出され、検索欄が長くなっている」。
+  const known = new Set(['精武：アーム', '精武：ウェポン', '精械：古代兵器', '精械：紅蓮', '奏械：バーチャル']);
+  eq(splitCardClasses('精像：悪魔/精械：電機', known).join('|'), '精像：悪魔|精械：電機', '🔴頭つき2つが分かれない');
+  eq(splitCardClasses('精武：アーム/ウェポン', known).join('|'), '精武：アーム|精武：ウェポン', '🔴頭を省いた後ろ側に頭を補わない');
+  eq(splitCardClasses('奏械：バーチャル/世怜音女学院', known).join('|'), '奏械：バーチャル|世怜音女学院', '🔴実在しない形（奏械：世怜音女学院）を作った');
+  eq(splitCardClasses('花代/ユヅキ', known).join('|'), '花代|ユヅキ', 'ルリグタイプが分かれない');
+  eq(splitCardClasses('タマ／イオナ', known).join('|'), 'タマ|イオナ', '全角の「／」で分かれない');
+  eq(splitCardClasses('闘争派/奏像：悪魔', known).join('|'), '闘争派|奏像：悪魔', 'チームのクラスが崩れた');
+  eq(splitCardTypes('シグニ/クラフト').join('|'), 'シグニ|クラフト', '🔴タイプが分かれない');
+  eq(splitCardTypes('シグニ／クラフト').join('|'), 'シグニ|クラフト', '全角の「／」でタイプが分かれない');
+  // 全カードで＝選択肢に「/」が残らない／補った形はどれも実在する
+  const all = [...cardMap.values()];
+  const knownAll = knownPrefixedClasses(all);
+  const classOpts = new Set(all.flatMap(c => splitCardClasses(c.CardClass, knownAll)));
+  const typeOpts = new Set(all.flatMap(c => splitCardTypes(c.Type)));
+  ok(![...classOpts, ...typeOpts].some(v => /[/／]/.test(v)), '🔴選択肢に「/」入りが残っている');
+  ok([...classOpts].filter(v => v.includes('：')).every(v => knownAll.has(v)), '補ったクラスに実在しない形がある');
+  ok(classOpts.has('精武：ウェポン') && classOpts.has('世怜音女学院'), '代表のクラスが選択肢に無い');
+  // 画面＝分けた値で照合する（完全一致のままだと「シグニ」を選んでもクラフトのシグニが出ない）
+  const editor = fs.readFileSync(join(root, 'src/screens/DeckEditorScreen.tsx'), 'utf8');
+  ok(/splitCardTypes\(c\.Type\)\.includes\(filterType\)/.test(editor) && /splitCardClasses\(c\.CardClass, knownClasses\)\.includes\(filterClass\)/.test(editor),
+    '🔴絞り込みが分けた値で照合していない');
+}));
+
+test('2026-10-23 発動中の効果欄：ゾーンに設置する効果（WX10-051《クローズ・ゾーン》）＝どのゾーンかを画面の位置で出す／相手のターン開始で昇格しても残る／そのターンの終わりに消える', () => withSavedCursor(() => {
+  // 🔑ユーザー質問「WX10-051 のようなゾーンに設置する効果も正しく表示されるか」。
+  //   原文＝「シグニゾーン１つを指定する。次のターンの間、対戦相手は指定されたシグニゾーンにシグニを新たに配置することができない。」
+  const eff = (effectsMap.get('WX10-051') ?? []).find(e => e.effectId === 'WX10-051-E1')!;
+  const block = (eff.action as { steps: EffectAction[] }).steps[1];
+  eq((block as { id?: string }).id, 'BLOCK_OPP_ZONE_PLACEMENT', '前提: live の2手目が配置禁止でない');
+  const HOST = 'user-host', GUEST = 'user-guest';
+  for (const zi of [0, 2]) {
+    // ① 相手の zi 番ゾーンを指定して解決（engine の本物のハンドラ）
+    const ctx = mkCtx({}, {});
+    ctx.otherState = { ...ctx.otherState, designated_zones: [zi] } as PlayerState;
+    const res = executeAction(block, ctx);
+    ok(res.done, '配置禁止が対話なしで終わらない');
+    const caster = res.ownerState, opp = res.otherState;
+    ok((opp.signi_zone_blocks_next_turn ?? []).some(b => b.zone === zi), '前提: 次のターンの配置禁止が相手に予約されていない');
+    const row = ({ host_id: HOST, guest_id: GUEST, host_state: caster, guest_state: ctx.otherState, active_user_id: HOST, turn_count: 3,
+      pending_effect: { sourcePlayerId: HOST, sourceCardNum: 'WX10-051#1', effectId: 'WX10-051-E1' }, effect_stack: null, pending_spell: null }) as unknown as BattleStateRow;
+    const p1 = reduceBattle(row, { type: 'RESOLVE_EFFECT_STEP', hostState: caster, guestState: opp, pending: null });
+    const oppNoted = p1.guest_state!;
+    eq(oppNoted.lingering_notes?.length, 1, `🔴ゾーンの配置禁止を記録していない（zone ${zi}）`);
+    const viewRows = lingeringEffectRows(caster, oppNoted, cardMap, effectsMap);
+    eq(viewRows.length, 1, '使った側の画面に行が出ない');
+    eq(viewRows[0].owner, 'あなた', '使った側から見て自分の効果になっていない');
+    // 相手の場は左右が反転して並ぶ（`PlayerField` の displaySigni）＝相手の添字0は画面の右。
+    eq(viewRows[0].targets.map(t => t.name).join(), `相手の${zi === 0 ? '右' : '左'}のシグニゾーン`, `🔴どのゾーンかが画面の位置で出ない（zone ${zi}）`);
+    eq(viewRows[0].expiry, '次のターン', '期限が「次のターン」でない');
+    // 受けた側の画面では自分の場＝添字0が左。
+    eq(lingeringEffectRows(oppNoted, caster, cardMap, effectsMap)[0].targets.map(t => t.name).join(), `あなたの${zi === 0 ? '左' : '右'}のシグニゾーン`, '受けた側の画面で位置が違う');
+    // ② 相手のターン開始＝予約の昇格（本物の関数・発動元の無い書き込み）でも残る
+    const row2 = { ...row, guest_state: oppNoted, pending_effect: null, active_user_id: GUEST } as unknown as BattleStateRow;
+    const promoted = reduceBattle(row2, { type: 'WRITE_STATE', myKey: 'guest_state', myState: activateNextTurnSigniZoneBlocks(oppNoted) }).guest_state!;
+    ok((promoted.signi_zone_blocks ?? []).some(b => b.zone === zi), '前提: 昇格していない');
+    const r2 = lingeringEffectRows(caster, promoted, cardMap, effectsMap);
+    eq(r2.length, 1, '🔴相手のターンになったら（予約が昇格したら）欄から消えた');
+    eq(r2[0].sourceName, 'クローズ・ゾーン', '昇格で発動元が引き継がれていない');
+    eq(r2[0].expiry, 'ターン終了時まで', '昇格した予約の期限が「次のターン」のまま');
+    // ③ そのターン（＝相手のターン）の終わり（本物の失効＝ターンを終える側の後片付け）で消える
+    const row3 = { ...row2, guest_state: promoted } as unknown as BattleStateRow;
+    const ended = reduceBattle(row3, { type: 'WRITE_STATE', myKey: 'guest_state', myState: clearTurnEndScopedState(clearEndingPlayerTurnState(promoted)) }).guest_state!;
+    eq(lingeringEffectRows(caster, ended, cardMap, effectsMap).length, 0, '🔴禁止が切れたのに欄に残る');
+  }
+  // ④ ゾーン番号の配列の 0 も値（旧＝偽として捨て、0番のゾーンだけ記録から落ちた）
+  ok(leavesOf([0, 2]).length === 2, '🔴配列の 0 を値として数えていない');
 }));
 
 test('2026-10-23 2回目のリフレッシュでのターン終了も手札調整を行う（ユーザー裁定）：上限超えならスタック経路で終えずルール処理へ／捨ててから終える', () => withSavedCursor(() => {

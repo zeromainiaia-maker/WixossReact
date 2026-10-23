@@ -1,4 +1,5 @@
 import { fieldSigniStacks, placeUnderFieldSigni, placeUnderZone } from './cheerZoneView';
+import { signiClassesOf } from './cardClasses';
 import type { Owner, PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { keywordDisplayLabel } from '../utils/keywords';
 import { parseCardEffects } from '../data/effectParser';
@@ -3928,11 +3929,8 @@ export function execStubPart1(
       for (const cn of ctx.lastProcessedCards ?? []) {
         const c = ctx.cardMap.get(getCardNum(cn));
         if (c?.Type !== 'シグニ' || !c.CardClass) continue;
-        for (const raw of c.CardClass.replace(/[＜＞]/g, '').split(/[・/]/)) {
-          const t = raw.trim();
-          if (!t || t === '-') continue;
-          tallyDFL.set(t, (tallyDFL.get(t) ?? 0) + 1);
-        }
+        // 🆕2026-10-23＝宣言の候補も下位のクラス（`cardClasses.ts`）。
+        for (const t of signiClassesOf(c.CardClass)) tallyDFL.set(t, (tallyDFL.get(t) ?? 0) + 1);
       }
       const optsDFL = [...tallyDFL.entries()].filter(([, n]) => n >= needDFL).map(([cls]) => cls).sort();
       if (optsDFL.length === 0) return done(addLog(ctx, 'クラス宣言：条件を満たすクラスなし'));
@@ -3956,10 +3954,7 @@ export function execStubPart1(
     const addClassesDCLS = (cn: string) => {
       const c = ctx.cardMap.get(cn);
       if (c?.Type !== 'シグニ' || !c.CardClass) return;
-      c.CardClass.replace(/[＜＞]/g, '').split(/[・/]/).forEach(cl => {
-        const t = cl.trim();
-        if (t && t !== '-') classSetDCLS.add(t);
-      });
+      signiClassesOf(c.CardClass).forEach(t => classSetDCLS.add(t));
     };
     [...ctx.ownerState.trash, ...ctx.ownerState.hand].forEach(addClassesDCLS);
     ctx.ownerState.field.signi.forEach(s => s?.forEach(addClassesDCLS));

@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
+import { signiClassesOf } from './cardClasses';
 import { fieldSigniStacks, isZoneFrozen, isZoneDownView } from './cheerZoneView';
 import { effectiveIdentityOverrides } from './nameIdentityRules';
 import type {
@@ -47,8 +48,8 @@ import { activeGainedLrigTypes } from '../screens/battle/growLogic';
 import { grantedEffectsOf } from './grantedStore';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
-const splitFieldClasses = (cardClass: string | undefined): string[] =>
-  (cardClass ?? '').split(/[・/]/).map(c => c.trim()).filter(Boolean);
+// 🆕2026-10-23＝クラスの分け方は `cardClasses.ts` の1本（旧＝`・/` で分けて `：` を残していた＝全角 `／` も分けなかった）。
+const splitFieldClasses = (cardClass: string | undefined): string[] => signiClassesOf(cardClass);
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
   const nums = [state.field.lrig.at(-1), state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)]
     .filter((n): n is string => !!n);
@@ -145,7 +146,7 @@ export function checkActiveCondition(
       const dcSets = dcState.field.signi
         .map(stack => stack?.at(-1))
         .filter((n): n is string => !!n)
-        .map(n => new Set((cardMap.get(n)?.CardClass ?? '').split('／').map(x => x.trim()).filter(Boolean)));
+        .map(n => new Set(signiClassesOf(cardMap.get(n)?.CardClass)));
       for (let i = 0; i < dcSets.length; i++) {
         for (let j = i + 1; j < dcSets.length; j++) {
           for (const cl of dcSets[i]) if (dcSets[j].has(cl)) return false;

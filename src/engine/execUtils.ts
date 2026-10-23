@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
+import { signiClassesOf } from './cardClasses';
 import { fieldSigniStacks, cheerCardOf, isZoneFrozen } from './cheerZoneView';
 import { privateLine, isInPublicZone } from './hiddenInfo';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
@@ -517,7 +518,7 @@ export function countFromZone(
   if (fromZone.zone === 'center_lrig_types') {
     const centerCLT = (fromZone.owner === 'opponent' ? otherSt : ownerSt).field.lrig.at(-1);
     const typesCLT = centerCLT
-      ? (cardMap.get(getCardNum(centerCLT))?.CardClass ?? '').split('/').map(x => x.trim()).filter(Boolean).length
+      ? (cardMap.get(getCardNum(centerCLT))?.CardClass ?? '').split(/[/／]/).map(x => x.trim()).filter(Boolean).length
       : 0;
     const cappedCLT = fromZone.maxCount === undefined ? typesCLT : Math.min(typesCLT, Math.max(0, fromZone.maxCount));
     if (fromZone.unitSize !== undefined && (!Number.isFinite(fromZone.unitSize) || fromZone.unitSize <= 0)) return 0;
@@ -1426,9 +1427,10 @@ export function splitColors(col: string | undefined): string[] {
 
 // 規則解釈：「精武：アーム」は上位・下位の両クラスを持つものとして2 tokenに数える。
 // 公式解釈が異なると判明した場合は、この1箇所を直せば全ゾーンのクラス種類数判定が変わる。
+// 🆕2026-10-23（ユーザー裁定＝「精武はクラスではなくその上位の分類」）＝下位のクラスだけを数える（`cardClasses.ts` の1本）。
+//   旧＝`：` で分けて上位も数えていた（`精武：アーム` が 精武・アーム の2つ）＋`/` を分けていなかった。
 export function splitClasses(col: string | undefined): string[] {
-  if (!col) return [];
-  return col.split('：').map(s => s.trim()).filter(Boolean);
+  return signiClassesOf(col);
 }
 
 /**
@@ -3824,7 +3826,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const classSets = ps.field.signi
         .map(stack => stack?.at(-1))
         .filter((n): n is string => !!n)
-        .map(n => new Set((ctx.cardMap.get(n)?.CardClass ?? '').split('／').map(s => s.trim()).filter(Boolean)));
+        .map(n => new Set(signiClassesOf(ctx.cardMap.get(n)?.CardClass)));
       for (let i = 0; i < classSets.length; i++) {
         for (let j = i + 1; j < classSets.length; j++) {
           for (const cl of classSets[i]) if (classSets[j].has(cl)) return false;
@@ -4022,8 +4024,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (cond.shareClass) {
         const counts = new Map<string, number>();
         for (const cn of matchedCards) {
-          const classes = new Set((ctx.cardMap.get(getCardNum(cn))?.CardClass ?? '').split(/[／/]/)
-            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(cl => !!cl && cl !== '-'));
+          const classes = new Set(signiClassesOf(ctx.cardMap.get(getCardNum(cn))?.CardClass));
           for (const cl of classes) counts.set(cl, (counts.get(cl) ?? 0) + 1);
         }
         sharedCount = Math.max(0, ...counts.values());
@@ -4499,7 +4500,8 @@ function costSumOf(cost: string | undefined): number | null {
 }
 
 function cardClasses(card: CardData | undefined): Set<string> {
-  return new Set((card?.CardClass ?? '').split(/[：:／/・,\s]+/).map((s: string) => s.trim()).filter(Boolean));
+  // 🆕2026-10-23＝下位のクラスだけ（`cardClasses.ts`）。旧＝`：` でも分けて上位（精武）まで数えていた。
+  return new Set(signiClassesOf(card?.CardClass));
 }
 
 function cardColors(card: CardData | undefined): Set<string> {

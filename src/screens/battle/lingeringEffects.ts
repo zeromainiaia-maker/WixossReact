@@ -86,7 +86,8 @@ export function leavesOf(value: unknown, path = ''): string[] {
   if (Array.isArray(value)) {
     return value.flatMap(el => (el !== null && typeof el === 'object' && !Array.isArray(el))
       ? [`${path}[]=${JSON.stringify(el)}`]
-      : leavesOf(el, `${path}[]`));
+      // ⚠配列の中の数は 0 も値（ゾーン番号の 0＝`signi_gate_zones: [0]`）。偽として捨てるのは要素の外側だけ。
+      : (el === 0 ? [`${path}[]=0`] : leavesOf(el, `${path}[]`)));
   }
   if (typeof value === 'object') {
     return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => leavesOf(v, `${path}.${k}`));
@@ -175,6 +176,20 @@ export function annotateLingeringNotes(
     out.guest_state = r.state;
   }
   return out;
+}
+
+/**
+ * 葉に出てくるシグニゾーンの添字（`{"zone":1}` の要素・`*_zones` の数の配列）。
+ * ⚠「カードの対象」が無い効果（配置禁止・ゲート…）で、どのゾーンかを出すため。
+ */
+export function noteZoneIndexes(note: LingeringNote): number[] {
+  const zones = new Set<number>();
+  for (const l of note.leaves) {
+    const obj = /"zone":([0-2])/.exec(l);
+    if (obj) zones.add(Number(obj[1]));
+    else if (/_zones$/.test(note.key)) { const m = /^\[\]=([0-2])$/.exec(l); if (m) zones.add(Number(m[1])); }
+  }
+  return [...zones].sort();
 }
 
 /** 葉に出てくるカードの個体番号（対象）。⚠カードかどうかは呼び出し側がカード表で確かめる。 */
