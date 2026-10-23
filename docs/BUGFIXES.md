@@ -1,5 +1,10 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第565バッチ）CPU の召喚が人間の「召喚」ボタンと食い違っていた（限定条件・効果込みのリミット・宣言したシグニ）
+- 🔴**真因**＝CPU が手札からシグニを出す判定（`cpuMoves.ts` の `cpuDeployPlaceable`／`cpuDeployBudget`）は、人間の「召喚」ボタン（`cardActions.ts`）と別に書かれており ①**「○○限定」を見ていなかった**（違うルリグでも出せた）②リミットを**印刷値**で見ていた（人間は効果で増減したリミット＝`computeEffectiveLrigLimit`）③「宣言したシグニ（`WXK09-001-E3`）はレベル0・限定無視」を見ていなかった。ライズ（`listCpuRises`）・レゾナは既に人間と同じ式だった＝**召喚だけが片側**。第564の分割中に見つけた。
+- **直し方**＝枠は `cpuSummonBudget` の1本へ寄せた（`cpuDeployBudget` はそれを返すだけ）・レベルは `cpuHandSigniLevel`（宣言でレベル0）・置けるかに限定条件（人間と同じ `meetsRestriction` ＋ `hasIgnoreLrigRestriction` ＋ 宣言の限定無視）を追加。CPU の召喚ループ（`cpuTurn.ts`）で場の合計に足すレベルも同じ数え方にした。
+- **検証**＝golden 新規1本（限定条件・宣言で限定を無視＝名前が違えば無視しない・場の合計で宣言したシグニを0・効果の無い盤面でリミットが印刷値・配線）＝**修正を戻すと FAIL**（反転確認）。全件 4536/4536・`npm run gates` 全緑。**実機**＝CPU 通し対戦 PASS（8ターン/207手）。自己対戦の不変条件走査（ユーザー作デッキ・`selfplay:inv -- --seeds 1`）124戦すべて決着・所見0。
+
 ## 2026-10-24（第564バッチ）BattleScreen の分割（続き）：カードを押したときの操作一覧を純関数 `cardActions.ts` へ（挙動は変えない）
 - **移したもの**＝手札・相手のトラッシュ・自分のトラッシュ・エナ・ルリグデッキの操作一覧5本（約330行）＝`battle/cardActions.ts`。盤面の事実（`CardActionCtx`）と押したときの処理（`CardActionHandlers`）を受け取りボタンの一覧を返す**React 非依存の純関数**。画面は1行の委譲だけ。本体 5,692行 → **5,409行**。
 - ⚠本文はスクリプトで切り貼りし、引数を分解して同じ名前にしたので一字も変えていない。受け渡しの名前だけ `useGrantedTrashSpell` → `castGrantedTrashSpell`（`use` で始まると lint が React の hook と誤認する）。

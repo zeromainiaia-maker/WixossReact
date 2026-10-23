@@ -68,7 +68,7 @@ import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
 import {pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow} from '../cpuAssistGrow';
-import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuHandSigniLevel, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {drawPhaseDraw} from '../drawPhase';
 import {collectOnAcceTriggers} from './acceTriggers';
@@ -1231,7 +1231,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       const pickedId = cpuSearchedDeploy ? cpuSearchedDeploy.id : pickCpuDeployCard({
         candidates: placeable.map(({ id, card }) => ({
           id,
-          level: parseInt(card!.Level) || 0,
+          level: cpuHandSigniLevel(newCpuSt, card!),
           power: card!.Power === '∞' ? Infinity : (parseInt(card!.Power ?? '', 10) || 0),
           // §5.7 `S-1`＝パワーだけでなく効果の強さでも比べる（【出】の除去を持つ低パワーの札を後回しにしない）。
           // §5.7 `S-4b`＝このゾーンに出して【出】を解決した**結果の盤面の点数**（先読み）＋ `S-2` 作戦データの加点。
@@ -1282,7 +1282,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         hand: newCpuSt.hand.filter(id => id !== candidate.id),
         field: { ...newCpuSt.field, signi: newSigni },
       };
-      const lv = parseInt(candidate.card!.Level) || 0;
+      const lv = cpuHandSigniLevel(cpuSt, candidate.card!);   // 宣言でレベル0のシグニは0（枠と同じ数え方）
       fieldTotal += lv;
       handSignis.splice(handSignis.indexOf(candidate), 1);
 

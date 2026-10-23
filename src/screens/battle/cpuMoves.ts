@@ -197,19 +197,22 @@ export function cpuHandSignis(ctx: CpuMoveCtx, s: PlayerState): CpuHandSigni[] {
     .filter((h): h is CpuHandSigni => !!h.card && h.card.Type === 'シグニ');
 }
 
-/** 召喚の枠＝センタールリグのレベル・リミットと、場のシグニの合計レベル（`cpuTurnAction` の MAIN と同じ式）。 */
+/**
+ * 手札のシグニを出すときのレベル＝「宣言したシグニ」はレベル0（`declaredSigniOverride`）。
+ * 人間の「召喚」ボタン（`cardActions.ts`）・ライズ（`listCpuRises`）と同じ数え方。
+ */
+export function cpuHandSigniLevel(s: PlayerState, card: CardData): number {
+  return declaredSigniOverride(s, card.CardName).levelZero ? 0 : (parseInt(card.Level) || 0);
+}
+
+/**
+ * 召喚の枠＝センタールリグのレベル・リミットと、場のシグニの合計レベル。
+ * 🔴2026-10-24＝**材料は `cpuSummonBudget` の1本**＝旧実装はリミットを印刷値で、場の合計を素のレベルで数えており、
+ *   人間の「召喚」ボタン（効果で増減したリミット・宣言でレベル0のシグニ）と食い違っていた。
+ */
 export function cpuDeployBudget(ctx: CpuMoveCtx, s: PlayerState): { lrigLevel: number; limit: number; fieldTotal: number } {
-  const lrigId = s.field.lrig.at(-1) ?? null;
-  const lrigCard = lrigId ? ctx.allCards.find(c => c.CardNum === getCardNum(lrigId)) : null;
-  const limit = lrigCard?.Limit === '∞' ? Infinity : (parseInt(lrigCard?.Limit ?? '0') || 0);
-  const lrigLevel = parseInt(lrigCard?.Level ?? '0') || 0;
-  let fieldTotal = 0;
-  for (const stack of s.field.signi) {
-    if (!stack?.length) continue;
-    const topCard = ctx.allCards.find(c => c.CardNum === getCardNum(stack[stack.length - 1]));
-    fieldTotal += parseInt(topCard?.Level ?? '0') || 0;
-  }
-  return { lrigLevel, limit, fieldTotal };
+  const sc = cpuSummonBudget(ctx, s);
+  return { lrigLevel: sc.lrigLevel, limit: sc.lrigLimit, fieldTotal: sc.fieldSigniTotal };
 }
 
 /**
@@ -256,10 +259,14 @@ export function cpuDeployPlaceable(
   ctx: CpuMoveCtx, s: PlayerState, zone: number, handSignis: readonly CpuHandSigni[],
   budget: { lrigLevel: number; limit: number; fieldTotal: number },
 ): CpuHandSigni[] {
+  const centerClass = centerClassOf(ctx, s);
   return handSignis.filter(({ id, card }) => {
     if (getRiseRequirement(card.EffectText ?? '')) return false;
-    const lv = parseInt(card.Level) || 0;
+    const lv = cpuHandSigniLevel(s, card);
     if (lv > budget.lrigLevel || budget.fieldTotal + lv > budget.limit) return false;
+    // 🔴2026-10-24＝**限定条件**（人間の「召喚」ボタンと同じ式）。旧実装は見ておらず、違うルリグでも「○○限定」を出せた。
+    if (!meetsRestriction(card.Restriction, centerClass,
+      hasIgnoreLrigRestriction(s, ctx.effectsMap, 'signi', card) || declaredSigniOverride(s, card.CardName).ignoreRestriction)) return false;
     const power = card.Power === '∞' ? Infinity : parseInt(card.Power ?? '', 10);
     if (isHandSigniPlayBlockedByPower(s, power)) return false;
     return deployLimitBlockReason({

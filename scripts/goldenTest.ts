@@ -194,7 +194,7 @@ import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
-import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, cpuDeployBudget, cpuDeployPlaceable, cpuHandSignis, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, cpuChargeNeedOf, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
@@ -95838,6 +95838,48 @@ test('2026-10-24 手札の操作一覧（cardActions.ts）を盤面から直接�
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(screen.includes('handCardActions(cardActionCtx, cardActionHandlers, cardNum, handIndex)'), '🔴画面が手札の操作一覧を cardActions.ts から引いていない');
   ok(!screen.includes('planRiseSummon('), '🔴召喚の判定が画面に書き戻されている（cardActions.ts の1本にする）');
+}));
+
+test('2026-10-24 CPU の召喚も人間の「召喚」ボタンと同じ条件＝限定条件・宣言したシグニ（レベル0・限定無視）・場の合計レベル', () => withSavedCursor(() => {
+  // 🔴分割（第564）の途中で見つけた食い違い＝CPU の `cpuDeployPlaceable`／`cpuDeployBudget` は「○○限定」を見ず、
+  //   リミットは印刷値・場の合計は素のレベルで数えていた（人間は効果込みのリミット・宣言でレベル0）。
+  const lrig = findCard(c => c.Type === 'ルリグ' && c.Level === '4' && c.CardClass === 'タマ' && /^\d+$/.test(c.Limit ?? ''));
+  const plain = (lv: string) => (c: CardData) => isSigni(c) && c.Level === lv && (!c.Restriction || c.Restriction === '-')
+    && !/ライズ/.test(c.EffectText ?? '') && /^\d+$/.test(c.Power ?? '');
+  const restricted = findCard(c => isSigni(c) && c.Restriction === 'ピルルク限定' && parseInt(c.Level) <= 4 && !/ライズ/.test(c.EffectText ?? ''));
+  const free = findCard(plain('2'));
+  const mk = (hand: string[], o: { signi?: (string | null)[]; declared?: string } = {}) => {
+    const st = mkState({ hand: 0, signi: o.signi, lrig: [lrig] });
+    st.hand = hand;
+    if (o.declared) Object.assign(st, { declared_card_name: o.declared, game_declared_signi_level_zero: true, game_declared_signi_ignore_restriction: true });
+    return st;
+  };
+  const ctxOf = (actor: PlayerState): CpuMoveCtx => ({
+    actor, opponent: mkState(), allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap,
+    effectsMap: new Map(), lookahead: {} as CpuMoveCtx['lookahead'], reserveFor: () => undefined,
+  } as unknown as CpuMoveCtx);
+  const placeable = (actor: PlayerState) => {
+    const c = ctxOf(actor);
+    return cpuDeployPlaceable(c, actor, 0, cpuHandSignis(c, actor), cpuDeployBudget(c, actor)).map(h => h.id);
+  };
+  // ① 限定条件
+  eq(JSON.stringify(placeable(mk([free, restricted]))), JSON.stringify([free]), '🔴タマで「ピルルク限定」を出せる（限定条件を見ていない）');
+  // ② 宣言したシグニは限定を無視できる（名前が一致したときだけ）
+  const rName = cardMap.get(restricted)!.CardName;
+  ok(placeable(mk([restricted], { declared: rName })).includes(restricted), '🔴宣言したシグニなのに限定条件で止まる');
+  ok(!placeable(mk([restricted], { declared: 'どれでもない名前' })).includes(restricted), '🔴宣言と名前が違うのに限定を無視している（過剰）');
+  // ③ 場の合計レベル＝宣言でレベル0のシグニは0として数える（人間・ライズ・レゾナと同じ cpuSummonBudget）
+  const big = findCard(plain('3'));
+  const bigName = cardMap.get(big)!.CardName;
+  const limit = parseInt(cardMap.get(lrig)!.Limit) || 0;
+  const withBig = (declared?: string) => cpuDeployBudget(ctxOf(mk([], { signi: [null, big, null], declared })), mk([], { signi: [null, big, null], declared })).fieldTotal;
+  eq(withBig(), 3, '場のレベル3のシグニを3と数えない');
+  eq(withBig(bigName), 0, '🔴宣言でレベル0のシグニを素のレベルで数えている（人間の「召喚」ボタンと食い違う）');
+  eq(cpuDeployBudget(ctxOf(mk([])), mk([])).limit, limit, 'リミットが印刷値と違う（効果の無い盤面）');
+  // 配線＝枠の材料は cpuSummonBudget の1本（リミットは効果込み）
+  const src = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf8');
+  const body = src.slice(src.indexOf('export function cpuDeployBudget'), src.indexOf('export function cpuDeployBudget') + 300);
+  ok(body.includes('cpuSummonBudget(ctx, s)'), '🔴召喚の枠が cpuSummonBudget（効果込みのリミット）を通っていない');
 }));
 
 if (listMode) {
