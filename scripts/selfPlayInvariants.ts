@@ -42,6 +42,7 @@ import { planLimitExcess } from '../src/screens/battle/limitExcess';
 import { powerZeroBanishCandidates } from '../src/screens/battle/controller/resolveSigniBattle';
 import { buildBaseEffectsMap, buildBattleMaterials } from '../src/screens/battle/controller/battleMaterials';
 import { createHeadlessMatch, mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
+import { lingeringEffectRows } from '../src/screens/battle/lingeringEffectRows';
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { centerLrigAttackBlock } from '../src/screens/battle/lrigAttackGate';
@@ -133,6 +134,8 @@ if (ANSWER_FUZZ > 0 && (MIRROR || RESUME_EVERY > 0)) {
 const START = arg('--start', '').split(',').filter(Boolean);
 /** 🆕`--logs-out <dir>`＝1戦ごとの対戦ログ（テキスト）を書く（ログの文言を実測する用）。 */
 const LOGS_OUT = arg('--logs-out', '');
+/** 🆕2026-10-23 `--lingering-out <file>`＝**発動中の効果欄**（host 視点）の中身が変わるたびに1行書く（表示の実測用）。 */
+const LINGERING_OUT = arg('--lingering-out', '');
 /**
  * 🆕`--use-all-arts`＝両席の作戦データで**ルリグデッキのアーツを全部「攻めと守り」に指名する**（検査専用）。
  * 🔑CPU が自分のターンに使うアーツは「除去（正面が塞がれているとき）」と作戦データの指名だけ＝ドロー・手札破壊・強化などの
@@ -360,6 +363,7 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
   class InstMap extends Map<string, CardData> { get(k: string) { return super.get(k) ?? super.get(numOf(k)); } has(k: string) { return super.has(k) || super.has(numOf(k)); } }
   const instMap = new InstMap(cardMap);
   const covEffects = new Set<string>(), covField = new Set<string>();
+  let lingeringSig = '';
   let sameN = 0;
   /** 2手前の盤面（ログ行の遅れを吸収する）。 */
   let prev2Row: BattleStateRow | null = null;
@@ -446,6 +450,16 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
     if (TRACE && step > MAX_STEPS - 6) { const r0 = m.row(); for (const side of ['host_state','guest_state'] as const) for (const k of new Set([...Object.keys((prevRow as any)[side]), ...Object.keys((r0 as any)[side])])) { const a = JSON.stringify((prevRow as any)[side][k]), b = JSON.stringify((r0 as any)[side][k]); if (a !== b) console.log(`   Δ ${side}.${k}: ${a?.slice(0,200)} -> ${b?.slice(0,200)}`); } for (const k of Object.keys(r0)) if (!/_state$/.test(k) && JSON.stringify((prevRow as any)[k]) !== JSON.stringify((r0 as any)[k])) console.log(`   Δ row.${k}`); }
     if (TRACE && step > MAX_STEPS - 40) { const r0 = m.row(); console.log(`step${step} ${k} actor=${m.lastActor()} phase=${r0.turn_phase} active=${r0.active_user_id===HOST_ID?'H':'G'} pend=${JSON.stringify(r0.pending_effect)?.slice(0,300)} stack=${JSON.stringify(r0.effect_stack)?.slice(0,300)} | ${m.logs.slice(-2).join(' / ')}`); }
     if (WEAK_OUT) weakChecks(prevRow, m.row(), m.logs.slice(logLenBefore));
+    if (LINGERING_OUT) {
+      const r1 = m.row();
+      const rows = lingeringEffectRows(r1.host_state, r1.guest_state, instMap, effectsMap);
+      const sig = rows.map(x => `[${x.owner}]《${x.sourceName}》→${x.targets.map(t => t.name).join("・")}${x.details.length ? `「${x.details.join("・")}」` : ""}（${x.expiry ?? '-'}）`).join(' ／ ');
+      if (sig !== lingeringSig) {
+        lingeringSig = sig;
+        fs.appendFileSync(LINGERING_OUT, `${tag} T${r1.turn_count} ${r1.turn_phase} 手番=${r1.active_user_id === HOST_ID ? 'H' : 'G'} | ${sig || '（なし）'} | ${m.logs.slice(-1)[0] ?? ''}
+`);
+      }
+    }
     if (k === 'finished') { reason = 'finished'; if (WEAK_OUT) weakOnFinish(m.row()); break; }
     if (k === 'idle') { reason = 'idle'; once('IDLE', { kind: 'IDLE', step, turn: m.row().turn_count, detail: `phase=${m.row().turn_phase} pend=${!!m.row().pending_effect} stack=${!!m.row().effect_stack}`, logs: ctxLogs() }); break; }
     const r = m.row();
@@ -650,7 +664,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(argv.includes('--pairs-file') ? ['--pairs-file', arg('--pairs-file', '')] : []), '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : []), ...(WEAK_OUT ? ['--weak-out', WEAK_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(argv.includes('--pairs-file') ? ['--pairs-file', arg('--pairs-file', '')] : []), '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : []), ...(WEAK_OUT ? ['--weak-out', WEAK_OUT] : []), ...(LINGERING_OUT ? ['--lingering-out', LINGERING_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));

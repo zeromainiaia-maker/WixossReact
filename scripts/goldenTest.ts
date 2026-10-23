@@ -117,6 +117,8 @@ import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/s
 import { enforceResonaZoneRule, resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd, refreshTurnEndDiscardCount } from '../src/screens/battle/refreshTurnEnd';
+import { isLingeringKey, updateLingeringNotes } from '../src/screens/battle/lingeringEffects';
+import { lingeringEffectRows } from '../src/screens/battle/lingeringEffectRows';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess, planRestrictionLoss } from '../src/screens/battle/limitExcess';
@@ -88686,6 +88688,64 @@ test('§5.7 S-18 終端評価の「次ターン」項：グロウの価値・グ
   eq(evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-002#r1' }), opp, lctxLegacy)
     - evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-003#r1' }), opp, lctxLegacy), 0,
     '🔴`legacy-nextturn` なのに「次のターン」項が効いている');
+}));
+
+test('2026-10-23 発動中の効果欄：解決で増えた付与・禁止を発動元つきで記録／状態から消えたら消える／予約の昇格は発動元を引き継ぐ／非公開の対象は名前を出さない', () => withSavedCursor(() => {
+  // 🔑ユーザー要望＝「付与効果など盤面に残らない効果（アタックできない等）を、何のカードがどの対象に発動して残っているか確認したい。消えたら消える」。
+  //   記録は reduceBattle が前後の状態の差分で書き、消えたかどうかは**記録した値がまだ状態に残っているか**だけで決める（engine の失効と必ず一致）。
+  ok(isLingeringKey('signi_attack_bans_this_turn') && isLingeringKey('keyword_grants') && isLingeringKey('blocked_card_names_next_turn')
+    && isLingeringKey('field_grants_active') && isLingeringKey('cost_modifiers'), '🔴付与・禁止のキーを数えていない');
+  ok(!isLingeringKey('hand') && !isLingeringKey('field') && !isLingeringKey('actions_done') && !isLingeringKey('temp_power_mods')
+    && !isLingeringKey('cards_drawn_by_effect_this_turn') && !isLingeringKey('lingering_notes') && !isLingeringKey('last_cost_trashed_cards'),
+    '🔴置き場・履歴・パワー・数・この欄自身を「発動中の効果」に数えている');
+  const signi = findCard(c => c.Type === 'シグニ');
+  const src = findCard(c => c.Type === 'アーツ');
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const target = `${signi}#7`;
+  const base = mkState({ signi: [target, null, null] });
+  const opp = mkState();
+  const row = ({ host_id: HOST, guest_id: GUEST, host_state: base, guest_state: opp, active_user_id: GUEST, turn_count: 3,
+    pending_effect: null, effect_stack: null, pending_spell: null }) as unknown as BattleStateRow;
+  // ① 相手のアーツの解決で、こちらのシグニに「アタックできない」と【ランサー】
+  const banned = { ...base, signi_attack_bans_this_turn: [{ target }], keyword_grants: { [target]: ['ランサー'] } } as unknown as PlayerState;
+  const patch = reduceBattle(row, { type: 'RESOLVE_EFFECT_STEP', hostState: banned, guestState: opp, pending: null,
+    lingeringSource: { playerId: GUEST, cardNum: `${src}#1`, effectId: `${src}-E1` } });
+  const notes = patch.host_state!.lingering_notes ?? [];
+  eq(notes.length, 2, `🔴解決で増えた2つ（アタック禁止・付与）を記録していない（${JSON.stringify(notes)}）`);
+  ok(notes.every(n => n.sourceCardNum === `${src}#1` && n.sourceIsSelf === false), '🔴発動元（相手のアーツ）が記録されていない');
+  eq(notes.find(n => n.key === 'signi_attack_bans_this_turn')?.expiry, 'ターン終了時まで', '期限の目安が付かない');
+  const rows = lingeringEffectRows(patch.host_state!, opp, cardMap, effectsMap);
+  eq(rows.length, 1, '同じ能力の2つが1行にまとまっていない');
+  eq(rows[0].owner, '相手', '発動元の持ち主（閲覧者から見て）が違う');
+  ok(rows[0].targets.some(t => t.cardNum === target), `🔴対象のシグニが出ない（${JSON.stringify(rows[0].targets)}）`);
+  ok(rows[0].details.includes('ランサー'), `付与したキーワードが行に出ない（${JSON.stringify(rows[0].details)}）`);
+  // ② 同じ値のまま別の書き込み＝増えていないので二重に記録しない
+  const again = reduceBattle({ ...row, host_state: patch.host_state! } as BattleStateRow, { type: 'WRITE_STATE', myKey: 'host_state', myState: { ...patch.host_state!, hand: [] } });
+  eq(again.host_state!.lingering_notes?.length, 2, '値が増えていない書き込みで記録が増えた／消えた');
+  // ③ ターン終了で状態から消えたら記録も消える（失効は engine の値だけを見る）
+  const cleared = { ...patch.host_state!, signi_attack_bans_this_turn: undefined, keyword_grants: undefined } as PlayerState;
+  const after = reduceBattle({ ...row, host_state: patch.host_state! } as BattleStateRow, { type: 'WRITE_STATE', myKey: 'host_state', myState: cleared });
+  eq(after.host_state!.lingering_notes, undefined, '🔴効果が消えたのに欄に残る');
+  eq(lingeringEffectRows(cleared, opp, cardMap, effectsMap).length, 0, '🔴状態から消えた効果が表示に残る（保存前の記録が古くても）');
+  // ④ 発動元の分からない書き込み（フェイズ進行）は記録しない
+  const orphan = reduceBattle(row, { type: 'WRITE_STATE', myKey: 'host_state', myState: banned });
+  eq(orphan.host_state!.lingering_notes, undefined, '発動元の分からない書き込みを記録した');
+  // ⑤ 予約の昇格（次のターン → このターン）は、消えた予約の発動元を引き継ぐ
+  const reserved = updateLingeringNotes(base, { ...base, blocked_card_names_next_turn: ['千切'] } as PlayerState, HOST, { playerId: GUEST, cardNum: `${src}#1` }).state;
+  eq(reserved.lingering_notes?.[0]?.expiry, '次のターン', '予約の期限の目安が違う');
+  const promoted = updateLingeringNotes(reserved, { ...reserved, blocked_card_names_next_turn: undefined, blocked_card_names: ['千切'] } as PlayerState, HOST, undefined).state;
+  eq(promoted.lingering_notes?.length, 1, '🔴予約が昇格したら記録が消えた（発動元を引き継いでいない）');
+  eq(promoted.lingering_notes?.[0]?.key, 'blocked_card_names', '引き継ぎ先のキーが違う');
+  eq(promoted.lingering_notes?.[0]?.expiry, 'ターン終了時まで', '昇格した予約の期限が「次のターン」のまま');
+  // ⑥ 非公開の対象（手札の個体）は名前を出さない
+  const inHand = `${signi}#9`;
+  const hidden = { ...mkState(), hand: [inHand], lingering_notes: [{ key: 'keyword_grants', leaves: [`.${inHand}[]="ランサー"`], sourceCardNum: `${src}#1`, sourceIsSelf: false }],
+    keyword_grants: { [inHand]: ['ランサー'] } } as unknown as PlayerState;
+  ok(!lingeringEffectRows(hidden, opp, cardMap, effectsMap)[0].targets.some(t => t.cardNum === inHand), '🔴手札にある対象の名前を出した（非公開の情報）');
+  // ⑦ 画面：ログと相手の盤面の間に置く
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const iPanel = screen.indexOf('<LingeringEffectsPanel'), iLog = screen.indexOf('{/* バトルログ */}'), iOpp = screen.indexOf('{/* 相手盤面 */}');
+  ok(iLog >= 0 && iLog < iPanel && iPanel < iOpp, '🔴発動中の効果欄がログと相手の盤面の間に無い');
 }));
 
 test('2026-10-23 2回目のリフレッシュでのターン終了も手札調整を行う（ユーザー裁定）：上限超えならスタック経路で終えずルール処理へ／捨ててから終える', () => withSavedCursor(() => {

@@ -303,6 +303,12 @@ export interface SigniAttackBan {
 }
 
 export interface PlayerState {
+  /**
+   * 🆕2026-10-23＝**発動中の効果欄**の記録（`screens/battle/lingeringEffects.ts`）。
+   * 盤面に出ない効果（付与・アタックできない…）を「どのカードの・どの効果が・何に」残しているか。
+   * ⚠engine はこれを読まない（表示だけ）。消えたかどうかは記録した値がまだ状態に残っているかで決める。
+   */
+  lingering_notes?: import('../screens/battle/lingeringEffects').LingeringNote[];
   deck: string[];
   lrig_deck: string[];
   hand: string[];

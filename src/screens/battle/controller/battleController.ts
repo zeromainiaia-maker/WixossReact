@@ -15,6 +15,7 @@
 import type { BattleStateRow, PlayerState, EffectStack, PendingSpell, PendingEffect } from '../../../types';
 import { isStackDone } from '../../../engine/effectStack';
 import { closeSpellCheckZone, openSpellCheckZone } from '../turnScopedState';
+import { annotateLingeringNotes, type LingeringSource } from '../lingeringEffects';
 
 /** プレイヤー状態を書き込む先のカラム。 */
 export type PlayerStateKey = 'host_state' | 'guest_state';
@@ -188,6 +189,8 @@ export type BattleAction =
        * （盤面と `pending_effect`/`effect_stack` は本 action 側で確定済みなので action を分けられない）。
        */
       beginNextTurn?: { activeUserId: string };
+      /** 🆕発動中の効果欄の発動元（解決した効果。盤面から読めない経路＝スタック解決・カットイン）。 */
+      lingeringSource?: LingeringSource;
     }
   /**
    * 決着：勝者を確定しゲームを終了する（global_phase='FINISHED'＋winner_id）。
@@ -226,7 +229,9 @@ function settleDeadStack(bs: BattleStateRow, patch: Partial<BattleStateRow>): Pa
 }
 
 export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
-  return settleDeadStack(bs, reduceBattleRaw(bs, action));
+  // 🆕2026-10-23＝**発動中の効果欄**の記録＝全部の書き込みが通るここで前後の状態を比べる（`lingeringEffects.ts`）。
+  return annotateLingeringNotes(bs, settleDeadStack(bs, reduceBattleRaw(bs, action)),
+    (action as { lingeringSource?: LingeringSource }).lingeringSource);
 }
 
 function reduceBattleRaw(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {

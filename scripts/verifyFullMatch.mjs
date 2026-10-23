@@ -484,6 +484,7 @@ async function playOneStep(S, st, blocked = new Set()) {
 async function playToFinish(seats, tag) {
   const t0 = Date.now();
   let steps = 0, lastLog = '', lastFp = '', lastFpAt = Date.now(), lastBeat = Date.now();
+  let lingeringShot = false;
   const noChange = new Map();   // 手 → 「指紋が変わらないまま押した回数」
   const blocked = new Set();    // この盤面では効かないと分かった手
   const query = makeQuery(seats[0].page);
@@ -514,6 +515,19 @@ async function playToFinish(seats, tag) {
     //   （アタック済みルリグのカード詳細に「アタック」が残る等）。それを進捗と数えると
     //   **手詰まり検出をすり抜けて制限時間まで空回りする**（初回実行はこれで 1,351手 空転した）。
     //   ⇒ 進捗は**盤面の指紋が変わったか**で測り、変わらない手は3回で封印する。
+    // 🆕2026-10-23＝**発動中の効果欄**が初めて出たら1枚撮る（表示の目視用）＋開いた状態も1枚。
+    if (!lingeringShot) {
+      const panel = seats[0].page.locator('[data-testid="lingering-effects"]');
+      if (await panel.count().catch(() => 0) > 0) {
+        lingeringShot = true;
+        await seats[0].page.screenshot({ path: `${SHOT}/lingering-closed.png` }).catch(() => {});
+        await panel.first().click().catch(() => {});
+        await sleep(300);
+        await seats[0].page.screenshot({ path: `${SHOT}/lingering-open.png` }).catch(() => {});
+        console.log(`   発動中の効果欄: ${(await panel.first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300)}`);
+        await panel.first().click().catch(() => {});
+      }
+    }
     const fp = fingerprint(st);
     if (fp !== lastFp) { lastFp = fp; lastFpAt = Date.now(); noChange.clear(); blocked.clear(); }
     const idleSec = (Date.now() - lastFpAt) / 1000;

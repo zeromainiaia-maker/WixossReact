@@ -489,6 +489,8 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
     action: {
       type: 'RESOLVE_EFFECT_STEP', hostState: hostAcc, guestState: guestAcc,
       pending: pendingAcc, effectStack: stackAcc, beginNextTurn: forceEndNextTurn,
+      // 🆕発動中の効果欄＝解決したのはこのエントリ（盤面の `effect_stack` はもう先頭を外している）。
+      lingeringSource: { playerId: entry.playerId, cardNum: entry.cardNum, effectId: entry.effectId },
     },
     logs,
   };

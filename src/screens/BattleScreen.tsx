@@ -79,6 +79,7 @@ import {RemoveZoneModal} from './battle/modals/RemoveZoneModal';
 import {LifeBurstCheckModal} from './battle/modals/LifeBurstCheckModal';
 import {allZoneBurstGrantMatches} from './battle/allZoneBurst';
 import {EndDiscardModal} from './battle/modals/EndDiscardModal';
+import {LingeringEffectsPanel} from './battle/LingeringEffectsPanel';
 import {BanishSubstituteModal} from './battle/modals/BanishSubstituteModal';
 import {PhaseConfirmDialogs} from './battle/modals/PhaseConfirmDialogs';
 import {SpellCastModal} from './battle/modals/SpellCastModal';
@@ -5819,6 +5820,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             }}>▼</div>
           </div>
         )}
+
+        {/* 🆕2026-10-23＝発動中の効果（盤面に出ない付与・禁止など）。記録は reduceBattle が書く（lingeringEffects.ts）。 */}
+        <LingeringEffectsPanel my={my} op={op} cardMap={battleCardMap} effectsMap={effectsMap} onZoom={setLogZoomCard} />
 
         {/* 相手盤面 */}
         <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>

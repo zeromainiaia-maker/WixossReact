@@ -311,6 +311,8 @@ export const performCutinUse = async (
         pending: result.done ? null : ({ sourcePlayerId: p.actorId, sourceCardNum: cutinInstanceId, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
         ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
         ...(cutinBeginNextTurn ? { beginNextTurn: cutinBeginNextTurn } : {}),
+        // 🆕発動中の効果欄＝盤面の `pending_spell` は相手のスペル＝発動元はこのカットイン。
+        lingeringSource: { playerId: p.actorId, cardNum: cutinInstanceId, effectId: cutinEff.effectId },
       }));
     } finally {
       ctx.io.setLoading(false);
