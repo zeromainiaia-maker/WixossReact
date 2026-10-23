@@ -419,6 +419,9 @@ function battleScreenSource(): string {
     fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf8'),
     // 🆕2026-10-21＝相手側の後始末は3経路共通の `nextTurnPlayer.ts` へ出した（地点の数は 6→4＝較正であって退化ではない）。
     fs.readFileSync(join(root, 'src/screens/battle/nextTurnPlayer.ts'), 'utf8'),
+    // 🆕2026-10-24＝盤面の同期（Realtime・書き込みの記録・取りこぼしの見張り）を `hooks/useBattleSync.ts` へ出した。
+    fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSync.ts'), 'utf8'),
+    fs.readFileSync(join(root, 'src/screens/battle/hooks/useCpuDriver.ts'), 'utf8'),
   ].join('\n');
 }
 
@@ -90097,7 +90100,7 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   eq(cpuWaitingForHuman(base), false, '待ちでない盤面を待ちと見た');
 
   // ⑤🔴配線の固定＝依存を手で選ぶ形に戻さない／起動は runCpuTurn（再入防止）を通す
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   ok(battle.includes('}, [isCpuBattle, cpuKey, runCpuTurn]);'), '🔴CPU の起動が盤面の中身（cpuBattleKey）を依存にしていない（手で選んだ依存は取りこぼして永久停止する）');
   // ログだけの更新ではタイマーをリセットしない（リセットすると CPU の行動が遅れる）。
   eq(cpuBattleKey(base), cpuBattleKey({ ...base, game_logs: [{ action: 'y' }] } as unknown as BattleStateRow), '🔴ログの追記だけで CPU の起動の鍵が変わる');
@@ -93004,7 +93007,9 @@ test('§5.1 V-284 じゃんけんの解決は再レンダーで作り直さな�
   // ⑥ 🆕2026-10-23（ユーザー報告＝バージョンアップ後の初回だけ「相手の選択を待っています」で止まる）
   //   ＝CPU の手は盤面を読んだ直後の1回だけ出していた＝届かなければ永久に待つ。
   //   ⇒ **人間の手が入ったら CPU の起動を張り直す**（依存に `host_janken`）＋**DB に手があれば出し直さず読み直す**。
-  const cpuSetupDeps = srcV284.slice(srcV284.indexOf('// ── CPU 対戦：セットアップ自動行動'), srcV284.indexOf('// ── CPU 対戦：ターン自動行動'));
+  // 🆕2026-10-24＝CPU の起動は `hooks/useCpuDriver.ts` へ出した。
+  const cpuDriverSrc = fs.readFileSync(join(root, 'src/screens/battle/hooks/useCpuDriver.ts'), 'utf-8');
+  const cpuSetupDeps = cpuDriverSrc.slice(cpuDriverSrc.indexOf('// ── CPU 対戦：セットアップ自動行動'), cpuDriverSrc.indexOf('// ── CPU 対戦：ターン自動行動'));
   ok(/\[isCpuBattle, bs\?\.setup_phase, bs\?\.host_janken, bs\?\.guest_janken/.test(cpuSetupDeps),
     '🔴CPU のセットアップ起動が人間の手（host_janken）で張り直されない（CPU の手が届かないと永久に待つ）');
   const cpuJk = srcV284.slice(srcV284.indexOf('const cpuSetupAction = async'), srcV284.indexOf("if (phase === 'LRIG_SELECT' && cpuDeckData)"));
@@ -95775,7 +95780,7 @@ test('2026-10-23 CPU 戦のじゃんけんの後「次のフェイズへ移行�
   ok(!own({ pendingCommits: 1 }), '書き込み中に読み直している');
   ok(!own({ now: t0 + 100 }), '書いた直後（通知の通常の遅れ）に読み直している');
   ok(!own({ lastCommitUpdatedAt: '' }), 'まだ何も書いていないのに読み直している');
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = battleScreenSource();
   ok(src.includes('setupResyncDue({ globalPhase: bsRef.current?.global_phase'), '🔴画面がセットアップの見張りを使っていない');
   ok(src.includes('const ownDue = ownCommitResyncDue({'), '🔴画面が「自分の書き込みが届かない」見張りを使っていない');
   ok(src.includes('fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)'), '🔴読み直した行を新旧を見ずに反映している');

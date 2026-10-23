@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
-import { useOnResume } from '../utils/resumeSync';
 import { CHEER_ZONE, cheerCardOf, signiStackAt } from '../engine/cheerZone';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
@@ -11,7 +10,7 @@ import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToReso
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
 import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers} from '../engine/triggerCollect';
 import {coinLedger} from '../engine/coinAbilityNegation';
-import {allAcceCards, normalizeAcceSlots} from '../utils/acce';
+import {allAcceCards} from '../utils/acce';
 import {C, CardModal, HandCards, PlayerField} from '../components/BoardComponents';
 import type {CardAction} from '../components/BoardComponents';
 import {consumeLifeCrashReplaceDecision} from './battle/lifeCrashReplace';
@@ -109,7 +108,8 @@ import {useRemoveZone, useGuardResponses, useEndDiscard, useZoomOverlays} from '
 import {useBattleSession, DECK_DATA_COLUMNS} from './battle/hooks/useBattleSession';
 import {useBattleLog} from './battle/hooks/useBattleLog';
 import {useGameStartSetup, useSigniSummonFlow} from './battle/hooks/useSetupFlow';
-import {useBattlePersist} from './battle/controller/persist';
+import {useBattleSync} from './battle/hooks/useBattleSync';
+import {useCpuDriver} from './battle/hooks/useCpuDriver';
 import {makeBoardDiffCollector, type BoardDiffCollector} from './battle/controller/boardDiffTriggers';
 // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝盤面の材料（カード表・効果表・有効パワー）の本体。
 import {buildBattleCardMap, buildBaseEffectsMap, buildAugmentedEffectsMap, buildEffectivePowers} from './battle/controller/battleMaterials';
@@ -150,7 +150,6 @@ import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
 import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
-import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer} from './battle/cpuDriver';
 import {normalizeCpuDeckPlan} from './battle/cpuDeckPlan';
 // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝CPU の対話応答の振り分け（純関数）。
 import {decideCpuInteractionResponse} from './battle/cpuInteractionRespond';
@@ -181,62 +180,19 @@ import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
 import {splitLogsByVisibility} from '../engine/hiddenInfo';
 import {canShowPrivateLog} from './battle/privateLogVisibility';
 
-/**
- * 🔴**DB から来た行の `signi_acce` 旧形式（素の string）をここで一度だけ配列へ正す**（タスク12(cxxxiv)）。
- * `setBs` は「外部（fetch / Realtime）から状態が入ってくる唯一の入口」なので、ここを通せば
- * 以降の全消費地点（`acceCardsAt` を通らない生アクセスも含む）が配列だけを見る。
- * ⚠正規化が不要な行は**同一参照のまま返す**（毎 UPDATE で新オブジェクトを作ると再描画が増えるため）。
- */
-function normalizeBattleRow(row: BattleStateRow): BattleStateRow {
-  let changed = false;
-  const fix = (s: PlayerState): PlayerState => {
-    const slots = s?.field?.signi_acce;
-    if (!slots) return s;
-    const next = normalizeAcceSlots(slots);
-    if (next === slots) return s;
-    changed = true;
-    return { ...s, field: { ...s.field, signi_acce: next } };
-  };
-  const host = fix(row.host_state), guest = fix(row.guest_state);
-  return changed ? { ...row, host_state: host, guest_state: guest } : row;
-}
-
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
-  const [bs, setBsRaw] = useState<BattleStateRow | null>(null);
-  const setBs = useCallback(
-    (row: BattleStateRow | null) => setBsRaw(row ? normalizeBattleRow(row) : row), []);
+  const leavingRef = useRef(false);
+  // 盤面の同期（state・書き込みの記録・Realtime・取りこぼしの見張り）＝`battle/hooks/useBattleSync.ts`
+  const { bs, setBs, bsRef, persist, pendingCommitsRef, lastCommitUpdatedAtRef, ownCommitsArrived } = useBattleSync({
+    roomId,
+    onRoomDeleted: () => { if (!leavingRef.current) { leavingRef.current = true; onBack(); } },
+  });
   // 試合セッション/構成レベル（読み込み・自/CPU デッキ・CPU 戦フラグ）
   const {
     loading, setLoading, myDeckData, setMyDeckData,
     isCpuBattle, setIsCpuBattle, cpuDeckData, setCpuDeckData,
   } = useBattleSession();
-  const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Stage3 seam：battle_states 永続化チョークポイント（純粋 reduceBattle の出力を commit で書き込む）
-  const persistRaw = useBattlePersist(roomId);
-  // 🆕§5.1 `V-247`＝**処理中の書き込み数と、最後に書き込んだ行の `updated_at`**（CPU の二重実行を防ぐ＝`runCpuTurn` が見る）。
-  //   ⚠書き込みはすべてここを通る＝人間の操作も含めて記録する（CPU の判定が人間の書き込みの通知も待つのは正しい）。
-  const pendingCommitsRef = useRef(0);
-  const lastCommitUpdatedAtRef = useRef('');
-  const persist = useMemo(() => ({
-    ...persistRaw,
-    commit: async (patch: Parameters<typeof persistRaw.commit>[0]) => {
-      pendingCommitsRef.current += 1;
-      try {
-        const res = await persistRaw.commit(patch);
-        const ua = res.data?.[0]?.updated_at;
-        if (ua && updatedAtKey(ua) > updatedAtKey(lastCommitUpdatedAtRef.current)) lastCommitUpdatedAtRef.current = ua;
-        return res;
-      } finally {
-        pendingCommitsRef.current -= 1;
-      }
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [persistRaw.commit, persistRaw.fetchState, persistRaw.remove]);
-  /** 自分の書き込みが全部終わり、最後に書いた行の通知が手元の `bs` に届いているか（`cpuDriver.ts` `lastCommitArrived`）。 */
-  const ownCommitsArrived = (row: BattleStateRow | null | undefined) => lastCommitArrived({
-    pendingCommits: pendingCommitsRef.current, localUpdatedAt: row?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current,
-  });
   // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
   const { mulliganSelected, setMulliganSelected } = useGameStartSetup();
   // シグニ召喚ゾーン選択フロー
@@ -451,7 +407,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const transitioningRef = useRef(false);
   /** 🆕§5.1 `V-284`＝じゃんけんの解決を予約した「手の組」（再レンダーで張り直さないための鍵）。 */
   const jankenResolveRef = useRef<string | null>(null);
-  const leavingRef = useRef(false);
   const stackProcessingRef        = useRef(false);  // resolveStackNext の多重実行防止
   const lastResolvedEntryIdRef    = useRef<string | null>(null); // 直前に処理したキュー先頭のID（DB伝播前の二重処理防止）
   const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
@@ -474,8 +429,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理の二重処理防止の指紋（旧 `last*KeyRef` 5本）は
   //   `controller/ruleChecks.ts` の `RuleCheckMemo` に束ねた。🔴**毎回作り直さない**（指紋が消えると同じ処理を何度も書く）。
   const ruleMemoRef = useRef(createRuleCheckMemo());
-  const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
-  const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
 
   // フェーズ変化をバトルログに記録（アクティブプレイヤーのみDB書き込み）
   useEffect(() => {
@@ -552,38 +505,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
   }, [roomId, myDeckId]);
 
-  // 🆕2026-10-01（ユーザー要望）＝**アプリが前面に戻ったら DB から盤面を取り直し、リアルタイムの購読を張り直す**
-  //   （`utils/resumeSync.ts`）。iPhone はホーム画面へ出るとページを止める＝裏にいる間の通知を取りこぼし、
-  //   戻っても次の更新が来るまで古い盤面のままだった。⚠強制リロードはしない（ほかの画面の状態を消さない）。
-  const [resumeTick, setResumeTick] = useState(0);
-  useOnResume(() => {
-    persist.fetchState().then(({ data }) => { if (data) setBs(data as BattleStateRow); });
-    setResumeTick(t => t + 1);
-  });
-
-  useEffect(() => {
-    // ⚠張り直しのたびに**別の名前**で作る＝同じ名前だと外した直後の古いチャンネルと取り違えうる。
-    const channel = supabase
-      .channel(`battle-${roomId}-${resumeTick}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'battle_states', filter: `room_id=eq.${roomId}`,
-      }, (payload) => { setBs(payload.new as BattleStateRow); })
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}`,
-      }, () => {
-        if (!leavingRef.current) { leavingRef.current = true; onBack(); }
-      })
-      .subscribe((status) => {
-        // 接続後に最新データを再取得（リロード時に Realtime が間に合わない場合の対策）
-        if (status === 'SUBSCRIBED') {
-          persist.fetchState()
-            .then(({ data }) => { if (data) setBs(data as BattleStateRow); });
-        }
-      });
-
-    return () => { supabase.removeChannel(channel); };
-  }, [roomId, resumeTick]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     if (!bs) return;
     const isHost = user.id === bs.host_id;
@@ -632,143 +553,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs?.global_phase === 'PLAYING') setLoading(false);
   }, [bs?.global_phase]);
 
-  // ── CPU 対戦：セットアップ自動行動 ──────────────────────────
-  // 🔴🆕2026-10-23（ユーザー報告＝「バージョンアップ後の初回だけ、じゃんけんが『相手の選択を待っています』で止まる」）
-  //   ＝CPU が手を出す機会は**盤面を読んだ直後の1回だけ**だった＝その書き込みが届かない／通知を取りこぼすと
-  //   （キャッシュが空で接続の立ち上がりが遅い初回）、人間が手を出しても CPU は出し直さず永久に待つ。
-  //   ⇒ **人間の手（`host_janken`）が入ったら、CPU の手がまだ見えていなければ出し直す**（依存に足した）。
-  //   出し直しは同じ欄（`guest_janken`）の上書きなので、DB に既に手があっても害は無い（通知が来て画面が進む）。
-  useEffect(() => {
-    if (!bs || !isCpuBattle || bs.global_phase !== 'SETUP') return;
-    if (bs.setup_phase === 'JAN_KEN'     && bs.guest_janken)        return;
-    if (bs.setup_phase === 'LRIG_SELECT' && bs.guest_lrig_selected) return;
-    if (bs.setup_phase === 'MULLIGAN'    && bs.guest_mulligan_done) return;
-    if (bs.setup_phase === 'LRIG_SELECT' && !cpuDeckData)           return;
-    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
-    cpuTimerRef.current = setTimeout(() => { cpuSetupRef.current?.(); }, CPU_ACTION_DELAY);
-    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
-  }, [isCpuBattle, bs?.setup_phase, bs?.host_janken, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]); // eslint-disable-line react-hooks/exhaustive-deps
+  // CPU の起動（セットアップ・ターン）と見張り＝`battle/hooks/useCpuDriver.ts`
+  const { cpuTurnRef, cpuSetupRef, cpuRunningRef } = useCpuDriver({
+    bs, bsRef, setBs, persist, isCpuBattle, cpuDeckData, pendingCommitsRef, lastCommitUpdatedAtRef,
+  });
 
-  // ── CPU 対戦：ターン自動行動 ──────────────────────────────────
-  // 🔴🆕§5.1 `V-247`（2026-09-17）＝**CPU の起動を3点で守る**（判定は `cpuDriver.ts`）。
-  //   ①**依存は盤面の更新そのもの（`bs`）**＝旧実装は依存を手で選んでいた（ルリグのトップ・行動履歴の長さ …）。
-  //     選ばれていない値だけを動かす行動（CPU のライズ＝手札と場／アシストグロウ＝アシストの枠／`cpu_used_card_nums_this_turn`）の後は
-  //     **依存が動かず二度と起動しない**＝永久停止（過去にも `v78CpuGrowsButSkipsOnPlayWithoutCoin` で同じ形を1本ずつ足していた）。
-  //   ②**実行中は重ねない**＝ENERGY のように「書く → 900ms 待つ → 次を書く」行動は、待っている間に1段目の通知で再起動し、
-  //     **古い盤面で同じ分岐をもう1回**走らせうる（GROW への遷移・開始時トリガーの二重収集）。
-  //   ③**止まったら DB を読み直す**（見張り）＝Realtime の取りこぼし／行動中に届いた通知の破棄で止まった盤面を、
-  //     ローカルと DB が違えば反映・同じなら再実行で再開する。⚠**読み直さずに再実行しない**（古い盤面で二重に動く）。
-  const bsRef = useRef(bs);
-  bsRef.current = bs;
-  const cpuRunningRef = useRef(false);
-  const cpuDroppedRef = useRef(false);
-  /** 通知待ちで起動を捨てた＝**盤面の中身が変わらない更新**が届いたときにも起動し直す（鍵が動かないので通常の起動が来ない）。 */
-  const cpuWaitingEchoRef = useRef(false);
-  const cpuLastBsChangeAtRef = useRef(Date.now());
-  const cpuLastRunEndAtRef = useRef(0);
-  const cpuResyncRef = useRef<((reason: string) => Promise<void>) | null>(null);
-  // ⚠依存は**ログを除いた盤面の中身**（`cpuBattleKey`）＝ログの追記だけでタイマーをリセットしない。
-  const cpuKey = useMemo(() => cpuBattleKey(bs), [bs]);
-  useEffect(() => { cpuLastBsChangeAtRef.current = Date.now(); }, [cpuKey]);
-  const runCpuTurn = useCallback(async (force = false) => {
-    if (cpuRunningRef.current) { cpuDroppedRef.current = true; return; }
-    // 🔴**最後の書き込みの通知がまだ届いていない盤面では走らない**（`force`＝見張りが DB と照合済みのときだけ免除）。
-    //   1回の実行が「シグニ配置を書く → 待つ → 使用済みの印を書く → アシストグロウを書く」と続くと、
-    //   先の書き込みの通知で次の実行が始まり、**後の書き込みが届いていない盤面で同じアシストグロウをもう一度選んでいた**
-    //   （機構デッキの通し対戦で3戦とも再現＝「[CPU] アシストグロウ」のログが2行続いた）。
-    //   届けば盤面の鍵が変わって起動が積まれ直すので、ここで捨ててよい（届かなければ見張りが読み直す）。
-    if (!force && !lastCommitArrived({
-      pendingCommits: pendingCommitsRef.current, localUpdatedAt: bsRef.current?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current,
-    })) { cpuWaitingEchoRef.current = true; return; }
-    cpuRunningRef.current = true;
-    cpuDroppedRef.current = false;
-    try {
-      await cpuTurnRef.current?.();
-    } catch (e) {
-      console.error('[CPU] 行動中に例外', e);
-    } finally {
-      cpuRunningRef.current = false;
-      cpuLastRunEndAtRef.current = Date.now();
-      // 実行中に届いた起動を捨てた＝その通知が「最後の書き込みの通知」だと、もう起動が来ない。読み直して確かめる。
-      if (cpuDroppedRef.current) {
-        cpuDroppedRef.current = false;
-        setTimeout(() => { void cpuResyncRef.current?.('実行中の起動を破棄'); }, CPU_ACTION_DELAY * 2);
-      }
-    }
-  }, []);
-  // 通知待ちで起動を捨てた後、盤面の中身が変わらない更新（ログ追記など）で届いた場合も起動し直す。
-  useEffect(() => {
-    if (!cpuWaitingEchoRef.current || !isCpuBattle || !cpuShouldAct(bs)) return;
-    if (!lastCommitArrived({ pendingCommits: pendingCommitsRef.current, localUpdatedAt: bs?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current })) return;
-    cpuWaitingEchoRef.current = false;
-    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
-    cpuTimerRef.current = setTimeout(() => { void runCpuTurn(); }, CPU_ACTION_DELAY);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs, isCpuBattle, runCpuTurn]);
-  cpuResyncRef.current = async (reason: string) => {
-    if (cpuRunningRef.current) return;
-    const { data } = await persist.fetchState();
-    const local = bsRef.current;
-    if (!data || !local) return;
-    const fresh = normalizeBattleRow(data as BattleStateRow);
-    if (!sameBattleForCpu(local, fresh)) {
-      console.warn(`[CPU watchdog] ${reason}: 盤面を DB から読み直して反映（phase=${fresh.turn_phase}）`);
-      setBs(fresh);
-      return;
-    }
-    if (!cpuShouldAct(fresh) || cpuWaitingForHuman(fresh)) return;
-    console.warn(`[CPU watchdog] ${reason}: 盤面が動かないので CPU を再実行（phase=${fresh.turn_phase} turn=${fresh.turn_count}）`);
-    void runCpuTurn(true);
-  };
-  useEffect(() => {
-    if (!isCpuBattle || !cpuShouldAct(bs)) return;
-    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
-    cpuTimerRef.current = setTimeout(() => { void runCpuTurn(); }, CPU_ACTION_DELAY);
-    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCpuBattle, cpuKey, runCpuTurn]);
-  // 見張り（2秒ごと）。⚠人間の応答待ち（`cpuWaitingForHuman`）では**再実行しない**（`cpuResyncRef` が DB の行で判定する）。
-  // 🔴🆕2026-09-20＝**応答待ちでも読み直しだけはする**。旧＝応答待ちの盤面では見張りそのものを止めていた＝
-  //   人間が【ガードしない】を押した後の通知（クラッシュ→チェックゾーン）を取りこぼすと、画面は「ルリグに攻撃された！」のまま
-  //   **ライフバースト確認を覆い続け、二度と DB を読まない**（実機 `verifyFullMatch.mjs cpu` の T2 で手詰まり＝DB はライフ5・画面は6）。
-  useEffect(() => {
-    if (!isCpuBattle) return;
-    const id = setInterval(() => {
-      const cur = bsRef.current;
-      if (!cpuWatchdogShouldCheck({
-        shouldAct: cpuShouldAct(cur),
-        running: cpuRunningRef.current, now: Date.now(),
-        lastBsChangeAt: cpuLastBsChangeAtRef.current, lastRunEndAt: cpuLastRunEndAtRef.current,
-      })) return;
-      cpuLastBsChangeAtRef.current = Date.now();   // 読み直しの連打を防ぐ
-      void cpuResyncRef.current?.('盤面が一定時間動かない');
-    }, 2000);
-    return () => clearInterval(id);
-  }, [isCpuBattle]);
-
-  // 通知の取りこぼしの見張り＝①セットアップ中に盤面が動かない（`setupResyncDue`）②自分の書き込みが画面に届かない（`ownCommitResyncDue`）
-  //   ときに DB を読み直す（CPU 戦・PvP とも）。Realtime の起動し直しの途中の書き込みは通知されない（実測）。
-  const setupLastChangeAtRef = useRef(Date.now());
-  useEffect(() => { setupLastChangeAtRef.current = Date.now(); }, [bs?.updated_at]);
-  useEffect(() => {
-    const id = setInterval(async () => {
-      const now = Date.now(), lastChangeAt = setupLastChangeAtRef.current;
-      const setupDue = setupResyncDue({ globalPhase: bsRef.current?.global_phase, now, lastChangeAt });
-      const ownDue = ownCommitResyncDue({
-        pendingCommits: pendingCommitsRef.current, localUpdatedAt: bsRef.current?.updated_at,
-        lastCommitUpdatedAt: lastCommitUpdatedAtRef.current, now, lastChangeAt,
-      });
-      if (!setupDue && !ownDue) return;
-      setupLastChangeAtRef.current = now;   // 読み直しの連打を防ぐ
-      const { data } = await persist.fetchState();
-      if (data && fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)) {
-        console.warn(`[resync watchdog] ${ownDue ? '自分の書き込みが届かない' : 'セットアップが動かない'}: 盤面を DB から読み直して反映（${(data as BattleStateRow).global_phase}/${(data as BattleStateRow).setup_phase ?? (data as BattleStateRow).turn_phase}）`);
-        setBs(data as BattleStateRow);
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
 
   // CPU対戦：effectスタック整列をCPUが自動確定

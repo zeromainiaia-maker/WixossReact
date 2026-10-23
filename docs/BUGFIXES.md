@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第563バッチ）BattleScreen の分割：盤面の同期を `useBattleSync`、CPU の起動を `useCpuDriver` へ（挙動は変えない）
+- **なぜ**＝第561・562の「止まる」はどちらも同期まわり（Realtime・書き込みの記録・見張り）で、判定は純関数（`cpuDriver.ts`）に出したが配線は本体に散っていた。本体 5,902行 → **5,692行**。
+- **`battle/hooks/useBattleSync.ts`**＝盤面の state（`normalizeBattleRow` を通す `setBs`）・`bsRef`・`persist.commit` を包む書き込みの記録（`pendingCommitsRef`／`lastCommitUpdatedAtRef`／`ownCommitsArrived`）・Realtime の購読と前面復帰の張り直し・取りこぼしの見張り（セットアップ／自分の書き込み）。部屋が消えた通知は `onRoomDeleted` で画面へ返す。
+- **`battle/hooks/useCpuDriver.ts`**＝CPU のセットアップ起動・ターン起動（`runCpuTurn`＝重ねない・通知を待つ）・CPU の見張り。CPU が**何をするか**（`cpuSetupAction`／`cpuTurnAction`）は画面側のまま `cpuSetupRef`／`cpuTurnRef` に入れる。⚠前回「`runCpuTurn` が891行」と見立てたのは測り方の誤り（実体27行・一帯で約135行）。
+- ⚠本文は書き写さずスクリプトで切り貼りした（effect の並び順も同じ位置）。ref を引数で受けるようになったので依存配列へ ref を足した（不変なので再生成しない）。`useCpuDriver` の CPU デッキの型は `object | null`（`lrig_deck: string[]` と書くと `census:deadstate` が書き込みと数えて 34→35 に化けた）。
+- **golden**＝本体だけを読んでいた配線検査3本（`V-247`／`V-284`／第561）を新しい hook も読むように変更（`battleScreenSource()` に2ファイル追加）。**反転確認**＝hook 側の依存・見張りを壊すと3本とも FAIL。全件 4534/4534・`npm run gates` 全緑（lint warning 292→291）。
+- **実機**（`src/screens/` を触ったので必須）＝CPU 通し対戦 PASS（7ターン/177手）／`DROP_REALTIME_SETUP=1`（セットアップの間 Realtime を切る）でも Realtime なしでセットアップを通過して PASS（7ターン/178手）／PvP 2ブラウザの `verifyRewind.mjs` PASS。見張りは1戦に3〜4回働いた（第562と同じ頻度＝分割で増えていない）。
+
 ## 2026-10-23（第562バッチ）対戦中に自分の書き込みが画面に届かず止まる（人間のエンドフェイズで「ターン終了」が効かない）／ディーバの CPU デッキ54個
 - 🔴**症状（実機）**＝CPU の山をディーバ（《ディーバ／アキノ／蒼森ミネ軸》）にした通し対戦で**3回中2回**、人間のエンドフェイズで手詰まり。DB には①の解決済みの印（`end_turn_effects_resolved`）が立っているのに、画面は「自動解決が届くまで受け付けない」で「ターン終了」を門前払いし続けた。CPU の見張りは CPU が動く場面しか見ないので、人間の手番で自分の書き込みの通知が落ちると誰も読み直さない。
 - **直し方**＝第561の見張りを一般化＝**自分の書き込みが 2.5 秒たっても画面に届かなければ、フェイズを問わず DB を読み直す**（`cpuDriver.ts` の `ownCommitResyncDue`）。読み直したらコンソールに `[resync watchdog]` を出し、通し対戦はその行を「見張り:」として出力する。
