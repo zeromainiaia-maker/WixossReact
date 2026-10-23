@@ -311,6 +311,7 @@ import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 import { isResumeEvent } from '../src/utils/resumeSync';
 import { signiPlaceableByLimit } from '../src/engine/placeLimitGate';
 import { signiStackView } from '../src/components/BoardComponents';
+import { payOnPlayCost, type OnPlayCostSelections } from '../src/screens/battle/onPlayCostPayment';
 import { handCardActions, signiZoneActions, type CardActionCtx, type CardActionHandlers, type FieldActionCtx, type FieldActionHandlers } from '../src/screens/battle/cardActions';
 
 // ── データ読み込み ──
@@ -431,6 +432,8 @@ function battleScreenSource(): string {
     fs.readFileSync(join(root, 'src/screens/battle/hooks/useCpuDriver.ts'), 'utf8'),
     // 🆕2026-10-24＝カードを押したときの操作一覧（手札・トラッシュ・エナ・ルリグデッキ）を `cardActions.ts` へ出した。
     fs.readFileSync(join(root, 'src/screens/battle/cardActions.ts'), 'utf8'),
+    // 🆕2026-10-24＝【出】コストの支払いの計算を `onPlayCostPayment.ts` へ出した。
+    fs.readFileSync(join(root, 'src/screens/battle/onPlayCostPayment.ts'), 'utf8'),
   ].join('\n');
 }
 
@@ -30252,8 +30255,8 @@ test('§5.3 O-328: classMatchesDiscardSigni の母集団は全件【出】で、
   }
   ok(withClass.length >= 5, `母集団が5効果以上ある（実測 ${withClass.length}）`);
   // 🔴**記録地点そのものを見る**＝ここが消えると上の前提が黙って崩れる（§5-2″）。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  const onPlayBody = screen.slice(screen.indexOf('const executeSigniOnPlayCost'));
+  // 🆕2026-10-24＝【出】コストの支払いの計算は `onPlayCostPayment.ts`（`executeSigniOnPlayCost` から呼ぶ）へ移した。
+  const onPlayBody = fs.readFileSync(join(root, 'src/screens/battle/onPlayCostPayment.ts'), 'utf8');
   ok(/last_discarded_signi_class:\s*discardNums\.length > 0/.test(onPlayBody),
     'executeSigniOnPlayCost が捨てたシグニの CardClass を記録する（O-328 の本丸）');
 });
@@ -50361,8 +50364,9 @@ test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで ap
   // §5.7 `S-5c` 第2段（2026-09-18）＝`perform*` は `controller/` へ移設したので**まとめて**読む（サイト数は据え置き）。
   const controllerFiles = fs.readdirSync(join(root, 'src/screens/battle/controller'))
     .filter(f => f.endsWith('.ts')).map(f => 'src/screens/battle/controller/' + f);
+  // 2026-10-24＝【出】コストの支払いを `onPlayCostPayment.ts` へ移設（サイト数は据え置き）。
   const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts',
-    'src/screens/battle/handActivateCost.ts', ...controllerFiles];
+    'src/screens/battle/handActivateCost.ts', 'src/screens/battle/onPlayCostPayment.ts', ...controllerFiles];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
@@ -72151,7 +72155,7 @@ test('§5.3 O-245: reduce_next_on_play_cost が【出】コストから引かれ
   ok(modal.includes('const energyTotal = onPlayEnergy.reduce('), '枚数は減額後');
   ok(modal.includes('const costStr = onPlayEnergy.map('), '色文字列も減額後');
   // 🔴**1回で消費する**＝残すとこのターン中ずっと軽減され続ける（過剰実行）。
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const bs = fs.readFileSync(join(root, 'src/screens/battle/onPlayCostPayment.ts'), 'utf8');   // 2026-10-24 移設
   const payIdx = bs.indexOf('let paid: PlayerState = opcPay.applyTo({');
   ok(payIdx > 0, '【出】コストの支払い地点がある');
   ok(bs.slice(payIdx, payIdx + 900).includes('reduce_next_on_play_cost: undefined'), '支払い時に消費している');
@@ -95865,6 +95869,43 @@ test('2026-10-24 場のシグニの操作一覧（cardActions.ts の signiZoneAc
   eq(labels(ctx({ my: mk({ actionsDone: ['ENERGY'] }) })), '[]', '🔴エナチャージ済みなのにもう一度出る');
   eq(labels(ctx({ isMyTurn: false })), '[]', '🔴相手のエナフェイズにボタンが出る');
   eq(labels(ctx({ loading: true })), '[]', '🔴処理中にボタンが出る（二度押し）');
+}));
+
+test('2026-10-24 【出】コストの支払い（onPlayCostPayment.ts）を盤面から直接計算する＝コイン・手札を捨てる・手札をエナへ', () => withSavedCursor(() => {
+  // 画面の `executeSigniOnPlayCost` の計算部分を純関数へ出した＝「捨てた札の台帳」「捨てたシグニのレベル・クラス」の記録を直接固定する。
+  const discarded = findCard(c => isSigni(c) && c.Level === '2' && !!c.CardClass && c.CardClass !== '-');
+  const other = SIGNI_L1;
+  const sel = (o: Partial<OnPlayCostSelections> = {}): OnPlayCostSelections => ({
+    costIndices: new Set(), discardIndices: new Set(), energyTrashIndices: new Set(), fieldTrashZones: new Set(), beatZones: new Set(),
+    exceedIndices: new Set(), underTrashKeys: new Set(), virusZones: [], charmPicks: [], signiOnPlayCharmTrashVar: 0,
+    selectedSigniOnPlayTrashToDeck: new Set(), selectedSigniOnPlayArtsTrash: null, ...o,
+  });
+  const placed = () => { const st = mkState({ hand: 0, coins: 2 }); st.hand = [discarded, other]; return st; };
+  const pay = (cost: object, o: Partial<OnPlayCostSelections> = {}, st = placed()) => payOnPlayCost({
+    cardNum: SIGNI, costEffect: { effectId: 'T-E1', effectType: 'AUTO', cost } as unknown as CardEffect, placedState: st,
+    my: mkState(), myEnergyPayPool: [], energyPayCtx: { turnPhase: 'MAIN', isMyTurn: true, effectsMap: new Map() } as unknown as Parameters<typeof payOnPlayCost>[0]['energyPayCtx'],
+    op: mkState(), battleCardMap: cardMap, sel: sel(o),
+  });
+  // ① 手札を捨てる＝トラッシュへ・台帳・捨てたシグニのレベルとクラス（O-328）
+  const d = pay({}, { discardIndices: new Set([0]) })!;
+  ok(!!d, '払えるのに null');
+  eq(JSON.stringify(d.discardNums), JSON.stringify([discarded]), '捨てた札が違う');
+  ok(d.paid.trash.includes(discarded) && !d.paid.hand.includes(discarded), '🔴捨てた札がトラッシュへ行かない');
+  eq(d.paid.last_discarded_signi_level, 2, '🔴捨てたシグニのレベルを記録しない（COST_DISCARDED_SIGNI_LEVEL）');
+  eq(d.paid.last_discarded_signi_class, cardMap.get(discarded)!.CardClass, '🔴捨てたシグニのクラスを記録しない（O-328）');
+  eq(d.paid.turn_hand_discarded_count, 1, '🔴「このターン手札から捨てた」台帳に載らない（V-101②）');
+  // ② 手札をエナへ＝捨てたことにならない
+  const e = pay({ handToEnergy: { count: 1 } }, { discardIndices: new Set([0]) })!;
+  eq(JSON.stringify(e.discardNums), '[]', '🔴手札→エナを「捨てた」と数えている');
+  ok(e.paid.energy.includes(discarded) && !e.paid.trash.includes(discarded), '🔴手札→エナの札がエナに置かれない');
+  // ③ コイン
+  const c = pay({ coin: 1 })!;
+  eq(c.paid.coins, 1, '🔴コインが減らない'); eq(c.paid.coins_paid_this_turn, 1, '🔴支払ったコインを記録しない'); eq(c.coinCostOPC, 1, 'コインのコストが違う');
+  eq(pay({ coin: 3 }), null, '🔴コインが足りないのに払えている');
+  // ④ 純関数＝入力の盤面を書き換えない
+  const st = placed();
+  pay({ coin: 1 }, { discardIndices: new Set([0]) }, st);
+  eq(st.hand.length, 2, '🔴入力の盤面を書き換えた'); eq(st.coins, 2, '🔴入力のコインを書き換えた');
 }));
 
 test('2026-10-24 CPU の召喚も人間の「召喚」ボタンと同じ条件＝限定条件・宣言したシグニ（レベル0・限定無視）・場の合計レベル', () => withSavedCursor(() => {

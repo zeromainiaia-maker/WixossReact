@@ -1,5 +1,10 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第567バッチ）BattleScreen の分割（続き）：【出】コストの支払いの計算を純関数 `onPlayCostPayment.ts` へ（挙動は変えない）
+- **移したもの**＝`executeSigniOnPlayCost` の前半＝選んだ支払いから「払った後の自分の盤面・ログ・捨てた札・相手の盤面」を計算する部分（約200行）＝`battle/onPlayCostPayment.ts` の `payOnPlayCost`。**React にも DB にも触らない**。書き込み・ログ・トリガー収集・次のコストへの連鎖は画面に残した。本文はスクリプトで移し、変えたのは中断の `return` → `return null` と、相手の盤面（【ウィルス】の除去）を書き込まずに返す所だけ。画面は**同じ位置**（ログより前）でその盤面を書き込む。本体 4,941行 → **4,767行**（今日の分割で 5,902 → 4,767）。
+- **golden**＝新規1本（手札を捨てる＝トラッシュ・台帳・捨てたシグニのレベルとクラス／手札→エナは「捨てた」に数えない／コイン／入力の盤面を書き換えない）＝クラスの記録を外すと FAIL（反転確認）。本体だけを読んでいた検査6本（`O-328`／`O-245`／`O-256`／エナ支払い元の14サイト／報告 `08499934` 同型2本）を移設先も読むように変更（サイト数は据え置き）。全件 4538/4538・`npm run gates` 全緑。
+- **実機**＝【出】コストのモーダルを押す5シナリオ（`b66TurnEndDelayInstalled` 手札を捨てる／`banishbyeffect` エナ／`exceedBanishGateA` エクシード／`censusHandDiscardedBuruakaFires`・`…OtherClassNoop` 捨てた札の台帳）。⚠**1回目は2本 FAIL**（`b66…` と `census…Fires`・所要 23秒/30秒と遅い）→ 退避して HEAD で回すと PASS → 変更ありで2回回して**2回とも PASS**（15秒/16秒）＝バッチの1本目の立ち上がりの揺れと判断。⚠`exceedBanishGateA` は **HEAD でも同じ文言で FAIL**＝既知の型（シナリオ自身が「Opusタスク12(ci)と同型＝`OPPONENT_PAY_OPTIONAL` に `costColors` が無く CPU が無料の「支払う」を選ぶ」と出す）＝今回とは無関係・未対応。
+
 ## 2026-10-24（第566バッチ）BattleScreen の分割（続き）：場のシグニ・ルリグ・キー・アシストの操作一覧も `cardActions.ts` へ（挙動は変えない）
 - **移したもの**＝`signiZoneActions`／`lrigFieldActions`／`keyPieceActions`／`assistActions`（約470行）。第564と同じ形＝盤面の事実（`FieldActionCtx`）と押したときの処理（`FieldActionHandlers`）を受け取る純関数・本文は一字も変えずにスクリプトで移設（本文内の `import('../types/effects')` だけ置き場の深さに合わせて `../../` へ）。チアゾーンの2行（`getMyFreeZoneActions`）は画面に残した。本体 5,409行 → **4,941行**（今日の分割で 5,902 → 4,941）。
 - **golden**＝新規1本（場のシグニの「エナチャージ」を盤面から直接引く＝空のゾーン・チャージ済み・相手ターン・処理中）＝チャージ済みの判定を外すと FAIL（反転確認）。本体だけを読んでいた配線検査2本（アシストルリグの【起】／`212005fc` のアタック不可表示）を `cardActions.ts` も読むように変更。全件 4537/4537・`npm run gates` 全緑。
