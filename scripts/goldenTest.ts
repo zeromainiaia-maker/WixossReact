@@ -184,7 +184,7 @@ import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardP
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
-import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, SETUP_RESYNC_IDLE_MS, setupResyncDue, fetchedRowIsNewer } from '../src/screens/battle/cpuDriver';
+import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, SETUP_RESYNC_IDLE_MS, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices, spellChargeKeep } from '../src/screens/battle/cpuHandLimit';
 import { cpuShouldChargeEnergy, fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
@@ -95768,8 +95768,16 @@ test('2026-10-23 CPU 戦のじゃんけんの後「次のフェイズへ移行�
   ok(!fetchedRowIsNewer('2026-10-23T13:26:12.1+00:00', '2026-10-23T13:26:15.424928+00:00'), '🔴古い行で手元の盤面を巻き戻す');
   ok(!fetchedRowIsNewer('2026-10-23T13:26:15.424928+00:00', '2026-10-23 13:26:15.424928+00'), '同じ時刻（表記違い）を新しいと見ている');
   ok(!fetchedRowIsNewer(null, '2026-10-23T13:26:15+00:00'), '時刻の無い行を新しいと見ている');
+  // 対戦中＝自分の書き込みが画面に届かないまま止まる（人間のエンドフェイズで「ターン終了」が効かない形）
+  const own = (o: Partial<Parameters<typeof ownCommitResyncDue>[0]>) => ownCommitResyncDue({ pendingCommits: 0, localUpdatedAt: '2026-10-23T13:45:01+00:00', lastCommitUpdatedAt: '2026-10-23T13:45:06.385588+00:00', now: t0 + SETUP_RESYNC_IDLE_MS, lastChangeAt: t0, ...o });
+  ok(own({}), '🔴自分の書き込みが届かないのに読み直さない（エンドフェイズで止まる）');
+  ok(!own({ localUpdatedAt: '2026-10-23T13:45:06.385588+00:00' }), '届いているのに読み直している');
+  ok(!own({ pendingCommits: 1 }), '書き込み中に読み直している');
+  ok(!own({ now: t0 + 100 }), '書いた直後（通知の通常の遅れ）に読み直している');
+  ok(!own({ lastCommitUpdatedAt: '' }), 'まだ何も書いていないのに読み直している');
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(src.includes('setupResyncDue({ globalPhase: bsRef.current?.global_phase'), '🔴画面がセットアップの見張りを使っていない');
+  ok(src.includes('const ownDue = ownCommitResyncDue({'), '🔴画面が「自分の書き込みが届かない」見張りを使っていない');
   ok(src.includes('fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)'), '🔴読み直した行を新旧を見ずに反映している');
 }));
 

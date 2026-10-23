@@ -732,6 +732,8 @@ async function runCpuMatch(browser, url) {
     if (!(await driveSetup([S], 'cpu'))) return { pass: false, detail: 'セットアップが PLAYING へ到達しなかった', errs };
     if (realtimeBlocked) { realtimeBlocked = false; console.log('   セットアップ通過（Realtime なし）→ 接続を通す'); }
     const r = await playToFinish([S], 'cpu');
+    // 🆕2026-10-23＝通知の取りこぼしを見張りが拾った回を出す（拾わずに通った回と区別する＝`[resync watchdog]`／`[CPU watchdog]`）。
+    for (const l of consoleTail.filter(x => /watchdog]/.test(x))) console.log('   見張り:', l);
     // §5.6 `C-3`＝機構踏破計器の入力。**決着しなくても書く**（途中で詰まった試合も「どこまで踏んだか」の材料）。
     await dumpPlayLogs(page, DECK_NAME === 'VERIFY_DECK' && CPU_DECK_NAME === DECK_NAME ? 'cpu' : `cpu-${DECK_NAME}${CPU_DECK_NAME === DECK_NAME ? '' : `-vs-${CPU_DECK_NAME}`}`);
     await page.screenshot({ path: `${SHOT}/cpu-final.png`, fullPage: true }).catch(() => {});

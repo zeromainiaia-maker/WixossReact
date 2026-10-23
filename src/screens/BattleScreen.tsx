@@ -150,7 +150,7 @@ import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
 import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
-import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, setupResyncDue, fetchedRowIsNewer} from './battle/cpuDriver';
+import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer} from './battle/cpuDriver';
 import {normalizeCpuDeckPlan} from './battle/cpuDeckPlan';
 // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝CPU の対話応答の振り分け（純関数）。
 import {decideCpuInteractionResponse} from './battle/cpuInteractionRespond';
@@ -746,23 +746,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return () => clearInterval(id);
   }, [isCpuBattle]);
 
-  // セットアップの見張り（`setupResyncDue`）＝Realtime の起動し直しで落ちた書き込みに追いつく（CPU 戦・PvP とも）。
+  // 通知の取りこぼしの見張り＝①セットアップ中に盤面が動かない（`setupResyncDue`）②自分の書き込みが画面に届かない（`ownCommitResyncDue`）
+  //   ときに DB を読み直す（CPU 戦・PvP とも）。Realtime の起動し直しの途中の書き込みは通知されない（実測）。
   const setupLastChangeAtRef = useRef(Date.now());
   useEffect(() => { setupLastChangeAtRef.current = Date.now(); }, [bs?.updated_at]);
   useEffect(() => {
-    if (bs?.global_phase !== 'SETUP') return;
     const id = setInterval(async () => {
-      if (!setupResyncDue({ globalPhase: bsRef.current?.global_phase, now: Date.now(), lastChangeAt: setupLastChangeAtRef.current })) return;
-      setupLastChangeAtRef.current = Date.now();   // 読み直しの連打を防ぐ
+      const now = Date.now(), lastChangeAt = setupLastChangeAtRef.current;
+      const setupDue = setupResyncDue({ globalPhase: bsRef.current?.global_phase, now, lastChangeAt });
+      const ownDue = ownCommitResyncDue({
+        pendingCommits: pendingCommitsRef.current, localUpdatedAt: bsRef.current?.updated_at,
+        lastCommitUpdatedAt: lastCommitUpdatedAtRef.current, now, lastChangeAt,
+      });
+      if (!setupDue && !ownDue) return;
+      setupLastChangeAtRef.current = now;   // 読み直しの連打を防ぐ
       const { data } = await persist.fetchState();
       if (data && fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)) {
-        console.warn(`[setup watchdog] 盤面を DB から読み直して反映（setup=${(data as BattleStateRow).setup_phase}）`);
+        console.warn(`[resync watchdog] ${ownDue ? '自分の書き込みが届かない' : 'セットアップが動かない'}: 盤面を DB から読み直して反映（${(data as BattleStateRow).global_phase}/${(data as BattleStateRow).setup_phase ?? (data as BattleStateRow).turn_phase}）`);
         setBs(data as BattleStateRow);
       }
     }, 1000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.global_phase]);
+  }, []);
 
 
   // CPU対戦：effectスタック整列をCPUが自動確定

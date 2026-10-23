@@ -116,6 +116,18 @@ export function setupResyncDue(p: { globalPhase: string | null | undefined; now:
   return p.globalPhase === 'SETUP' && p.now - p.lastChangeAt >= SETUP_RESYNC_IDLE_MS;
 }
 
+/**
+ * 🆕同日（同じ根）＝**自分の書き込みが画面に届かないまま止まっているか**（フェイズを問わない）。
+ *   実機の通し対戦（CPU がディーバの山）で3回中2回、人間のエンドフェイズで止まった＝DB には①の解決済みの印
+ *   （`end_turn_effects_resolved`）が立っているのに「ターン終了」が効かない（自動解決が画面に届くまで受け付けない）。
+ *   CPU の見張りは CPU が動く場面しか見ないので、人間の手番で自分の書き込みの通知が落ちると誰も読み直さない。
+ */
+export function ownCommitResyncDue(p: { pendingCommits: number; localUpdatedAt: string | null | undefined; lastCommitUpdatedAt: string; now: number; lastChangeAt: number }): boolean {
+  if (p.pendingCommits > 0 || !p.lastCommitUpdatedAt) return false;
+  if (updatedAtKey(p.localUpdatedAt) >= updatedAtKey(p.lastCommitUpdatedAt)) return false;
+  return p.now - p.lastChangeAt >= SETUP_RESYNC_IDLE_MS;
+}
+
 /** 読み直した行が手元より新しいか（新しいときだけ差し替える＝通知と競っても盤面を巻き戻さない）。 */
 export function fetchedRowIsNewer(fetchedUpdatedAt: string | null | undefined, localUpdatedAt: string | null | undefined): boolean {
   const f = updatedAtKey(fetchedUpdatedAt);
