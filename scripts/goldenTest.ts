@@ -434,6 +434,8 @@ function battleScreenSource(): string {
     fs.readFileSync(join(root, 'src/screens/battle/cardActions.ts'), 'utf8'),
     // 🆕2026-10-24＝【出】コストの支払いの計算を `onPlayCostPayment.ts` へ出した。
     fs.readFileSync(join(root, 'src/screens/battle/onPlayCostPayment.ts'), 'utf8'),
+    // 🆕2026-10-24＝セットアップ画面（じゃんけん・マリガンを押したときの処理を含む）を `SetupPhaseView.tsx` へ出した。
+    fs.readFileSync(join(root, 'src/screens/battle/SetupPhaseView.tsx'), 'utf8'),
   ].join('\n');
 }
 
@@ -93001,7 +93003,8 @@ test('§5.1 V-284 じゃんけんの解決は再レンダーで作り直さな�
   // 🔑**この形は golden にも smoke にも映らない**（純関数は全部正しい＝壊れていたのは React の予約の仕方）
   //   ⇒ **ソースの形で固定する**（このプロジェクトの React 配線ガードと同じやり方）。
   // ⚠**実機の通し対戦そのものが最終的な証拠**＝修正後は `dist` 作り直し直後の初回で PASS（第449・450バッチ）。
-  const srcV284 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  // 2026-10-24＝クリック経路（handleJanken）は `SetupPhaseView.tsx` へ移した＝画面の後ろに足して読む。
+  const srcV284 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/SetupPhaseView.tsx'), 'utf-8');
   // ① 予約は「手の組」で1つだけ＝同じ組で再レンダーしても作り直さない
   ok(/jankenResolveRef/.test(srcV284), '🔴じゃんけんの解決に予約の鍵（`jankenResolveRef`）が無い');
   const branch = srcV284.slice(
