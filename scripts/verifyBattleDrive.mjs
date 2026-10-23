@@ -12064,6 +12064,9 @@ const scenarios = {
       let grown = false;
       let exceedPicked = 0;
       let activated = false;
+      // 🆕2026-10-24（`O-547`）＝「発動」直後は【出】効果がまだスタックに載っているだけ＝**スタックも空で2回続けて落ち着いてから**判定する。
+      //   旧＝払い終えて対話が無い最初の周で判定しており、解決前の盤面を見て「バニッシュされない」と FAIL していた。
+      let settledStreak = 0;
       for (let s = 0; s < 26; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exceedBanishGateA-${s}.png`, fullPage: true });
@@ -12087,8 +12090,9 @@ const scenarios = {
         const st = await H.queryState();
         const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
         const exceedSpent = (st?.host?.lrigUnder ?? -1) === 0 && st?.host?.lrigTop?.startsWith('WX24-P4-018');
-        H.log(`  exgA[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} lrigUnder=${st?.host?.lrigUnder} exceedSpent=${exceedSpent} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
-        if (exceedSpent && !st?.pendingEffect) {
+        H.log(`  exgA[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} lrigUnder=${st?.host?.lrigUnder} exceedSpent=${exceedSpent} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? "-"} pEff=${st?.pendingEffect ?? '-'}`);
+        settledStreak = (exceedSpent && !st?.pendingEffect && !(st?.stackLen > 0)) ? settledStreak + 1 : 0;
+        if (settledStreak >= 2) {
           return {
             pass: banished,
             detail: banished
@@ -17773,7 +17777,10 @@ async function findReusableRoom(page) {
     if (!key) return null;
     const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
     const h = { apikey: ANON, Authorization: `Bearer ${token}` };
-    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+    // 🔴2026-10-24（`O-547`）＝**相手が CPU の部屋だけ**を再利用する。旧＝host だけで探しており、直前の PvP の確認
+    //   （`verifyRewind.mjs`＝guest は claude2）の部屋を拾った＝相手のブラウザが無いので「対戦相手が選ぶ」対話に誰も答えず止まった
+    //   （`exceedBanishGateA` が CHOOSE のまま FAIL）。PvP の部屋が残っていれば下の掃除で消して CPU 戦を作り直す。
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&guest_id=eq.00000000-0000-0000-0000-000000000001&status=eq.PLAYING&select=id`, { headers: h });
     const roomId = (await r1.json())?.[0]?.id; if (!roomId) return null;
     const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state`, { headers: h });
     const row = (await r2.json())?.[0]; if (!row) return null;

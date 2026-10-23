@@ -2822,6 +2822,8 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 **未確認**＝①「支払う」が無料で出るのが表示だけか（支払いの選択肢の作り方）、CPU の応答（`decideCpuInteractionResponse` の任意支払いの選び方）か ②同じ形（`OPPONENT_PAY_OPTIONAL` で色のコストが無く手札を捨てる形）の母集団。
 **取り方**＝まず `npm run census:population -- "捨てないかぎり"` で母集団を測り、`exceedBanishGateA` を反転の観測点にする。
 
+🏁**2026-10-24 同日クローズ**（BUGFIXES 第569バッチ）＝**カードもエンジンも正しかった**。FAIL はハーネスの不具合2つ＝①`findReusableRoom` が PvP の確認（`verifyRewind`）の部屋を再利用し、相手（claude2）のブラウザが無いので相手の選択に誰も答えなかった ②「発動」直後のスタックに載っただけの盤面で判定していた。シナリオの FAIL 文言は固定の見立てだった（エンジンは「タスク12(ci)」で既に直っていた）。⚠**見立てを登録する前に、止まった部屋の行を DB で読む**（`pending_effect.respondPlayerId` と `guest_id` で一発で分かった）。
+
 ## O-546 デッキを探している間に割り込む【常】（2026-10-22 登録）
 
 **見つけ方**＝選択系の外にある「手札に加える」（`ADD_TO_HAND`／`fromTop` の無い `TRANSFER_TO_HAND{DECK_CARD}`）を全数で洗った（BUGFIXES 第545バッチ）。ほかの3効果は直し、これだけ受け皿が無い。

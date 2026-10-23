@@ -15,9 +15,9 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①機構 `O-547`（実機 `exceedBanishGateA` が HEAD でも FAIL＝相手が払う任意コストで CPU が無料の「支払う」を選ぶ）②**ディーバ総当たりの所見112件**（`DUP`/`SHAPE` ほか・未調査＝`scratchpad-cpudecks-diva/games.txt`）③**自分の書き込みの通知が頻繁に届かない真因**（見張りが1戦に3〜4回働いて回復しているが原因は未特定）④実機で未確認の2点（第553 リフレッシュ2回目の手札捨て・第555 WX10-051 の発動中の効果欄）⑤機構 `O-546`｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
+| 🔥**次に取るもの** | 🏁`O-547` は第569でクローズ（ハーネスの不具合）／①**ディーバ総当たりの所見112件**（`DUP`/`SHAPE` ほか・未調査＝`scratchpad-cpudecks-diva/games.txt`）②**自分の書き込みの通知が頻繁に届かない真因**（見張りが1戦に3〜4回働いて回復しているが原因は未特定）③実機で未確認の2点（第553 リフレッシュ2回目の手札捨て・第555 WX10-051 の発動中の効果欄）④機構 `O-546`｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
-| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **2**（`O-546`・`O-547`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
 | ⚠**直近の不具合** | 🏁じゃんけん後の停止は真因特定・修正済み（第561＝Realtime の起動し直しの途中の書き込みは通知されない）｜⚠通知の取りこぼし自体は見張りで回復しているだけ（③） |
 | 🔧**ゲート** | `npm run gates` 全緑（golden **4538**・lint error **0**）｜実機 `verifyFullMatch cpu`／`DROP_REALTIME_SETUP=1`／`verifyRewind` PASS |
 | 🆕🔑**この回の芯** | ①**画面の判定は純関数へ出して golden から直接呼ぶ**（`battle/cardActions.ts`＝ボタンの一覧／`onPlayCostPayment.ts`＝【出】コストの支払い）②**人間と CPU が別々に書いた判定は食い違う**＝CPU の召喚は「○○限定」を見ていなかった（第565）③**移設は本文をスクリプトで切り貼り**＋golden の「本体の本文を数える検査」は `battleScreenSource()`／`screenWithCardActions()` に新ファイルを足す（LESSONS §4.2） |
@@ -289,11 +289,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 A'. 実機が出した配線ギャップ
 
-| ID | 何が無いか | 母集団 | 規模 |
-|---|---|---|---|
-| `O-547` | 相手が払う任意コスト（`OPPONENT_PAY_OPTIONAL`）に色のコストが載っていない形で、CPU が無料の「支払う」を最優先で選び本体（バニッシュ）が不発＝実機 `exceedBanishGateA`（`WX24-P4-018-E2`）が HEAD でも FAIL | 未計測（取る前に実測） | M |
-
-（`O-535` は 2026-09-19 にクローズ＝PLAN_DETAIL）
+🏁**残0**（`O-547` は 2026-10-24 にクローズ＝ハーネスの不具合・BUGFIXES 第569バッチ。`O-535` は 2026-09-19 にクローズ＝PLAN_DETAIL）
 
 #### 索引 I. parser 側で直すもの
 
@@ -509,7 +505,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 - **2026-10-24 時点**（Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件・v0.655〜0.663）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
-  - 📦**在庫**＝機構 worklist **2**（`O-546`・`O-547`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4538**＝+7・lint error **0**＝git 外の `tmp_artcount.ts` を片づけた）｜実機 `verifyFullMatch cpu`・`DROP_REALTIME_SETUP=1`・`verifyRewind` PASS
   - 🧱**`BattleScreen.tsx`**＝**4,459行**（5,902 → 4,459・分割先＝`hooks/useBattleSync.ts`／`hooks/useCpuDriver.ts`／`cardActions.ts`／`onPlayCostPayment.ts`／`SetupPhaseView.tsx`）
   - 🃏**CPU デッキ**＝カルカドール 116／claude1 118（claude1 だけに検証用の `VERIFY_DECK`・`VERIFY_DECK_MECH`）＝ディーバ54デッキを追加
