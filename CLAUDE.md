@@ -40,7 +40,7 @@ WixossカードゲームのReactクローン実装。
 - `scripts/addWX01.mjs` などのWEL化スクリプトは削除済み（WEL化は廃止）
 
 ## ディレクトリ規約（2026-07-05整理）
-- `src/screens/battle/` — BattleScreen の分割先（純関数ヘルパー＋ `modals/` のモーダル部品。共有コンテキストは `modals/types.ts` の `BattleModalCtx`）。**BattleScreen の新規モーダル/ヘルパーはここに置く**（本体に足さない。分割の経緯と継続レシピは PLAN.md §4）。
+- `src/screens/battle/` — BattleScreen の分割先（純関数ヘルパー＋ `modals/` のモーダル部品。共有コンテキストは `modals/types.ts` の `BattleModalCtx`）。**BattleScreen の新規モーダル/ヘルパーはここに置く**（本体に足さない。分割のやり方は `docs/LESSONS.md` §4.2「BattleScreen を分割するとき」）。🆕2026-10-24＝盤面の同期（Realtime・書き込みの記録・取りこぼしの見張り）は `hooks/useBattleSync.ts`／CPU の起動と見張りは `hooks/useCpuDriver.ts`／カードを押したときのボタンの一覧は `cardActions.ts`（純関数＝golden から直接呼べる）／【出】コストの支払いの計算は `onPlayCostPayment.ts`（純関数）／セットアップ画面は `SetupPhaseView.tsx`（本体 5,902 → 4,459行）。
 - `scripts/` — **現役ツールのみ**（package.json の npm scripts・CI・docs の現行ワークフローから参照される約27本）。ここに one-off を溜めない。
 - `scripts/archive/` — **適用済み one-off スクリプト・過去レポートの保管庫**（旧ルート散在分と旧 `scratchpad/` の中身＝`scripts/archive/scratchpad/`）。実行しない歴史記録。BUGFIXES.md 等の過去ログ内パスは移動先に更新済み。
 - **使い捨ての調査・検証スクリプトは `tmp_*` 名で作業**（gitignore済み・`/scratchpad/` も廃止済みで無視される）。記録に残す価値があるものだけ、適用後に `scripts/archive/` へ移して BUGFIXES.md から参照する。

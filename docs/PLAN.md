@@ -11,16 +11,16 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-10-23＝CPU 思考と知識ベースの CPU デッキ／発動中の効果欄／クラスの数え方（R-58）／表記ゆれ18組の統合（v0.651〜0.654）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第551〜558バッチ。前回（カード知識ベース・レガシー CPU デッキ）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+**直近＝2026-10-23〜24＝Supabase の権限・Realtime の取りこぼしの見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件（v0.655〜0.663）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第559〜568バッチ。前回（CPU 思考・知識ベースの CPU デッキ・表記ゆれの統合）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**カード知識ベースで CPU デッキを作る続き**＝レガシーは知識ベースの3デッキ（タウィル・LoV・にじさんじ）をカルカドールへ登録済み／**ディーバは作り直しが要る**（第548で旧生成分を削除）＝`buildCpuDecks.ts` → `climbCpuDecks.ts --validate` ②**実機で未確認の2点**＝リフレッシュ2回目のターン終了で人間が手札を捨てるモーダル（第553）／WX10-051 の発動中の効果欄（第555）③機構 `O-546` |
+| 🔥**次に取るもの** | ①機構 `O-547`（実機 `exceedBanishGateA` が HEAD でも FAIL＝相手が払う任意コストで CPU が無料の「支払う」を選ぶ）②**ディーバ総当たりの所見112件**（`DUP`/`SHAPE` ほか・未調査＝`scratchpad-cpudecks-diva/games.txt`）③**自分の書き込みの通知が頻繁に届かない真因**（見張りが1戦に3〜4回働いて回復しているが原因は未特定）④実機で未確認の2点（第553 リフレッシュ2回目の手札捨て・第555 WX10-051 の発動中の効果欄）⑤機構 `O-546`｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
-| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
-| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠CPU 戦のじゃんけん停止（第549）は「更新直後の初回」をまだ再現して見ていない |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4531**・lint は git 外の `tmp_artcount.ts` だけ）｜実機 `verifyFullMatch cpu` PASS（第554・`採用／エマ`） |
-| 🆕🔑**この回の芯** | ①**シグニのクラスは「：」の後ろだけを数える**＝分け方は `engine/cardClasses.ts` の `signiClassesOf` 1本（R-58）②**カードの本体は表記を揃えた名前で1枚**＝割れたら golden が落ちる／移した番号は `utils/mergedCardNums.ts` が読み込み時に付け替える③**カードの枚数が変わると POOL の並びが動き、並びに依存したテストが落ちる**＝条件のある札は決め打ちで選ぶ |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **2**（`O-546`・`O-547`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| ⚠**直近の不具合** | 🏁じゃんけん後の停止は真因特定・修正済み（第561＝Realtime の起動し直しの途中の書き込みは通知されない）｜⚠通知の取りこぼし自体は見張りで回復しているだけ（③） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4538**・lint error **0**）｜実機 `verifyFullMatch cpu`／`DROP_REALTIME_SETUP=1`／`verifyRewind` PASS |
+| 🆕🔑**この回の芯** | ①**画面の判定は純関数へ出して golden から直接呼ぶ**（`battle/cardActions.ts`＝ボタンの一覧／`onPlayCostPayment.ts`＝【出】コストの支払い）②**人間と CPU が別々に書いた判定は食い違う**＝CPU の召喚は「○○限定」を見ていなかった（第565）③**移設は本文をスクリプトで切り貼り**＋golden の「本体の本文を数える検査」は `battleScreenSource()`／`screenWithCardActions()` に新ファイルを足す（LESSONS §4.2） |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -289,7 +289,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 A'. 実機が出した配線ギャップ
 
-🏁**残0**（`O-535` は 2026-09-19 にクローズ＝PLAN_DETAIL）
+| ID | 何が無いか | 母集団 | 規模 |
+|---|---|---|---|
+| `O-547` | 相手が払う任意コスト（`OPPONENT_PAY_OPTIONAL`）に色のコストが載っていない形で、CPU が無料の「支払う」を最優先で選び本体（バニッシュ）が不発＝実機 `exceedBanishGateA`（`WX24-P4-018-E2`）が HEAD でも FAIL | 未計測（取る前に実測） | M |
+
+（`O-535` は 2026-09-19 にクローズ＝PLAN_DETAIL）
 
 #### 索引 I. parser 側で直すもの
 
@@ -365,7 +369,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 **経緯・実測・クローズ注記は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「§5.6 CPU 完成度（退避）」と [BUGFIXES.md](./BUGFIXES.md)。**
 
 > **2026-09-16 新設（ユーザー決定）。** §5.3 の索引が全部 残0 になり、**静的に読む計器（census／golden／smoke／fuzz／traceinv）では届かない層**だけが残った。
-> その層＝**`BattleScreen.tsx`（16,486行）のオーケストレーション**（フェイズ進行・トリガー収集・スタック整列・コスト支払い・対話）。
+> その層＝**`BattleScreen.tsx`（新設時 16,486行・2026-10-24 時点 4,459行＝分割先は `src/screens/battle/`）のオーケストレーション**（フェイズ進行・トリガー収集・スタック整列・コスト支払い・対話）。
 > `selfPlayFuzz.ts` のヘッダが自分で「**React/supabase 結合のため本ファズの対象外**」と書いている領域で、`reduceBattle` で純粋化できているのは **18 action だけ**（`supabase` 直書きが 17箇所残）。
 
 #### 5.6.0 なぜ CPU なのか（3行）
@@ -441,7 +445,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 5.6.6 いまはやらないと決めたこと
 
-- 🔴**`BattleScreen.tsx` の完全ヘッドレス化**＝16,486行に対し `reduceBattle` は **18 action**、投資が桁で大きい。
+- 🔴**`BattleScreen.tsx` の完全ヘッドレス化**＝本体 4,459行（2026-10-24）に対し `reduceBattle` は **18 action**、投資が桁で大きい。
   ブラウザ実行でも **1戦232秒＝一晩で約120戦**回るので、**回してみて「遅すぎる」と数字で言えてから**着手する。
 - **LLM 監査バッチ**＝§2.6 の実績（precision 50%／266バッチ ≒ 940万トークン）から割に合わない。
   🔑この線での LLM（Opus）の役割は**「人間が遊んで見つけた型を、その場で機械の全数検出に翻訳する」ことだけ**。
@@ -503,11 +507,12 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-10-23 時点**（CPU 思考・知識ベースの CPU デッキ・発動中の効果欄・クラスの数え方・表記ゆれの統合・v0.651〜0.654）
+- **2026-10-24 時点**（Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件・v0.655〜0.663）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
-  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4531**＝+10・lint は git 外の作業ファイルだけ）｜実機 `verifyFullMatch cpu` PASS
-  - 🃏**カードの本体**＝**6,745枚**（レガシー 3,898・ディーバ 2,938）＝表記ゆれ18組を絵柄違いへ統合して -18（サーバント＃・タウィル＝ノルほか）
+  - 📦**在庫**＝機構 worklist **2**（`O-546`・`O-547`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4538**＝+7・lint error **0**＝git 外の `tmp_artcount.ts` を片づけた）｜実機 `verifyFullMatch cpu`・`DROP_REALTIME_SETUP=1`・`verifyRewind` PASS
+  - 🧱**`BattleScreen.tsx`**＝**4,459行**（5,902 → 4,459・分割先＝`hooks/useBattleSync.ts`／`hooks/useCpuDriver.ts`／`cardActions.ts`／`onPlayCostPayment.ts`／`SetupPhaseView.tsx`）
+  - 🃏**CPU デッキ**＝カルカドール 116／claude1 118（claude1 だけに検証用の `VERIFY_DECK`・`VERIFY_DECK_MECH`）＝ディーバ54デッキを追加
 ---
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが直さない）— 毎回まず除外

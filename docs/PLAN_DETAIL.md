@@ -2774,6 +2774,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-10-23 CPU 思考・表記ゆれの統合・PLAN §6 から退避）
+
+- **2026-10-23 時点**（CPU 思考・知識ベースの CPU デッキ・発動中の効果欄・クラスの数え方・表記ゆれの統合・v0.651〜0.654）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4531**＝+10・lint は git 外の作業ファイルだけ）｜実機 `verifyFullMatch cpu` PASS
+  - 🃏**カードの本体**＝**6,745枚**（レガシー 3,898・ディーバ 2,938）＝表記ゆれ18組を絵柄違いへ統合して -18（サーバント＃・タウィル＝ノルほか）
+
 ## 恒久指標アーカイブ（2026-10-23 カード知識ベース・レガシー CPU デッキ・PLAN §6 から退避）
 
 - **2026-10-23 時点**（カード知識ベース・レガシー CPU デッキ・バグ報告・v0.648〜0.650）
@@ -2805,6 +2813,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
   - 📦**在庫**＝🏁機構 worklist **0**（索引H＝ユーザー判断待ち **1**）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4442**＝+14）｜実機 新設 **9本** PASS（`effectSourceHeader`・`effectAnnounce`・`vimanaSelfAttack`・`nanashiP0Redirect`・`cheerZoneAttack`・`cheerZoneTargeted`・`restrictionLoss`・`cheerAcce`・`cheerEnergyCharge`）／`verifyFullMatch cpu` PASS
   - 📏**計器**＝🆕`census:cheer`（チアゾーンでは対象に何も起きない効果）**2,464 → 51**（比べた 2,432・保存則の違反 0）
+
+## O-547 相手が払う任意コストで CPU が無料の「支払う」を選ぶ（2026-10-24 登録）
+
+**見つけ方**＝第567バッチ（【出】コストの支払いの分割）の実機確認で `verifyBattleDrive.mjs exceedBanishGateA` が FAIL＝変更を退避した HEAD（v0.661）でも同じ文言で FAIL＝今回の変更とは無関係の既存の失敗。
+- シナリオの出力＝「エクシード4コストUI自体は機能（lrigUnder 0まで消費・発動ボタンで進行）したが、`OPPONENT_PAY_OPTIONAL` は `costColors` 非搭載のため無料『支払う』が常時 available → CPU が最優先で選択し banish が不発（gField zone0 残存・gHand=2＝開始時2と不変）」。
+- 対象＝`WX24-P4-018-E2`（あきら☆らぶりー）＝エクシード4 →「対戦相手が手札を3枚捨てないかぎり」バニッシュ。シナリオ自身が「Opusタスク12(ci)と同型」と書いている。
+**未確認**＝①「支払う」が無料で出るのが表示だけか（支払いの選択肢の作り方）、CPU の応答（`decideCpuInteractionResponse` の任意支払いの選び方）か ②同じ形（`OPPONENT_PAY_OPTIONAL` で色のコストが無く手札を捨てる形）の母集団。
+**取り方**＝まず `npm run census:population -- "捨てないかぎり"` で母集団を測り、`exceedBanishGateA` を反転の観測点にする。
 
 ## O-546 デッキを探している間に割り込む【常】（2026-10-22 登録）
 
