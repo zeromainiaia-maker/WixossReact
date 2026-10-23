@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第564バッチ）BattleScreen の分割（続き）：カードを押したときの操作一覧を純関数 `cardActions.ts` へ（挙動は変えない）
+- **移したもの**＝手札・相手のトラッシュ・自分のトラッシュ・エナ・ルリグデッキの操作一覧5本（約330行）＝`battle/cardActions.ts`。盤面の事実（`CardActionCtx`）と押したときの処理（`CardActionHandlers`）を受け取りボタンの一覧を返す**React 非依存の純関数**。画面は1行の委譲だけ。本体 5,692行 → **5,409行**。
+- ⚠本文はスクリプトで切り貼りし、引数を分解して同じ名前にしたので一字も変えていない。受け渡しの名前だけ `useGrantedTrashSpell` → `castGrantedTrashSpell`（`use` で始まると lint が React の hook と誤認する）。
+- 🔑**なぜ純関数にしたか**＝画面のクロージャの間は「どの盤面でどのボタンが出るか」を実機でしか確かめられなかった。**golden 新規1本**で手札の「召喚」「エナチャージ」を盤面から直接引いて固定（レベル超え・リミット超え・場が満杯・処理中・相手ターン・チャージ済み）。**反転確認**＝レベルの判定を外すと FAIL。
+- **golden の較正**＝画面本体だけを数えていた配線検査6本（`O-10`／`O-18`／`O-226`／`V-158`／`O-342` A・B）を `cardActions.ts` も読むように変更（地点の合計は据え置き）。全件 4535/4535・`npm run gates` 全緑（lint warning 291→290）。
+- **実機**（`src/screens/` を触ったので必須）＝CPU 通し対戦 PASS（7ターン/185手・人間側は手札のエナチャージを3回押した）／PvP の `verifyRewind.mjs` PASS。
+- 🔎**移す途中で見つけた食い違い（次のバッチで直す）**＝CPU が手札からシグニを出す判定（`cpuMoves.ts` の `cpuDeployPlaceable`／`cpuDeployBudget`）は、人間の「召喚」ボタンと比べて ①**「○○限定」を見ない** ②リミットが印刷値（人間は `computeEffectiveLrigLimit`＝効果の増減込み） ③「宣言したシグニはレベル0」を見ない。
+
 ## 2026-10-24（第563バッチ）BattleScreen の分割：盤面の同期を `useBattleSync`、CPU の起動を `useCpuDriver` へ（挙動は変えない）
 - **なぜ**＝第561・562の「止まる」はどちらも同期まわり（Realtime・書き込みの記録・見張り）で、判定は純関数（`cpuDriver.ts`）に出したが配線は本体に散っていた。本体 5,902行 → **5,692行**。
 - **`battle/hooks/useBattleSync.ts`**＝盤面の state（`normalizeBattleRow` を通す `setBs`）・`bsRef`・`persist.commit` を包む書き込みの記録（`pendingCommitsRef`／`lastCommitUpdatedAtRef`／`ownCommitsArrived`）・Realtime の購読と前面復帰の張り直し・取りこぼしの見張り（セットアップ／自分の書き込み）。部屋が消えた通知は `onRoomDeleted` で画面へ返す。

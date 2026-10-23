@@ -311,6 +311,7 @@ import { cardMatchesEffectSearch, searchPage } from '../src/utils/cardSearch';
 import { isResumeEvent } from '../src/utils/resumeSync';
 import { signiPlaceableByLimit } from '../src/engine/placeLimitGate';
 import { signiStackView } from '../src/components/BoardComponents';
+import { handCardActions, type CardActionCtx, type CardActionHandlers } from '../src/screens/battle/cardActions';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -408,6 +409,12 @@ function cpuRespondSource(): string {
   ].join('\n');
 }
 
+/** 🆕2026-10-24＝画面本体＋カードの操作一覧（`cardActions.ts`＝画面から出した純関数）。本体だけを数えていた検査が読む。 */
+function screenWithCardActions(): string {
+  return fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8') + '\n'
+    + fs.readFileSync(join(root, 'src/screens/battle/cardActions.ts'), 'utf8');
+}
+
 function battleScreenSource(): string {
   // 🆕2026-09-18（`S-5c` 第2段）＝`controller/` へ出した配線（スタック解決・盤面差分収集・`perform*`）も**まとめて**読む。
   const controllerDir = join(root, 'src/screens/battle/controller');
@@ -422,6 +429,8 @@ function battleScreenSource(): string {
     // 🆕2026-10-24＝盤面の同期（Realtime・書き込みの記録・取りこぼしの見張り）を `hooks/useBattleSync.ts` へ出した。
     fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSync.ts'), 'utf8'),
     fs.readFileSync(join(root, 'src/screens/battle/hooks/useCpuDriver.ts'), 'utf8'),
+    // 🆕2026-10-24＝カードを押したときの操作一覧（手札・トラッシュ・エナ・ルリグデッキ）を `cardActions.ts` へ出した。
+    fs.readFileSync(join(root, 'src/screens/battle/cardActions.ts'), 'utf8'),
   ].join('\n');
 }
 
@@ -43924,7 +43933,7 @@ test('§6.4 O-10（続き514）: 相手トラッシュの「能力を失い、�
   // 「能力を失う」の読み手2つが UI に配線されている（実挙動は §7 実機検証）。
   // 🆕2026-08-18（§6.4 O-1 (f)）＝**継承【起】ぶんの読み手は `lrigActivateGate.ts` へ移った**
   //   （人間のボタン生成と CPU の候補フィルタが同じ funnel を通るようにしたため）。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = screenWithCardActions();
   const gateSrc = fs.readFileSync(join(root, 'src/screens/battle/lrigActivateGate.ts'), 'utf8');
   eq((src.match(/isTrashImmuneByOpponent\(/g) ?? []).length, 1,
      'トラッシュ起動【起】は BattleScreen 側で見る');
@@ -43955,7 +43964,7 @@ test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約
   ok(/isSpellUseBlockedFor\(my, p\.blockedSelf, card\)/.test(src), '実行ゲート（performSpell）から呼ぶ');
   // ⚠BattleScreen 側は薄いラッパー1本だけ（スペル/クラフトのボタン生成が呼ぶ）。
   //   §5.7 `S-5c` 第2段＝`src` は実行入口（`controller/performSpell.ts`）へ移ったので、画面は別に読む。
-  const screenSrcSpell = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screenSrcSpell = screenWithCardActions();
   eq((screenSrcSpell.match(/isSpellUseBlocked\(/g) ?? []).length, 1, 'BattleScreen 側の呼び出しはスペル/クラフトの1箇所だけ（手札スペルは checkSpellUse 経由）');
   // 軸の直書きが funnel の外へ復活していないこと（＝また片側だけ塞ぐ回帰のガード）。
   eq((src.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 0,
@@ -72096,7 +72105,7 @@ test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わ
   const gl = fs.readFileSync(join(root, 'src/screens/battle/growLogic.ts'), 'utf8');
   ok(/export \{ declaredSigniOverride \} from '\.\.\/\.\.\/engine\/declaredSigni'/.test(gl),
     'screens 側が re-export になっていない（実体が2つある）');
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const bs = screenWithCardActions();
   // 手札からの召喚ゲート＝レベル0（レベル制限とリミット）と限定条件の無視の両方
   ok(bs.includes('const declaredOverride = declaredSigniOverride(my, cardData.CardName);'), '召喚ゲートで読む');
   ok(bs.includes('declaredOverride.levelZero ? 0 : (parseInt(cardData.Level) || 0)'), '基本レベルが0になる');
@@ -74605,7 +74614,7 @@ test('§5.1 V-158: ピース判定が CSV の派生型（ピース/クラフト�
   ok(!isPieceCardType('キー') && !isPieceCardType('アーツ') && !isPieceCardType(undefined),
      '🔴キー・アーツ・未定義はピースではない（キー経路を巻き込まない）');
   // 使用の4経路すべてがこの1本を通ること（片方だけ直すと「一覧には出るのに払えない」片肺になる）
-  const srcOf = (rel: string) => fs.readFileSync(join(root, rel), 'utf8').replace(/\r\n/g, '\n');
+  const srcOf = (rel: string) => (rel === 'src/screens/BattleScreen.tsx' ? screenWithCardActions() : fs.readFileSync(join(root, rel), 'utf8')).replace(/\r\n/g, '\n');
   for (const rel of ['src/screens/BattleScreen.tsx', 'src/screens/battle/modals/KeyUseModal.tsx',
                      'src/screens/battle/pieceCutin.ts']) {
     const src = srcOf(rel);
@@ -82929,7 +82938,7 @@ test('§5.3 O-342: 代替宣言なしのプール判定は旧関数と全任意�
 test('§5.3 O-342: A群6地点はプール版ヘルパへ代替宣言を渡す', () => {
   const spell = fs.readFileSync(join(root, 'src/screens/battle/spellUseGate.ts'), 'utf8');
   const arts = fs.readFileSync(join(root, 'src/screens/battle/artsUseGate.ts'), 'utf8');
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = screenWithCardActions();
   const keyGate = fs.readFileSync(join(root, 'src/screens/battle/keyPieceUseGate.ts'), 'utf8');
   const sliceFrom = (src: string, anchor: string, length: number) => {
     const start = src.indexOf(anchor);
@@ -82994,7 +83003,9 @@ test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化
     // §5.7 `S-7`（2026-09-17）＝CPU の場以外の【起】（`tryCpuOffFieldActivated`）で選択版が1地点増えた。
     // §5.7 `S-5c` 第2段（2026-09-18）＝`performGrow` を `controller/` へ移設＝画面 8 ＋ 移設先 1（**合計は据え置き**）。
     // §5.7 `S-5c` 第3段（2026-09-18）＝`cpuTurnAction` を `controller/cpuTurn.ts` へ移設＝選択版8地点がそちらへ（**合計は据え置き**）。
-    ['src/screens/BattleScreen.tsx', 0, 2, 0],
+    ['src/screens/BattleScreen.tsx', 0, 1, 0],
+    // 🆕2026-10-24＝ルリグデッキのスペル/クラフトの提示を画面から `cardActions.ts` へ移した（**合計は据え置き**）。
+    ['src/screens/battle/cardActions.ts', 0, 1, 0],
     // 🆕§5.7 `S-15`（2026-09-20）＝CPU の候補列挙を `cpuMoves.ts` へ移設。**8 → 4 は較正**（退化ではない）＝
     //   グロウ／アシストグロウ／シグニ【起】／ルリグ【起】／場以外の【起】の5地点が**同じ引数の同じ式**だったので
     //   `basicAffordable` 1本に畳んだ（残りはキー・ピース／アーツ／スペルの3本＝引数が違う）。
@@ -95784,6 +95795,49 @@ test('2026-10-23 CPU 戦のじゃんけんの後「次のフェイズへ移行�
   ok(src.includes('setupResyncDue({ globalPhase: bsRef.current?.global_phase'), '🔴画面がセットアップの見張りを使っていない');
   ok(src.includes('const ownDue = ownCommitResyncDue({'), '🔴画面が「自分の書き込みが届かない」見張りを使っていない');
   ok(src.includes('fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)'), '🔴読み直した行を新旧を見ずに反映している');
+}));
+
+// ── 2026-10-24 BattleScreen の分割：カードの操作一覧を純関数（`cardActions.ts`）へ出した ──
+test('2026-10-24 手札の操作一覧（cardActions.ts）を盤面から直接引く＝召喚・エナチャージのボタンが出る条件', () => withSavedCursor(() => {
+  // 画面のクロージャだった間は実機でしか確かめられなかった「どの盤面でどのボタンが出るか」を、ここで直接固定する。
+  const L1 = findCard(c => isSigni(c) && c.Level === '1' && (!c.Restriction || c.Restriction === '-') && !/ライズ/.test(c.EffectText ?? '') && /^\d+$/.test(c.Power ?? ''));
+  const calls: string[] = [];
+  const h = {
+    handleEnergyChargeFromHand: (i: number) => { calls.push(`charge:${i}`); },
+    setPendingSigniSummon: (v: unknown) => { calls.push(`summon:${JSON.stringify(v)}`); },
+    openSpellCast: () => { calls.push('spell'); }, setBetAmount: () => {}, openHandActivated: () => { calls.push('act'); },
+    castGrantedTrashSpell: async () => {}, openTrashActivated: () => {}, setSelectedResonaPayment: () => {},
+    setPendingResonaSummon: () => {}, openArtsModal: () => {}, openKeyModal: () => {},
+  } as unknown as CardActionHandlers;
+  const mkMy = (o: { signi?: (string | null)[]; actionsDone?: string[] } = {}) => {
+    const st = mkState({ hand: 0, signi: o.signi });
+    st.hand = [L1];
+    if (o.actionsDone) st.actions_done = o.actionsDone as PlayerState['actions_done'];
+    return st;
+  };
+  const ctx = (o: Partial<CardActionCtx> & { phase?: string } = {}): CardActionCtx => ({
+    loading: false, isMyTurn: true, bs: { turn_phase: o.phase ?? 'MAIN', pending_spell: null } as unknown as BattleStateRow,
+    my: mkMy(), op: mkState(), battleCards: [...cardMap.values()], battleCardMap: cardMap,
+    effectsMap: new Map(), baseEffectsMap: new Map(), effectivePowers: new Map(), myArtsPayerCtx: null, myEnergyPayPool: [],
+    myEnaAllMulti: false, myEnaMultiStripped: false, myColorlessOverrides: [], myColorSubs: [], myEnergyExtraColors: new Map(),
+    myWholeEnergySubstitutes: [], lrigClass: '', currentLrigLevel: 1, fieldSigniTotal: 0, lrigLimit: 5, fieldSigniCountLimit: 3,
+    isSpellUseBlocked: () => false, ...o,
+  } as unknown as CardActionCtx);
+  const labels = (c: CardActionCtx) => JSON.stringify(handCardActions(c, h, L1, 0).map(a => a.label));
+  eq(labels(ctx()), JSON.stringify(['召喚']), '🔴置ける盤面で「召喚」が出ない');
+  handCardActions(ctx(), h, L1, 0)[0].onClick();
+  eq(calls.at(-1), `summon:${JSON.stringify({ cardNum: L1, handIndex: 0 })}`, '🔴「召喚」が召喚ゾーンの選択を開かない');
+  eq(labels(ctx({ currentLrigLevel: 0 })), '[]', '🔴ルリグのレベルを超えるシグニに「召喚」が出る');
+  eq(labels(ctx({ fieldSigniTotal: 5 })), '[]', '🔴リミットを超えるのに「召喚」が出る');
+  eq(labels(ctx({ my: mkMy({ signi: [SIGNI, SIGNI, SIGNI] }) })), '[]', '🔴場が埋まっているのに「召喚」が出る');
+  eq(labels(ctx({ loading: true })), '[]', '🔴処理中にボタンが出る（二度押し）');
+  eq(labels(ctx({ isMyTurn: false })), '[]', '🔴相手のターンのメインフェイズにボタンが出る');
+  eq(labels(ctx({ phase: 'ENERGY' })), JSON.stringify(['エナチャージ']), '🔴エナフェイズに「エナチャージ」が出ない');
+  eq(labels(ctx({ phase: 'ENERGY', my: mkMy({ actionsDone: ['ENERGY'] }) })), '[]', '🔴エナチャージ済みなのにもう一度出る');
+  // 画面は1行の委譲だけ（判定を画面に書き戻さない）
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(screen.includes('handCardActions(cardActionCtx, cardActionHandlers, cardNum, handIndex)'), '🔴画面が手札の操作一覧を cardActions.ts から引いていない');
+  ok(!screen.includes('planRiseSummon('), '🔴召喚の判定が画面に書き戻されている（cardActions.ts の1本にする）');
 }));
 
 if (listMode) {
