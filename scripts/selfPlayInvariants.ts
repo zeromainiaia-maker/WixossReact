@@ -43,6 +43,8 @@ import { powerZeroBanishCandidates } from '../src/screens/battle/controller/reso
 import { buildBaseEffectsMap, buildBattleMaterials } from '../src/screens/battle/controller/battleMaterials';
 import { createHeadlessMatch, mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
+import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
+import { centerLrigAttackBlock } from '../src/screens/battle/lrigAttackGate';
 import { resolveSelfPlayDeck, listPlayableDeckNames, type SelfPlayDeck } from './selfPlayDecks';
 import { cardCsvRelPaths } from './cardDataFiles.mjs';
 import { cardsForMatch } from '../src/screens/battle/matchCards';
@@ -63,6 +65,15 @@ const OUT = arg('--out', '');
 const DECK_DIR = arg('--deck-dir', 'scratchpad-decks');
 /** 🆕発動した効果・場に出たカードの記録（1戦1行の JSON）＝`scripts/synthDecks.ts --covered` の入力。 */
 const COV_OUT = arg('--cov-out', '');
+/**
+ * 🆕2026-10-23＝**`--weak-out <f.jsonl>`＝弱い手の候補**（バグではないがおかしい手。ユーザー要望「CPU が何で負けたのか・明らかに弱い行動」）。
+ *   `GUARD_LETHAL`＝【ガード】を手札に持ったまま、とどめのルリグアタックをガードしない／
+ *   `MAIN_LEFT`＝空いたシグニゾーンがあり、出せる（レベル・リミットが合う・【ガード】でない）シグニが手札にあるのにメインフェイズを終える／
+ *   `IDLE_ATTACKER`＝アップ状態のシグニ・ルリグを残してターンを終える（2ターン目以降）／
+ *   `LOSS_LEFTOVER`＝負けた側が使わずに残したエナ・アーツ・手札。
+ * ⚠**候補出し**＝「アタックできない」効果・限定条件・色・CPU が意図して温存した札を見ていない。所見（🔴）には数えない。
+ */
+const WEAK_OUT = arg('--weak-out', '');
 const MAX_STEPS = Number(arg('--steps', '4000'));
 const JOBS = Number(arg('--jobs', '1'));
 /** 盤面もログも変わらない手がこれだけ続いたら空回り（STALL）。 */
@@ -353,6 +364,59 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
   /** 2手前の盤面（ログ行の遅れを吸収する）。 */
   let prev2Row: BattleStateRow | null = null;
   const ctxLogs = () => m.logs.slice(Math.max(0, m.logs.length - 6));
+  // ── 弱い手の候補（`--weak-out`）──
+  const weak = (kind: string, side: 'H' | 'G', turn: number, detail: string) => {
+    const f = { game: tag, kind, side, turn, detail, logs: m.logs.slice(-8) };
+    fs.appendFileSync(WEAK_OUT, JSON.stringify(f) + String.fromCharCode(10));
+    console.log(`  🟡 ${kind} ${side} T${turn} ${detail}`);
+  };
+  const keyOf = (row: BattleStateRow, id: string | null | undefined) => (id === row.host_id ? 'host_state' : 'guest_state') as 'host_state' | 'guest_state';
+  const otherKey = (k: 'host_state' | 'guest_state') => (k === 'host_state' ? 'guest_state' : 'host_state') as 'host_state' | 'guest_state';
+  const sideTag = (k: string) => (k === 'host_state' ? 'H' : 'G') as 'H' | 'G';
+  const lvOf = (id: string) => parseInt(instMap.get(id)?.Level ?? '', 10) || 0;
+  const nameOf = (id: string) => instMap.get(id)?.CardName ?? numOf(id);
+  /** このターンにルリグがアタックしたか・アタックを止める効果が出たか（ターン終了の後始末で盤面から消えるのでログで数える）。 */
+  let wTurn = -1, wLrigAttacked = false, wSkipped = false, wLrigPhase = false;
+  const weakChecks = (prev: BattleStateRow, cur: BattleStateRow, newLogs: string[]) => {
+    const ak = keyOf(prev, prev.active_user_id), dk = otherKey(ak);
+    if (prev.turn_count !== wTurn) { wTurn = prev.turn_count; wLrigAttacked = false; wSkipped = false; wLrigPhase = false; }
+    if (prev.turn_phase === 'ATTACK_LRIG') wLrigPhase = true;
+    if (newLogs.some(l => l === '[CPU] ルリグアタック')) wLrigAttacked = true;
+    if (newLogs.some(l => /アタックステップ封じ|アタックフェイズをスキップ|アタックできない/.test(l))) wSkipped = true;
+    if (newLogs.includes('[CPU] ガードしない')) {
+      const ds = prev[dk];
+      const guards = ds.hand.filter(h => instMap.get(h)?.Guard === '1');
+      if (ds.life_cloth.length === 0 && guards.length > 0) weak('GUARD_LETHAL', sideTag(dk), prev.turn_count, `ライフ0でガードせず負け（手札の【ガード】: ${guards.map(nameOf).join('・')}）`);
+    }
+    if (prev.turn_phase === 'MAIN' && cur.turn_phase !== 'MAIN' && cur.active_user_id === prev.active_user_id && !cur.winner_id) {
+      const as = cur[ak], os = cur[otherKey(ak)];
+      const empty = as.field.signi.filter(z => !z || z.length === 0).length;
+      if (empty > 0) {
+        const center = as.field.lrig.at(-1);
+        const lrigLv = center ? lvOf(center) : 0;
+        const limit = computeEffectiveLrigLimit(as, os, instMap, effectsMap, true);
+        const used = as.field.signi.reduce((t, z) => t + (z?.length ? lvOf(z.at(-1)!) : 0), 0);
+        // ⚠【ライズ】はシグニの上にしか置けない＝空きゾーンへは出せない
+        const ok = as.hand.filter(h => { const c = instMap.get(h); const lv = lvOf(h); return c?.Type === 'シグニ' && c.Guard !== '1' && !/【ライズ】/.test(c.EffectText ?? '') && lv <= lrigLv && used + lv <= limit; });
+        // 空きゾーンの正面（相手のゾーン 2-zi）に相手のシグニがいるか＝「いま殴られる穴」か「相手が次に出せば殴られる穴」か
+        const facing = as.field.signi.flatMap((z, zi) => (!z || z.length === 0) ? [os.field.signi[2 - zi]?.length ? '正面あり' : '正面なし'] : []);
+        if (ok.length > 0) weak('MAIN_LEFT', sideTag(ak), cur.turn_count, `空きゾーン${empty}（${facing.join('・')}）・リミット${used}/${limit}・出せた札: ${[...new Set(ok.map(nameOf))].join('・')}`);
+      }
+    }
+    if (prev.active_user_id && cur.active_user_id !== prev.active_user_id && cur.turn_count !== prev.turn_count && prev.turn_count > 1 && !cur.winner_id) {
+      const ps = prev[ak];
+      const up = ps.field.signi.flatMap((z, i) => (z?.length && !ps.field.signi_down?.[i] ? [nameOf(z.at(-1)!)] : []));
+      const lrigUp = !wLrigAttacked;
+      if (!wSkipped && (up.length > 0 || lrigUp)) weak('IDLE_ATTACKER', sideTag(ak), prev.turn_count, `アタックせずにターン終了: ${[...up, ...(lrigUp ? [`ルリグ[${wLrigPhase ? `ルリグアタックステップあり・${centerLrigAttackBlock(ps) ?? '可'}` : 'ルリグアタックステップに入らず'}]`] : [])].join('・')}（相手ライフ${prev[dk].life_cloth.length}）`);
+    }
+  };
+  const weakOnFinish = (row: BattleStateRow) => {
+    if (!row.winner_id) return;
+    const lk = row.winner_id === row.host_id ? 'guest_state' : 'host_state';
+    const ls = row[lk];
+    const arts = ls.lrig_deck.filter(id => instMap.get(id)?.Type === 'アーツ');
+    weak('LOSS_LEFTOVER', sideTag(lk), row.turn_count, `エナ${ls.energy.length}・手札${ls.hand.length}・未使用アーツ${arts.length}${arts.length ? `（${arts.map(nameOf).join('・')}）` : ''}`);
+  };
   for (; step < MAX_STEPS; step++) {
     let k;
     const prevRow = m.row();
@@ -381,7 +445,8 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
     }
     if (TRACE && step > MAX_STEPS - 6) { const r0 = m.row(); for (const side of ['host_state','guest_state'] as const) for (const k of new Set([...Object.keys((prevRow as any)[side]), ...Object.keys((r0 as any)[side])])) { const a = JSON.stringify((prevRow as any)[side][k]), b = JSON.stringify((r0 as any)[side][k]); if (a !== b) console.log(`   Δ ${side}.${k}: ${a?.slice(0,200)} -> ${b?.slice(0,200)}`); } for (const k of Object.keys(r0)) if (!/_state$/.test(k) && JSON.stringify((prevRow as any)[k]) !== JSON.stringify((r0 as any)[k])) console.log(`   Δ row.${k}`); }
     if (TRACE && step > MAX_STEPS - 40) { const r0 = m.row(); console.log(`step${step} ${k} actor=${m.lastActor()} phase=${r0.turn_phase} active=${r0.active_user_id===HOST_ID?'H':'G'} pend=${JSON.stringify(r0.pending_effect)?.slice(0,300)} stack=${JSON.stringify(r0.effect_stack)?.slice(0,300)} | ${m.logs.slice(-2).join(' / ')}`); }
-    if (k === 'finished') { reason = 'finished'; break; }
+    if (WEAK_OUT) weakChecks(prevRow, m.row(), m.logs.slice(logLenBefore));
+    if (k === 'finished') { reason = 'finished'; if (WEAK_OUT) weakOnFinish(m.row()); break; }
     if (k === 'idle') { reason = 'idle'; once('IDLE', { kind: 'IDLE', step, turn: m.row().turn_count, detail: `phase=${m.row().turn_phase} pend=${!!m.row().pending_effect} stack=${!!m.row().effect_stack}`, logs: ctxLogs() }); break; }
     const r = m.row();
     // 空回り＝盤面（行オブジェクト）もログも動かない手
@@ -528,7 +593,7 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_pending.json', JSON.stringify(m.row().pending_effect, null, 1), 'utf-8');
   if (TRACE) fs.writeFileSync('node_modules/.tmp/inv_trace_logs.txt', m.logs.join('\n'), 'utf-8');
   if (MIRROR && reason === 'finished') await mirrorCompare(setup.row, setup.logs, deps, rngAfterSetup, turnSnaps, m.row(), (key, f) => once(key, { game: tag, ...f }));
-  if (LOGS_OUT) { fs.mkdirSync(LOGS_OUT, { recursive: true }); fs.writeFileSync(join(LOGS_OUT, `${tag.replace(/[^\w.-]+/g, '_')}.txt`), m.logs.join(String.fromCharCode(10)), 'utf-8'); }
+  if (LOGS_OUT) { fs.mkdirSync(LOGS_OUT, { recursive: true }); fs.writeFileSync(join(LOGS_OUT, `${tag.replace(/[\\/:*?"<>|\s]+/g, '_')}.txt`), m.logs.join(String.fromCharCode(10)), 'utf-8'); }
   if (reason === 'cap') once('CAP', { kind: 'CAP', step, turn: m.row().turn_count, detail: 'step 上限', logs: ctxLogs() });
   const r = m.row();
   if (COV_OUT) fs.appendFileSync(COV_OUT, JSON.stringify({ game: tag, reason, effects: [...covEffects], field: [...covField] }) + String.fromCharCode(10));
@@ -585,7 +650,7 @@ async function runPairs(from: number, to: number) {
     const a = p0 + j * per, b = Math.min(p0 + (j + 1) * per - 1, p1);
     if (a > b) return Promise.resolve('');
     return new Promise<string>(res => {
-      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(argv.includes('--pairs-file') ? ['--pairs-file', arg('--pairs-file', '')] : []), '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+      const ch = spawn(process.execPath, ['--import', 'tsx', self, '--worker', '--pairs', `${a}-${b}`, '--seeds', SEEDS.join(','), '--steps', String(MAX_STEPS), '--deck-dir', DECK_DIR, ...(argv.includes('--pairs-file') ? ['--pairs-file', arg('--pairs-file', '')] : []), '--policy', POLICY, ...(POLICY_SET ? ['--policy-set', POLICY_SET] : []), '--resume-every', String(RESUME_EVERY), ...(RESUME_FRESH_MEMO ? ['--resume-fresh-memo'] : []), ...(MIRROR ? ['--mirror'] : []), '--answer-fuzz', String(ANSWER_FUZZ), ...(START.length ? ['--start', START.join(',')] : []), ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : []), ...(USE_ALL_ARTS ? ['--use-all-arts'] : []), ...(OUT ? ['--out', OUT] : []), ...(COV_OUT ? ['--cov-out', COV_OUT] : []), ...(WEAK_OUT ? ['--weak-out', WEAK_OUT] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
       let buf = '';
       ch.stdout.on('data', d => { buf += d; });
       ch.on('close', () => res(buf));
@@ -603,5 +668,10 @@ async function runPairs(from: number, to: number) {
     console.log(`差し替えた答え ${JSON.stringify(tot)}`);
   }
   for (const l of bad) console.log(l);
+  if (WEAK_OUT) {
+    const tally = new Map<string, number>();
+    for (const l of all.filter(l => l.startsWith('  🟡'))) { const kk = l.split(' ').slice(3, 5).join(' '); tally.set(kk, (tally.get(kk) ?? 0) + 1); }
+    console.log(`弱い手の候補（明細 → ${WEAK_OUT}）: ${[...tally].map(([kk, n]) => `${kk} ${n}`).join('／') || 'なし'}`);
+  }
   console.log(`${games.length}戦（決着 ${games.filter(l => /: finished /.test(l)).length}）｜所見 ${bad.length}｜${((Date.now() - t0) / 1000).toFixed(0)}秒${OUT ? `｜明細 → ${OUT}` : ''}`);
 })();

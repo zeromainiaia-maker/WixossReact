@@ -23,7 +23,9 @@ export function cpuShouldAct(bs: BattleStateRow | null): boolean {
   const cpuSt = bs.guest_state;
   const isCpuTurn = bs.active_user_id === CPU_PLAYER_ID;
   // ATTACK_ARTS_OP は CPU がターンプレイヤーのとき人間が担当。
-  if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn) return false;
+  // 🆕2026-10-23＝**ただし CPU のチェックゾーンにカードがある（相手のアーツで CPU のライフがクラッシュされた）ときは CPU が処理する**。
+  //   🔴旧＝窓の中で止まり、誰もライフバーストを確認しないまま永久に停止した（自己対戦で《謳金時代》のクラッシュ後に実測）。
+  if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn && !cpuSt?.field?.check && !(cpuSt?.pending_crashed_cards?.length)) return false;
   if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt?.field?.check && !cpuSt?.field?.lrig_attacked
     && !bs.pending_spell && !(cpuSt?.pending_crashed_cards?.length)) return false;
   return true;

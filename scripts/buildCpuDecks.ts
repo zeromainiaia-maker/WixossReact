@@ -76,7 +76,39 @@ ${c.BurstText ?? ''}`.matchAll(/【[^】]+】|[ァ-ヶー]{3,}|[一-龥]{1,3}状
 const classesOf = (c: CardData) => (c.CardClass ?? '').split(/[/／]/).map(s => s.split(/[：:]/).pop()!.trim()).filter(Boolean);
 const classRefs = (c: CardData) => [...textOf(c).matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
 const nameRefs = (c: CardData) => [...textOf(c).matchAll(/《([^》]+)》(?!以外)/g)].map(m => m[1]).filter(n => byName.has(n) && n !== c.CardName);
-const strength = (c: CardData) => cardStrength(c, effectsOf.get(c.CardNum) ?? [], 'deploy');
+const strengthRaw = (c: CardData) => cardStrength(c, effectsOf.get(c.CardNum) ?? [], 'deploy');
+/**
+ * 🆕2026-10-23 `--kb`＝**カード知識ベース（`src/data/cardKnowledge.json`＝Claude が1枚ずつ効果を読んで書いた解説・相性・評価値）で選ぶ**
+ *   （ユーザー指示「カードの説明書をもとに CPU 用デッキを作る」）。
+ *   強さ＝評価値 `v`（パワー換算）／相性＝`syn`（name:／class:／mech:）で、ルリグ・軸・入れた札とつながる札を先に入れる。
+ */
+const KB = argv.includes('--kb');
+interface Kb { s: string; role?: string[]; when?: string; syn?: string[]; v?: number }
+const kb: Record<string, Kb> = KB ? JSON.parse(fs.readFileSync('src/data/cardKnowledge.json', 'utf-8')) : {};
+const strength = (c: CardData) => (KB && typeof kb[c.CardNum]?.v === 'number' ? kb[c.CardNum].v! : strengthRaw(c));
+const synOf = (c: CardData, kind: string) => (kb[c.CardNum]?.syn ?? []).filter(s => s.startsWith(`${kind}:`)).map(s => s.slice(kind.length + 1));
+/** デッキの文脈（ルリグ・軸・入れた札）の名前・クラス・仕組みの集合。 */
+interface KbCtx { names: Set<string>; wantNames: Set<string>; classes: Set<string>; mechs: Set<string> }
+function kbCtxOf(cs: CardData[]): KbCtx {
+  const ctx: KbCtx = { names: new Set(), wantNames: new Set(), classes: new Set(), mechs: new Set() };
+  for (const c of cs) {
+    ctx.names.add(c.CardName);
+    for (const n of synOf(c, 'name')) ctx.wantNames.add(n);
+    for (const cl of synOf(c, 'class')) ctx.classes.add(cl);
+    for (const m of synOf(c, 'mech')) ctx.mechs.add(m);
+  }
+  return ctx;
+}
+/** 札 c が文脈とどれだけつながるか（名前で呼び合う 3／仕組みが同じ 2（2つまで）／クラス 1）。 */
+function kbSyn(c: CardData, ctx: KbCtx): number {
+  let s = 0;
+  if (ctx.wantNames.has(c.CardName)) s += 3;
+  if (synOf(c, 'name').some(n => ctx.names.has(n))) s += 3;
+  s += 2 * Math.min(2, synOf(c, 'mech').filter(m => ctx.mechs.has(m)).length);
+  if (classesOf(c).some(cl => ctx.classes.has(cl)) || synOf(c, 'class').some(cl => ctx.classes.has(cl))) s += 1;
+  return s;
+}
+const kbHand = (c: CardData) => (kb[c.CardNum]?.role ?? []).some(r => r === 'ドロー' || r === 'サーチ' || r === '回収');
 /**
  * 手札を増やす札か（ドロー・デッキ/トラッシュから手札へ）。
  * 🔑実測（ミュウ vs ナナシテスト用）＝生成デッキは終盤にエナが14〜17枚余ったまま手札が尽き、シグニを1ターン1体しか出せていなかった。
@@ -249,7 +281,9 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   const AXIS_MAX_LV = Number(arg('--axis-max-lv', '4'));
   const axisCands = cards.filter(c => fitsMain(c, core) && (c.Type === 'スペル' || (lv(c) >= 3 && lv(c) <= AXIS_MAX_LV)) && (effectsOf.get(c.CardNum)?.length ?? 0) > 0
     && (restrictedTo(c, core) || centerColor(c)));
+  const lrigCtx = kbCtxOf(lrigLines.flatMap(l => l.cards));
   axisCands.sort((a, b) => Number(restrictedTo(b, core)) - Number(restrictedTo(a, core))
+    || (KB ? kbSyn(b, lrigCtx) - kbSyn(a, lrigCtx) : 0)
     || (axisUsed.get(a.CardName) ?? 0) - (axisUsed.get(b.CardName) ?? 0)
     || (b.Type === 'シグニ' ? lv(b) : 3) - (a.Type === 'シグニ' ? lv(a) : 3)
     || strength(b) - strength(a));
@@ -311,8 +345,13 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   //   🆕ガードもレベルの枠に数える（サーバントは Lv1〜2）＝Lv1/Lv2 の枠を広げてある。
   //   🆕2026-10-21＝基準デッキの形＝Lv1 12・Lv2 12（各4枚はガード）・Lv3 8・Lv4 以上 4（軸）・スペル 4。**どの札も4枚**（種類を絞って安定させる）。
   const SLOTS: [number, number][] = [[1, 12], [2, 12], [3, 8], [4, 4], [-1, 4]];
-  const wanted = (c: CardData) => (fromStarter(c) ? 3 : 0) + synergy(c) * 3 + (handGain(c) ? 3 : 0) + (inTheme(c) ? 2 : 0) + ([...classDemand.keys()].some(cls => classesOf(c).includes(cls)) ? 1 : 0);
+  let ctx = kbCtxOf([]);
+  const wanted = (c: CardData) => KB
+    ? kbSyn(c, ctx) * 3 + (fromStarter(c) ? 2 : 0) + (kbHand(c) ? 2 : 0) + (inTheme(c) ? 2 : 0) + strength(c) / 3000
+    : (fromStarter(c) ? 3 : 0) + synergy(c) * 3 + (handGain(c) ? 3 : 0) + (inTheme(c) ? 2 : 0) + ([...classDemand.keys()].some(cls => classesOf(c).includes(cls)) ? 1 : 0);
+  const refreshCtx = () => { ctx = kbCtxOf([...lrigLines.flatMap(l => l.cards), ...new Set(main)].map(n => typeof n === 'string' ? cardMap.get(n)! : n)); };
   for (const [l, cap] of SLOTS) {
+    refreshCtx();
     for (const c of cards.filter(x => fitsMain(x, core) && (l === -1 ? x.Type === 'スペル' : x.Type === 'シグニ' && Math.min(lv(x), 4) === l && lv(x) >= 1))
       .sort((a, b) => wanted(b) - wanted(a) || strength(b) - strength(a))) {
       if (slotCount(l) >= cap || main.length >= 40) break;
@@ -321,6 +360,7 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
     }
   }
   // 足りなければ（色・限定が狭い）どのレベルでも埋める
+  refreshCtx();
   for (const c of cards.filter(x => fitsMain(x, core) && x.Type === 'シグニ' && lv(x) >= 1 && lv(x) <= 3).sort((a, b) => wanted(b) - wanted(a) || strength(b) - strength(a))) {
     if (main.length >= 40) break;
     if (isGuard(c) && guardCount() >= GUARDS) continue;
@@ -334,7 +374,8 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   const deckClasses = new Set(main.filter(n => !isGuard(cardMap.get(n)!)).flatMap(n => classesOf(cardMap.get(n)!)).filter(cls => cls !== '精元'));
   const keyFit = (k: CardData) => (theme && textOf(k).includes(`＜${theme}＞`) ? 2 : 0)
     + [...mechTerms].filter(t => textOf(k).includes(t)).length * 2
-    + classRefs(k).filter(cls => deckClasses.has(cls)).length;
+    + classRefs(k).filter(cls => deckClasses.has(cls)).length
+    + (KB ? kbSyn(k, kbCtxOf([...lrigLines.flatMap(l => l.cards), ...new Set(main.map(n => cardMap.get(n)!))])) : 0);
   const keys = keysFor(core, keyFit);
   const key = keys[keyRank];
   if (keys.length > 0 && !key) return null;
@@ -344,6 +385,7 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   const extra = () => lrigDeck.filter(n => isExtraLrigCard(cardMap.get(n)!)).length;
   const lrigSide = cards.filter(c => fitsLrigSide(c, core) && !lrigDeck.includes(c.CardNum))
     .sort((a, b) => artsUse(b) - artsUse(a) || Number(restrictedTo(b, core)) - Number(restrictedTo(a, core))
+      || (KB ? strength(b) - strength(a) : 0)
       || energyCost(a) - energyCost(b) || strength(b) - strength(a));
   const usedNames = new Set(lrigDeck.map(n => cardMap.get(n)!.CardName));
   for (const c of lrigSide) {

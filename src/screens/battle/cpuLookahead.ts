@@ -253,9 +253,14 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined
       && !me.field.signi_down?.[zi] && !isZoneFrozen(me, zi)).length;
   const attackerOpenLanes = (ctx.isCpuTurn ?? true) ? attackLanes(cpu, opp) : -attackLanes(opp, cpu);
+  // 🆕2026-10-23＝**次の相手ターンに殴られるレーン**（`nextThreat`）＝手番でない側のうち、凍結していない・正面が空いているシグニ。
+  const threatLanes = (me: PlayerState, them: PlayerState) =>
+    [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined && !isZoneFrozen(me, zi)).length;
+  const nextThreatLanes = (ctx.isCpuTurn ?? true) ? -threatLanes(opp, cpu) : threatLanes(cpu, opp);
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
     + attackerOpenLanes * W.turnDamage
+    + nextThreatLanes * (W.nextThreat ?? 0)
     + (wonLanes(cpu, opp) - wonLanes(opp, cpu)) * W.laneWin
     + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && isZoneFrozen(opp, zi)).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life

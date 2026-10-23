@@ -2,14 +2,15 @@ import { isZoneFrozen } from '../../../engine/cheerZoneView';
 import { calcFieldPowers, calcContinuousSigniMutations, collectBanishEffectProtectedSigni, banishRedirectAppliesFrom, banishRedirectFrontMatches, banishRedirectHolders, checkActiveCondition } from '../../../engine/effectEngine';
 import { getCardNum, removeFromField, refreshPlayersIfDeckEmpty } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
-import { collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectBanishTriggers as pureCollectBanishTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectTrashTriggers as pureCollectTrashTriggers } from '../../../engine/triggerCollect';
+import { collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectBanishTriggers as pureCollectBanishTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers } from '../../../engine/triggerCollect';
 import type { EffectStack, PlayerState, StackEntry } from '../../../types';
 import { detectNewlyDowned } from '../../../engine/boardDiff';
 import { recordEnergyPlacements } from '../../../engine/energyPlacement';
 import { resonaLeaveDestination } from '../../../engine/resonaZone';
 import { hasBanishResist, hasKeyword } from '../../../utils/keywords';
 import { consumeOnceDelayedTriggers } from '../delayedTrigger';
-import { refreshForcesTurnEnd } from '../refreshTurnEnd';
+import { refreshForcesTurnEnd, refreshTurnEndDiscardCount } from '../refreshTurnEnd';
+import { pickCpuHandLimitDiscards } from '../cpuHandLimit';
 import { applyForcedTurnEnd } from '../turnScopedState';
 import { isSelectedPowerZeroBanishRedirect } from '../battleUtils';
 import { applyLimitExcessTrash, planLimitExcess, pickLimitExcessZone, planRestrictionLoss } from '../limitExcess';
@@ -63,6 +64,11 @@ export interface RuleChecksUi {
   /** CPU 対戦か（ログの主語と、CPU の盤面を自動で解くかの分岐）。 */
   isCpuBattle: boolean;
   memo: RuleCheckMemo;
+  /**
+   * 🆕2026-10-23＝2回目のリフレッシュでターンを終える前の手札調整を**自分で選ぶ**画面の口（捨てる枚数）。
+   * 無ければ（ヘッドレス）CPU の捨て順で自動。
+   */
+  openRefreshEndDiscard?: (count: number) => void;
 }
 
 export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
@@ -495,6 +501,18 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
     if (!refreshForcesTurnEnd(activeState)) return;
     const fingerprint = `${bs.turn_count}:${bs.active_user_id}`;
     if (lastRefreshTurnEndKeyRef.current === fingerprint) return;
+    // 🆕2026-10-23（ユーザー裁定）＝**終える前に手札調整**（エンドフェイズと同じ上限まで捨てる）。
+    //   自分の手番は捨て札モーダルで選ぶ（`confirmRefreshEndDiscard`）／それ以外（CPU・ヘッドレス）は CPU の捨て順で自動。
+    const discardCount = refreshTurnEndDiscardCount(activeState, activeIsHost ? bs.guest_state : bs.host_state, battleCardMap, effectsMap);
+    if (discardCount > 0) {
+      if (p.openRefreshEndDiscard && bs.active_user_id === user.id) { p.openRefreshEndDiscard(discardCount); return; }
+      const discardKey = `${fingerprint}:discard:${activeState.hand.join(',')}`;
+      if (lastRefreshTurnEndKeyRef.current === discardKey) return;
+      lastRefreshTurnEndKeyRef.current = discardKey;
+      await confirmRefreshEndDiscard(pickCpuHandLimitDiscards(
+        activeState.hand, discardCount, battleCardMap, id => effectsMap.get(id) ?? []));
+      return;
+    }
     lastRefreshTurnEndKeyRef.current = fingerprint;
     setLoading(true);
     try {
@@ -512,6 +530,40 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
         beginNextTurn: {
           activeUserId: (forced.keepTurn ? bs.active_user_id : (activeIsHost ? bs.guest_id : bs.host_id)) as string,
         },
+      }));
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * 🆕2026-10-23＝**2回目のリフレッシュでのターン終了の手札調整**（選んだ手札の添字を捨てる）。
+   * 規則は通常のエンドフェイズの捨て札（`confirmEndDiscard`／CPU の `cpuTurn`）と同じ＝捨てた札の
+   * 「手札からトラッシュに置かれたとき」を収集する（ルール処理＝効果起因ではない）。
+   * 🔑**ターンを終えるのはここではない**＝捨てたあと `checkRefreshForcedTurnEnd` が上限内の手札を見て終える
+   *   （誘発があればそれを先に解決してから）。
+   */
+  const confirmRefreshEndDiscard = async (discardIdx: number[]) => {
+    if (!bs || bs.global_phase !== 'PLAYING') return;
+    const activeIsHost = bs.active_user_id === bs.host_id;
+    const activeKey: PlayerStateKey = activeIsHost ? 'host_state' : 'guest_state';
+    const activeState = activeIsHost ? bs.host_state : bs.guest_state;
+    const otherState = activeIsHost ? bs.guest_state : bs.host_state;
+    const activeId = bs.active_user_id as string;
+    const discardNums = discardIdx.map(i => activeState.hand[i]).filter((n): n is string => !!n);
+    if (discardNums.length === 0) return;
+    setLoading(true);
+    try {
+      const hand = activeState.hand.filter((_, i) => !discardIdx.includes(i));
+      appendBattleLogs([`${activeId === CPU_PLAYER_ID ? '[CPU] 手札上限' : '手札上限超過'}（${activeState.hand.length}枚→${hand.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
+      const entries = discardNums.flatMap(cn =>
+        pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), cn, activeId, false, 'hand', undefined, false));
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: activeKey,
+        myState: { ...activeState, hand, trash: [...activeState.trash, ...discardNums] },
+        opp: { key: activeIsHost ? 'guest_state' : 'host_state', state: otherState },
+        effectStack: entries.length > 0 ? initStack(activeId, entries) : undefined,
       }));
       await flushBattleLogs();
     } finally {
@@ -585,6 +637,12 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
     //   ⚠印字レベルのまま超過している盤面は対象外＝そこは**配置制限**が止める（`planLimitExcess` の 🔑）。
     const myKey: PlayerStateKey = isHost ? 'host_state' : 'guest_state';
     const myPlan = planLimitExcess({ owner: my, opponent: op, cardMap: battleCardMap, effectsMap, isOwnerTurn: isMyTurn });
+    // 🆕2026-10-23＝**超過が無い盤面を見たら指紋を消す**（`applyLimitExcessRule` の二重処理防止）。
+    //   🔴旧＝指紋は消えなかった＝「落とした札を手札に戻して同じゾーンへ出し直す」と**前回と同じ盤面**になり、
+    //   超過を二度と処理せず永久に止まった（自己対戦＝《舞踏の童話　タウベズ》が傀儡を出すたびに超過→《デス・ブロッサム》で回収→出し直し）。
+    //   ⚠二重処理の防止は「書き込みが届く前の古い盤面（まだ超過あり）」に効けばよい＝合法な盤面で消しても失わない。
+    const settled = (pl: ReturnType<typeof planLimitExcess>) => pl.levelOverZones.length === 0 && pl.excess <= 0;
+    if (settled(myPlan) && !(isCpuBattle && isHost)) lastLimitExcessKeyRef.current = '';
     if (myPlan.levelOverZones.length > 0) {
       await applyLimitExcessRule(my, myKey, user.id, myPlan.levelOverZones, 'レベル超過');
       return;
@@ -603,6 +661,7 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
         owner: cpuSt, opponent: bs.host_state, cardMap: battleCardMap, effectsMap,
         isOwnerTurn: bs.active_user_id === CPU_PLAYER_ID,
       });
+      if (settled(myPlan) && settled(cpuPlan)) lastLimitExcessKeyRef.current = '';
       if (cpuPlan.levelOverZones.length > 0) {
         await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, cpuPlan.levelOverZones, '[CPU] レベル超過');
         return;
@@ -621,6 +680,6 @@ export function makeRuleChecks(c: PerformCtx, p: RuleChecksUi) {
 
   return {
     resolvePendingLrigAttack, triggerPendingCrash, checkAndBanishPowerZero, checkAndApplyContMutations,
-    checkDeferredRefreshRule, checkRefreshForcedTurnEnd, applyLimitExcessRule, checkLimitExcessRule,
+    checkDeferredRefreshRule, checkRefreshForcedTurnEnd, confirmRefreshEndDiscard, applyLimitExcessRule, checkLimitExcessRule,
   };
 }

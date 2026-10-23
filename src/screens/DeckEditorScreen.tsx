@@ -10,7 +10,7 @@ import {
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, cardMatchesEffectSearch, matchedVariantNums, searchPage } from '../utils/cardSearch';
-import { DECK_FORMAT_JA, effectiveDeckFormat, outOfFormatCardNums, type DeckFormat } from '../utils/deckFormat';
+import { DECK_FORMAT_JA, cardAllowedInFormat, effectiveDeckFormat, outOfFormatCardNums, type DeckFormat } from '../utils/deckFormat';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 import { DeckFormatModal } from './deck/DeckFormatModal';
 import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
@@ -57,6 +57,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [filterColor, setFilterColor] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  // 🆕2026-10-23（ユーザー要望）＝フォーマット（レガシー／ディーバ）で絞る。判定はデッキの適合チェックと同じ `cardAllowedInFormat`（再録も見る）。
+  const [filterFormat, setFilterFormat] = useState<'' | 'legacy' | 'diva'>('');
   const [deckTab, setDeckTab] = useState<'main' | 'lrig'>('main');
   const [screenTab, setScreenTab] = useState<'deck' | 'search'>('deck');
   const [editingName, setEditingName] = useState(false);
@@ -134,13 +136,14 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
     if (filterColor && c.Color !== filterColor) return false;
     if (filterLevel && c.Level !== filterLevel) return false;
     if (filterClass && c.CardClass !== filterClass) return false;
+    if (filterFormat && !cardAllowedInFormat(c, filterFormat, variantNumIndex)) return false;
     return true;
-  }), [cards, search, effectSearch, variantNumIndex, filterType, filterColor, filterLevel, filterClass]);
+  }), [cards, search, effectSearch, variantNumIndex, filterType, filterColor, filterLevel, filterClass, filterFormat]);
 
   // 🆕2026-10-01（ユーザー要望）＝検索結果を 200 件ずつページ送り（旧＝先頭200件だけ表示）。
   //   🔑**条件を変えたら1ページ目へ戻す**＝ページ番号は「どの条件の組で付けたか」のキーと一緒に持ち、キーが変われば 0 とみなす。
   const SEARCH_PAGE_SIZE = 200;
-  const filterKey = [search, effectSearch, filterType, filterColor, filterLevel, filterClass].join('\u0001');
+  const filterKey = [search, effectSearch, filterType, filterColor, filterLevel, filterClass, filterFormat].join('\u0001');
   const [pageState, setPageState] = useState<{ key: string; page: number }>({ key: '', page: 0 });
   const pageInfo = searchPage(filteredCards.length, pageState.key === filterKey ? pageState.page : 0, SEARCH_PAGE_SIZE);
   const searchListRef = useRef<HTMLDivElement>(null);
@@ -150,11 +153,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   };
   // 🆕絞込リセット＝検索語・タイプ・色・レベル・クラス・ページを初期値へ。
   const resetSearchFilters = () => {
-    setSearch(''); setEffectSearch(''); setFilterType(''); setFilterColor(''); setFilterLevel(''); setFilterClass('');
+    setSearch(''); setEffectSearch(''); setFilterType(''); setFilterColor(''); setFilterLevel(''); setFilterClass(''); setFilterFormat('');
     setPageState({ key: '', page: 0 });
     if (searchListRef.current) searchListRef.current.scrollTop = 0;
   };
-  const filtersActive = !!(search || effectSearch || filterType || filterColor || filterLevel || filterClass);
+  const filtersActive = !!(search || effectSearch || filterType || filterColor || filterLevel || filterClass || filterFormat);
 
   const countInMainByName = (cardName: string) =>
     current.mainDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
@@ -448,6 +451,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             <select value={filterClass} onChange={e => setFilterClass(e.target.value)} style={selectStyle}>
               <option value="">クラス：すべて</option>
               {classes.map(cl => <option key={cl} value={cl}>{cl}</option>)}
+            </select>
+            <select data-testid="search-format" value={filterFormat} onChange={e => setFilterFormat(e.target.value as '' | 'legacy' | 'diva')} style={selectStyle}>
+              <option value="">フォーマット：すべて</option>
+              <option value="legacy">{DECK_FORMAT_JA.legacy}</option>
+              <option value="diva">{DECK_FORMAT_JA.diva}</option>
             </select>
             <button data-testid="search-reset" onClick={resetSearchFilters} disabled={!filtersActive}
               style={{ ...selectStyle, cursor: filtersActive ? 'pointer' : 'default', fontWeight: 'bold',

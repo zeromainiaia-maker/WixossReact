@@ -53,7 +53,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'life', base: 7000, values: [3500, 14000] },
   { key: 'hand', base: 1500, values: [750, 3000] },
   { key: 'energy', base: 1000, values: [500, 2000] },
-  { key: 'openLane', base: 3000, values: [1500, 6000] },
+  { key: 'openLane', base: 6000, values: [3000, 12000] },
   { key: 'oppFrozen', base: 2500, values: [1250, 5000] },
   { key: 'fieldPowerScale', base: 0.25, values: [0.125, 0.5] },
   { key: 'laneWin', base: 1500, values: [750, 3000] },
@@ -63,6 +63,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'lrigLevel', base: 2500, values: [1250, 5000] },
   // 既定 0 のつまみ＝「入れるとどうなるか」。値は**過去のプリセットの実績値**（`search-damage` ほか）。
   { key: 'turnDamage', base: 0, values: [3000] },
+  { key: 'nextThreat', base: 0, values: [3000] },
   // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。
   { key: 'artsKept', base: 2500, values: [1250, 5000] },
   // ── ポリシー（`CpuPolicy`）──
@@ -114,6 +115,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'choiceLookahead', base: 1, values: [0] },
   { key: 'assistGrowAsArts', base: 1, values: [0] },
   { key: 'onPlayCostPay', base: 1, values: [0] },
+  { key: 'knowledgeArtsUse', base: 0, values: [1] },
   { key: 'keyTrashAbility', base: 0, values: [1] },
   // ── 🆕§5.7 `S-22`＝対象選択を置き場で決めるか（0＝旧挙動＝乱数）。⚠つまみではなく**反転確認の口**。
   { key: 'targetIntentByScope', base: 1, values: [0] },

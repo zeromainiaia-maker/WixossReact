@@ -348,7 +348,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // エンドフェイズ手札捨て／カード拡大表示
   const {
     pendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard,
-    openEndDiscard, closeEndDiscard,
+    openEndDiscard, closeEndDiscard, refreshEndDiscard, openRefreshEndDiscard,
   } = useEndDiscard();
   const {
     burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed,
@@ -1470,7 +1470,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'UP') return;
     if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
     if (loading) return;
-    if (bs.active_user_id !== user.id) return;
+    // 🆕2026-10-23＝CPU 戦では CPU の手番も見る（手札調整を CPU の捨て順で自動で行ってから終える）。
+    //   旧＝自分の手番だけ＝CPU が効果スタックの外で2回目のリフレッシュをしてもターンが終わらなかった。
+    if (bs.active_user_id !== user.id && !isCpuBattle) return;
     checkRefreshTurnEndRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2721,8 +2723,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // エンドフェイズ手札捨て選択の確定処理
   // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝本体（234行）は `controller/endDiscard.ts` へ逐語で移設。画面は材料とモーダルの状態を渡すだけ。
-  const confirmEndDiscard = async () =>
-    confirmEndDiscardImpl(performCtx(), { pendingEndDiscard, selectedEndDiscard, closeEndDiscard, loading });
+  // 🆕2026-10-23＝2回目のリフレッシュでのターン終了の手札調整は確定先が違う（捨てるだけ＝ターンを終えるのはルール処理）。
+  const confirmRefreshEndDiscard = async () => {
+    if (pendingEndDiscard === null || loading || selectedEndDiscard.size !== pendingEndDiscard) return;
+    const picked = [...selectedEndDiscard];
+    closeEndDiscard();
+    await ruleChecks().confirmRefreshEndDiscard(picked);
+  };
+  const confirmEndDiscard = async () => refreshEndDiscard
+    ? confirmRefreshEndDiscard()
+    : confirmEndDiscardImpl(performCtx(), { pendingEndDiscard, selectedEndDiscard, closeEndDiscard, loading });
 
   // UPKEEP_OR_NO_UP: アップ条件のコストを支払ってセンタールリグをアップする
   const handleUpkeepPay = (mode: 'energy' | 'discard') => {
@@ -4070,7 +4080,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体は `controller/ruleChecks.ts` へ逐語で移設した。
   //   🔴ここに書き戻さない＝ヘッドレスの対戦ループ（`headlessMatch.ts`）が同じ8本を回す＝二重になると片方だけ直る。
-  const ruleChecks = () => makeRuleChecks(performCtx(), { loading, isCpuBattle, memo: ruleMemoRef.current });
+  const ruleChecks = () => makeRuleChecks(performCtx(), {
+    loading, isCpuBattle, memo: ruleMemoRef.current,
+    // ⚠開いている間は開き直さない（選択が白紙に戻る）。
+    openRefreshEndDiscard: (n: number) => { if (pendingEndDiscard === null) openRefreshEndDiscard(n); },
+  });
   const triggerPendingCrash = async () => { await ruleChecks().triggerPendingCrash(); };
   const checkAndBanishPowerZero = async () => { await ruleChecks().checkAndBanishPowerZero(); };
   const checkAndApplyContMutations = async () => { await ruleChecks().checkAndApplyContMutations(); };

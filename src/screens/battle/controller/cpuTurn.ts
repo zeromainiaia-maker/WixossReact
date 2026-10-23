@@ -53,7 +53,7 @@ import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve, chargeNeedColors, cpuChargeNeedOf, withEnaPayRank} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
-import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planUseBonus} from '../cpuDeckPlan';
+import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planUseBonus, withKnowledgeArtsUse} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
@@ -63,7 +63,7 @@ import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard} from '../cpuBoardEval';
 import {pickCpuSigniActivated, type CpuActivatedChoice} from '../cpuActivate';
 import {pickCpuLrigActivated, type CpuLrigActivatedChoice} from '../cpuLrigActivate';
-import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts} from '../cpuArts';
+import {type CpuArtsChoice, type CpuArtsPickInput, defensiveKindOf, pickCpuOffensiveArts, pickCpuResponseArts} from '../cpuArts';
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
@@ -160,7 +160,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const mkTrigCtx = c.trigCtx;
   const mkTrigCtxForPhase = makeTrigCtxForPhase({ bs, effectsMap, cardMap: battleCardMap, trigCtx: c.trigCtx });
   const cards = d.allCards;
-  const cpuPlan = d.cpuPlan;
+  // 🆕2026-10-23＝作戦データに無い・分類できないアーツは、カード知識ベースの使いどきで撃つ（`CpuPolicy.knowledgeArtsUse`）。
+  const cpuPlan = (d.policy ?? DEFAULT_CPU_POLICY).knowledgeArtsUse > 0
+    ? withKnowledgeArtsUse(d.cpuPlan, bs.guest_state.lrig_deck, num => !(effectsMap.get(num) ?? [])
+      .some(e => e.effectType === 'ACTIVATED' && defensiveKindOf(e.action)))
+    : d.cpuPlan;
   const checkPowerZeroBanishRef = { current: d.checkPowerZeroBanish };
   const {
     performSummonSigni, performGrow, performArts, performKeyPiece, performAssistGrow, performSpell,

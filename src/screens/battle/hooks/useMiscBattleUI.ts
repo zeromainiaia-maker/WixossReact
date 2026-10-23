@@ -85,18 +85,22 @@ export function useGuardResponses() {
 export interface EndDiscardState {
   pendingEndDiscard: number | null;
   selectedEndDiscard: Set<number>;
+  /** 🆕2026-10-23＝2回目のリフレッシュでのターン終了の手札調整として開いたか（確定先が違う）。 */
+  refreshEndDiscard: boolean;
 }
 
 export function useEndDiscard() {
-  const [state, set, patch] = useDomainState<EndDiscardState>({ pendingEndDiscard: null, selectedEndDiscard: new Set() });
+  const [state, set, patch] = useDomainState<EndDiscardState>({ pendingEndDiscard: null, selectedEndDiscard: new Set(), refreshEndDiscard: false });
   return {
     ...state,
     setPendingEndDiscard: set.pendingEndDiscard,
     setSelectedEndDiscard: set.selectedEndDiscard,
     /** エンド手札捨てUIを開く（捨てる枚数を指定・選択は白紙化） */
-    openEndDiscard: (count: number) => patch({ pendingEndDiscard: count, selectedEndDiscard: new Set() }),
+    openEndDiscard: (count: number) => patch({ pendingEndDiscard: count, selectedEndDiscard: new Set(), refreshEndDiscard: false }),
+    /** 🆕2回目のリフレッシュでのターン終了の手札調整として開く */
+    openRefreshEndDiscard: (count: number) => patch({ pendingEndDiscard: count, selectedEndDiscard: new Set(), refreshEndDiscard: true }),
     /** エンド手札捨てUIを閉じる */
-    closeEndDiscard: () => patch({ pendingEndDiscard: null, selectedEndDiscard: new Set() }),
+    closeEndDiscard: () => patch({ pendingEndDiscard: null, selectedEndDiscard: new Set(), refreshEndDiscard: false }),
   };
 }
 

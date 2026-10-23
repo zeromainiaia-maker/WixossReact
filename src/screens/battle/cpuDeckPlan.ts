@@ -1,5 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
+import { CPU_ARTS_KNOWLEDGE_USE } from '../../data/cpuArtsKnowledgeUse';
 import { DEFAULT_CPU_POLICY, type CpuPolicy, type PlanWeights } from './cpuPolicy';
 import {
   CPU_STATE_PLACE_LABELS, countCardsInState, cpuStateDef, statePlacesFor, stateUnit, type CpuStatePlace,
@@ -762,6 +763,26 @@ export function planAllowsUseIn(
 /** 🆕**この札を CPU が「使う」ことを作戦データが禁じているか**（＝`never`）。 */
 export function planForbidsUse(plan: CpuDeckPlan | undefined, cardNum: string): boolean {
   return planCardUse(plan, cardNum) === 'never';
+}
+
+/**
+ * 🆕2026-10-23＝**カード知識ベースの使いどき（`CPU_ARTS_KNOWLEDGE_USE`）を、作戦データに書いていないアーツの既定値にする**
+ * （`CpuPolicy.knowledgeArtsUse`）。保存する作戦データは変えない＝その1手の判断のときだけ足す。
+ * 🔑**足すのは「作戦データに無い ∧ 分類できない（`isUnclassified`）」札だけ**＝分類できる札（無効化／除去／軽減）はいまも撃てているので、
+ *   窓を絞って退化させない。作り手の指定は常に勝つ。
+ */
+export function withKnowledgeArtsUse(
+  plan: CpuDeckPlan, artsNums: Iterable<string>, isUnclassified: (cardNum: string) => boolean,
+  table: Readonly<Record<string, CpuCardUse>> = CPU_ARTS_KNOWLEDGE_USE,
+): CpuDeckPlan {
+  let added: Record<string, CpuCardUse> | null = null;
+  for (const id of artsNums) {
+    const num = getCardNum(id);
+    const use = table[num];
+    if (!use || plan.cardUse?.[num] || added?.[num] || !isUnclassified(num)) continue;
+    (added ??= {})[num] = use;
+  }
+  return added ? { ...plan, cardUse: { ...added, ...plan.cardUse } } : plan;
 }
 
 /**

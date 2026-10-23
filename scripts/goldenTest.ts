@@ -116,7 +116,7 @@ import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/sc
 import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/screens/battle/battleOutcome';
 import { enforceResonaZoneRule, resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
-import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
+import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd, refreshTurnEndDiscardCount } from '../src/screens/battle/refreshTurnEnd';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess, planRestrictionLoss } from '../src/screens/battle/limitExcess';
@@ -186,7 +186,7 @@ import { cpuShouldChargeEnergy, fieldChargeAllowed, mainPhaseLrigLevel, pickCpuE
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
 import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screens/battle/cpuPlanStates';
-import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES, withKnowledgeArtsUse } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -54003,6 +54003,10 @@ test('O-1 cpuArts: 守りの分類は「無効化→除去→軽減」で、STUB
   eq(kind({ type: 'BANISH', target: { type: 'LRIG', owner: 'opponent', count: 1 } }), null, 'シグニ以外の対象は除去に数えない');
   eq(kind({ type: 'DRAW', owner: 'self', count: 1 }), null, 'ドローは守りではない');
   eq(kind({ type: 'STUB', id: 'SOMETHING_DEFENSIVE' }), null, '🔴STUB は id ごとに意味が違う＝機械的に守りと決めつけない');
+  // 🆕2026-10-23＝相手シグニへのパワーマイナスは除去（0 以下でバニッシュ）。ウリスが《サーベイジ・イリュージョン》を抱えて負けた。
+  eq(kind({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -8000 }), 'removal', '🔴相手へのパワーマイナスを除去に数えていない');
+  eq(kind({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: -8000 }), null, '自分のシグニへのマイナスは守りではない');
+  eq(kind({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: 3000 }), null, '相手へのパワープラスは守りではない');
   // 入れ子（SEQUENCE / CHOOSE）も歩いて、より優先度の高い分類を採る。
   eq(kind({ type: 'SEQUENCE', steps: [{ type: 'DRAW', owner: 'self', count: 1 }, { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent' } }] }), 'negate', '入れ子の無効化を拾う');
   eq(kind({ type: 'CHOOSE', choices: [{ action: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'TURN_END' } }, { action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } }] }), 'removal', '選択肢のうち優先度の高い分類を採る');
@@ -72563,6 +72567,40 @@ test('2026-10-21 自己対戦（席の入れ替え）: ヘッドレスは host �
   ok(/applyLimitExcessRule\(my, isHost \? 'host_state' : 'guest_state', user\.id, \[zoneIndex\], 'リミット超過'\)/.test(bsx), '画面側の書き込みが変わった＝ヘッドレスの口も合わせる');
 });
 
+test('2026-10-23 カード知識ベースの使いどきを、作戦データに無い・分類できないアーツの既定値にする', () => {
+  // 🔑《エイボン》（サーチ＝分類できない・知識ベース「自分のターン」）／《バロック・ディフェンス》（相手のターン）／《ロココ・バウンダリー》（除去＝分類できる）
+  const base = normalizeCpuDeckPlan({});
+  const unclassified = (n: string) => n !== 'WD01-006';
+  const p = withKnowledgeArtsUse(base, ['WD01-006#1', 'WD01-007#1', 'WD01-008#2'], unclassified);
+  eq(p.cardUse['WD01-007'], 'offense', '🔴サーチのアーツに知識ベースの「自分のターン」が入っていない');
+  eq(p.cardUse['WD01-008'], 'defense', '🔴相手のターンのアーツに「守り」が入っていない');
+  eq(p.cardUse['WD01-006'], undefined, '🔴分類できるアーツ（除去）の窓まで絞っている（退化）');
+  const own = withKnowledgeArtsUse(normalizeCpuDeckPlan({ cardUse: { 'WD01-007': 'never' } }), ['WD01-007#1'], unclassified);
+  eq(own.cardUse['WD01-007'], 'never', '🔴作り手の指定を知識ベースが上書きした');
+  ok(withKnowledgeArtsUse(base, ['WD01-006#1'], unclassified) === base, '足すものが無いのに作戦データを作り直している');
+  ok(DEFAULT_CPU_POLICY.knowledgeArtsUse >= 0 && CPU_POLICIES['kb-arts'].knowledgeArtsUse === 1, '🔴A/B 用のプリセット kb-arts が無い');
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(/knowledgeArtsUse > 0\s*\? withKnowledgeArtsUse\(d\.cpuPlan, bs\.guest_state\.lrig_deck,/.test(turn), '🔴CPU の1手が知識ベースの既定値を通っていない');
+});
+
+test('2026-10-23 自己対戦: ヘッドレスのルール処理は1つ書いたら返す（強制ターン終了の後に古い盤面でバトルを解決しない）', () => {
+  // 🔴旧＝`runRuleChecks` が最初に読んだ盤面のまま全部を順に回した＝「リフレッシュ2回目でターン終了」の直後に
+  //   終わったターンのバトル解決を古い盤面で走らせ、次の手番のアップを消した（ルリグがダウンのまま＝勝てる場面でアタックできない）。
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  const body = hm.slice(hm.indexOf('const runRuleChecks = async'), hm.indexOf('const runCpuTurn = async'));
+  ok(/await rc\(\)\.checkRefreshForcedTurnEnd\(\); if \(wrote\(\)\) return true;/.test(body), '🔴強制ターン終了を書いたあとも同じ盤面で次の処理へ進む');
+  ok(/clientCtx\(\)\); if \(wrote\(\)\) return true; \}/.test(body), '🔴バトル解決を書いたあとも同じ盤面で次の処理へ進む');
+  eq((body.match(/if \(wrote\(\)\) return true;/g) ?? []).length, 7, 'ルール処理の数が変わった＝新しい処理にも「書いたら返す」を付ける');
+});
+
+test('2026-10-23 自己対戦: リミット超過の指紋は超過の無い盤面で消える（同じ盤面の再発で永久停止しない）', () => {
+  // 🔴旧＝`applyLimitExcessRule` の二重処理防止の指紋が対戦中ずっと残った＝落とした札を手札に戻して同じゾーンへ出し直すと
+  //   前回と同じ盤面になり、超過を二度と処理せず STALL（《舞踏の童話　タウベズ》×《デス・ブロッサム》・パワー0の指紋と同じ形）。
+  const rc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  ok(/if \(settled\(myPlan\) && !\(isCpuBattle && isHost\)\) lastLimitExcessKeyRef\.current = '';/.test(rc), '🔴自分の盤面が合法でも指紋を消していない');
+  ok(/if \(settled\(myPlan\) && settled\(cpuPlan\)\) lastLimitExcessKeyRef\.current = '';/.test(rc), '🔴CPU 戦で両者の盤面が合法でも指紋を消していない');
+});
+
 test('2026-10-20 自己対戦（生成デッキ）: シグニの下に置いたスペルはトラッシュへ置かない／パワー0の指紋は候補0で消える', () => {
   // 🔴旧①＝「このスペルを…シグニの下に置いてもよい」（`WXDi-P11-063`）で、解決後の既定配置がトラッシュへも置いた（二重存在）。
   const spell = 'WXDi-P11-063#1';
@@ -88650,6 +88688,90 @@ test('§5.7 S-18 終端評価の「次ターン」項：グロウの価値・グ
     '🔴`legacy-nextturn` なのに「次のターン」項が効いている');
 }));
 
+test('2026-10-23 2回目のリフレッシュでのターン終了も手札調整を行う（ユーザー裁定）：上限超えならスタック経路で終えずルール処理へ／捨ててから終える', () => withSavedCursor(() => {
+  // 🔑ユーザー裁定（2026-10-23）＝**1ターンに2回リフレッシュしてターンが終わるときも、エンドフェイズの手札調整（上限まで捨てる）は行う**。
+  //   🔴旧＝`applyForcedTurnEnd` は手札に触れず、手札9枚のまま相手のターンへ進んだ（自己対戦の `HANDLIMIT`・ウリス戦）。
+  const mk = (hand: number) => mkState({ hand });
+  eq(refreshTurnEndDiscardCount(mk(9), mkState(), cardMap, effectsMap), 3, '🔴手札9枚で3枚捨てない');
+  eq(refreshTurnEndDiscardCount(mk(6), mkState(), cardMap, effectsMap), 0, '上限ちょうどで捨てる');
+  eq(refreshTurnEndDiscardCount(mk(2), mkState(), cardMap, effectsMap), 0, '少ない手札で捨てる');
+  // ── スタック解決経路（効果の解決でデッキが尽きて2回目のリフレッシュ）──
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const drawEffect = { effectId: 'RTE-TEST-E1', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as CardEffect;
+  const entry = { id: 'e1', playerId: HOST, cardNum: 'WD01-013#1', effectId: 'RTE-TEST-E1', label: 'テスト【自】', effect: drawEffect };
+  const stack = { turnPlayerId: HOST, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true, queue: [entry] } as unknown as EffectStack;
+  const rowWith = (hand: number) => {
+    const st = mkState({ hand, trash: 5 });
+    const host = { ...st, deck: st.deck.slice(0, 1), refresh_count_this_turn: 1 } as PlayerState;
+    return ({
+      room_id: 'room-1', host_id: HOST, guest_id: GUEST, global_phase: 'PLAYING', setup_phase: null, turn_phase: 'MAIN',
+      active_user_id: HOST, turn_count: 5, host_state: host, guest_state: mkState({ hand: 2 }),
+      game_logs: [], updated_at: '2026-10-23T00:00:00.000Z',
+      host_lrig_selected: null, guest_lrig_selected: null, host_janken: null, guest_janken: null,
+      host_mulligan_done: true, guest_mulligan_done: true, first_player_id: HOST,
+      pending_spell: null, pending_effect: null, effect_stack: stack,
+      winner_id: null, host_end_ack: false, guest_end_ack: false,
+    }) as unknown as BattleStateRow;
+  };
+  const deps = { cardMap: cm as Map<string, CardData>, effectsMap, userId: HOST, isHost: true, effectivePowers: new Map<string, number>() };
+  const small = resolveStackStep(rowWith(2), deps)!;
+  eq(small.action.type, 'RESOLVE_EFFECT_STEP', '解決の形が変わった');
+  const smallAct = small.action as { beginNextTurn?: { activeUserId: string }; hostState: PlayerState };
+  eq(smallAct.hostState.refresh_count_this_turn, 2, '前提: 2回目のリフレッシュが起きていない');
+  eq(smallAct.beginNextTurn?.activeUserId, GUEST, '🔴手札が上限内なのに2回目のリフレッシュでターンが終わらない');
+  const big = resolveStackStep(rowWith(8), deps)!;
+  const bigAct = big.action as { beginNextTurn?: { activeUserId: string }; hostState: PlayerState; effectStack: unknown };
+  eq(bigAct.hostState.refresh_count_this_turn, 2, '前提: 2回目のリフレッシュが起きていない（手札8）');
+  eq(bigAct.beginNextTurn, undefined, '🔴手札9枚のまま強制終了した（手札調整をしていない）');
+  eq(bigAct.effectStack, null, '強制終了と同じくスタックを捨てていない');
+  eq(bigAct.hostState.hand.length, 9, '手札がスタック経路で勝手に減った（捨てる札はルール処理で選ぶ）');
+  // ── ルール処理（捨てる → 上限内を見て終える）──
+  const rc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  const fn = rc.slice(rc.indexOf('const checkRefreshForcedTurnEnd = async'), rc.indexOf('const confirmRefreshEndDiscard = async'));
+  ok(fn.indexOf('refreshTurnEndDiscardCount(') >= 0 && fn.indexOf('refreshTurnEndDiscardCount(') < fn.indexOf('applyForcedTurnEnd('),
+    '🔴ルール処理が手札調整を見ずに強制終了している');
+  ok(/p\.openRefreshEndDiscard && bs\.active_user_id === user\.id/.test(fn), '🔴自分の手番の捨て札を画面で選ばせていない');
+  ok(/pickCpuHandLimitDiscards\(/.test(fn), '🔴CPU（ヘッドレス）の捨て札を自動で選んでいない');
+  // 🔴**CPU の手番でもルール処理を回す**（旧＝自分の手番だけ＝CPU がスタックの外で2回リフレッシュしても終わらなかった）。
+  const hm = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/turn_phase !== 'UP'\) \{ await rc\(\)\.checkRefreshForcedTurnEnd\(\)/.test(hm), '🔴ヘッドレスが CPU（guest）の手番でリフレッシュのターン終了を見ない');
+}));
+
+test('2026-10-23 次の相手ターンに殴られるレーン（nextThreat）：手番側の守りだけを数える／凍結は除く／既定0', () => withSavedCursor(() => {
+  // 🔑自己対戦の弱い手の調査＝正面に相手がいる空きゾーンを残してメインを終える（9件/180戦）。塞ぐ価値が ≒0 だった。
+  eq(DEFAULT_CPU_POLICY.boardWeights.nextThreat, 0, '🔴既定で `nextThreat` が効いている（実機の挙動が変わる）');
+  const cm = new InstanceMap<CardData>(cardMap);
+  const VAN = 'WD01-013';
+  // 相手だけがゾーン0に立つ＝自分のゾーン2（正面）が空き＝次の相手ターンに1点通る。
+  const side = (signi: (string | null)[]) => {
+    const st = mkState({ signi });
+    st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#l1'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    return st;
+  };
+  const T = 3000;
+  const pol = patchCpuPolicy(DEFAULT_CPU_POLICY, `nextThreat=${T}`);
+  const lctx = (isCpuTurn: boolean, policy = pol) => ({
+    cardMap: cm as Map<string, CardData>, effectsOf: () => [], powersOf: () => new Map<string, number>(), isCpuTurn, policy,
+  });
+  const me = () => side([null, null, null]);
+  const opp = () => side([`${VAN}#o1`, null, null]);
+  const diff = (isCpuTurn: boolean) => evaluateBoard(me(), opp(), lctx(isCpuTurn)) - evaluateBoard(me(), opp(), lctx(isCpuTurn, DEFAULT_CPU_POLICY));
+  eq(diff(true), -T, `🔴自分の手番で「次に殴られるレーン」を引いていない（${diff(true)}）`);
+  eq(diff(false), 0, `🔴相手の手番で相手の脅威を数えている（${diff(false)}）＝手番側だけの項でない`);
+  // 塞げば消える＝この差がメインで低パワーのシグニを出す値段になる。
+  const blocked = side([null, null, `${VAN}#m1`]);
+  eq(evaluateBoard(blocked, opp(), lctx(true)) - evaluateBoard(blocked, opp(), lctx(true, DEFAULT_CPU_POLICY)), 0,
+    '🔴正面を塞いだのにまだ脅威を数えている');
+  // 凍結している相手のシグニは次のアップフェイズでも起きない＝殴れない。
+  const frozenOpp = opp();
+  frozenOpp.field.signi_frozen = [true, false, false];
+  eq(evaluateBoard(me(), frozenOpp, lctx(true)) - evaluateBoard(me(), frozenOpp, lctx(true, DEFAULT_CPU_POLICY)), 0,
+    '🔴凍結している相手のシグニを「次に殴ってくる」に数えている');
+}));
+
 test('§5.7 S-21 探索の目的関数：「打たない」を割る計器／行動への下駄／このターンに通るダメージ', () => withSavedCursor(() => {
   // 🔴**なぜ要るか**＝`S-16` の探索は従来と互角（A/B 50.0%）で止まっており、
   //   実測（2026-09-20・`--census-moves`）では **111手中 58手で「打たない」**を選んでいた。
@@ -89707,6 +89829,8 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   eq(cpuShouldAct({ ...base, active_user_id: 'human' } as BattleStateRow), false, '人間の手番（MAIN 等）で CPU が動く');
   eq(cpuShouldAct({ ...base, pending_effect: { x: 1 } } as unknown as BattleStateRow), false, '対話の応答待ちで CPU が動く');
   ok(cpuShouldAct({ ...base, active_user_id: 'human', turn_phase: 'ATTACK_ARTS_OP' } as BattleStateRow), '相手のアタックフェイズの応答窓で CPU が動かない');
+  eq(cpuShouldAct({ ...base, turn_phase: 'ATTACK_ARTS_OP' } as BattleStateRow), false, 'CPU の手番の相手の応答窓で CPU が動く（人間の番）');
+  ok(cpuShouldAct({ ...base, turn_phase: 'ATTACK_ARTS_OP', guest_state: { ...base.guest_state, field: { ...base.guest_state?.field, check: 'WX02-078' } } } as BattleStateRow), '🔴相手のアーツで CPU のライフがクラッシュされたのに、応答窓で CPU がライフバーストを確認しない（永久停止）');
   // ② 見張り＝動くべき ∧ 実行中でない ∧ 盤面も実行も6秒止まっている
   const now = 100000;
   ok(cpuWatchdogShouldCheck({ shouldAct: true, running: false, now, lastBsChangeAt: now - CPU_WATCHDOG_IDLE_MS, lastRunEndAt: 0 }), '🔴6秒止まっているのに見張りが動かない');
@@ -91058,6 +91182,11 @@ test('CPU観戦のバグ報告3件（2026-09-22）：アーツを使い切る値
   ok(ikki?.type === 'CONDITIONAL', '前提崩れ＝《一騎当閃》が CONDITIONAL{IS_BETTING} でなくなった');
   eq(removalTargetExists(ikki, oppWith([`${p12000}#o1`, null, null]), cm), false, '🔴CPU が宣言しないベット側の枝（20000以下）で「対象あり」と数えた＝報告 8c59ee3c');
   eq(removalTargetExists(ikki, oppWith([`${p7000}#o1`, null, null]), cm), true, 'ベットしない側の枝（7000以下）の対象を見落とした');
+  // 🆕2026-10-23＝パワーマイナスは**0 以下にできる相手がいるときだけ**対象あり（倒せないマイナスはアタックを止めない）。
+  const minus8000 = { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, delta: -8000 } as unknown as EffectAction;
+  eq(removalTargetExists(minus8000, oppWith([`${p7000}#o1`, null, null]), cm), true, '🔴−8000 で倒せる 7000 がいるのに対象なしと数えた');
+  eq(removalTargetExists(minus8000, oppWith([`${p12000}#o1`, null, null]), cm), false, '🔴−8000 で倒せない 12000 だけなのに対象ありと数えた');
+  eq(removalTargetExists(minus8000, oppWith([`${p12000}#o1`, null, null]), cm, new Map([[`${p12000}#o1`, 8000]])), true, '実効パワーで比べていない（下げられたシグニを見落とす）');
 
   eq(spectateLogLabel('[CPU] アーツを使用: バッド・ナンバー', 'host'), '[A] アーツを使用: バッド・ナンバー', '🔴観戦ログの [CPU] が A の行動と読めない＝報告 c8b44086');
   eq(spectateLogLabel('[CPU] アーツを使用: 付和雷同', 'guest'), '[B] アーツを使用: 付和雷同', '観戦ログの [CPU] が B の行動と読めない');
@@ -94545,6 +94674,9 @@ test('2026-10-01 デッキ編成の検索＝カード効果で絞り込む（部
     '🔴検索結果が先頭200件で打ち切られている（ページ送りが無い）');
   ok(/const resetSearchFilters = \(\) => \{\s*setSearch\(''\); setEffectSearch\(''\); setFilterType\(''\); setFilterColor\(''\); setFilterLevel\(''\); setFilterClass\(''\);/.test(src)
     && src.includes('data-testid="search-reset"'), '🔴絞込リセットがすべての条件を戻していない');
+  // 🆕2026-10-23（ユーザー要望）＝フォーマット（レガシー／ディーバ）で絞る＝判定はデッキの適合チェックと同じ関数（再録も見る）。
+  ok(src.includes('data-testid="search-format"') && src.includes('if (filterFormat && !cardAllowedInFormat(c, filterFormat, variantNumIndex)) return false;'), '🔴フォーマットの絞り込みが無い／適合チェックと別の判定を使っている');
+  ok(src.includes("setFilterClass(''); setFilterFormat('');") && src.includes('filterClass, filterFormat].join'), '🔴フォーマットの絞り込みがリセット／ページ送りのキーに入っていない');
   // 🆕同日＝絞り込み条件のエリアを折り畳める（畳んでも条件は保つ＝検索欄は消すが state は残す）
   ok(src.includes('data-testid="search-filters-collapse"') && src.includes('data-testid="search-filters-expand"') && src.includes('{filtersCollapsed ? ('),
     '🔴絞り込み条件の折り畳み／展開ボタンが無い');

@@ -54,6 +54,20 @@ const REMOVAL_TYPES = new Set<string>([
 ]);
 
 /**
+ * 🆕2026-10-23＝**相手シグニへのパワーマイナス**（数値の `delta` が負）＝0 以下にできれば除去と同じ（ルール処理でバニッシュ）。
+ * 🔴**なぜ要るか（自己対戦の負け方の調査）**＝ウリスがライフ0で《サーベイジ・イリュージョン》（−8000）を持ったまま
+ *   「アーツを使用しない」で負けた。除去の分類に入っておらず、作戦データで指名しないかぎりどの窓でも撃たれなかった
+ *   （アーツ706枚中50枚が「相手へのパワーマイナスだけ」＝《モーメント・パニッシュ》など黒の基本のアーツ）。
+ * ⚠**撃つのは倒せる相手がいるときだけ**（`removalTargetExists`）＝倒せないマイナスはライフへのアタックを止めない。
+ *   対象の選び方は `targetKillableBy`（倒せる札を先に）。
+ */
+function isOppPowerMinus(obj: Record<string, unknown>): boolean {
+  if (obj.type !== 'POWER_MODIFY') return false;
+  const target = obj.target as { type?: string; owner?: string } | undefined;
+  return target?.owner === 'opponent' && target?.type === 'SIGNI' && typeof obj.delta === 'number' && obj.delta < 0;
+}
+
+/**
  * アクション木を歩いて守りの分類を返す（該当が無ければ `null`）。
  *
  * ⚠**`STUB` は対象外**＝id ごとに意味が違うので、機械的に「守り」と決めつけない（保守側に倒す）。
@@ -72,6 +86,7 @@ export function defensiveKindOf(action: EffectAction | undefined): CpuDefensiveK
     if (type === 'NEGATE_ATTACK') better('negate');
     else if (type && PREVENT_TYPES.has(type)) better('prevent');
     else if (type === 'SIGNI_ATTACK_BAN' && obj.owner === 'opponent') better('removal');
+    else if (isOppPowerMinus(obj)) better('removal');
     else if (type && REMOVAL_TYPES.has(type)) {
       const target = obj.target as { type?: string; owner?: string } | undefined;
       if (target?.owner === 'opponent' && target?.type === 'SIGNI') better('removal');
@@ -117,6 +132,15 @@ export function removalTargetExists(
       }
     }
     if (type === 'SIGNI_ATTACK_BAN' && obj.owner === 'opponent') { if (tops.length > 0) found = true; return; }
+    if (isOppPowerMinus(obj)) {
+      const target = obj.target as { filter?: Parameters<typeof matchesFilter>[1] };
+      const delta = obj.delta as number;
+      if (tops.some(id => {
+        const card = cardMap.get(getCardNum(id));
+        const power = powers?.get(id) ?? (parseInt(card?.Power ?? '', 10) || 0);
+        return power + delta <= 0 && matchesFilter(card, target.filter, powers?.get(id));
+      })) { found = true; return; }
+    }
     if (type && REMOVAL_TYPES.has(type)) {
       const target = obj.target as { type?: string; owner?: string; filter?: Parameters<typeof matchesFilter>[1] } | undefined;
       if (target?.owner === 'opponent' && target?.type === 'SIGNI'

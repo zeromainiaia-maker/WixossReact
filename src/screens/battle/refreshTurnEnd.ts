@@ -1,4 +1,6 @@
-import type { PlayerState } from '../../types';
+import type { CardData, PlayerState } from '../../types';
+import type { CardEffect } from '../../types/effects';
+import { collectHandLimits } from '../../engine/effectEngine';
 
 /** 「そのターンを終了する」に達するリフレッシュ回数（公式ルール＝**2回目**）。 */
 export const REFRESH_TURN_END_COUNT = 2;
@@ -24,4 +26,17 @@ export const REFRESH_TURN_END_COUNT = 2;
  */
 export function refreshForcesTurnEnd(turnPlayerState: PlayerState): boolean {
   return (turnPlayerState.refresh_count_this_turn ?? 0) >= REFRESH_TURN_END_COUNT;
+}
+
+/**
+ * 🆕2026-10-23（ユーザー裁定）＝**2回目のリフレッシュでターンを終えるときも、エンドフェイズの手札調整（上限まで捨てる）は行う**。
+ * ここは「何枚捨てるか」だけ（0＝調整なし）。上限は通常のエンドフェイズと同じ `collectHandLimits`。
+ * 🔴旧＝強制終了（`applyForcedTurnEnd`）は手札に触れず、手札9枚のまま相手のターンへ進んでいた（自己対戦の `HANDLIMIT`）。
+ * ⚠効果の「このターンを終了する」（`FORCE_END_TURN`）には使わない＝そちらはまだ裁定が無い。
+ */
+export function refreshTurnEndDiscardCount(
+  turnPlayerState: PlayerState, opponentState: PlayerState,
+  cardMap: Map<string, CardData>, effectsMap: Map<string, CardEffect[]>,
+): number {
+  return Math.max(0, turnPlayerState.hand.length - collectHandLimits(turnPlayerState, opponentState, cardMap, effectsMap));
 }

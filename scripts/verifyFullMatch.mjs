@@ -292,6 +292,8 @@ function makeQuery(page) {
       hand: (s?.hand ?? []).length,
       energy: (s?.energy ?? []).length,
       actionsDone: s?.actions_done ?? [],
+      // 🆕2026-10-23＝エンドフェイズ①の解決済みの印（これだけが変わる書き込みがある＝指紋に入れないと「ターン終了」の封印が解けない）。
+      endResolved: !!s?.end_turn_effects_resolved,
       lrigHasAttacked: !!s?.lrig_has_attacked,
       attackedSigni: s?.attacked_signi_ids ?? [],
       check: s?.field?.check ?? null,
@@ -577,7 +579,7 @@ function fingerprint(st) {
   if (!st) return 'null';
   return JSON.stringify([
     st.turnCount, st.turnPhase, st.myTurn, st.pendingEffect, st.pendingSpell,
-    st.me?.life, st.me?.deck, st.me?.hand, st.me?.energy, st.me?.lrig, st.me?.signi, st.me?.actionsDone,
+    st.me?.life, st.me?.deck, st.me?.hand, st.me?.energy, st.me?.lrig, st.me?.signi, st.me?.actionsDone, st.me?.endResolved,
     st.me?.lrigHasAttacked, st.me?.attackedSigni, st.me?.lrigDown, st.me?.signiDown,
     st.opp?.life, st.opp?.deck, st.opp?.hand, st.opp?.energy, st.opp?.lrig, st.opp?.signi,
     (st.logTail ?? []).at(-1) ?? '',

@@ -6,7 +6,7 @@ import { pendingRespondsOpponent, resolvePendingExiles } from '../../../engine/e
 import { type TrigCtx, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectTargetedTriggers as pureCollectTargetedTriggers, collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers } from '../../../engine/triggerCollect';
 import { type BattleStateRow, type CardData, type EffectStack, type PendingEffect, type PlayerState } from '../../../types';
 import { type CardEffect } from '../../../types/effects';
-import { refreshForcesTurnEnd } from '../refreshTurnEnd';
+import { refreshForcesTurnEnd, refreshTurnEndDiscardCount } from '../refreshTurnEnd';
 import { applyForcedTurnEnd } from '../turnScopedState';
 import { type BattleAction } from './battleController';
 import { collectArtsUseForResolution, collectOppArtsUseForResolution } from './artsUseTriggers';
@@ -224,6 +224,8 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
   let result = executeEffect(effectToRun, ctx);
   // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
   // 🔑公式ルール＝「1つの効果が終わった後、**他に発動する効果より優先して**リフレッシュ」（例：《幻獣神 オサキ》）。
+  /** 2回目のリフレッシュでのターン終了か（効果の「このターンを終了する」と分ける＝手札調整はこちらだけ）。 */
+  let refreshForcedEnd = false;
   {
     const refreshed = applyRefreshOnDone(result, deps.cardMap);
     if (refreshed !== result) {
@@ -231,9 +233,8 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
       const turnPlayerRefreshed = turnPlayerIsOwner ? refreshed.ownerRefreshed : refreshed.otherRefreshed;
       const turnPlayerCount = (turnPlayerIsOwner ? refreshed.ownerState : refreshed.otherState).refresh_count_this_turn ?? 0;
       // §5.6 `C-9` `R-28`＝しきい値は `refreshTurnEnd.ts` の述語1本（funnel と同じ判定を通す）。
-      result = (turnPlayerRefreshed && refreshForcesTurnEnd({ refresh_count_this_turn: turnPlayerCount } as PlayerState) && refreshed.done)
-        ? { ...refreshed, forceEndTurn: true }
-        : refreshed;
+      refreshForcedEnd = !!turnPlayerRefreshed && refreshForcesTurnEnd({ refresh_count_this_turn: turnPlayerCount } as PlayerState) && refreshed.done;
+      result = (refreshForcedEnd && refreshed.done) ? { ...refreshed, forceEndTurn: true } : refreshed;
     }
   }
   if (result.logs.length > 0) logs.push(...result.logs);
@@ -457,7 +458,13 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
     }
 
     // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
-    if (result.forceEndTurn) {
+    // 🆕2026-10-23＝**2回目のリフレッシュで手札が上限を超えていれば、ここでは終えない**（手札調整を先に行う）。
+    //   スタックは強制終了と同じく捨て、終了はルール処理 `checkRefreshForcedTurnEnd`（捨て札 → 終了）に任せる。
+    const activeIsHostRF = bs.active_user_id === bs.host_id;
+    if (result.forceEndTurn && refreshForcedEnd && refreshTurnEndDiscardCount(
+      activeIsHostRF ? hostState : guestState, activeIsHostRF ? guestState : hostState, deps.cardMap, deps.effectsMap) > 0) {
+      stackAcc = null;
+    } else if (result.forceEndTurn) {
       const activeIsHost = bs.active_user_id === bs.host_id;
       // §5.3 `O-117`＝盤面処理は `applyForcedTurnEnd` の1本（カットイン経路と同じ関数を見る）。
       const forced = applyForcedTurnEnd(

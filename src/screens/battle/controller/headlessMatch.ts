@@ -303,17 +303,23 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     const isMyTurn = bs.active_user_id === bs.host_id;
     const stackBusy = !!bs.effect_stack || !!bs.pending_effect;
     if (bs.global_phase !== 'PLAYING') return false;
-    if (!stackBusy && !me.field?.check && (me.pending_crashed_cards?.length ?? 0) > 0) await rc().triggerPendingCrash();
-    if (!stackBusy && isMyTurn) await rc().checkAndBanishPowerZero();
-    if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP') await rc().checkDeferredRefreshRule();
-    if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP' && isMyTurn) await rc().checkRefreshForcedTurnEnd();
-    if (!stackBusy && !bs.pending_spell) await rc().checkLimitExcessRule();
-    if (!stackBusy && isMyTurn) await rc().checkAndApplyContMutations();
+    // 🆕2026-10-23＝**1つ書いたらそこで返す**（次の手で新しい盤面から回し直す＝画面の useEffect と同じ「盤面ごとに1回」）。
+    //   🔴旧＝最初に読んだ `bs` のまま全部を順に回していた＝「リフレッシュ2回目でターン終了」を書いた直後に、
+    //   **終わったターンのバトル解決を古い盤面で走らせ**、次の手番のアップ（ルリグ・シグニ）を上書きで消した
+    //   （自己対戦で実測＝次のターンのルリグがダウンのまま＝勝てる場面でルリグアタックできなかった）。
+    const wrote = () => persist.commitCount() > before;
+    if (!stackBusy && !me.field?.check && (me.pending_crashed_cards?.length ?? 0) > 0) { await rc().triggerPendingCrash(); if (wrote()) return true; }
+    if (!stackBusy && isMyTurn) { await rc().checkAndBanishPowerZero(); if (wrote()) return true; }
+    if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP') { await rc().checkDeferredRefreshRule(); if (wrote()) return true; }
+    // 🆕2026-10-23＝画面と同じく CPU（guest）の手番も見る。
+    if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP') { await rc().checkRefreshForcedTurnEnd(); if (wrote()) return true; }
+    if (!stackBusy && !bs.pending_spell) { await rc().checkLimitExcessRule(); if (wrote()) return true; }
+    if (!stackBusy && isMyTurn) { await rc().checkAndApplyContMutations(); if (wrote()) return true; }
     // ⚠バトル解決は画面も「薄いラッパ」しか持っていない（本体は `resolveSigniBattle.ts`）＝同じ1本を直接呼ぶ。
-    if (!stackBusy && me.pending_signi_battle) await resolvePendingSigniBattleForImpl(
-      me, bs.guest_state, 'host_state', bs.host_id, bs.guest_id, clientCtx());
+    if (!stackBusy && me.pending_signi_battle) { await resolvePendingSigniBattleForImpl(
+      me, bs.guest_state, 'host_state', bs.host_id, bs.guest_id, clientCtx()); if (wrote()) return true; }
     if (!stackBusy && me.pending_lrig_attack) await rc().resolvePendingLrigAttack();
-    return persist.commitCount() > before;
+    return wrote();
   };
 
   /**

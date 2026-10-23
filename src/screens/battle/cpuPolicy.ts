@@ -130,6 +130,15 @@ export interface BoardWeights {
    */
   turnDamage: number;
   /**
+   * 🆕2026-10-23＝**次の相手ターンに殴られるレーン**（手番側から見て・既定 0＝従来どおり）。
+   * 🔑**なぜ要るか（自己対戦180戦の弱い手の調査）**＝正面に相手のシグニがいる空きゾーンを残してメインを終える手が9件。
+   *   低パワーのシグニで塞いでも `openLane`(+3000) − `laneWin`(−1500) − `hand`(−1500) ≒ 0 で、
+   *   **次の相手ターンにライフ1枚を守れる**ことが1点も入っていなかった（`openLane` は左右対称＝ターンを見ない）。
+   * ⇒ 手番側の「相手の正面が空いているシグニ」の数（凍結は次のアップでも起きないので除く）だけ引く。
+   * ⚠`openLane=6000` と違い**自分の攻めの価値は動かさない**（守りの欠落だけを埋める）。
+   */
+  nextThreat: number;
+  /**
    * 🆕2026-09-22＝**ルリグデッキに残っているアーツ1枚**（自分側だけ）。
    * 🔴**なぜ要るか（ユーザーのバグ報告 `aa903772`）**＝アーツは**1回しか使えない資源**なのに採点に1点も入っていなかった
    *   ⇒ 探索（`S-16`）には**アーツを使うことがタダ**に見え、**少しでも点が上がれば撃つ**。
@@ -273,6 +282,13 @@ export interface CpuPolicy {
    */
   readonly onPlayCostPay: number;
   /**
+   * 🆕2026-10-23＝**カード知識ベースの「使いどき」でアーツの窓を決める**か（0＝使わない）。
+   * 🔑対象は**作戦データに書いていない ∧ CPU が分類（無効化／除去／軽減）できないアーツだけ**＝いまは1枚も撃たない札
+   *   （ドロー・サーチ・強化・展開…）を、知識ベースの `when`（自分のターン／相手のターン／両方）の窓で撃てるようにする。
+   *   分類できる札・作戦データで指定した札は変えない（`cpuDeckPlan.withKnowledgeArtsUse`）。
+   */
+  readonly knowledgeArtsUse: number;
+  /**
    * 🆕2026-10-21＝**「このキーを場からルリグトラッシュに置く」をコストにするキーの【起】も CPU が使う**か（0＝使わない＝既定）。
    * 🔑キーを失う【起】は**得になる場面を選ぶ判断**が要る（いまの CPU は撃てる【起】を先頭から撃つだけ）＝既定では温存し、
    *   自己対戦の被覆を広げるときだけ `--policy-set "keyTrashAbility=1"` で使わせる。
@@ -327,11 +343,16 @@ export interface CpuPolicy {
 export const DEFAULT_CPU_POLICY: CpuPolicy = {
   name: 'default',
   boardWeights: {
-    life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500,
+    // 🆕2026-10-23＝`openLane` 3000 → 6000（旧値は `legacy-openlane`）。自己対戦 A/B を山とシードを変えて3回＝
+    //   決着した組 10-1／12-9／22-9（合計 54-28）・ライフ差 -0.42／-0.30／-0.29（既定から見て）＝3回とも同じ向き。
+    //   🔑きっかけ＝正面に相手がいる空きゾーンを残してメインを終える手（塞ぐ価値が ≒0）。⚠守りだけを足す `nextThreat` は差なし（19-19）＝効いているのは攻めの側。
+    life: 7000, hand: 1500, energy: 1000, openLane: 6000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500,
     // 🆕§5.7 `S-18`（2026-09-20）＝次のターンの制約。⚠**手で決めた初期値**＝`S-6`／A/B で調整する対象。
     growReady: 2500, handEmpty: -2000, guardKept: 800, lrigLevel: 2500,
     // 🆕§5.7 `S-21`（2026-09-20）＝**既定 0＝入れる前と同じ振る舞い**。値は A/B で決める（`search-damage` ほか）。
     turnDamage: 0,
+    // 🆕2026-10-23＝次の相手ターンに殴られるレーン。既定 0＝入れる前と同じ。
+    nextThreat: 0,
     // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。⚠手で決めた初期値＝A/B で調整する対象。
     artsKept: 2500,
   },
@@ -404,6 +425,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   assistGrowAsArts: 1,
   // 🆕2026-10-20＝コスト付き任意【出】も使う（払うかは「払いますか？」の選択で決める）。
   onPlayCostPay: 1,
+  // 🆕2026-10-23＝知識ベースの使いどきでアーツを撃つ。
+  knowledgeArtsUse: 0,
   keyTrashAbility: 0,
   // 🆕§5.7 `S-22`（2026-09-21）＝**既定で有効**。🔴これは調整つまみではなく**実測したバグの修正**
   //   （対象選択の 48% が乱数で、最大の塊は「宣言の後ろでバニッシュされる相手のシグニ」を乱数で選んでいた）。
@@ -475,6 +498,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 🆕2026-09-22 の **A 側＝アーツを使い切る値段を入れる前の採点**（`artsKept: 0`）。
    * ⚠**消さない**＝`--a legacy-arts --b default` の A/B で使う。
    */
+  /** 🆕2026-10-23 に `openLane` を 6000 へ上げる前の採点。 */
+  'legacy-openlane': variant('legacy-openlane', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, openLane: 3000 } }),
   'legacy-arts': variant('legacy-arts', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, artsKept: 0 } }),
   'legacy-power': variant('legacy-power', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1, laneWin: 0 },
@@ -538,6 +563,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-assistgrow': variant('legacy-assistgrow', { assistGrowAsArts: 0 }),
   // 🆕2026-10-20＝コスト付き任意【出】を使わない（旧挙動）。
   'legacy-onplaycost': variant('legacy-onplaycost', { onPlayCostPay: 0 }),
+  // 🆕2026-10-23＝知識ベースの使いどきでアーツを撃つ（A/B 用）。
+  'kb-arts': variant('kb-arts', { knowledgeArtsUse: 1 }),
   /** 🆕2026-09-26＝**スペルを手札に残す加点を入れる前**（スペルは効果の点数だけで比べられ、真っ先にエナへ行っていた）。 */
   'legacy-spellcharge': variant('legacy-spellcharge', { chargeSpellKeep: 0 }),
   /** 🆕§5.7 `S-22` を入れる前＝`thenAction` で読めない対象選択は乱数（対象宣言が全部ここに落ちていた）。 */
@@ -632,14 +659,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'searchKeepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'keyTrashAbility' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
+      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'knowledgeArtsUse' || key === 'keyTrashAbility' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
       || key === 'cutinGainMin' || key === 'betCoinValue') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }
