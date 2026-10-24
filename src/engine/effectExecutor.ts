@@ -1,7 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
 import { signiClassesOf } from './cardClasses';
 import { fieldSigniStacks, signiDownOf, withSigniDown, isZoneFrozen, placeUnderFieldSigni } from './cheerZoneView';
-import { cheerCardOf, moveToCheerZone, CHEER_GIRL } from './cheerZone';
+import { moveToCheerZone, CHEER_GIRL } from './cheerZone';
 import { applyRefreshState } from './refresh';
 import { currentRng, mulberry32, setRng } from './rng';
 import type {
@@ -19,7 +19,7 @@ import {
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, isImmovableArtsFromLrigDeck, hasNoAbility, lrigZoneTops, designatedZones,
   deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
-  trapIconEffectOf, resolveFrontOfSelfCardNum, createTokenInstanceId, finitePowerDelta,
+  trapIconEffectOf, resolveFrontOfSelfCardNum, createTokenInstanceId, freshTokenInstanceId, finitePowerDelta,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -4797,22 +4797,8 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         }
       }
     }
-    let maxIdx = 0;
-    const scanNums = (arr: string[] | null | undefined) => arr?.forEach(n => {
-      if (getCardNum(n) === tokenBase) {
-        const i = parseInt(n.slice(tokenBase.length + 1), 10) || 0;
-        if (i > maxIdx) maxIdx = i;
-      }
-    });
-    const scanSt = (s: PlayerState) => {
-      scanNums(s.deck); scanNums(s.hand); scanNums(s.trash); scanNums(s.energy);
-      s.field.signi.forEach(z => scanNums(z));
-      scanNums(s.field.free_zone);
-      scanNums(cheerCardOf(s) ? [cheerCardOf(s)!] : []);
-    };
-    scanSt(ctx.ownerState);
-    scanSt(ctx.otherState);
-    const instanceId = `${tokenBase}#${maxIdx + 1}`;
+    // 個体番号は両者の盤面のどこにも無い番号（除外ゾーンを含む＝`freshTokenInstanceId` の1本）。
+    const instanceId = freshTokenInstanceId(tokenBase, ctx.ownerState, ctx.otherState);
     const signi = [...state.field.signi] as (string[] | null)[];
     const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
     if (emptyZones.length >= 2) {
@@ -11048,16 +11034,7 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
     }
     const base = resolveCraft(a.craftNames[0]);
     if (!base) return done(addLog(ctx, `クラフト《${a.craftNames[0]}》が見つからない`));
-    let maxIdx = 0;
-    const scan = (arr: (string | null | undefined)[] | null | undefined) => arr?.forEach(n => {
-      if (n && getCardNum(n) === base) maxIdx = Math.max(maxIdx, parseInt(n.slice(base.length + 1), 10) || 0);
-    });
-    for (const st of [ctx.ownerState, ctx.otherState]) {
-      scan(st.deck); scan(st.hand); scan(st.trash); scan(st.energy); scan(st.excluded); scan(st.lrig_deck); scan(st.lrig_trash);
-      st.field.signi.forEach(z => scan(z));
-      (st.field.signi_acce ?? []).forEach(z => scan(z as string[] | null));
-    }
-    const minted = `${base}#${maxIdx + 1}`;
+    const minted = freshTokenInstanceId(base, ctx.ownerState, ctx.otherState);
     const pickHost: AttachAcceAction = { ...a, craftNames: undefined, _mintedCraft: true, _selectingAcceFromHand: true };
     return applyDirectAction(pickHost as import('../types/effects').EffectAction, minted, ctx);
   }

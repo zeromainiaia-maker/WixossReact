@@ -20,7 +20,7 @@ import { recordEnergyPlacements } from '../../../engine/energyPlacement';
  */
 export type EnergyChargeSource =
   | { from: 'hand'; handIndex: number }
-  /** 場のシグニ（そのゾーンの**最上層**）。⚠下敷き（ライズの下）は動かさない。 */
+  /** 場のシグニ（そのゾーンの**最上層**）。🔴2026-10-24＝下にあったカードはルールどおりトラッシュへ（`removeFromField`＝旧はゾーンに残していた）。 */
   | { from: 'field'; zone: number };
 
 export interface EnergyChargeResult {
@@ -64,10 +64,11 @@ export function performEnergyCharge(
     }
     const stack = actor.field.signi[source.zone];
     if (!stack || stack.length === 0) return null;
-    const signi = [...actor.field.signi] as (string[] | null)[];
-    const rest = stack.slice(0, -1);
-    signi[source.zone] = rest.length > 0 ? rest : null;
-    return { charged: stack[stack.length - 1], base: { ...actor, field: { ...actor.field, signi } } };
+    // 🔴2026-10-24＝**場を離れる共通の1本（removeFromField）で取り除く**（チアゾーンの分岐と同じ）。
+    //   旧＝束の一番上を抜くだけ＝下に置いたカード（《世紀末の爆走》のようなスペルを含む）・【チャーム】【アクセ】【ソウル】・
+    //   ダウン／凍結の印がゾーンに残っていた（ディーバの CPU デッキ総当たりの所見 SHAPE「シグニゾーンの一番上がスペル」）。
+    const top = stack[stack.length - 1];
+    return { charged: top, base: removeFromField(top, actor) };
   })();
   if (!taken) return { state: actor, charged: null, toTrash: false, logs: [] };
   const { charged, base } = taken;

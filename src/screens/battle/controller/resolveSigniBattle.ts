@@ -610,6 +610,10 @@ export async function resolvePendingSigniBattleFor(
             banishedOpUnderCards = sacStack.slice(0, -1);
             const f3Signi = [...opS.field.signi] as (string[] | null)[];
             const f3Extra: string[] = [];
+            // 🔴2026-10-24＝【ソウル】はルリグトラッシュへ（本筋のバニッシュと同じ＝身代わりの側も場を離れる）。
+            const f3Soul = opS.field.signi_soul ? [...opS.field.signi_soul] as (string | null)[] : undefined;
+            const f3SoulToLrigTrash: string[] = [];
+            if (sacZone >= 0 && f3Soul?.[sacZone]) { f3SoulToLrigTrash.push(f3Soul[sacZone]!); f3Soul[sacZone] = null; }
             if (sacZone >= 0) {
               f3Signi[sacZone] = null;
               newOpDown[sacZone] = false;
@@ -622,7 +626,8 @@ export async function resolvePendingSigniBattleFor(
               ...opS,
               energy: [...opS.energy, ...sacStack],
               trash: f3Extra.length > 0 ? [...opS.trash, ...f3Extra] : opS.trash,
-              field: { ...opS.field, signi: f3Signi, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
+              lrig_trash: f3SoulToLrigTrash.length > 0 ? [...opS.lrig_trash, ...f3SoulToLrigTrash] : opS.lrig_trash,
+              field: { ...opS.field, signi: f3Signi, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce, ...(f3Soul ? { signi_soul: f3Soul } : {}) },
               banish_substitute_choice: undefined, pending_banish_substitute: undefined,
             }, sacStack, 'rule');
             appendBattleLogs([`身代わり：${opCardName}の代わりに${battleCardMap.get(f3SacrificeNum)?.CardName ?? f3SacrificeNum}をバニッシュ`]);
@@ -905,6 +910,13 @@ export async function resolvePendingSigniBattleFor(
           //   ⚠`banishedOpUnderCards` は上で `stack.slice(0,-1)` として既に確定済み（トリガー収集も同じ値を使う）。
           const opTopOnly = opTopCardNum ? [opTopCardNum] : [];
           const opUnderToTrash = banishedOpUnderCards;
+          // 🔴2026-10-24＝**【ソウル】はルリグトラッシュへ**（ルール JP-097・`clearZoneOnSigniLeave` と同じ）。
+          //   旧＝この経路は場を手で組み直しており、チャーム・アクセは片づけるのに【ソウル】を残していた＝
+          //   バトルで倒されたシグニのゾーンに【ソウル】だけが浮き、次にそのゾーンへ出たシグニが能力を得ていた
+          //   （ディーバの CPU デッキ総当たり 1,512戦で `SHAPE`「シグニがいないのに【ソウル】」7件）。
+          const newOpSoul = opS.field.signi_soul ? [...opS.field.signi_soul] as (string | null)[] : undefined;
+          const opSoulToLrigTrash = newOpSoul?.[opZoneIndex] ? [newOpSoul[opZoneIndex]!] : [];
+          if (newOpSoul) newOpSoul[opZoneIndex] = null;
           newOpState = {
             ...opS,
             hand: (redirectBanishToHand && !resonaDest) ? [...opS.hand, ...opTopOnly] : opS.hand,
@@ -913,7 +925,7 @@ export async function resolvePendingSigniBattleFor(
             // 🔴`R-45`＝規則は他の置換に**勝つ**ので、ここだけは `resonaDest` を見て排他にする。
             lrig_deck: banishToLrigDeck ? [...opS.lrig_deck, ...opTopOnly] : opS.lrig_deck,
             excluded: banishToExileCraft ? [...(opS.excluded ?? []), ...opTopOnly] : opS.excluded,
-            lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash,
+            lrig_trash: [...(banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash), ...opSoulToLrigTrash],
             trash: [
               ...opS.trash,
               ...((redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile) && !resonaDest ? opTopOnly : []),
@@ -927,6 +939,7 @@ export async function resolvePendingSigniBattleFor(
               signi_frozen: newOpFrozen,
               signi_charms: newOpCharms,
               signi_acce:   newOpAcce,
+              ...(newOpSoul ? { signi_soul: newOpSoul } : {}),
             },
           };
           appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${banishToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishToExileCraft ? '（クラフト→ゲームから除外）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : redirectBanishToExile ? '（ゲームから除外）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);

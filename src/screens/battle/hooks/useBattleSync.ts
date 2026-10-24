@@ -9,7 +9,7 @@ import type { BattleStateRow, PlayerState } from '../../../types';
 import { useOnResume } from '../../../utils/resumeSync';
 import { normalizeAcceSlots } from '../../../utils/acce';
 import { useBattlePersist } from '../controller/persist';
-import { lastCommitArrived, updatedAtKey, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer } from '../cpuDriver';
+import { lastCommitArrived, updatedAtKey, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer, incomingRowIsStale } from '../cpuDriver';
 
 /**
  * 🔴**DB から来た行の `signi_acce` 旧形式（素の string）をここで一度だけ配列へ正す**（タスク12(cxxxiv)）。
@@ -31,14 +31,31 @@ export function normalizeBattleRow(row: BattleStateRow): BattleStateRow {
   return changed ? { ...row, host_state: host, guest_state: guest } : row;
 }
 
+/** 🆕2026-10-24＝通知の取りこぼしの調査用（`localStorage.syncTrace = '1'` のときだけ `[sync]` をコンソールへ出す）。 */
+const syncTraceOn = (() => { try { return typeof localStorage !== 'undefined' && localStorage.getItem('syncTrace') === '1'; } catch { return false; } })();
+const syncTrace = (msg: string) => { if (syncTraceOn) console.debug(`[sync] ${Date.now()} ${msg}`); };
+
 export function useBattleSync({ roomId, onRoomDeleted }: {
   roomId: string;
   /** 部屋（`rooms`）が消えた通知を受けたとき。 */
   onRoomDeleted: () => void;
 }) {
   const [bs, setBsRaw] = useState<BattleStateRow | null>(null);
-  const setBs = useCallback(
-    (row: BattleStateRow | null) => setBsRaw(row ? normalizeBattleRow(row) : row), []);
+  /** 最後に盤面へ入れた行（部屋と `updated_at`）＝古い行で上書きしないための控え（`incomingRowIsStale`）。 */
+  const lastSetRef = useRef<{ room: string; ua: string } | null>(null);
+  const setBs = useCallback((row: BattleStateRow | null) => {
+    if (row) {
+      const ua = row.updated_at ?? '';
+      const last = lastSetRef.current;
+      // 🔴2026-10-24＝**手元より古い行は捨てる**（通知は確定の順に届くとは限らない＝古い盤面で上書きして画面が1手前へ戻っていた）。
+      if (last && incomingRowIsStale({ incomingUpdatedAt: ua, lastUpdatedAt: last.ua, sameRoom: row.room_id === last.room })) {
+        syncTrace(`STALE drop=${ua} keep=${last.ua} phase=${row.turn_phase}`);
+        return;
+      }
+      lastSetRef.current = { room: row.room_id, ua: ua || (last?.ua ?? '') };
+    }
+    setBsRaw(row ? normalizeBattleRow(row) : row);
+  }, []);
   /** 非同期処理・タイマーから最新の盤面を読むための控え（毎レンダーで追従）。 */
   const bsRef = useRef(bs);
   bsRef.current = bs;
@@ -51,6 +68,8 @@ export function useBattleSync({ roomId, onRoomDeleted }: {
   //   ⚠書き込みはすべてここを通る＝人間の操作も含めて記録する（CPU の判定が人間の書き込みの通知も待つのは正しい）。
   const pendingCommitsRef = useRef(0);
   const lastCommitUpdatedAtRef = useRef('');
+  /** 最後の書き込みが返った時刻（見張りの待ち時間はここから測る＝`ownCommitResyncDue`）。 */
+  const lastCommitAtRef = useRef(0);
   const persist = useMemo(() => ({
     ...persistRaw,
     commit: async (patch: Parameters<typeof persistRaw.commit>[0]) => {
@@ -58,6 +77,8 @@ export function useBattleSync({ roomId, onRoomDeleted }: {
       try {
         const res = await persistRaw.commit(patch);
         const ua = res.data?.[0]?.updated_at;
+        lastCommitAtRef.current = Date.now();
+        syncTrace(`commit ua=${ua ?? '-'} err=${res.error ? res.error.message : '-'}`);
         if (ua && updatedAtKey(ua) > updatedAtKey(lastCommitUpdatedAtRef.current)) lastCommitUpdatedAtRef.current = ua;
         return res;
       } finally {
@@ -86,15 +107,20 @@ export function useBattleSync({ roomId, onRoomDeleted }: {
       .channel(`battle-${roomId}-${resumeTick}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'battle_states', filter: `room_id=eq.${roomId}`,
-      }, (payload) => { setBs(payload.new as BattleStateRow); })
+      }, (payload) => {
+        const n = payload.new as BattleStateRow;
+        syncTrace(`rt ua=${n?.updated_at ?? '-'} keys=${n ? Object.keys(n).length : 0} phase=${n?.turn_phase}`);
+        setBs(n);
+      })
       .on('postgres_changes', {
         event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}`,
       }, () => { onRoomDeletedRef.current(); })
       .subscribe((status) => {
         // 接続後に最新データを再取得（リロード時に Realtime が間に合わない場合の対策）
+        syncTrace(`channel ${status}`);
         if (status === 'SUBSCRIBED') {
           persist.fetchState()
-            .then(({ data }) => { if (data) setBs(data as BattleStateRow); });
+            .then(({ data }) => { syncTrace(`fetch(subscribed) ua=${(data as BattleStateRow | null)?.updated_at ?? '-'}`); if (data) setBs(data as BattleStateRow); });
         }
       });
 
@@ -111,9 +137,10 @@ export function useBattleSync({ roomId, onRoomDeleted }: {
       const setupDue = setupResyncDue({ globalPhase: bsRef.current?.global_phase, now, lastChangeAt });
       const ownDue = ownCommitResyncDue({
         pendingCommits: pendingCommitsRef.current, localUpdatedAt: bsRef.current?.updated_at,
-        lastCommitUpdatedAt: lastCommitUpdatedAtRef.current, now, lastChangeAt,
+        lastCommitUpdatedAt: lastCommitUpdatedAtRef.current, now, lastChangeAt, lastCommitAt: lastCommitAtRef.current,
       });
       if (!setupDue && !ownDue) return;
+      syncTrace(`watchdog due own=${ownDue} local=${bsRef.current?.updated_at} lastCommit=${lastCommitUpdatedAtRef.current}`);
       setupLastChangeAtRef.current = now;   // 読み直しの連打を防ぐ
       const { data } = await persist.fetchState();
       if (data && fetchedRowIsNewer((data as BattleStateRow).updated_at, bsRef.current?.updated_at)) {

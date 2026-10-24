@@ -3890,7 +3890,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = my.hand[handIndex];
       const newHand = my.hand.filter((_, i) => i !== handIndex);
-      const fzGBA = addBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD, 1);
+      const fzGBA = addBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD, 1, op);
       const paid: PlayerState = {
         ...my,
         hand: newHand,

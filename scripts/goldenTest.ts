@@ -150,6 +150,7 @@ import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstS
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 // 🆕第283バッチ（2026-09-12・§5.3 `O-312`/`O-313`/`O-314`/`O-317`）の消費地点を直接叩く。
 import { signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard } from '../src/engine/execUtils';
+import { freshTokenInstanceId, addBarrierTokens as addBarrierTokensT } from '../src/engine/execUtils';
 import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils';
 import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason, sharesLrigType } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
@@ -184,7 +185,7 @@ import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardP
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
-import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, SETUP_RESYNC_IDLE_MS, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer } from '../src/screens/battle/cpuDriver';
+import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu, SETUP_RESYNC_IDLE_MS, setupResyncDue, ownCommitResyncDue, fetchedRowIsNewer, incomingRowIsStale } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices, spellChargeKeep } from '../src/screens/battle/cpuHandLimit';
 import { cpuShouldChargeEnergy, fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
@@ -95798,6 +95799,19 @@ test('2026-10-23 CPU 戦のじゃんけんの後「次のフェイズへ移行�
   ok(!own({ pendingCommits: 1 }), '書き込み中に読み直している');
   ok(!own({ now: t0 + 100 }), '書いた直後（通知の通常の遅れ）に読み直している');
   ok(!own({ lastCommitUpdatedAt: '' }), 'まだ何も書いていないのに読み直している');
+  // 🆕2026-10-24（通知の記録で実測）＝**盤面が長く止まった後の書き込みは、書き込みが返ってから2.5秒待つ**（旧＝返った直後に読み直していた＝取りこぼし0件なのに警告が出ていた）。
+  ok(!own({ now: t0 + 60_000, lastChangeAt: t0, lastCommitAt: t0 + 60_000 - 200 }), '🔴盤面が止まっていた後の書き込みで、通知の通常の遅れ（0.2秒）を待たずに読み直している');
+  ok(own({ now: t0 + 60_000, lastChangeAt: t0, lastCommitAt: t0 + 60_000 - SETUP_RESYNC_IDLE_MS }), '書き込みから2.5秒たっても届かないのに読み直さない');
+  ok(battleScreenSource().includes('lastCommitAt: lastCommitAtRef.current'), '🔴画面が書き込みの時刻を見張りへ渡していない');
+  // 🆕2026-10-24（通知の記録で実測）＝**通知は確定の順に届くとは限らない**＝`.520` の後に `.460` が届き、古い盤面で上書きして画面が1手前へ戻っていた（見張りが2.5秒後に直していた）。
+  //   ⚠DB の updated_at が確定の順に増える（clock_timestamp）ことが前提＝docs/sql/2026-10-24_updated_at_clock_timestamp.sql。
+  ok(incomingRowIsStale({ incomingUpdatedAt: '2026-10-23 22:10:35.460112+00', lastUpdatedAt: '2026-10-23T22:10:35.520359+00:00', sameRoom: true }), '🔴後から届いた古い行で盤面を上書きする（画面が1手前へ戻る）');
+  ok(!incomingRowIsStale({ incomingUpdatedAt: '2026-10-23T22:10:35.520359+00:00', lastUpdatedAt: '2026-10-23 22:10:35.520359+00', sameRoom: true }), '同じ行（表記違い）を古いと見ている');
+  ok(!incomingRowIsStale({ incomingUpdatedAt: '2026-10-23T22:10:36+00:00', lastUpdatedAt: '2026-10-23T22:10:35+00:00', sameRoom: true }), '新しい行を捨てている');
+  ok(!incomingRowIsStale({ incomingUpdatedAt: '2026-10-23T22:10:30+00:00', lastUpdatedAt: '2026-10-23T22:10:35+00:00', sameRoom: false }), '別の部屋の行を比べている');
+  ok(!incomingRowIsStale({ incomingUpdatedAt: null, lastUpdatedAt: '2026-10-23T22:10:35+00:00', sameRoom: true }), '時刻の無い行を捨てている');
+  ok(battleScreenSource().includes('incomingRowIsStale({ incomingUpdatedAt: ua, lastUpdatedAt: last.ua, sameRoom: row.room_id === last.room })'), '🔴盤面を入れる入口（setBs）が古い行を捨てていない');
+  ok(fs.readFileSync(join(root, 'docs/sql/2026-10-24_updated_at_clock_timestamp.sql'), 'utf8').includes('new.updated_at = clock_timestamp();'), '前提の SQL（updated_at を確定の順に）が無い');
   const src = battleScreenSource();
   ok(src.includes('setupResyncDue({ globalPhase: bsRef.current?.global_phase'), '🔴画面がセットアップの見張りを使っていない');
   ok(src.includes('const ownDue = ownCommitResyncDue({'), '🔴画面が「自分の書き込みが届かない」見張りを使っていない');
@@ -95909,6 +95923,63 @@ test('2026-10-24 【出】コストの支払い（onPlayCostPayment.ts）を盤�
   const st = placed();
   pay({ coin: 1 }, { discardIndices: new Set([0]) }, st);
   eq(st.hand.length, 2, '🔴入力の盤面を書き換えた'); eq(st.coins, 2, '🔴入力のコインを書き換えた');
+}));
+
+test('2026-10-24 トークンの個体番号は両者の盤面のどこにも無い番号（除外ゾーン・相手のバリアを含む）', () => withSavedCursor(() => {
+  // 🔴ディーバの CPU デッキ総当たり（1,512戦）で二重存在の所見 99件＝**全部トークン**だった。
+  //   ①クラフト（雷ちゃん `WX25-CP1-TK1A`）は場を離れると除外される＝番号を探す範囲に除外ゾーンが無く、次の雷ちゃんも #1 で作られた
+  //   ②バリア（`WX24-P1-TK2A`）は自分のフリーゾーンだけを見て振る＝両者とも #1 を持った。
+  const T = 'WX25-CP1-TK1A';
+  const me = mkState(); const opp = mkState();
+  me.excluded = [`${T}#1`];
+  eq(freshTokenInstanceId(T, me, opp), `${T}#2`, '🔴除外ゾーンにある番号をもう一度使った（場と除外に同じ個体番号が並ぶ）');
+  opp.field.signi = [[`${T}#3`], null, null];
+  eq(freshTokenInstanceId(T, me, opp), `${T}#4`, '🔴相手の場にある番号をもう一度使った');
+  eq(freshTokenInstanceId(T, mkState(), mkState()), `${T}#1`, '何も無いのに #1 から始まらない');
+  // 実際に場に出す経路（ADD_TO_FIELD cardName＝雷ちゃん）
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.excluded = [`${T}#1`];
+  const r = executeAction({ type: 'ADD_TO_FIELD', owner: 'self', cardName: cardMap.get(T)!.CardName } as unknown as EffectAction,
+    { ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: [null, [SIGNI], [SIGNI]] } } } as ExecCtx);
+  const placed = r.done ? r.ownerState.field.signi[0]?.[0] : undefined;
+  eq(placed, `${T}#2`, '🔴場に出した雷ちゃんが除外ゾーンの雷ちゃんと同じ個体番号');
+  // バリア＝相手の番号も避ける
+  const B = 'WX24-P1-TK2A';
+  const oppB = mkState(); oppB.field.free_zone = [`${B}#1`];
+  eq(JSON.stringify(addBarrierTokensT([], B, 1, oppB)), JSON.stringify([`${B}#2`]), '🔴相手のフリーゾーンのバリアと同じ個体番号');
+  eq(JSON.stringify(addBarrierTokensT([`${B}#1`], B, 2)), JSON.stringify([`${B}#1`, `${B}#2`, `${B}#3`]), '自分のバリアの番号の続きにならない');
+}));
+
+test('2026-10-24 バトルでバニッシュされたシグニの【ソウル】はルリグトラッシュへ（本筋・身代わりの両方）', () => withSavedCursor(() => {
+  // 🔴ディーバの CPU デッキ総当たりで `SHAPE`「シグニがいないのに【ソウル】」7件＝バトル解決は場を手で組み直し、チャーム・アクセは片づけるのに【ソウル】を残していた。
+  //   ⚠効果のバニッシュ（`removeFromField`）と場を離れる共通の後始末（`clearZoneOnSigniLeave`）は元から正しい＝壊れていたのはバトルの経路だけ。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  ok(src.includes('lrig_trash: [...(banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash), ...opSoulToLrigTrash]'), '🔴バトルのバニッシュ（本筋）で【ソウル】をルリグトラッシュへ送っていない');
+  ok(src.includes('...(newOpSoul ? { signi_soul: newOpSoul } : {})'), '🔴バトルのバニッシュ（本筋）でゾーンの【ソウル】を空けていない');
+  ok(src.includes('...(f3Soul ? { signi_soul: f3Soul } : {})') && src.includes('[...opS.lrig_trash, ...f3SoulToLrigTrash]'), '🔴身代わりでバニッシュしたシグニの【ソウル】を片づけていない');
+}));
+
+test('2026-10-24 ルリグアタックの追加コスト（《無》を支払わないかぎりアタックできない）で払ったエナはトラッシュへ', () => withSavedCursor(() => {
+  // 🔴ディーバの CPU デッキ総当たりの消滅（VANISH）＝スフィンクス2体の付与を払った2枚が、エナから外されただけでどこにも置かれなかった。
+  //   ⚠シグニのアタック・ガードの追加コスト・アップキープなど同じ形の支払いは全部トラッシュへ置いていた＝ルリグアタックだけが片側。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigAttack.ts'), 'utf8');
+  ok(src.includes('lrigAttackPaidEnergy = removed;'), '🔴ルリグアタックの追加コストで払ったエナを控えていない');
+  ok(src.includes('...(lrigAttackPaidEnergy.length > 0 ? { trash: [...myAfterFieldTrash.trash, ...lrigAttackPaidEnergy] } : {}),'), '🔴ルリグアタックの追加コストで払ったエナがトラッシュへ行かない（カードが消える）');
+}));
+
+test('2026-10-24 場のシグニをエナチャージしたら、下のカード・付いていた札はゾーンに残さない（performEnergyCharge）', () => withSavedCursor(() => {
+  // 🔴ディーバの CPU デッキ総当たり（1,512戦を回し直して最後に残った1件）＝`SHAPE`「シグニゾーンの一番上がスペル」。
+  //   束の一番上を抜くだけで、下に置いた《世紀末の爆走》（スペル）・【チャーム】・ダウンの印がゾーンに残っていた。
+  const under = 'WXDi-P05-060#9'; const top = `${SIGNI}#9`; const charm = `${SIGNI_L1}#8`;
+  const st = mkState({});
+  st.field = { ...st.field, signi: [[under, top], null, null], signi_down: [true, false, false], signi_charms: [charm, null, null] };
+  const r = performEnergyCharge(st, mkState({}), { from: 'field', zone: 0 }, cardMap as Map<string, CardData>, new Map());
+  eq(r.charged, top, '置いたカードが一番上のシグニではない');
+  ok(r.state.energy.includes(top), 'シグニがエナへ行かない');
+  eq(r.state.field.signi[0], null, '🔴ゾーンに下のカードが残った（シグニゾーンの一番上がスペルになる）');
+  ok(r.state.trash.includes(under), '🔴下にあったカードがトラッシュへ行かない（消える）');
+  ok(r.state.trash.includes(charm) && !r.state.field.signi_charms?.[0], '🔴付いていた【チャーム】がゾーンに残った');
+  eq(r.state.field.signi_down?.[0], false, '🔴ダウンの印がゾーンに残った（次に置いたシグニがいきなりダウン）');
 }));
 
 test('2026-10-24 CPU の召喚も人間の「召喚」ボタンと同じ条件＝限定条件・宣言したシグニ（レベル0・限定無視）・場の合計レベル', () => withSavedCursor(() => {

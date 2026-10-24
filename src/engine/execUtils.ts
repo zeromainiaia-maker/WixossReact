@@ -2073,16 +2073,29 @@ export function resolveTokenBase(cardMap: Map<string, CardData>, cardName: strin
   return undefined;
 }
 
+/**
+ * 新しいトークン（クラフト・バリアほか）の個体番号＝**両者の盤面のどこにも無い** `<base>#<N>`。
+ * 🔴2026-10-24＝**盤面の文字列を全部たどって最大の番号を探す**（置き場を列挙しない）。
+ *   旧＝置き場を手で並べており、**除外ゾーンを見ていなかった**（場を離れたクラフトは除外される）＝
+ *   雷ちゃん（`WX25-CP1-TK1A`）の #1 が除外にある間に次の雷ちゃんも #1 で作られ、**同じ個体番号が場と除外に並んだ**
+ *   （ディーバの総当たり 1,512戦で二重存在の所見 99件中 約80件）。置き場を足すたびに漏れる書き方だった。
+ */
 export function freshTokenInstanceId(base: string, ...states: PlayerState[]): string {
+  return `${base}#${maxTokenIndex(base, states) + 1}`;
+}
+
+/** 盤面（参照を含む）に現れる `<base>#<N>` の最大の N（無ければ 0）。 */
+export function maxTokenIndex(base: string, states: readonly unknown[]): number {
   let maxIdx = 0;
-  const scan = (arr?: (string | null)[] | null) => arr?.forEach(n => {
-    if (n && getCardNum(n) === base) { const i = parseInt(n.slice(base.length + 1), 10) || 0; if (i > maxIdx) maxIdx = i; }
-  });
-  for (const s of states) {
-    scan(s.deck); scan(s.hand); scan(s.trash); scan(s.energy); scan(s.lrig_deck); scan(s.lrig_trash);
-    s.field.signi.forEach(z => scan(z)); scan(s.field.lrig); scan(s.field.free_zone); scan(s.field.cheer ? [s.field.cheer] : []);
-  }
-  return `${base}#${maxIdx + 1}`;
+  const prefix = `${base}#`;
+  const walk = (o: unknown): void => {
+    if (typeof o === 'string') {
+      if (o.startsWith(prefix)) { const i = parseInt(o.slice(prefix.length), 10) || 0; if (i > maxIdx) maxIdx = i; }
+    } else if (Array.isArray(o)) { for (const x of o) walk(x); }
+    else if (o && typeof o === 'object') { for (const x of Object.values(o)) walk(x); }
+  };
+  for (const s of states) walk(s);
+  return maxIdx;
 }
 
 // CardName から新規トークンインスタンスIDを生成（解決不可なら undefined）
@@ -2107,15 +2120,13 @@ export function countBarrierTokens(freeZone: string[] | undefined, base: string)
 }
 
 // フリーゾーンにバリアトークンを count 個追加する（既存の最大連番+1から採番）。
-export function addBarrierTokens(freeZone: string[] | undefined, base: string, count = 1): string[] {
+/**
+ * ⚠🆕2026-10-24＝`otherState`（相手の盤面）を渡すと相手側の番号も避ける＝旧は自分のフリーゾーンだけを見ており、
+ *   両者とも `WX24-P1-TK2A#1` を持つ＝**同じ個体番号が両者のフリーゾーンに並んだ**（総当たりの二重存在 14件＋2件）。
+ */
+export function addBarrierTokens(freeZone: string[] | undefined, base: string, count = 1, otherState?: unknown): string[] {
   const fz = [...(freeZone ?? [])];
-  let maxIdx = 0;
-  for (const n of fz) {
-    if (getCardNum(n) === base) {
-      const i = parseInt(n.slice(base.length + 1), 10) || 0;
-      if (i > maxIdx) maxIdx = i;
-    }
-  }
+  const maxIdx = maxTokenIndex(base, otherState === undefined ? [fz] : [fz, otherState]);
   for (let k = 0; k < count; k++) fz.push(`${base}#${maxIdx + 1 + k}`);
   return fz;
 }

@@ -122,14 +122,35 @@ export function setupResyncDue(p: { globalPhase: string | null | undefined; now:
  *   （`end_turn_effects_resolved`）が立っているのに「ターン終了」が効かない（自動解決が画面に届くまで受け付けない）。
  *   CPU の見張りは CPU が動く場面しか見ないので、人間の手番で自分の書き込みの通知が落ちると誰も読み直さない。
  */
-export function ownCommitResyncDue(p: { pendingCommits: number; localUpdatedAt: string | null | undefined; lastCommitUpdatedAt: string; now: number; lastChangeAt: number }): boolean {
+/*
+ * 🔴🆕2026-10-24（通知の記録 `SYNC_TRACE=1` で実測）＝**待ち時間は「最後の書き込みが返ってから」で測る**（`lastCommitAt`）。
+ *   旧＝「最後に盤面が変わってから」だけ＝人間が考えて盤面が15秒止まった後に書き込むと、**書き込みが返った直後の点検で
+ *   もう2.5秒たった扱い**になり、通知（普通は0.2秒ほど遅れて届く）を待たずに DB を読み直していた。1戦187手の記録では
+ *   通知の取りこぼしは0件で、「自分の書き込みが届かない」の警告はこの早撃ちだった。
+ */
+export function ownCommitResyncDue(p: { pendingCommits: number; localUpdatedAt: string | null | undefined; lastCommitUpdatedAt: string; now: number; lastChangeAt: number; lastCommitAt?: number }): boolean {
   if (p.pendingCommits > 0 || !p.lastCommitUpdatedAt) return false;
   if (updatedAtKey(p.localUpdatedAt) >= updatedAtKey(p.lastCommitUpdatedAt)) return false;
-  return p.now - p.lastChangeAt >= SETUP_RESYNC_IDLE_MS;
+  return p.now - Math.max(p.lastChangeAt, p.lastCommitAt ?? 0) >= SETUP_RESYNC_IDLE_MS;
 }
 
 /** 読み直した行が手元より新しいか（新しいときだけ差し替える＝通知と競っても盤面を巻き戻さない）。 */
 export function fetchedRowIsNewer(fetchedUpdatedAt: string | null | undefined, localUpdatedAt: string | null | undefined): boolean {
   const f = updatedAtKey(fetchedUpdatedAt);
   return f !== '' && f > updatedAtKey(localUpdatedAt);
+}
+
+/**
+ * 🆕🔴2026-10-24（通知の記録 `SYNC_TRACE=1` で実測）＝**届いた行が、いま手元にある同じ部屋の行より古いか**（古ければ捨てる）。
+ *   🔑**真因**＝Realtime は通知を確定の順に届けるとは限らない＝書き込み `.460`→`.520` に対して通知が `.520`→`.460` の順に届き、
+ *   **新しい盤面の後に古い盤面で上書きして画面が1手前へ戻っていた**。それを見張り（`ownCommitResyncDue`）が2.5秒後に読み直して
+ *   直していたのが「自分の書き込みが届かない」の正体（通知は1件も落ちていなかった）。
+ *   ⚠**DB の `updated_at` が確定の順に増えることが前提**＝`docs/sql/2026-10-24_updated_at_clock_timestamp.sql`
+ *   （旧 `now()` はトランザクションの開始時刻で、重なった書き込みでは最新の行のほうが小さくなりえた＝この判定は使えなかった）。
+ *   ⚠部屋が違えば比べない（別の対戦の行）。時刻が読めない行は捨てない。
+ */
+export function incomingRowIsStale(p: { incomingUpdatedAt: string | null | undefined; lastUpdatedAt: string | null | undefined; sameRoom: boolean }): boolean {
+  if (!p.sameRoom) return false;
+  const inc = updatedAtKey(p.incomingUpdatedAt), last = updatedAtKey(p.lastUpdatedAt);
+  return inc !== '' && last !== '' && inc < last;
 }

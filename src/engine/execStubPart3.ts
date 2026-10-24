@@ -4515,7 +4515,7 @@ export function execStubPart3(
   // 🆕§5.3 `O-543`（`WX26-P1-026-E2`）＝トークン（`WX26-P1-TK01B`）をフリーゾーンへ。【自】は `collectLrigAttackDefenderTriggers`。
   if (stub.id === 'GAIN_HOLOGRAPH_TOKEN') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field,
-      free_zone: addBarrierTokens(ctx.ownerState.field.free_zone, HOLOGRAPH_TOKEN_CARD, 1) } } }, '【ホログラフ】1つを得た'));
+      free_zone: addBarrierTokens(ctx.ownerState.field.free_zone, HOLOGRAPH_TOKEN_CARD, 1, ctx.otherState) } } }, '【ホログラフ】1つを得た'));
   }
   // 表示: あなたと対戦相手は自分のデッキの一番上を公開する。どちらも【ライフバースト】を持つか、どちらも持たない場合、そのアタックを無効にし、この【ホログラフ】を取り除く
   // 🆕§5.3 `O-543`（`WX26-P1-TK01B`）＝自分側は `REVEAL_DECK_TOP`（ホログラフの公開＝`WX16-004` の置換が掛かる）→ 比較。
@@ -5402,7 +5402,7 @@ export function execStubPart3(
   // GAIN_LRIG_BARRIER: 【ルリグバリア】を得る（フリーゾーンにトークンとして設置。ルリグアタック1回を無効）
   if (stub.id === 'GAIN_LRIG_BARRIER') {
     const countGLB = (stub as { count?: number }).count ?? 1;
-    const fzGLB = addBarrierTokens(ctx.ownerState.field.free_zone, LRIG_BARRIER_CARD, countGLB);
+    const fzGLB = addBarrierTokens(ctx.ownerState.field.free_zone, LRIG_BARRIER_CARD, countGLB, ctx.otherState);
     const newOwnerGLB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, free_zone: fzGLB } };
     return done(addLog({ ...ctx, ownerState: newOwnerGLB },
       `【ルリグバリア】+${countGLB}（フリーゾーンに設置）`));
@@ -5411,7 +5411,7 @@ export function execStubPart3(
   // GAIN_SIGNI_BARRIER: 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効）
   if (stub.id === 'GAIN_SIGNI_BARRIER') {
     const countGSB = (stub as { count?: number }).count ?? 1;
-    const fzGSB = addBarrierTokens(ctx.ownerState.field.free_zone, SIGNI_BARRIER_CARD, countGSB);
+    const fzGSB = addBarrierTokens(ctx.ownerState.field.free_zone, SIGNI_BARRIER_CARD, countGSB, ctx.otherState);
     const newOwnerGSB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, free_zone: fzGSB } };
     return done(addLog({ ...ctx, ownerState: newOwnerGSB },
       `【シグニバリア】+${countGSB}（フリーゾーンに設置）`));
@@ -5473,7 +5473,7 @@ export function execStubPart3(
     const logsEPLC: string[] = [];
 
     if (whiteEPLC > 0) {
-      ownEPLC = { ...ownEPLC, field: { ...ownEPLC.field, free_zone: addBarrierTokens(ownEPLC.field.free_zone, LRIG_BARRIER_CARD, whiteEPLC) } };
+      ownEPLC = { ...ownEPLC, field: { ...ownEPLC.field, free_zone: addBarrierTokens(ownEPLC.field.free_zone, LRIG_BARRIER_CARD, whiteEPLC, ctx.otherState) } };
       logsEPLC.push(`白ルリグ${whiteEPLC}体→【ルリグバリア】+${whiteEPLC}`);
     }
     if (blueEPLC > 0) {
@@ -5615,8 +5615,8 @@ export function execStubPart3(
     };
 
     if (qualifies('白')) {
-      let fz = addBarrierTokens(ownPDL.field.free_zone, SIGNI_BARRIER_CARD, 1);
-      fz = addBarrierTokens(fz, LRIG_BARRIER_CARD, 1);
+      let fz = addBarrierTokens(ownPDL.field.free_zone, SIGNI_BARRIER_CARD, 1, ctx.otherState);
+      fz = addBarrierTokens(fz, LRIG_BARRIER_CARD, 1, ctx.otherState);
       ownPDL = { ...ownPDL, field: { ...ownPDL.field, free_zone: fz } };
       logsPDL.push('白：シグニバリア+ルリグバリア');
     }

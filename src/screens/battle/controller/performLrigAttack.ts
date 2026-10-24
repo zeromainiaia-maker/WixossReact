@@ -124,8 +124,12 @@ export const performLrigAttack = async (p: {
     // ⚠ここは引き落としだけ（続き490 の「判定と引き落としを別軸にしない」と同じ規約）。
     const lrigAttackExtraCost = lrigCostLA.colorless;
     let myEnergyAfterAttack = my.energy;
+    // 🔴2026-10-24＝**払ったエナはトラッシュへ**。旧＝エナから外すだけで置き場が無く、カードが消えていた
+    //   （ディーバの CPU デッキ総当たりの消滅（VANISH）＝スフィンクス2体の「《無》を支払わないかぎりアタックできない」を払った2枚）。
+    let lrigAttackPaidEnergy: string[] = [];
     if (lrigAttackExtraCost > 0) {
       const removed = myEnergyAfterAttack.slice(-lrigAttackExtraCost);
+      lrigAttackPaidEnergy = removed;
       myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -lrigAttackExtraCost);
       ctx.io.appendLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>ctx.cardMap.get(n)?.CardName??n).join('、')}`]);
     }
@@ -144,6 +148,7 @@ export const performLrigAttack = async (p: {
     ctx.io.appendLogs([`${lrigName}がアタック`]);
     const attackedMyState: PlayerState = {
       ...myAfterFieldTrash, energy: myEnergyAfterAttack,
+      ...(lrigAttackPaidEnergy.length > 0 ? { trash: [...myAfterFieldTrash.trash, ...lrigAttackPaidEnergy] } : {}),
       ...(isCenterAttack ? { lrig_has_attacked: true } : {}),
       // 🆕§5.3 `O-236`＝上限つきのときは回数も数える（上限が無い日は書かない＝既存の挙動を汚さない）。
       ...(isCenterAttack && my.lrig_attack_limit_this_turn !== undefined
