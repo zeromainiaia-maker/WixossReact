@@ -2914,6 +2914,11 @@ export interface SearchAction {
    * ⚠ctx の視点は反転しない（`opponentResponds` は「誰がクリックするか」だけ）＝pending に `deckOwner` も立てる。
    */
   opponentResponds?: boolean;
+  /**
+   * 🆕§5.3 `O-546`（2026-10-24）＝**内部用**。この探索で「デッキを探している間」の割り込み（`DECK_SEARCH_REVEAL_TO_HAND`）を
+   * もう問い終えたデッキのカード（個体）。parser・manualEffects は書かない（`execSearch` が積み直す）。
+   */
+  deckInterruptAsked?: string[];
 }
 
 export interface SequenceAction {

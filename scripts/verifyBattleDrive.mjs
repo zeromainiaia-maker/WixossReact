@@ -66520,6 +66520,284 @@ scenarios.c9forcedextraturn = {
 };
 
 order.push('c9levelupover', 'c9levelupwithin', 'c9forcedextraturn');
+
+// 🔴**`c9refreshturnenddiscard`＝2回目のリフレッシュでターンが終わるとき、手札が上限を超えていれば先に捨てさせる**
+//   （2026-10-23 ユーザー裁定・BUGFIXES 第553バッチ）。人間の手番は捨て札モーダル（`openRefreshEndDiscard`
+//   → `confirmRefreshEndDiscard`）＝**通し対戦では起きない局面**なので盤面に台帳と手札8枚を立てて踏む。
+//   🔑**反転＝捨てる前にターンが終わっていないこと**（旧実装は手札に触れずに終えていた）。上限内なら
+//   モーダル無しで終わる側は `c9refreshturnend`（手札0枚）が見ている。
+scenarios.c9refreshturnenddiscard = {
+  title: 'C-9 R-28 2回目のリフレッシュでのターン終了：手札8枚なら2枚捨ててから終える（捨て札モーダル）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9d0'],
+      'field.signi': [null, null, null],
+      'refresh_count_this_turn': 2,
+      'hand': ['WD01-013#c9d1', 'WD01-013#c9d2', 'WD01-013#c9d3', 'WD01-013#c9d4',
+        'WD01-013#c9d5', 'WD01-013#c9d6', 'WD01-013#c9d7', 'WD01-013#c9d8'],
+      'trash': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9d9'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const TURN_BASE = 2, HAND_BASE = 8;
+    let picked = 0, confirmed = false, sawModal = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/c9refreshdiscard-${s}.png`, fullPage: true });
+      const st = await c9Query(page);
+      if ((st?.turnCount ?? 0) > TURN_BASE) {
+        const ok = confirmed && st.hostIsActive === false && st.host.hand === 6 && st.host.trash.length === 2;
+        const log = (st.logs ?? []).find(l => /手札上限超過（8枚→6枚）/.test(l));
+        return {
+          pass: ok && !!log,
+          detail: ok && log
+            ? `捨て札モーダルで2枚選んで捨て（${log.replace(/^\S*\s*/, '')}）→ ターン終了・手番が相手へ（turn ${TURN_BASE}→${st.turnCount}・手札 ${HAND_BASE}→${st.host.hand}・トラッシュ ${st.host.trash.length}）`
+            : `🔴${confirmed ? '' : '捨てる前に'}ターンが終わった（confirmed=${confirmed} hostActive=${st.hostIsActive} hand=${st.host.hand} trash=${st.host.trash.length} log=${JSON.stringify((st.logs ?? []).slice(-4))}）`,
+        };
+      }
+      let did = null;
+      const cell = page.getByTestId(`enddiscard-hand-${picked}`).first();
+      if (picked < 2 && await cell.count() && await cell.isVisible().catch(() => false)) {
+        sawModal = true;
+        await cell.click().catch(() => {}); picked++; did = `enddiscard-hand-${picked - 1}`;
+      } else if (picked >= 2 && !confirmed) {
+        const b = page.getByRole('button', { name: '2枚捨てて終了', exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); confirmed = true; did = 'btn:2枚捨てて終了';
+        }
+      }
+      H.log(`  c9refreshdiscard[${s}] -> ${did ?? 'なし'} | turn=${st?.turnCount} hostActive=${st?.hostIsActive} hand=${st?.host?.hand} trash=${st?.host?.trash?.length} modal=${sawModal}`);
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴ターンが終了しなかった（modal=${sawModal} picked=${picked} confirmed=${confirmed} turn=${fin?.turnCount} hand=${fin?.host?.hand} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+order.push('c9refreshturnenddiscard');
+
+// 🔴**`lingeringZoneWX10051`＝発動中の効果欄が「どのゾーンか」を画面の見た目の位置で出す**（BUGFIXES 第555バッチ）。
+//   WX10-051《クローズ・ゾーン》で相手のゾーン1（添字0）を指定 → 欄に「相手の右のシグニゾーン」（相手の場は左右が反転して並ぶ）
+//   → 相手のターンの開始で昇格しても残る → そのターンが終わって自分のターンに戻ったら消える。
+//   ⚠旧実装は「相手」としか出ず、しかも添字0は `leavesOf` が値なしとして捨てていた＝**添字0を選ぶのが反転確認**。
+scenarios.lingeringZoneWX10051 = {
+  title: '発動中の効果欄：WX10-051 クローズ・ゾーンの指定ゾーンを「相手の右のシグニゾーン」と出し、次の相手ターン中は残り、終われば消える',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD05-001#lz0'],
+      'field.signi': [null, null, null],
+      'hand': ['WX10-051#lz1'],
+      'energy': ['WD05-009#lz2', 'WD05-009#lz3', 'WD05-009#lz4'],   // 《黒》×3
+      'actions_done': [], 'field.check': null, 'pending_crashed_cards': [], 'lingering_notes': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#lz5'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'pending_crashed_cards': [], 'lingering_notes': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const ZONE = '相手の右のシグニゾーン';
+    const panelText = async () => {
+      const p = page.locator('[data-testid="lingering-effects"]').first();
+      if (!(await p.count()) || !(await p.isVisible().catch(() => false))) return '';
+      return (await p.innerText().catch(() => '')).replace(/\s+/g, ' ');
+    };
+    const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+    await H.ensureMain();
+    const host0 = (await H.queryState())?.activeUser;
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    // ── 段① 使って相手のゾーン1を指定 → 欄に出る ──
+    let shown = '', zonePicked = false;
+    const paid = new Set();
+    for (let s = 0; s < 24 && !shown; s++) {
+      await page.waitForTimeout(800);
+      let did = zonePicked ? null : await clickExact('ゾーン1を指定');
+      if (did) zonePicked = true;
+      if (!did) did = await clickExact('発動');
+      if (!did) did = await clickExact('発動する');
+      if (!did) {
+        // 《黒》×3＝エナを3枚選ぶ（同じ添字を押し直すと選択が外れる）
+        for (let i = 0; i < 3 && !did; i++) {
+          if (paid.has(i)) continue;
+          const e = page.getByTestId(`spellcost-energy-${i}`).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); paid.add(i); did = `spellcost-energy-${i}`; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const txt = await panelText();
+      H.log(`  lz-cast[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} panel=${txt.slice(0, 120)}`);
+      if (zonePicked && !st?.stackLen && !st?.pendingEffect && txt.includes('クローズ・ゾーン')) shown = txt;
+    }
+    await page.screenshot({ path: `${SHOT}/lingeringZone-cast.png`, fullPage: true });
+    if (!shown) return { pass: false, detail: `🔴欄に出なかった（zonePicked=${zonePicked} panel=${await panelText()}）` };
+    if (!shown.includes(ZONE)) return { pass: false, detail: `🔴ゾーンの位置が出ない（期待「${ZONE}」・欄=${shown}）` };
+    // ── 段② ターンを終える → 相手のターン中も残る（昇格）→ 自分のターンに戻ったら消える ──
+    let pressedTurnEnd = false, seenInOppTurn = '';
+    for (let s = 0; s < 90; s++) {
+      await page.waitForTimeout(900);
+      const st = await H.queryState();
+      const txt = await panelText();
+      const mine = st?.activeUser === host0;
+      if (pressedTurnEnd && !mine && txt.includes('クローズ・ゾーン') && !seenInOppTurn) {
+        seenInOppTurn = txt;
+        await page.screenshot({ path: `${SHOT}/lingeringZone-oppturn.png`, fullPage: true });
+      }
+      if (pressedTurnEnd && mine && (st?.turnCount ?? 0) >= 4) {
+        // ⚠手番が移った直後の1回目の観測は、相手のターンの後片付けが画面に届く前のことがある（DB は消えていた）＝数秒待って判定する
+        let after = txt, waited = 0;
+        while (after.includes('クローズ・ゾーン') && waited < 10) { await page.waitForTimeout(800); waited++; after = await panelText(); }
+        H.log(`  lz-back: 戻った直後の欄=${txt.slice(0, 80) || '（なし）'} → ${waited * 0.8}秒後=${after.slice(0, 80) || '（なし）'}`);
+        await page.screenshot({ path: `${SHOT}/lingeringZone-back.png`, fullPage: true });
+        const gone = !after.includes('クローズ・ゾーン');
+        const ok = !!seenInOppTurn && seenInOppTurn.includes(ZONE) && gone;
+        return {
+          pass: ok,
+          detail: ok
+            ? `使用直後「${shown.slice(0, 80)}」→ 相手のターン中も「${ZONE}」で残り → 自分のターン（turn=${st.turnCount}）で消えた`
+            : `🔴相手ターン中=${seenInOppTurn || '（見えず）'} ／ 戻った後の欄=${after || '（なし）'}`,
+        };
+      }
+      // 確認ダイアログ（「まだルリグが攻撃していません」ほか）を先に閉じる＝閉じないとフェイズ送りを押し続けて進まない
+      let did = await clickExact('このまま進む');
+      // ⚠「ターン終了」はエンドフェイズの自動処理が届くまで受け付けられない（正しい挙動）＝ターン2の間は押し直す
+      if (!did && mine && (st?.turnCount ?? 0) < 3) {
+        // フェイズ送りのボタン（`uiConstants.ts` の `PHASE_BTN`）を完全一致で押す（ログの「ターン終了時：…」を押さない）
+        const label = { MAIN: 'アタックフェイズへ', ATTACK_ARTS: 'アーツ終了→相手へ', ATTACK_SIGNI: 'ルリグアタックへ', ATTACK_LRIG: 'エンドフェイズへ', END: 'ターン終了' }[st?.turnPhase];
+        if (label) { did = await clickExact(label); if (did && label === 'ターン終了') pressedTurnEnd = true; }
+      }
+      // 相手のターンのアーツの応答窓（`ATTACK_ARTS_OP`）は受け手（こちら）が閉じる
+      if (!did && !mine && st?.turnPhase === 'ATTACK_ARTS_OP') did = await clickExact('アーツ終了');
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', '決定', 'OK', 'はい', 'エナに送る']);
+      if (s % 5 === 0 || did) H.log(`  lz-turn[${s}] -> ${did ?? 'なし'} | mine=${mine} turn=${st?.turnCount} phase=${st?.turnPhase} panel=${txt.slice(0, 100)}`);
+    }
+    return { pass: false, detail: `🔴自分のターンに戻らなかった（pressedTurnEnd=${pressedTurnEnd} seenInOppTurn=${seenInOppTurn}）` };
+  },
+};
+order.push('lingeringZoneWX10051');
+
+// 🔴**`o546DeckSearchLiger*`＝「あなたがデッキからカードを探している間」に割り込む【常】**（§5.3 `O-546`・WXK06-029）。
+//   白のスペル《ゲット・トゥインクル》でデッキを探す → 候補を見せる前に「ワイルドライガーを公開して手札に加える（《青》《無》）／スキップ」。
+//   🔑旧＝何も出ずにそのまま探索（【常】の action はどこからも実行されなかった）＝**問いが出ることが反転確認**。
+
+scenarios.o546DeckSearchLigerPay = {
+  title: 'O-546 デッキを探している間の【常】（WXK06-029）：《青》《無》を払って公開し手札へ→探索の候補から外れる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#os0'],                                   // 白のルリグ（白のスペルを使える）
+      'field.signi': [null, null, null],
+      'hand': ['WD09-018#os1'],                                         // ゲット・トゥインクル（《白》×1・デッキから白のシグニを探す）
+      'energy': ['WD01-013#os2', 'WD03-013#os3', 'WD03-013#os4'],       // 白（スペル用）＋青2（《青》《無》用）
+      'deck': ['WD01-013#os5', 'WXK06-029#os6', 'WD01-013#os7'],
+      'trash': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const LIGER = 'WXK06-029#os6';
+    const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+    await H.ensureMain();
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let spellPaid = false, sawOffer = '', answered = false, sawSearch = null;
+    const energyPicked = new Set();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o546pay-${s}.png`, fullPage: true });
+      const st = await H.queryState();
+      let did = null;
+      if (st?.pendingEffect === 'CHOOSE' && !answered) {
+        sawOffer = (st.pendingOptions ?? []).join(' / ');
+        // 青2枚を選んで払う（スペルで白を払った後なので残りは0・1番の2枚）。⚠押し直すと選択が外れる＝1度だけ押す
+        const selTxt = await page.getByText('エナから選択:').first().innerText().catch(() => '');
+        const selCount = Number(selTxt.match(/(\d+)\s*\/\s*2/)?.[1] ?? -1);
+        const nextIdx = [0, 1].find(i => !energyPicked.has(i));
+        if (selCount >= 0 && selCount < 2 && nextIdx !== undefined) { did = await H.clickTestId(`optcost-energy-${nextIdx}`); if (did) energyPicked.add(nextIdx); }
+        else if (selCount === 2) { did = await H.clickTestId('optcost-pay'); if (did) answered = true; }
+      } else if (st?.pendingEffect === 'SEARCH') {
+        sawSearch = { visible: st.pendingVisibleCards ?? [], hand: st.host.handCards, energy: st.host.energyCards, trash: st.host.trashCards };
+        break;
+      } else if (!spellPaid) {
+        did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) { did = cast; spellPaid = true; } else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+      }
+      H.log(`  o546[${s}] -> ${did ?? 'なし'} | pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions ?? [])} hand=${JSON.stringify(st?.host?.handCards)} energy=${st?.host?.energy}`);
+    }
+    if (!sawOffer) return { pass: false, detail: `🔴探索の前に「公開して払う／スキップ」が出なかった（search=${JSON.stringify(sawSearch)}）` };
+    if (!sawSearch) return { pass: false, detail: `🔴答えた後に探索の候補が出なかった（offer=${sawOffer}）` };
+    const inHand = sawSearch.hand.includes(LIGER), inVisible = sawSearch.visible.includes(LIGER);
+    const ok = inHand && !inVisible && sawSearch.energy.length === 0 && ['WD03-013#os3', 'WD03-013#os4'].every(n => sawSearch.trash.includes(n));
+    return { pass: ok, detail: ok
+      ? `「${sawOffer}」→ 青2枚を払い（トラッシュへ）ワイルドライガーを手札へ → 探索の候補は ${JSON.stringify(sawSearch.visible)}（ライガー無し）`
+      : `🔴hand=${JSON.stringify(sawSearch.hand)} visible=${JSON.stringify(sawSearch.visible)} energy=${JSON.stringify(sawSearch.energy)} trash=${JSON.stringify(sawSearch.trash)}` };
+  },
+};
+
+scenarios.o546DeckSearchLigerSkip = {
+  title: 'O-546 デッキを探している間の【常】（WXK06-029）：スキップ＝デッキに残り探索の候補に入る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#os0'],                                   // 白のルリグ（白のスペルを使える）
+      'field.signi': [null, null, null],
+      'hand': ['WD09-018#os1'],                                         // ゲット・トゥインクル（《白》×1・デッキから白のシグニを探す）
+      'energy': ['WD01-013#os2', 'WD03-013#os3', 'WD03-013#os4'],       // 白（スペル用）＋青2（《青》《無》用）
+      'deck': ['WD01-013#os5', 'WXK06-029#os6', 'WD01-013#os7'],
+      'trash': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const LIGER = 'WXK06-029#os6';
+    const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+    await H.ensureMain();
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let spellPaid = false, sawOffer = '', answered = false, sawSearch = null;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o546skip-${s}.png`, fullPage: true });
+      const st = await H.queryState();
+      let did = null;
+      if (st?.pendingEffect === 'CHOOSE' && !answered) {
+        sawOffer = (st.pendingOptions ?? []).join(' / ');
+        did = await H.clickTestId('optcost-skip'); if (did) answered = true;
+      } else if (st?.pendingEffect === 'SEARCH') {
+        sawSearch = { visible: st.pendingVisibleCards ?? [], hand: st.host.handCards, energy: st.host.energyCards, trash: st.host.trashCards };
+        break;
+      } else if (!spellPaid) {
+        did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) { did = cast; spellPaid = true; } else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+      }
+      H.log(`  o546[${s}] -> ${did ?? 'なし'} | pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions ?? [])} hand=${JSON.stringify(st?.host?.handCards)} energy=${st?.host?.energy}`);
+    }
+    if (!sawOffer) return { pass: false, detail: `🔴探索の前に「公開して払う／スキップ」が出なかった（search=${JSON.stringify(sawSearch)}）` };
+    if (!sawSearch) return { pass: false, detail: `🔴答えた後に探索の候補が出なかった（offer=${sawOffer}）` };
+    const inHand = sawSearch.hand.includes(LIGER), inVisible = sawSearch.visible.includes(LIGER);
+    const ok = !inHand && sawSearch.energy.length === 2;
+    return { pass: ok, detail: ok
+      ? `「${sawOffer}」→ スキップ＝手札へ移らずエナも減らない（探索の候補 ${JSON.stringify(sawSearch.visible)}・ライガーは白のシグニではないので候補外）`
+      : `🔴hand=${JSON.stringify(sawSearch.hand)} energy=${JSON.stringify(sawSearch.energy)}` };
+  },
+};
+order.push('o546DeckSearchLigerPay', 'o546DeckSearchLigerSkip');
 // 🔴**`c9lriglevellowered`＝ルリグ側のレベルが下がって超過した場合も落とす**（`R-48` 追加裁定・2026-09-17）。
 //   live の発生源＝`SP38-005`（アーツ）「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」。
 //   ⚠その上書きは**効果を撃った側の state**（`attack_phase_level_overrides`）に載るので、ここでも**guest 側へ**注入する。

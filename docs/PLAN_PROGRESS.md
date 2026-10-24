@@ -1,5 +1,18 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-10-23〜24＝Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件（v0.655〜0.663・PLAN §1 から退避）
+
+**直近＝2026-10-23〜24＝Supabase の権限・Realtime の取りこぼしの見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件（v0.655〜0.663）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第559〜568バッチ。前回（CPU 思考・知識ベースの CPU デッキ・表記ゆれの統合）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🏁`O-547`（第569）・ディーバ総当たりの所見112件→0（第570）・通知の「届かない」の真因（第571＝順番が入れ替わった古い通知での上書き・DB の updated_at を clock_timestamp へ）は片づいた／①実機で未確認の2点（第553 リフレッシュ2回目の手札捨て・第555 WX10-051 の発動中の効果欄）②機構 `O-546`｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠15か所の `useEffect` が「`loading` 中なら何もせず戻る」のに依存に `loading` が無い形（処理中に盤面が届くと評価を取りこぼしうる）＝実害は未観測・第569の注記 |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4542**・lint error **0**）｜実機 `verifyFullMatch cpu`（`SYNC_TRACE=1`）／`DROP_REALTIME_SETUP=1`／`verifyRewind`／`verifyBattleDrive b16banish3 b16banish2 exceedBanishGateA` PASS｜ディーバ総当たり 1,512戦 所見 **0** |
+| 🆕🔑**この回の芯** | ①**画面の判定は純関数へ出して golden から直接呼ぶ**（`battle/cardActions.ts`＝ボタンの一覧／`onPlayCostPayment.ts`＝【出】コストの支払い）②**人間と CPU が別々に書いた判定は食い違う**＝CPU の召喚は「○○限定」を見ていなかった（第565）③**移設は本文をスクリプトで切り貼り**＋golden の「本体の本文を数える検査」は `battleScreenSource()`／`screenWithCardActions()` に新ファイルを足す（LESSONS §4.2） |
+
 ## 2026-10-23＝CPU 思考と知識ベースの CPU デッキ／発動中の効果欄／クラスの数え方（R-58）／表記ゆれ18組の統合（v0.651〜0.654・PLAN §1 から退避）
 
 **直近＝2026-10-23＝CPU 思考と知識ベースの CPU デッキ／発動中の効果欄／クラスの数え方（R-58）／表記ゆれ18組の統合（v0.651〜0.654）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第551〜558バッチ。前回（カード知識ベース・レガシー CPU デッキ）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭

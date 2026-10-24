@@ -11,16 +11,17 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-10-23〜24＝Supabase の権限・Realtime の取りこぼしの見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件（v0.655〜0.663）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第559〜568バッチ。前回（CPU 思考・知識ベースの CPU デッキ・表記ゆれの統合）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+**直近＝2026-10-24＝O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546（v0.664〜0.665）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第569〜573バッチ。前回（Supabase の権限・BattleScreen の分割ほか）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🏁`O-547`（第569）・ディーバ総当たりの所見112件→0（第570）・通知の「届かない」の真因（第571＝順番が入れ替わった古い通知での上書き・DB の updated_at を clock_timestamp へ）は片づいた／①実機で未確認の2点（第553 リフレッシュ2回目の手札捨て・第555 WX10-051 の発動中の効果欄）②機構 `O-546`｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
+| 🔥**次に取るもの** | 🏁**登録済みの作業キューは全部空**（機構 `O-nn` 0・実機 `V-nn` 0・実装キュー 0）｜次はユーザーの指示待ち＝候補は ①`loading` を依存に持たない15か所の `useEffect`（下の行）②自己対戦の不変条件走査を新しいシード・生成デッキで回し直す（`selfplay:inv`／`synth:decks`）｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
-| 📦**在庫** | 🏁実機 `V-nn` **0**／機構 `O-nn` **1**（`O-546`）／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
+| 📦**在庫** | 🏁実機 `V-nn` **0**／🏁機構 `O-nn` **0**／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
 | ⚠**直近の不具合** | 🏁未修正で登録済みのものは無い｜⚠15か所の `useEffect` が「`loading` 中なら何もせず戻る」のに依存に `loading` が無い形（処理中に盤面が届くと評価を取りこぼしうる）＝実害は未観測・第569の注記 |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4542**・lint error **0**）｜実機 `verifyFullMatch cpu`（`SYNC_TRACE=1`）／`DROP_REALTIME_SETUP=1`／`verifyRewind`／`verifyBattleDrive b16banish3 b16banish2 exceedBanishGateA` PASS｜ディーバ総当たり 1,512戦 所見 **0** |
-| 🆕🔑**この回の芯** | ①**画面の判定は純関数へ出して golden から直接呼ぶ**（`battle/cardActions.ts`＝ボタンの一覧／`onPlayCostPayment.ts`＝【出】コストの支払い）②**人間と CPU が別々に書いた判定は食い違う**＝CPU の召喚は「○○限定」を見ていなかった（第565）③**移設は本文をスクリプトで切り貼り**＋golden の「本体の本文を数える検査」は `battleScreenSource()`／`screenWithCardActions()` に新ファイルを足す（LESSONS §4.2） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4543**・lint error **0**）｜実機 `verifyBattleDrive c9refreshturnenddiscard lingeringZoneWX10051 o546DeckSearchLigerPay o546DeckSearchLigerSkip` PASS（新設4本）｜ディーバ総当たり 1,512戦 所見 **0** |
+| 🆕🔑**この回の芯** | ①**同期の不具合は推測せず流れを記録する**（`SYNC_TRACE=1`）＝「取りこぼし」は0件で、正体は順番が入れ替わった古い通知と DB の時刻（`now()`）だった ②**場の外で働く【常】は、その場面の唯一の入口で読む**（デッキを探す＝`execSearch`）③**SEQUENCE の任意コストは後続を吸い込む**＝割り込みの CHOOSE は自分で立てる |
+
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -305,9 +306,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-| ID | 何が無いか | 母集団 | 規模 |
-|---|---|---|---|
-| `O-546` | 「デッキからカードを探している間」に割り込む【常】（デッキの中のこのカードを公開し、コストを払って手札に加える）の受け皿が無い＝いまは何も起きない | 1効果（`WXK06-029`） | M |
+🏁**残0**（`O-546` は 2026-10-24 にクローズ＝BUGFIXES 第573バッチ・PLAN_DETAIL）
 
 （`O-545` は 2026-10-21 にクローズ＝BUGFIXES 第539バッチ。`O-543` は 2026-10-14 にクローズ＝BUGFIXES 第516〜518バッチ・PLAN_DETAIL）
 
@@ -503,12 +502,13 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-10-24 時点**（Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件・v0.655〜0.663）
+- **2026-10-24 時点**（O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・v0.664〜0.665）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
-  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4538**＝+7・lint error **0**＝git 外の `tmp_artcount.ts` を片づけた）｜実機 `verifyFullMatch cpu`・`DROP_REALTIME_SETUP=1`・`verifyRewind` PASS
-  - 🧱**`BattleScreen.tsx`**＝**4,459行**（5,902 → 4,459・分割先＝`hooks/useBattleSync.ts`／`hooks/useCpuDriver.ts`／`cardActions.ts`／`onPlayCostPayment.ts`／`SetupPhaseView.tsx`）
-  - 🃏**CPU デッキ**＝カルカドール 116／claude1 118（claude1 だけに検証用の `VERIFY_DECK`・`VERIFY_DECK_MECH`）＝ディーバ54デッキを追加
+  - 📦**在庫**＝🏁機構 worklist **0**｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4543**＝+5・lint error **0**）｜実機 新設4本 PASS（`c9refreshturnenddiscard`／`lingeringZoneWX10051`／`o546DeckSearchLigerPay`／`o546DeckSearchLigerSkip`）・`verifyFullMatch cpu`（`SYNC_TRACE=1`）・`verifyRewind` PASS
+  - 🗄️**DB**＝`battle_states.updated_at` は `clock_timestamp()`（確定の順に増える＝`docs/sql/2026-10-24_updated_at_clock_timestamp.sql`）
+  - 🧱**`BattleScreen.tsx`**＝**4,459行**
+
 ---
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが直さない）— 毎回まず除外

@@ -5777,6 +5777,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-546`（2026-10-24・`WXK06-029-E1`）＝デッキにあるときだけ働く【常】（消費＝`effectExecutor.ts` の `execSearch`）。
+        DECK_SEARCH_REVEAL_TO_HAND: 'あなたがデッキからカードを探している間、このカードをデッキから公開し支払ってもよい。そうした場合、これを手札に加える',
         // 🆕2026-10-03（WX26-P1）＝受け皿待ちの明示 defer（ハンドラ無し＝engine は何もしない）。
         // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
         PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
@@ -6626,6 +6628,10 @@ function actionJa(a?: Action, effectType?: string): string {
         return `あなたのルリグデッキから${namesCFG}に${gfl.free ? 'グロウコストを支払わずに' : ''}グロウする`;
       }
       // 🆕§5.3 `O-374`＝引く枚数は payload（`value`）＝engine（`execStubPart3` の `drawN`）と同じ値を描く（`WX24-P2-014-E2`「６枚」）。
+      // §5.3 `O-546`＝支払うコストは payload（`costColors`）から描く
+      if (a.id === 'DECK_SEARCH_REVEAL_TO_HAND' && miscStubMap[a.id]) {
+        return miscStubMap[a.id].replace('支払っても', `${(a.costColors ?? []).map((c: string) => `《${c}》`).join('')}を支払っても`);
+      }
       if (a.id === 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW' && miscStubMap[a.id]) {
         return miscStubMap[a.id].replace(/カードを引く$/, `カードを${typeof a.value === 'number' ? a.value : 6}枚引く`);
       }

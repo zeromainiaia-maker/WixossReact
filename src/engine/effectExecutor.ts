@@ -6287,6 +6287,45 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
+  // 🆕§5.3 `O-546`（2026-10-24）＝**「あなたがデッキからカードを探している間」に割り込む【常】**
+  //   （`WXK06-029-E1`「このカードをデッキから公開し《青》《無》を支払ってもよい。そうした場合、これを手札に加える」）。
+  //   宣言は CONTINUOUS の `STUB{DECK_SEARCH_REVEAL_TO_HAND, costColors}`＝**場ではなくデッキにあるときだけ働く**ので
+  //   `effectEngine` の【常】の収集には乗らない＝ここ（デッキを探す唯一の入口）で探す本人のデッキを見る。
+  //   🔑順番＝候補を見せる前に1枚ずつ「払う／スキップ」を問い（`OPTIONAL_COST` と同じ支払い）、払ったら手札へ →
+  //   探索をやり直す（手札へ移ったカードは候補から外れる・同じカードを2度問わない＝`deckInterruptAsked`）。
+  //   ⚠候補が0枚でも「探している」ので問う（`hasVisible` の判定より前）。
+  //   ⚠**相手が自分のデッキを探す形（`opponentResponds`・live 2ノード）は対象外**＝支払うのは相手だが、任意コストの対話は
+  //   効果の主（こちら）の state で払う＝払う側が逆になる。
+  if (fromDeck && a.from.owner === 'self' && !a.opponentResponds) {
+    const asked = a.deckInterruptAsked ?? [];
+    const effectsOfDeckCard = (n: string): CardEffect[] =>
+      ctx.effectsMap?.get(getCardNum(n)) ?? ctx.cardMap.get(getCardNum(n))?.effects ?? [];
+    for (const n of state.deck) {
+      if (asked.includes(n)) continue;
+      const decl = effectsOfDeckCard(n).flatMap(eff => eff.effectType === 'CONTINUOUS' ? [eff.action] : [])
+        .find((act): act is StubAction => act.type === 'STUB' && act.id === 'DECK_SEARCH_REVEAL_TO_HAND');
+      if (!decl) continue;
+      const nextSearch: SearchAction = { ...a, deckInterruptAsked: [...asked, n] };
+      // ⚠`SEQUENCE[OPTIONAL_COST, …]` に包まない＝SEQUENCE の任意コストは後続を全部「払った枝」へ吸い込む（スキップすると探索ごと消える）。
+      const specDS = resolveOptionalCostSpec({ type: 'STUB', id: 'OPTIONAL_COST', costColors: decl.costColors ?? [] }, ctx);
+      const nameDS = ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+      return needsInteraction(addLog(ctx, `デッキを探している間：${nameDS}を公開して手札に加えられる`), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'pay', label: `${nameDS}を公開して手札に加える（${specDS.costColors.map(c => `《${c}》`).join('')}）`,
+            action: { type: 'SEQUENCE', steps: [
+              ...optionalCostPaySteps(specDS),
+              { type: 'STUB', id: 'INTERNAL_DECK_SEARCH_REVEAL_TO_HAND', value: n } as StubAction as EffectAction,
+              nextSearch,
+            ] },
+            available: canAffordOptionalCostSpec(specDS, ctx),
+            ...(specDS.costColors.length ? { costColors: specDS.costColors } : {}) },
+          { id: 'skip', label: 'スキップ', action: nextSearch, available: true },
+        ],
+      });
+    }
+  }
+
   // 1
   const groupFilters = resolvedSelectionConstraint?.groups?.map(group => group.filter);
   const matchesSearchPool = (n: string): boolean => groupFilters?.length

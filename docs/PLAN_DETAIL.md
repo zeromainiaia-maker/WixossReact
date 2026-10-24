@@ -2774,6 +2774,15 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-10-24 Supabase の権限・BattleScreen の分割ほか・PLAN §6 から退避）
+
+- **2026-10-24 時点**（Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件・v0.655〜0.663）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝機構 worklist **1**（`O-546`）｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4538**＝+7・lint error **0**＝git 外の `tmp_artcount.ts` を片づけた）｜実機 `verifyFullMatch cpu`・`DROP_REALTIME_SETUP=1`・`verifyRewind` PASS
+  - 🧱**`BattleScreen.tsx`**＝**4,459行**（5,902 → 4,459・分割先＝`hooks/useBattleSync.ts`／`hooks/useCpuDriver.ts`／`cardActions.ts`／`onPlayCostPayment.ts`／`SetupPhaseView.tsx`）
+  - 🃏**CPU デッキ**＝カルカドール 116／claude1 118（claude1 だけに検証用の `VERIFY_DECK`・`VERIFY_DECK_MECH`）＝ディーバ54デッキを追加
+
 ## 恒久指標アーカイブ（2026-10-23 CPU 思考・表記ゆれの統合・PLAN §6 から退避）
 
 - **2026-10-23 時点**（CPU 思考・知識ベースの CPU デッキ・発動中の効果欄・クラスの数え方・表記ゆれの統合・v0.651〜0.654）
@@ -2825,6 +2834,8 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 🏁**2026-10-24 同日クローズ**（BUGFIXES 第569バッチ）＝**カードもエンジンも正しかった**。FAIL はハーネスの不具合2つ＝①`findReusableRoom` が PvP の確認（`verifyRewind`）の部屋を再利用し、相手（claude2）のブラウザが無いので相手の選択に誰も答えなかった ②「発動」直後のスタックに載っただけの盤面で判定していた。シナリオの FAIL 文言は固定の見立てだった（エンジンは「タスク12(ci)」で既に直っていた）。⚠**見立てを登録する前に、止まった部屋の行を DB で読む**（`pending_effect.respondPlayerId` と `guest_id` で一発で分かった）。
 
 ## O-546 デッキを探している間に割り込む【常】（2026-10-22 登録）
+
+🏁**2026-10-24 クローズ**（BUGFIXES 第573バッチ）＝宣言の STUB `DECK_SEARCH_REVEAL_TO_HAND` を `execSearch`（デッキを探す唯一の入口）が読み、候補を見せる前に「公開して払う／スキップ」を問う。⚠相手が自分のデッキを探す形（`opponentResponds`）は対象外のまま。
 
 **見つけ方**＝選択系の外にある「手札に加える」（`ADD_TO_HAND`／`fromTop` の無い `TRANSFER_TO_HAND{DECK_CARD}`）を全数で洗った（BUGFIXES 第545バッチ）。ほかの3効果は直し、これだけ受け皿が無い。
 - `WXK06-029-E1`《フリーダム団　ワイルドライガー》「【常】：あなたがデッキからカードを探している間、このカードをデッキから公開し《青》《無》を支払ってもよい。そうした場合、これを手札に加える。」

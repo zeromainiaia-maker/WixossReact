@@ -7,15 +7,15 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-10-22）
+## サマリー（最終生成: 2026-10-24）
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 599 |
+| JSON で使用中の STUB id 種類 | 600 |
 | 　└ ハンドラ実装あり | 557 |
-| 　└ フォールバック（execStub 未処理） | 42 |
-| 総 STUB ノード件数 | 3804 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 381 |
+| 　└ フォールバック（execStub 未処理） | 43 |
+| 総 STUB ノード件数 | 3801 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 382 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -49,6 +49,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TREAT_AS_CLASS_ALL_ZONES` | 2 | 2 | WX26-CP1-100, WXDi-CP02-103 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
+| `DECK_SEARCH_REVEAL_TO_HAND` | 1 | 1 | WXK06-029 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF` | 1 | 1 | WXEX2-28 |  |
 | `ENERGY_COST_SUBSTITUTE_WHOLE` | 1 | 1 | WX09-032 |  |
@@ -81,12 +82,12 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
 | `STORE_LAST_PROCESSED_TARGETS` | 704 | 670 | WD12-009, PR-205, PR-238 |  |
-| `OPTIONAL_COST` | 691 | 642 | WD12-009, PR-204, PR-305 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
+| `OPTIONAL_COST` | 690 | 641 | WD12-009, PR-204, PR-305 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
 | `SELECT_TARGET_ONLY` | 686 | 653 | WD12-009, PR-205, PR-305 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
-| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 113 | 110 | WD06-001, PR-K076, WD15-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 112 | 109 | WD06-001, PR-K076, WD15-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `OPPONENT_PAY_OPTIONAL` | 81 | 73 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 61 | 60 | WD12-006, PR-460, WD10-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
-| `OPTIONAL_TRASH_ENERGY_CLASS` | 33 | 33 | WX24-P2-091, WX24-P3-062, WX24-P3-076 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `OPTIONAL_TRASH_ENERGY_CLASS` | 32 | 32 | WX24-P2-091, WX24-P3-062, WX24-P3-076 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `DECLARE_NUMBER` | 27 | 26 | WD06-008, PR-372, PR-K022 |  |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | 登録者数を N 万人得る |
 | `RULE_REMINDER_TEXT` | 20 | 20 | PR-469, SP26-003, SPDi47-05 | ゲームプレイに影響しない説明テキストは無音でスキップ。 ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の   キーセット可否ゲートと配置先（`hasUnlim… |
@@ -132,7 +133,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `BANISH_FROM_GAME` | 2 | 2 | WX13-040, WX14-064 | ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件） |
 | `CRASH_LIFE_TO_HAND` | 2 | 2 | WX24-P2-048, WXDi-P07-001 | ライフクロスの一番上を手札に加える 🆕**どちらのライフかは payload（既存の汎用 `owner`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。 🔴旧実装は `EffectText + BurstText… |
 | `DISCARD_IF_ATTACKED_THIS_TURN` | 2 | 2 | WX12-047, WX12-048 | このターンにこのシグニがアタックしていた場合、手札を1枚捨てる |
-| `DISRUPT_OPP_LRIG_UNDER_BY_TYPE` | 2 | 2 | PR-465, SPK16-8C | このシグニがアタックしたとき、対戦相手のセンタールリグの下のカードを最大2枚、 |
 | `DRAW_AND_PUT_HAND_TO_DECK_BOTTOM` | 2 | 2 | WX26-CP1-006, WXK10-043 | 各プレイヤーがカードを1枚引き手札を1枚デッキ下に置く |
 | `EXTRA_COST_REMOVE_VIRUS` | 2 | 2 | WX16-023, WX16-048 | ウイルスを任意数取り除いてからN+1択の効果を選ぶ。 |
 | `LRIG_UNDER_TRASH_ANY` | 2 | 2 | PR-238, WD21-009 | あなたのルリグ（アシスト含む）の下からカードを好きな枚数選び、ルリグトラッシュに置く |
@@ -153,6 +153,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_PARITY_OPPONENT` | 1 | 1 | WDK04-006 | WDK04-006: 対戦相手が偶数/奇数を宣言する。値は汎用 declared_number に偶=0/奇=1で保存し、 ガード制限用 declared_guard_restrict_level は立てない。 |
 | `DECLARE_TWO_GUARD_LEVELS` | 1 | 1 | WD21-009 | 異なるレベルを2つ宣言する（対戦相手はそのレベルのシグニで【ガード】できない） |
 | `DISCARD_IF_NO_CLASS_SIGNI` | 1 | 1 | WXDi-P07-062 | ⚠**payload が無ければ何もしない**（fail-closed）。 |
+| `DISRUPT_OPP_LRIG_UNDER_BY_TYPE` | 1 | 1 | PR-465 | このシグニがアタックしたとき、対戦相手のセンタールリグの下のカードを最大2枚、 |
 | `EACH_PLAYER_DRAW_DISCARD` | 1 | 1 | WXDi-P04-010 | 各プレイヤーがカードをN枚引き、M枚捨てる 🆕**§5.3 `O-60` 第23バッチ（2026-09-03）＝枚数は payload（`eachPlayerDrawDiscard`）で受け取る。** 🔴旧実装は `EffectTex… |
 | `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` | 1 | 1 | WXK11-001 | WXK11-001 ②「あなたのルリグデッキにあるコストの合計が２以上のアーツ１枚をゲームから除外してもよい。   そうした場合、このターン、シグニアタックステップをスキップする。」 ⚠**スキップ機構は既に完備**（同カード①のルリグ側… |
 | `GRANT_BURST_TO_NTH_CHECKED_LIFE` | 1 | 1 | WXDi-P12-036 | 🆕**§5.3 `O-239`（2026-09-04）＝「このターン、1枚目と2枚目にあなたのチェックゾーンに置かれた   ライフクロスは【ライフバースト】「…」を得る」**（`WXDi-P12-036-E1`）。   🔴旧 `DEF… |
@@ -651,7 +652,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 381 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 382 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -747,6 +748,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_DCCE_TRASH_COLOR` | 0 | 0 |  | 宣言色のエナ1枚をトラッシュ |
 | `INTERNAL_DECK_BOTTOM_LEVEL_DOWN` | 0 | 0 |  | デッキ下1枚トラッシュ→シグニなら同レベル相手シグニをダウン |
 | `INTERNAL_DECK_BOTTOM_SUMMON` | 0 | 0 |  | デッキ下1枚トラッシュ→シグニなら場に出す |
+| `INTERNAL_DECK_SEARCH_REVEAL_TO_HAND` | 0 | 0 |  | デッキを探している間にこのカードを公開して手札に加える |
 | `INTERNAL_DECK_TRASH_BOTH` | 0 | 0 |  | 両プレイヤーのデッキ上N枚をトラッシュ |
 | `INTERNAL_DECLARE_CARD_NAME` | 0 | 0 |  |  |
 | `INTERNAL_DECLARE_DECK_TOP_ICON` | 0 | 0 |  | 宣言後にデッキの一番上を公開し、外れていたら帰結を実行する（§6.4 O-4）。 |

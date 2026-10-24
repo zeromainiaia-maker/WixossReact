@@ -851,6 +851,16 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `エクシード${count}を支払った`));
   }
+  // 表示: デッキを探している間にこのカードを公開して手札に加える
+  // INTERNAL_DECK_SEARCH_REVEAL_TO_HAND: §5.3 `O-546`＝`execSearch` の割り込み（`DECK_SEARCH_REVEAL_TO_HAND`）で払った後、
+  //   デッキのそのカード（個体＝`value`）を公開して手札へ。⚠デッキに無ければ何もしない（払った後に動いた場合）。
+  if (stub.id === 'INTERNAL_DECK_SEARCH_REVEAL_TO_HAND') {
+    const inst = String(stub.value ?? '');
+    if (!inst || !ctx.ownerState.deck.includes(inst)) return done(addLog(ctx, 'デッキにそのカードが無い'));
+    const newOwner = { ...ctx.ownerState, deck: ctx.ownerState.deck.filter(n => n !== inst), hand: [...ctx.ownerState.hand, inst] };
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [inst] },
+      `${ctx.cardMap.get(getCardNum(inst))?.CardName ?? inst}をデッキから公開して手札に加えた`));
+  }
   if (stub.id === 'INTERNAL_SET_OPTIONAL_EFFECT_TAKEN') {
     return done({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: true } });
   }

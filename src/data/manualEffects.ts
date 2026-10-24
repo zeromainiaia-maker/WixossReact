@@ -3163,6 +3163,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXK06-024 ／ 原文【自】：このシグニがアタックしたとき、**そのアタックがこのターン四度目であなたのセンタールリグが＜エマ＞の場合**、以下の３つから１つを選ぶ。
   // 🔴旧 live＝2つの条件が**両方とも落ちて**、毎アタックで強力な3択が撃てた。
+  // WXK06-029 ／ 原文【常】：あなたがデッキからカードを探している間、このカードをデッキから公開し《青》《無》を支払ってもよい。そうした場合、これを手札に加える。
+  // 🔴旧 live＝`SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN, TRANSFER_TO_HAND{DECK_CARD}}]` を【常】に載せただけ＝どこからも実行されなかった（§5.3 `O-546`）。
+  //   宣言の STUB にして、デッキを探す入口（`execSearch`）が読む。
+  'WXK06-029': [
+    {
+      effectId: 'WXK06-029-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'DECK_SEARCH_REVEAL_TO_HAND', costColors: ['青', '無'] },
+      duration: 'PERMANENT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   'WXK06-024': [
     {
       effectId: 'WXK06-024-E2',

@@ -95750,7 +95750,7 @@ test('「デッキの一番上を公開し、それを手札に加える」が�
     for (const v of Object.values(o)) walk(v, eid, up || picks.has(o.type ?? ''));
   };
   for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e.effectId, false);
-  eq(JSON.stringify([...new Set(bad)]), JSON.stringify(['WXK06-029-E1']), '🔴選択系の外で何もしない「手札に加える」が増えた（WXK06-029-E1 は機構待ち＝§5.3 O-546）');
+  eq(JSON.stringify([...new Set(bad)]), JSON.stringify([]), '🔴選択系の外で何もしない「手札に加える」が増えた（2026-10-24 に最後の WXK06-029-E1 を §5.3 O-546 で片づけた＝0 が正）');
 }));
 test('2026-10-22 バグ報告 212005fc：「アタックできない」を付与されたルリグはボタン・CPU の候補にも出さない', () => withSavedCursor(() => {
   const st0 = mkState({ lrig: ['WD19-001#1'] });
@@ -96024,6 +96024,56 @@ test('2026-10-24 CPU の召喚も人間の「召喚」ボタンと同じ条件�
   ok(body.includes('cpuSummonBudget(ctx, s)'), '🔴召喚の枠が cpuSummonBudget（効果込みのリミット）を通っていない');
 }));
 
+test('§5.3 O-546 デッキを探している間に割り込む【常】（WXK06-029）＝払えば公開して手札へ・候補から外れる／スキップ・払えないならデッキに残る', () => withSavedCursor(() => {
+  // 🔴旧 live＝【常】に `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN, TRANSFER_TO_HAND{DECK_CARD}}]` を載せただけ＝どこからも実行されず、
+  //   デッキを探しても何も起きなかった。いまは宣言 `STUB{DECK_SEARCH_REVEAL_TO_HAND}` を `execSearch`（デッキを探す唯一の入口）が読む。
+  const LIGER = 'WXK06-029#1';
+  const decl = effectsMap.get('WXK06-029')!.find(e => e.effectId === 'WXK06-029-E1')!;
+  eq((decl.action as StubAction).id, 'DECK_SEARCH_REVEAL_TO_HAND', 'live の宣言が割り込みの STUB');
+  const other = findCard(c => isSigni(c) && c.CardNum !== 'WXK06-029');
+  const blue = findCard(c => isSigni(c) && (c.Color ?? '').includes('青') && c.CardNum !== 'WXK06-029');
+  const search: EffectAction = {
+    type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1, upToTarget: true,
+    then: { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+  } as unknown as EffectAction;
+  const open = (energy: string[]) => {
+    const base = { ...mkCtx({}, {}), effectsMap } as ExecCtx;
+    base.ownerState = { ...base.ownerState, deck: [other, LIGER], energy, hand: [] };
+    return { base, first: executeAction(search, base) };
+  };
+  // ① 払う
+  const paid = open([blue, other]);
+  ok(!paid.first.done && paid.first.pending.type === 'CHOOSE', '🔴デッキを探す前に「公開して払う／スキップ」が出ない');
+  if (paid.first.done || paid.first.pending.type !== 'CHOOSE') throw new Error('interrupt missing');
+  eq(paid.first.pending.options.find(o => o.id === 'pay')?.available, true, '《青》《無》を払える盤面で払う肢が選べない');
+  // 画面は肢の `costColors` を見て `resumeOptionalCost`（選んだエナで払う）へ渡す（`effectInteraction.ts`）＝同じ経路で払う
+  const r = resumeOptionalCost('pay', [blue, other], paid.first.pending, execCtxFrom(paid.first, paid.base));
+  ok(!r.done && r.pending.type === 'SEARCH', '払った後に探索の続き（候補の提示）が来ない');
+  if (r.done || r.pending.type !== 'SEARCH') throw new Error('search missing');
+  ok(r.ownerState.hand.includes(LIGER), '🔴払ったのにワイルドライガーが手札に来ない');
+  ok(!r.ownerState.deck.includes(LIGER), 'デッキに残ったまま');
+  eq(r.ownerState.energy.length, 0, '《青》《無》の2枚が払われていない');
+  ok(!r.pending.visibleCards.includes(LIGER), '🔴手札へ移したカードが探索の候補に残る');
+  ok(r.pending.visibleCards.includes(other), '残りのシグニが候補に無い');
+  // ② スキップ＝デッキに残り、そのまま候補に入る（2度は問わない）
+  const skip = open([blue, other]);
+  if (skip.first.done || skip.first.pending.type !== 'CHOOSE') throw new Error('interrupt missing');
+  const s = resumeChoose('skip', skip.first.pending, execCtxFrom(skip.first, skip.base));
+  ok(!s.done && s.pending.type === 'SEARCH', '🔴スキップした後にもう一度問う（または探索が始まらない）');
+  if (s.done || s.pending.type !== 'SEARCH') throw new Error('search missing');
+  ok(!s.ownerState.hand.includes(LIGER) && s.pending.visibleCards.includes(LIGER), 'スキップしたのに手札へ移った／候補から消えた');
+  eq(s.ownerState.energy.length, 2, 'スキップしたのにエナが減った');
+  // ③ 払えない（青が無い）＝払う肢は選べない
+  const poor = open([other]);
+  if (poor.first.done || poor.first.pending.type !== 'CHOOSE') throw new Error('interrupt missing');
+  eq(poor.first.pending.options.find(o => o.id === 'pay')?.available, false, '🔴《青》が無いのに払う肢が選べる');
+  // ④ デッキに無ければ何も挟まない（従来どおり探索）
+  const plain = { ...mkCtx({}, {}), effectsMap } as ExecCtx;
+  plain.ownerState = { ...plain.ownerState, deck: [other], energy: [blue, other] };
+  const pr = executeAction(search, plain);
+  ok(!pr.done && pr.pending.type === 'SEARCH', 'デッキに無いのに割り込みが挟まった');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
@@ -96043,3 +96093,4 @@ if (onlyFilters.length) {
 }
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log(onlyFilters.length ? `✓ 絞り込み ${ranCount} 本 通過（全件ではない）` : '✓ 全構文ゴールデン通過');
+
