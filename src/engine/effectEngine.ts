@@ -1052,8 +1052,9 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   // OR filter: 下位フィルタのいずれかに一致し、同階層の他条件とはAND。
   // execUtils.matchesFilter と同じ意味に揃え、CONTINUOUS 計算でも和集合を扱う。
   if (filter.anyOf && !filter.anyOf.some(sub => matchesFilter(cardData, sub))) return false;
-  if (filter.cardName && !cardData.CardName?.includes(filter.cardName)) return false;
-  if (filter.cardNames && !filter.cardNames.includes(cardData.CardName ?? '')) return false;
+  // 🔴2026-10-24＝カード名は全角・半角を揃えて比べる（execUtils.matchesFilter と同じ。原文由来の全角名 × 半角に揃った本体）。
+  if (filter.cardName && !(cardData.CardName ?? '').normalize('NFKC').includes(filter.cardName.normalize('NFKC'))) return false;
+  if (filter.cardNames && !filter.cardNames.some(n => n.normalize('NFKC') === (cardData.CardName ?? '').normalize('NFKC'))) return false;
   if (filter.cardNum  && cardData.CardNum  !== filter.cardNum)  return false;
   if (filter.cardType) {
     const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
@@ -1107,7 +1108,7 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     const exClasses = Array.isArray(filter.cardClassExclude) ? filter.cardClassExclude : [filter.cardClassExclude];
     if (exClasses.some(c => cardData.CardClass?.includes(c))) return false;
   }
-  if (filter.excludeCardName && cardData.CardName === filter.excludeCardName) return false;
+  if (filter.excludeCardName && (cardData.CardName ?? '').normalize('NFKC') === filter.excludeCardName.normalize('NFKC')) return false;
   // ⚠**execUtils 版とのパリティ欠落**（§5d パターンA・続き372 で発見）。この3つは execUtils の matchesFilter に
   //   あるのにこちらに無く、CONTINUOUS のパワー計算・activeCondition・HAS_CARD_IN_FIELD の評価では
   //   **黙って無視されていた**（＝絞り込みが効かない過剰判定）。live JSON の使用数は
@@ -1717,7 +1718,8 @@ export function evalConditionForContinuous(
       const lrig = st(cond.owner).field.lrig;
       const top = lrig[lrig.length - 1];
       if (!top) return false;   // ⚠ルリグ不在は negate でも false（execUtils と同扱い）
-      const isStory = cardMap.get(top)?.CardClass?.includes(cond.story) ?? false;
+      // 🔴2026-10-24＝全角・半角を揃えて比べる（条件は全角「ＬｏＶ」・ルリグのクラスは半角「LoV」＝成立しなかった）。execUtils と同じ。
+      const isStory = cardMap.get(top)?.CardClass?.normalize('NFKC').includes(cond.story.normalize('NFKC')) ?? false;
       return cond.negate ? !isStory : isStory;
     }
     case 'HAS_BOND': {

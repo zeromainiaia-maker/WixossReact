@@ -96247,6 +96247,40 @@ test('2026-10-24 開花できない（ゾーンにシグニがいる）ときシ
   eq(JSON.stringify(b.field.signi_acce ?? [null, null, null]), '[null,null,null]', '🔴開花したゾーンに前のシグニのアクセが残る');
 }));
 
+test('2026-10-24 限定条件・センタールリグのクラス条件は全角・半角を揃えて比べる（ＬｏＶ限定＝優羽莉のクラス LoV）', () => withSavedCursor(() => {
+  // 🔴旧＝そのまま比べていた＝カードの限定は全角「ＬｏＶ限定」（21枚）・ルリグのクラスは半角「LoV」＝優羽莉のデッキで
+  //   ＬｏＶ限定が召喚もアーツも使えず、場に出ても限定条件のルール処理でトラッシュされた。自己対戦の生成デッキに1枚も入らないことで見つけた。
+  ok(meetsRestriction('ＬｏＶ限定', 'LoV'), '🔴ＬｏＶ限定が優羽莉（LoV）で使えない');
+  ok(meetsRestriction('？限定', '?'), '🔴？限定が《紡ぐ者》（?）で使えない');
+  ok(!meetsRestriction('ＬｏＶ限定', 'タマ'), '別のルリグでもＬｏＶ限定が使えてしまう');
+  // 全数＝カードデータの「〜限定」は、どれかのルリグのクラスで満たせる（表記の違いで誰も使えない限定を作らない）
+  const lrigClasses = [...new Set([...cardMap.values()].filter(c => /ルリグ/.test(c.Type ?? '')).flatMap(c => (c.CardClass ?? '').split(/[/／]/).map(s => s.trim())).filter(s => s && s !== '-'))];
+  const orphan = [...new Set([...cardMap.values()].map(c => c.Restriction ?? '-').filter(r => r && r !== '-'))]
+    .filter(r => !lrigClasses.some(cls => meetsRestriction(r, cls)));
+  eq(JSON.stringify(orphan), '[]', '🔴どのルリグでも満たせない限定がある（全角・半角の違いを疑う）');
+  // センタールリグのクラス条件（`LRIG_STORY`）＝評価器2本とも
+  const yuri = 'WDK08-L01';
+  const ctx = mkCtx({ lrig: [yuri] }, {});
+  const cond = { type: 'LRIG_STORY', owner: 'self', story: 'ＬｏＶ' } as unknown as Condition;
+  ok(evalCondition(cond, ctx), '🔴「センタールリグが＜ＬｏＶ＞の場合」が優羽莉で成立しない（execUtils）');
+  ok(checkActiveCondition(cond as never, ctx.ownerState, ctx.otherState, true, cardMap as Map<string, CardData>, yuri), '🔴「センタールリグが＜ＬｏＶ＞の場合」が優羽莉で成立しない（effectEngine）');
+}));
+
+test('2026-10-24 カード名の絞り込み（cardName／cardNames／excludeCardName）は全角・半角を揃えて比べる', () => withSavedCursor(() => {
+  // 🔴旧＝そのまま比べていた＝名前は原文から取るので全角（《羅星　人生さんＲ》）、カードデータは表記ゆれの統合（2026-10-23）で半角に揃った本体
+  //   （「羅星　人生さんR」）＝「《X》がある場合」が永久に成立しなかった（WXK07-054-CB／WXK07-055-CB／WXDi-P15-056／WXDi-P13-062）。
+  const R = findCard(c => c.CardName === '羅星　人生さんR');
+  const card = cardMap.get(R)!;
+  ok(matchesFilter(card, { cardName: '羅星　人生さんＲ' }), '🔴全角の名前で半角のカードが絞り込めない（cardName）');
+  ok(matchesFilter(card, { cardNames: ['羅星　人生さんＲ'] } as TargetFilter), '🔴全角の名前で半角のカードが絞り込めない（cardNames）');
+  ok(!matchesFilter(card, { excludeCardName: '羅星　人生さんＲ' } as TargetFilter), '🔴「《X》以外」が全角の名前だと除外されない');
+  // live の条件そのもの＝「あなたの場に《羅星　人生さんＲ》がある場合」
+  const eff = effectsMap.get('WXK07-054-CB')!.find(e => e.effectId === 'WXK07-054-CB-E1')!;
+  const ctx = mkCtx({ signi: [R, null, null] }, {});   // ⚠golden の cardMap は素の Map＝個体番号では引けない
+  ok(evalCondition(eff.activeCondition as unknown as Condition, ctx), '🔴場に《羅星　人生さんR》がいるのに「《羅星　人生さんＲ》がある場合」が成立しない');
+  ok(checkActiveCondition(eff.activeCondition as never, ctx.ownerState, ctx.otherState, true, cardMap as Map<string, CardData>, 'WXK07-054-CB'), '🔴【常】の評価器（effectEngine）でも成立しない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

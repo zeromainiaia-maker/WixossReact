@@ -303,9 +303,16 @@ export function ignoresLrigTypeForGrow(cardNum: string, effectsMap: Map<string, 
 //   ここは互換のための re-export＝**判定は1本**。
 export { declaredSigniOverride } from '../../engine/declaredSigni';
 
+/**
+ * 限定条件（「〜限定」）を満たすか。**限定条件の判定はすべてここを通る**（召喚・アーツ・スペル・カットイン・ルール処理・CPU）。
+ * 🔴2026-10-24＝**全角・半角を揃えて比べる**（NFKC）。旧＝そのまま比べていた＝カードの限定は全角「ＬｏＶ限定」（21枚）・
+ *   ルリグのクラスは半角「LoV」＝**優羽莉のデッキで「ＬｏＶ限定」が召喚もアーツも使えず、場に出てもルール処理でトラッシュされた**。
+ *   同じ形＝「？限定」（《紡槍　アークエナジェ》）と《紡ぐ者》のクラス「?」。自己対戦の生成デッキに1枚も入らないことで見つけた。
+ */
 export function meetsRestriction(restriction: string, lrigClass: string, ignoreRestriction = false): boolean {
   if (ignoreRestriction || !restriction || restriction === '-') return true;
-  return lrigClass.split(/[/／]/).map(s => s.trim()).some(cls => restriction.includes(cls));
+  const r = restriction.normalize('NFKC');
+  return lrigClass.split(/[/／]/).map(s => s.trim().normalize('NFKC')).some(cls => r.includes(cls));
 }
 
 

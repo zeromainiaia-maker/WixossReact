@@ -66918,6 +66918,50 @@ scenarios.loseAbilityStopsGrantedAuto = {
   },
 };
 order.push('hbDeckBottomSliceSlist', 'loseAbilityStopsGrantedAuto');
+
+// 🔴**`lovRestrictionSummon`＝「ＬｏＶ限定」（全角）を優羽莉（クラス LoV＝半角）で召喚でき、場に残る**（2026-10-24）。
+//   旧＝限定条件の判定がそのまま比べていた＝召喚の候補に出ず、出ても限定条件のルール処理でトラッシュされた。
+scenarios.lovRestrictionSummon = {
+  title: 'ＬｏＶ限定のシグニ（WXK04-074）を優羽莉（WDK08-L01・クラス LoV）で召喚でき、場に残る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WDK08-L01#lv0'],
+      'field.signi': [null, null, null],
+      'hand': ['WXK04-074#lv1'],
+      'energy': [], 'trash': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false, summoned = false, placedAt = -1;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      if (!did && !summoned) {
+        const b = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); summoned = true; did = 'btn:召喚'; }
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', 'しない']);
+      const st = await H.queryState();
+      placedAt = (st?.host?.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.includes('WXK04-074#lv1'));
+      H.log(`  lov[${s}] -> ${did ?? 'なし'} | opened=${opened} summoned=${summoned} field=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trashCards)} hand=${JSON.stringify(st?.host?.handCards)}`);
+      if (placedAt >= 0 && s >= 3 && !st?.pendingEffect && !(st?.stackLen > 0)) {
+        await page.waitForTimeout(2000);
+        const fin = await H.queryState();
+        const still = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WXK04-074#lv1'));
+        return { pass: still, detail: still
+          ? `召喚して場に残った（ゾーン${placedAt + 1}・限定条件のルール処理でトラッシュされない）`
+          : `🔴召喚したがトラッシュされた（trash=${JSON.stringify(fin?.host?.trashCards)}）` };
+      }
+    }
+    return { pass: false, detail: `🔴召喚できなかった（召喚ボタン=${summoned}）＝ＬｏＶ限定が優羽莉で満たせていない` };
+  },
+};
+order.push('lovRestrictionSummon');
 // 🔴**`c9lriglevellowered`＝ルリグ側のレベルが下がって超過した場合も落とす**（`R-48` 追加裁定・2026-09-17）。
 //   live の発生源＝`SP38-005`（アーツ）「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」。
 //   ⚠その上書きは**効果を撃った側の state**（`attack_phase_level_overrides`）に載るので、ここでも**guest 側へ**注入する。

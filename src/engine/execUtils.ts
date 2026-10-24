@@ -1673,9 +1673,11 @@ export function matchesFilter(
     const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
     if (exClasses.some(c => effectiveClass.includes(c))) return false;
   }
-  if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
-  if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
-  if (filter.excludeCardName && card.CardName === filter.excludeCardName) return false;
+  // 🔴2026-10-24＝**カード名は全角・半角を揃えて比べる**（NFKC）。名前は原文から取るので全角（《羅星　人生さんＲ》）、カードデータは
+  //   表記ゆれの統合（2026-10-23）で半角に揃った本体がある（「羅星　人生さんR」）＝「《X》がある場合」が永久に成立しなかった（4効果）。
+  if (filter.cardName && !(card.CardName ?? '').normalize('NFKC').includes(filter.cardName.normalize('NFKC'))) return false;
+  if (filter.cardNames && !filter.cardNames.some(n => n.normalize('NFKC') === (card.CardName ?? '').normalize('NFKC'))) return false;
+  if (filter.excludeCardName && (card.CardName ?? '').normalize('NFKC') === filter.excludeCardName.normalize('NFKC')) return false;
   // 🆕§5.3 `O-459`（2026-09-16）＝「【チーム】を持つシグニ」（`WXDi-P16-094-E1`）。
   // 🔴**シグニの【チーム】は CSV の `Team` 列ではなく能力の見出し**（`【チーム自】`／`【チーム常】`…）に入っている
   //   （実測＝シグニ3,763枚で `Team` 列が埋まっているのは 0枚）。本文中の言及「【チーム】を持つ」は見出しではないので拾わない。
@@ -3179,7 +3181,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       //   盤面が無いのに発火する）。両評価器で同じ扱いにそろえる。
       if (!topLrig) return false;
       const card = ctx.cardMap.get(topLrig);
-      const isStory = card?.CardClass?.includes(cond.story) ?? false;
+      // 🔴2026-10-24＝全角・半角を揃えて比べる（条件は全角「ＬｏＶ」・ルリグのクラスは半角「LoV」＝成立しなかった）。effectEngine と同じ。
+      const isStory = card?.CardClass?.normalize('NFKC').includes(cond.story.normalize('NFKC')) ?? false;
       return cond.negate ? !isStory : isStory;
     }
     case 'LRIG_TEAM_COUNT': {
