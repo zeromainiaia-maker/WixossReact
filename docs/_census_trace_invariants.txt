@@ -3,7 +3,7 @@
 
 ## I1（0効果）
 
-## I2（271効果）
+## I2（274効果）
 WX01-028-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 WX02-073-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-073:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX04-015-E1	base/both	選択肢なし・差分: 相デッキの並びが変わった（残り12枚）
@@ -77,12 +77,13 @@ WX20-039-CB-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 �
 WX20-050-E1	base/both	選択肢なし・差分: 自S対象1: 自シグニ1(上) → 自エナ
 WX20-066-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自手札 ; 自状態 signi_returned_to_hand_count_this_turn: なし → 1
 WX20-Re19-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相手札 ; 相状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 相状態 turn_signi_returned_to_hand: なし → true
+WX21-065-E1	base/both	選択肢なし・差分: 自状態 hand_revealed_just_source_card_num: なし → "自S源"
 WX21-071-E1	base/both	選択肢なし・差分: 相S対象0: パワー-8000
 WX21-Re06-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 pending_exile_nums: なし → ["自S源"] ; 自状態 signi_placed_origin_this_turn: なし → ["WX21-Re06:trash"]
 WX21-Re19-E2	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自トラッシュ ; 自状態 lrig_granted_auto_effects_until_opp_turn: なし → [{"effectId":"WX21-Re19-sub-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ",…
 WX22-019-E3	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WX22-036-E1	base/both	選択肢なし・差分: 自S源: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX22-036:hand"]
-WX22-044-E1	base/both	選択肢なし・差分: 自S対象0: パワー+5000
+WX22-044-E1	base/both	選択肢なし・差分: 自S対象0: パワー+5000 ; 自状態 hand_revealed_just_source_card_num: なし → "自S源"
 WX22-Re07-E2	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
 WXEX1-35-E2	base/both	選択肢なし・差分: 自S下0: 自シグニ0(下) → 自トラッシュ ; 自S下02: 自シグニ0(下) → 自トラッシュ
 WXEX1-48-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WXEX1-48:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
@@ -102,7 +103,7 @@ WXDi-D09-P26-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッ�
 WXDi-P03-044-E2	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自エナ ; 自状態 energy_placed_this_turn: なし → ["WD01-009:effect"] ; 自状態 self_deck_to_energy_this_turn: なし → 1
 WXDi-P03-071-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-032:hand"]
 WXDi-P04-002-E1	base/both	選択肢なし・差分: 自状態 game_granted_effects: なし → [{"effectId":"WXDi-P04-002-E1-GRANT","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerCondition":{"turnOwner":"self"},"usageLimit":"once_per_turn","action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices"…
-WXDi-P04-045-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自手札
+WXDi-P04-045-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自状態 hand_revealed_just_source_card_num: なし → "自S源"
 WXDi-P04-059-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相エナ ; 自S源: 状態[なし]→[ダウン] ; 相状態 energy_placed_this_turn: なし → ["WX01-078:effect"]
 WXDi-P05-004-E1	base/both	選択肢なし・差分: 自状態 game_granted_effects: なし → [{"effectId":"WXDi-P05-004-GRANTED-CONT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_LEVEL1_IN_DECK_TRASH","deckTrashLevel1Filter":{"cardType":"シグニ","level":{"max":3},"story":"宇宙"}},"duration":"PERMANENT","mandatory":tr…
 WXDi-P05-016-E1	base/both	選択肢なし・差分: 自S甲: 自シグニ0(上) → 自シグニ1(上) ; 自S対象1: 自シグニ1(上) → 自シグニ0(上)
@@ -126,6 +127,7 @@ WXDi-P08-062-E2	nofield/both	選択肢なし・差分: 自デッキ上1: 自デ�
 WXDi-P09-076-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自エナ ; 自デッキ上2: 自デッキ[1] → 自エナ ; 自状態 energy_placed_this_turn: なし → ["WD01-009:effect","WD01-010:effect"]
 WXDi-P09-083-E1	base/both	選択肢なし・差分: 相S対象0: パワー-7000
 WXDi-P10-034-E1	base/both	選択肢なし・差分: 自デッキの並びが変わった（残り12枚）
+WXDi-P10-045-E1	base/both	選択肢なし・差分: 自状態 hand_revealed_just_source_card_num: なし → "自S源"
 WXDi-P11-072-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自エナ ; 自デッキ上2: 自デッキ[1] → 自エナ
 WXDi-P11-078-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
 WXDi-P11-081-E2	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(下)
@@ -223,6 +225,7 @@ WXK02-071-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) →
 WXK03-001-E3	base/both	選択肢なし・差分: 相制限: [なし]→[ルリグ付与能力x2]
 WXK03-020-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX10-048:hand"]
 WXK03-049-E1	empty/both	選択肢なし・差分: 自状態 deck_shuffled_count: なし → 1
+WXK04-088-E1	base/both	選択肢なし・差分: 自状態 hand_revealed_just_source_card_num: なし → "自S源"
 WXK06-023-E2	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-087:hand"]
 WXK06-025-E2	base/both	選択肢なし・差分: 相S丙: 相シグニ2(上) → 相トラッシュ ; 相手札対象: 相手札 → 相シグニ2(上) ; 相状態 signi_placed_origin_this_turn: なし → ["WX01-077:hand"]
 WXK06-034-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX15-037:hand"]

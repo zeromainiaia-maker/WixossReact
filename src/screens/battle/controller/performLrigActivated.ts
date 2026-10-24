@@ -1,4 +1,5 @@
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import { coinLedger } from '../../../engine/coinAbilityNegation';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
@@ -415,7 +416,7 @@ export const performLrigActivated = async (
         ...(paid.field.lrig.at(-1) ? [paid.field.lrig.at(-1)!] : []),
       ];
       for (const topEC of ecSources) {
-        for (const eff of (ctx.effectsMap.get(topEC) ?? [])) {
+        for (const eff of liveEffectsOf(ctx.effectsMap, topEC, paid)) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_EXCEED_COST')) continue;
           if (!eff.triggerCondition?.exceedCostPaidByPlayer) continue;
           const toEC = eff.triggerCondition?.turnOwner;

@@ -9,13 +9,13 @@ PlayerState のキー: 391
   1861 読 / 117 書  energy
   1522 読 /  77 書  deck
   2230 読 /  70 書  hand
-  4185 読 /  70 書  field
+  4183 読 /  70 書  field
   1928 読 /  62 書  trash
    262 読 /  34 書  lrig_deck
     58 読 /  33 書  temp_power_mods
    204 読 /  27 書  lrig_trash
-   323 読 /  19 書  actions_done
-   106 読 /  19 書  blocked_actions
+   325 読 /  20 書  actions_done
+   107 読 /  19 書  blocked_actions
    176 読 /  17 書  life_cloth
    133 読 /  17 書  keyword_grants
    119 読 /  14 書  coins

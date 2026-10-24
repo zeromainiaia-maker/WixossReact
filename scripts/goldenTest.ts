@@ -65,7 +65,7 @@ import {
   hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, attackerSelfUsedIds, collectAbilityRemovedNums, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, attackerSelfUsedIds, collectAbilityRemovedNums, collectSelfRevealFromHandTriggers, liveEffectsOf, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectNaturalTrapTrigger } from '../src/engine/naturalTrap';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
@@ -6090,7 +6090,8 @@ test('§6.4 E2E WXK05-027-E2: 緑AND異名水獣4枚を払えないとエナ送�
   const donePaid = finishPayingCosts(executeEffect(effect, paid), paid);
   ok(donePaid.otherState.energy.includes(victim), '《緑》＋異名水獣4枚のAND支払い後だけ対象をエナへ');
   eq(JSON.stringify(donePaid.ownerState.hand), JSON.stringify(handBefore), '公開した4枚は手札に残る');
-  ok(!(donePaid.ownerState.hand_revealed_just?.length), '今回は公開時timingを発火させない');
+  // 🆕2026-10-25＝効果文中の「公開してもよい。そうした場合」は効果の処理＝「自分の効果によって手札から公開した」に当たる（旧＝印を立てなかった）。
+  eq((donePaid.ownerState.hand_revealed_just ?? []).length, handBefore.length, '公開した札に公開の記録（手札公開時の【自】の誘発元）が立つ');
 }));
 
 test('§6.4 E2E WXK05-071-E1: 水獣3枚を払えないと付与不可、払うと自分の水獣だけにランサー', () => withSavedCursor(() => {
@@ -6108,7 +6109,8 @@ test('§6.4 E2E WXK05-071-E1: 水獣3枚を払えないと付与不可、払う�
   const donePaid = finishPayingCosts(executeEffect(effect, paid), paid);
   ok((donePaid.ownerState.keyword_grants?.[target] ?? []).includes('ランサー'), '支払い後は選んだ自分の水獣にランサー');
   eq(JSON.stringify(donePaid.ownerState.hand), JSON.stringify(handBefore), '公開した3枚は手札に残る');
-  ok(!(donePaid.ownerState.hand_revealed_just?.length), '今回は公開時timingを発火させない');
+  // 🆕2026-10-25＝効果文中の「公開してもよい。そうした場合」は効果の処理＝「自分の効果によって手札から公開した」に当たる（旧＝印を立てなかった）。
+  eq((donePaid.ownerState.hand_revealed_just ?? []).length, handBefore.length, '公開した札に公開の記録（手札公開時の【自】の誘発元）が立つ');
 }));
 
 function cardsWithStub(id: string, bareOnly = false): string[] {
@@ -96301,6 +96303,46 @@ test('2026-10-24 ルリグのアタックで誘発する【自】も《ターン
   const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigAttack.ts'), 'utf8');
   ok(src.includes('const lrigSelfUsed = lrigCardEffects.filter('), '🔴ルリグアタックの実行が《ターン1回》の消費を actions_done へ書かない');
 }));
+
+// 🆕2026-10-25（第583バッチ）＝「デッキに入ったのに一度も発動しない」札の仕分けで見つけた形。
+test('第583 手札から公開したとき: 汎用の REVEAL でも公開の記録が立ち、場の【自】は《ターン1回》と能力喪失を守る', () => withSavedCursor(() => {
+  // ① 汎用の REVEAL（source:HAND_CARD）＝`WDK08-Y17-E1`「あなたの手札から＜水獣＞のシグニを３枚公開する」
+  const source = 'WDK08-Y17';
+  const water = batch26Cards({ cardType: 'シグニ', story: '水獣' }, 3, [source]);
+  const ctx = mkCtx({ signi: [source, null, null], hand: 0 }, {}, source);
+  ctx.ownerState.hand = [...water];
+  const eff = effectsMap.get(source)!.find(e => e.effectId === 'WDK08-Y17-E1')!;
+  const done = finishPayingCosts(executeEffect(eff, ctx), ctx);
+  eq([...(done.ownerState.hand_revealed_just ?? [])].sort().join(','), [...water].sort().join(','),
+    '🔴汎用の REVEAL で手札から公開したのに公開の記録が立たない（手札公開時の【自】が誘発しない）');
+  // ② 場の ON_SELF_REVEAL_FROM_HAND
+  const st = mkState({ signi: ['WXK04-055', 'WDK08-Y15', null] });
+  const ids = (s: PlayerState) => collectSelfRevealFromHandTriggers(trigCtx(HOST), s, HOST).entries.map(e => e.effectId).sort().join(',');
+  eq(ids(st), 'WDK08-Y15-E1,WXK04-055-E2', '前提＝場の2体が誘発する');
+  eq(ids({ ...st, actions_done: ['WXK04-055-E2'] } as PlayerState), 'WDK08-Y15-E1', '🔴《ターン1回》を使ったのに2回目も誘発した');
+  eq(ids(st).length > 0 && collectSelfRevealFromHandTriggers({ ...trigCtx(HOST), abilityRemovedNums: new Set(['WDK08-Y15']) }, st, HOST).entries.some(e => e.cardNum === 'WDK08-Y15'), false,
+    '🔴能力を失ったシグニの【自】が誘発した');
+  for (const f of ['src/screens/BattleScreen.tsx', 'src/screens/battle/controller/justFlags.ts']) {
+    ok(!fs.readFileSync(join(root, f), 'utf8').includes("timing?.includes('ON_SELF_REVEAL_FROM_HAND')"), `🔴${f} が手札公開時の【自】を effectsMap から直接集めている（collectSelfRevealFromHandTriggers を使う）`);
+  }
+}));
+
+test('第583 能力を失ったカードの【自】: 画面・コントローラー側で手で集める箇所も liveEffectsOf を通る', () => {
+  const st = mkState({ signi: ['WXK04-055', null, null] });
+  ok(liveEffectsOf(effectsMap, 'WXK04-055', st).length > 0, '前提＝効果を返す');
+  eq(liveEffectsOf(effectsMap, 'WXK04-055', { ...st, abilities_removed: ['WXK04-055'] } as PlayerState).length, 0, '🔴能力を失ったカードの効果を返した');
+  eq(liveEffectsOf(effectsMap, 'WXK04-055#3', mkState(), { ...st, abilities_removed: ['WXK04-055#3'] } as PlayerState).length, 0, '🔴相手側の状態に載った能力喪失を見ていない');
+  // 🔴`effectsMap.get(…)` の直後に `effectType … 'AUTO'` を見る書き方＝能力喪失を素通りする（第583で18か所を置き換えた）。
+  //   残してよいのは場の外のカード（ルリグトラッシュのアーツ・エクシードで払ったカード・ライズの下）と CPU の判断だけ。
+  const allowed = new Set(['cpuTurn.ts', 'performLifeBurstResponse.ts', 'performLrigActivated.ts', 'performSummonSigni.ts', 'cpuAssistGrow.ts']);
+  const hits: string[] = [];
+  const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name);
+    if (e.isDirectory()) { walk(p); continue; } if (!/\.tsx?$/.test(e.name)) continue;
+    const lines = fs.readFileSync(p, 'utf8').split(/\r?\n/);
+    lines.forEach((l, i) => { if (l.includes('effectsMap.get(') && lines.slice(i, i + 3).some(x => /effectType [!=]== 'AUTO'/.test(x)) && !allowed.has(e.name)) hits.push(`${p}:${i + 1}`); }); } };
+  walk(join(root, 'src/screens'));
+  eq(hits.join(' '), '', '🔴画面側で能力喪失を見ずに【自】を集めている（liveEffectsOf を使う）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

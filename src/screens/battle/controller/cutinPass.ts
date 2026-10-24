@@ -1,4 +1,5 @@
 import type {PlayerState, PendingEffect, StackEntry} from '../../../types';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import {calcFieldPowers, collectAllColorSigniForField, collectFieldSigniExtraColors, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride} from '../../../engine/effectEngine';
 import {executeEffect, applyRefreshOnDone, evalUseCondition, type ExecCtx} from '../../../engine/effectExecutor';
 import {initStack, pushToStack} from '../../../engine/effectStack';
@@ -121,8 +122,8 @@ export async function handleCutinPass(c: PerformCtx, ui: CutinPassUi): Promise<v
         // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WXDi-P13-008-E3＝エクシード4で
         // 「【自】あなたが《ディソナアイコン》のスペルを使用したとき…」を得る）。scope は self（主語＝プレイヤー）。
         const srcEffsSU = srcNum === spellUseLrigTop
-          ? [...(effectsMap.get(srcNum) ?? []), ...grantedStoreWatchers(casterAfter, 'ON_SPELL_USE', ['self']).map(w => w.effect)]
-          : (effectsMap.get(srcNum) ?? []);
+          ? [...liveEffectsOf(effectsMap, srcNum, casterAfter), ...grantedStoreWatchers(casterAfter, 'ON_SPELL_USE', ['self']).map(w => w.effect)]
+          : liveEffectsOf(effectsMap, srcNum, casterAfter);
         for (const eff of srcEffsSU) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
           if (!spellUseTriggerMatches(eff, usedSpell)) continue;
@@ -157,9 +158,9 @@ export async function handleCutinPass(c: PerformCtx, ui: CutinPassUi): Promise<v
       const oppWatchLrigTop = result.otherState.field.lrig.at(-1);
       for (const srcNum of oppWatchSources) {
         const srcEffsSUOpp = srcNum === oppWatchLrigTop
-          ? [...(effectsMap.get(srcNum) ?? []),
+          ? [...liveEffectsOf(effectsMap, srcNum, result.otherState),
              ...grantedStoreWatchers(result.otherState, 'ON_SPELL_USE', ['any_opp', 'any']).map(w => w.effect)]
-          : (effectsMap.get(srcNum) ?? []);
+          : liveEffectsOf(effectsMap, srcNum, result.otherState);
         for (const eff of srcEffsSUOpp) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
           const scopeSU = eff.triggerScope ?? 'self';

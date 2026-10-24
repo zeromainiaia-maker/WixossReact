@@ -8,7 +8,7 @@ import {getCardNum} from '../engine/effectExecutor';
 import {LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
-import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers} from '../engine/triggerCollect';
+import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers, collectSelfRevealFromHandTriggers as pureCollectSelfRevealFromHandTriggers} from '../engine/triggerCollect';
 import {allAcceCards} from '../utils/acce';
 import {C, CardModal, HandCards, PlayerField} from '../components/BoardComponents';
 import type {CardAction} from '../components/BoardComponents';
@@ -1407,23 +1407,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ));
         // ON_SELF_REVEAL_FROM_HAND: あなたが自分の効果で手札からカードを公開したとき、場のシグニ自身のAUTO効果が反応（G198）
         // （hand_revealed_just は1回の公開処理ごとに立つので「同時に複数公開でも一度しか発動しない」が自然に満たされる）
-        if (revealedHJ.length > 0) {
-          for (const stack of localMy.field.signi) {
-            if (!stack?.length) continue;
-            const topNum = stack[stack.length - 1];
-            for (const eff of (effectsMap.get(topNum) ?? [])) {
-              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
-              entries.push({
-                id: generateUUID(),
-                playerId: user.id,
-                cardNum: topNum,
-                effectId: eff.effectId,
-                label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札公開時`,
-                effect: eff,
-              });
-            }
-          }
-        }
+        const selfReveal = revealedHJ.length > 0 ? pureCollectSelfRevealFromHandTriggers(mkTrigCtx(), localMy, user.id) : { entries: [], usedOncePerTurnIds: [] };
+        entries.push(...selfReveal.entries);
         // ON_HAND_DISCARDED: 効果による手札捨て（コスト捨てはコスト支払い側で別途収集）
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
           discardedHJ, localMy, user.id, false,
@@ -1441,23 +1426,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_discarded_just_by_opp: null,
           hand_discarded_just_cause_owner_id: null,
           hand_discarded_just_cause_card_num: null,
-          actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
+          actions_done: usedLimitIds.length + selfReveal.usedOncePerTurnIds.length > 0
+            ? [...(localMy.actions_done ?? []), ...usedLimitIds, ...selfReveal.usedOncePerTurnIds] : localMy.actions_done,
         };
         const states: Partial<Record<PlayerStateKey, PlayerState>> = { [stateKey]: cleared };
         // 🆕2026-10-21＝CPU(guest)が手札から公開したカード自身の【自】（ON_REVEALED_FROM_HAND）＋場の ON_SELF_REVEAL_FROM_HAND。
         if (cpuRevealedHJ.length > 0) {
           const gs = bs.guest_state;
           entries.push(...pureCollectRevealedFromHandTriggers(mkTrigCtx(), cpuRevealedHJ, gs, CPU_PLAYER_ID, gs.hand_revealed_just_source_card_num ?? undefined));
-          for (const stack of gs.field.signi) {
-            const topNum = stack?.at(-1);
-            if (!topNum) continue;
-            for (const eff of (effectsMap.get(topNum) ?? [])) {
-              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
-              entries.push({ id: generateUUID(), playerId: CPU_PLAYER_ID, cardNum: topNum, effectId: eff.effectId,
-                label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札公開時`, effect: eff });
-            }
-          }
-          states.guest_state = { ...(states.guest_state ?? gs), hand_revealed_just: null, hand_revealed_just_source_card_num: null };
+          const cpuSelfReveal = pureCollectSelfRevealFromHandTriggers(mkTrigCtx(), gs, CPU_PLAYER_ID);
+          entries.push(...cpuSelfReveal.entries);
+          const gsBase = states.guest_state ?? gs;
+          states.guest_state = { ...gsBase, hand_revealed_just: null, hand_revealed_just_source_card_num: null,
+            ...(cpuSelfReveal.usedOncePerTurnIds.length ? { actions_done: [...(gsBase.actions_done ?? []), ...cpuSelfReveal.usedOncePerTurnIds] } : {}) };
         }
         // CPU戦: CPU(guest)が捨てた手札 → CPU自身の self/any 効果 + 人間(host)の 'any' 効果を収集し、guest フラグをクリア
         if (cpuDiscardedHJ.length > 0) {

@@ -1,4 +1,5 @@
 import {collectOppSigniAttackResponses} from '../attackResponse';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import { CHEER_ZONE, signiStackAt } from '../../../engine/cheerZone';
 import {collectNaturalTrapTrigger} from '../../../engine/naturalTrap';
 import {calcFieldPowers, checkActiveCondition, collectGrantedFromLayer} from '../../../engine/effectEngine';
@@ -298,7 +299,7 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     newOpState.field.signi.forEach((opSigniStack, ozi) => {
       const opTopNum = opSigniStack?.at(-1);
       if (!opTopNum) return;
-      for (const oe of (ctx.effectsMap.get(opTopNum) ?? [])) {
+      for (const oe of liveEffectsOf(ctx.effectsMap, opTopNum, newOpState)) {
         if (oe.effectType !== 'AUTO') continue;
         // ON_FRONT_SIGNI_ATTACK: 「このシグニの正面のシグニがアタックしたとき」。
         //   正面（opFrontZoneIdx＝アタッカーと向かい合うゾーン）の守備側シグニのみ発火。triggeringCardNum=アタッカー。
@@ -371,7 +372,7 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     if (!opTopCardNum && !isSideAttack) {
       const defLrigTop = newOpState.field.lrig.at(-1);
       if (defLrigTop) {
-        for (const de of (ctx.effectsMap.get(defLrigTop) ?? ctx.effectsMap.get(getCardNum(defLrigTop)) ?? [])) {
+        for (const de of liveEffectsOf(ctx.effectsMap, defLrigTop, newOpState)) {
           if ((de.effectType !== 'AUTO' && de.effectType !== 'ACTIVATED') || !de.timing?.includes('ON_OPP_SIGNI_ATTACK_DIRECT')) continue;
           opAtkedEntries.push({
             id: generateUUID(),

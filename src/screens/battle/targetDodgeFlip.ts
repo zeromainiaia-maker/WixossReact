@@ -1,8 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
+import { liveEffectsOf } from '../../engine/triggerCollect';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { evalUseCondition } from '../../engine/execUtils';
-
-const baseCardNum = (id: string): string => id.split('#')[0];
 
 /**
  * 「このシグニが対戦相手の、能力か効果の対象になったとき、このシグニを裏向きにし、表向きにする」
@@ -39,7 +38,7 @@ export function resolveTargetDodgeFlip(args: {
   for (const num of targeted) {
     const zi = state.field.signi.findIndex(stack => stack?.at(-1) === num);
     if (zi < 0) continue;                       // 場のシグニでなければ対象外
-    const effs = effectsMap.get(num) ?? effectsMap.get(baseCardNum(num)) ?? [];
+    const effs = liveEffectsOf(effectsMap, num, state, sourceState);
     for (const eff of effs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TARGETED')) continue;
       const act = eff.action as StubAction;

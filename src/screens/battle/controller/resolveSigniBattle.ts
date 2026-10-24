@@ -1,6 +1,7 @@
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決（`resolvePendingSigniBattleFor`・1,588行）を
 //   `BattleScreen` から**逐語で移設**し、材料と I/O を `PerformCtx` で注入にした（人間・CPU 共用）。
 // ⚠可否の判定はここに書かない。⚠`loading` の確認は画面のラッパ。
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import { CHEER_ZONE, signiStackAt } from '../../../engine/cheerZone';
 import { fieldSigniStacks, isZoneFrozen } from '../../../engine/cheerZoneView';
 import type {BattleStateRow, PlayerState, CardData, StackEntry} from '../../../types';
@@ -1381,7 +1382,7 @@ export async function resolvePendingSigniBattleFor(
               .map(z => (stateAfterDown.field.signi[z] ?? []).at(-1))
               .filter((n): n is string => !!n);
             for (const cardNum of heavenZoneNums) {
-              for (const e of (effectsMap.get(cardNum) ?? [])) {
+              for (const e of liveEffectsOf(effectsMap, cardNum, stateAfterDown)) {
                 if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_HEAVEN')) continue;
                 // 自己スコープ（「**このシグニ**が《ヘブン》したとき」）だけをここで拾う。
                 // 味方監視（`any_ally`）は下の watcher ループが担当＝ここで拾うと二重発火する。
@@ -1412,7 +1413,7 @@ export async function resolvePendingSigniBattleFor(
                 ...(lrigTopH ? [lrigTopH] : []),
               ];
               for (const watcherNum of watcherNumsH) {
-                for (const e of (effectsMap.get(getCardNum(watcherNum)) ?? [])) {
+                for (const e of liveEffectsOf(effectsMap, watcherNum, stateAfterDown)) {
                   if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_HEAVEN')) continue;
                   const scopeH = e.triggerScope ?? 'self';
                   if (scopeH !== 'any_ally' && scopeH !== 'any') continue;
@@ -1693,7 +1694,7 @@ export async function resolvePendingSigniBattleFor(
         // battleOpponentNum: このシグニのバトル相手（「その対戦相手のシグニ」= triggeringCardNum。WX04-099）。
         const collectBattleTrig = (cardNum: string, playerId: string, doneIds: string[] | undefined, used: string[], ownerSt: PlayerState, otherSt: PlayerState, battleOpponentNum: string) => {
           const isControllerTurnPlayer = playerId === bs.active_user_id;
-          for (const eff of (effectsMap.get(cardNum) ?? [])) {
+          for (const eff of liveEffectsOf(effectsMap, cardNum, ownerSt, otherSt)) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BATTLE')) continue;
             // triggerFilter: バトル相手のシグニのレベル/パワー条件（WX04-099=レベル2以下／WX05-047=レベル4／WXDi-P14-062=パワー10000以上）
             if (eff.triggerFilter && !matchesFilter(battleCardMap.get(battleOpponentNum), eff.triggerFilter, effectivePowers.get(battleOpponentNum))) continue;
@@ -1725,7 +1726,7 @@ export async function resolvePendingSigniBattleFor(
       // 「【自】このシグニが対戦相手にダメージを与えたとき…」を収集（WX21-054 等）。condition も評価する。
       const damageEntries: StackEntry[] = [];
       if (dealtSigniDamage) {
-        for (const eff of (effectsMap.get(myTopNum) ?? [])) {
+        for (const eff of liveEffectsOf(effectsMap, myTopNum, newMyState, newOpState)) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_DAMAGE')) continue;
           if ((eff.triggerScope ?? 'self') !== 'self') continue;
           if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, effectivePowers)) continue;

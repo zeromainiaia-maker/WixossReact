@@ -1,4 +1,5 @@
 import { isKizunaActive } from '../../../engine/effectEngine';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import { evalUseCondition, getCardNum, matchesFilter } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
 import { collectOppLifeBurstActivatedTriggers, collectPlayerDamagedTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, crashCauseMatches } from '../../../engine/triggerCollect';
@@ -121,7 +122,7 @@ export const performLifeBurstResponse = async (activate: boolean, targetCardNum:
       ...(op.field.key_piece_extra ?? []),
     ].filter((n): n is string => !!n);
     for (const topNum of oppCrashSources) {
-      for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+      for (const eff of liveEffectsOf(ctx.effectsMap, topNum, op)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
         if (!battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, ctx.cardMap, op)) continue;
         // §5.3 O-120: 「【ランサー】によってクラッシュしたとき」＝原因キーワード限定（fail-closed）。

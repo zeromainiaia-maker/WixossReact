@@ -1,4 +1,5 @@
 import type { CardData, PlayerState, StackEntry, TurnPhase } from '../../../types';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import type { CardEffect } from '../../../types/effects';
 import { evalUseCondition, getCardNum } from '../../../engine/effectExecutor';
 import { fieldSigniStacks } from '../../../engine/cheerZoneView';
@@ -39,7 +40,7 @@ export function collectOnAcceTriggers(p: {
     for (const stack of fieldSigniStacks(state)) {   // 🆕`O-540`＝チアゾーンのシグニも【自】の持ち主
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
+      for (const eff of liveEffectsOf(effectsMap, topNum, state)) {
         if (eff.effectType !== 'AUTO') continue;
         if (!eff.timing?.includes('ON_ACCE')) continue;
         const acceScope = eff.triggerScope ?? 'self';
@@ -66,7 +67,7 @@ export function collectOnAcceTriggers(p: {
     // ON_ACCE_ATTACH（ルリグ）: 「あなたのシグニ１体に【アクセ】が付いたとき」（WXK04-003 オーバークロック）
     const myLrigAcce = state.field.lrig.at(-1);
     if (myLrigAcce) {
-      for (const eff of (effectsMap.get(myLrigAcce) ?? [])) {
+      for (const eff of liveEffectsOf(effectsMap, myLrigAcce, state)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
         if (eff.usageLimit === 'once_per_turn' &&
             ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
@@ -85,7 +86,7 @@ export function collectOnAcceTriggers(p: {
     const hostZoneAcce = fieldSigniStacks(state).findIndex(s => s?.at(-1) === acceHostCardNum);   // 🆕`O-540`
     const attachedAcceNum = hostZoneAcce >= 0 ? acceCardsAt(state.field, hostZoneAcce).at(-1) : null;
     if (attachedAcceNum) {
-      for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
+      for (const eff of liveEffectsOf(effectsMap, attachedAcceNum, state)) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
         // host シグニのレベル/クラス条件（WXK05-041=Lv4以上／WX17-076-E2=Lv2以下／WX17-033-E4=＜調理＞）
         const acceTc = eff.triggerCondition;

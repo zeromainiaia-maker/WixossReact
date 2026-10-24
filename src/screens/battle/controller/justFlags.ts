@@ -2,9 +2,8 @@ import type { CardData, PlayerState, StackEntry } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import {
   collectRevealedFromHandTriggers, collectHandDiscardTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers,
-  collectBeatBecameTriggers, collectSelfEventTriggers, collectOppOwnedSpellUseTriggers, type TrigCtx,
+  collectBeatBecameTriggers, collectSelfEventTriggers, collectSelfRevealFromHandTriggers, collectOppOwnedSpellUseTriggers, type TrigCtx,
 } from '../../../engine/triggerCollect';
-import { generateUUID } from '../battleUtils';
 
 /** 「〜した直後」の印（その印を持つ席の state に engine が積む）。 */
 export const JUST_FLAG_KEYS = [
@@ -26,7 +25,7 @@ export function processSeatJustFlags(p: {
   trig: TrigCtx; st: PlayerState; op: PlayerState; id: string; opId: string;
   effectsMap: Map<string, CardEffect[]>; cardMap: Map<string, CardData>;
 }): { entries: StackEntry[]; st: PlayerState; opUsedIds: string[] } {
-  const { trig, st, op, id, opId, effectsMap, cardMap } = p;
+  const { trig, st, op, id, opId } = p;
   const entries: StackEntry[] = [];
   const used: string[] = [];
   const opUsed: string[] = [];
@@ -34,15 +33,8 @@ export function processSeatJustFlags(p: {
   if (revealed.length > 0) {
     entries.push(...collectRevealedFromHandTriggers(trig, revealed, st, id, st.hand_revealed_just_source_card_num ?? undefined));
     // ON_SELF_REVEAL_FROM_HAND＝自分の効果で手札から公開したとき、場のシグニ自身の【自】（画面の見張りと同じ）
-    for (const stack of st.field.signi) {
-      const top = stack?.at(-1);
-      if (!top) continue;
-      for (const eff of effectsMap.get(top) ?? []) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
-        entries.push({ id: generateUUID(), playerId: id, cardNum: top, effectId: eff.effectId,
-          label: `${cardMap.get(top)?.CardName ?? top}【自】手札公開時`, effect: eff });
-      }
-    }
+    const sr = collectSelfRevealFromHandTriggers(trig, st, id);
+    entries.push(...sr.entries); used.push(...sr.usedOncePerTurnIds);
   }
   const discarded = st.hand_discarded_just ?? [];
   if (discarded.length > 0) {

@@ -169,6 +169,18 @@ const effsOf = (ctx: TrigCtx, n: string): CardEffect[] => {
 };
 export const triggerEffectsForCollection = effsOf;
 
+/**
+ * 🆕2026-10-25＝**画面・コントローラー側で【自】を手で集める箇所の入口**（`effectsMap.get(n)` の代わり）。
+ * 能力を失ったカード（`collectAbilityRemovedNums(...states)`）なら空を返す。
+ * 🔴旧＝18か所が `effectsMap` を直接引き、能力を失ったシグニの【自】（天に置かれたとき・バトルしたとき・
+ *   アクセが付いたとき・スペルを使用したとき・対象になったとき ほか）が誘発していた（`effsOf` 側は第576で直した）。
+ */
+export function liveEffectsOf(effectsMap: Map<string, CardEffect[]>, n: string, ...states: (PlayerState | null | undefined)[]): CardEffect[] {
+  const removed = collectAbilityRemovedNums(...states.filter((s): s is PlayerState => !!s));
+  if (removed.has(n) || removed.has(getCardNum(n))) return [];
+  return effectsMap.get(n) ?? effectsMap.get(getCardNum(n)) ?? [];
+}
+
 /** 🆕2026-10-24＝能力を失っているカード（両者の `abilities_removed`）。`TrigCtx.abilityRemovedNums` に入れる。 */
 export function collectAbilityRemovedNums(...states: PlayerState[]): Set<string> {
   // 🆕2026-10-24（第579）＝**センタールリグの能力喪失（`lrig_abilities_disabled`）も同じ**＝そのルリグの【自】は印刷・付与とも誘発しない。
@@ -1404,6 +1416,31 @@ export function collectRevealedFromHandTriggers(
     }
   }
   return entries;
+}
+
+/**
+ * 🆕2026-10-25＝「あなたが自分の効果によって手札からカードを１枚以上公開したとき」（ON_SELF_REVEAL_FROM_HAND）＝場のシグニの【自】。
+ * 🔴旧＝画面2か所とヘッドレスがそれぞれ `effectsMap` を直接回していた＝**《ターン1回》も能力を失ったシグニも見ていなかった**
+ *   （6効果のうち4つが《ターン1回》）。1回の公開処理で1度だけ呼ぶ（「同時に２枚以上公開しても一度しか発動しない」）。
+ */
+export function collectSelfRevealFromHandTriggers(
+  ctx: TrigCtx, ownerState: PlayerState, ownerId: string,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(ownerState.actions_done, usedOncePerTurnIds);
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of effsOf(ctx, top)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({ id: ctx.genId(), playerId: ownerId, cardNum: top, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(top))?.CardName ?? top}【自】手札公開時`, effect: eff });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
 }
 
 /**

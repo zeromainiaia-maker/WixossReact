@@ -1,4 +1,5 @@
 import type { BattleStateRow, CardData, PlayerState, StackEntry } from '../../../types';
+import { liveEffectsOf } from '../../../engine/triggerCollect';
 import type { CardEffect } from '../../../types/effects';
 import { calcFieldPowers } from '../../../engine/effectEngine';
 import { evalUseCondition } from '../../../engine/effectExecutor';
@@ -69,7 +70,7 @@ export function collectEnergyPowerTriggers(p: {
     for (let zi = 0; zi < st.field.signi.length; zi++) {
       const topNum = st.field.signi[zi]?.at(-1);
       if (!topNum) continue;
-      for (const eff of effectsMap.get(topNum) ?? []) {
+      for (const eff of liveEffectsOf(effectsMap, topNum, st)) {
         if (eff.effectType !== 'AUTO') continue;
         if (eff.timing?.includes('ON_ENERGY_CHARGE') && addedToEnergy.length === 1) {
           if (eff.triggerCondition?.movedSelf) continue;

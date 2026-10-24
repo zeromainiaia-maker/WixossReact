@@ -2180,7 +2180,13 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
         ],
       });
     }
-    return selectOrInteract(cands, revealCount, (a.optional ?? false) || (src.upToCount ?? false), scope, { type: 'REVEAL' }, undefined, ctx,
+    // 🆕2026-10-25＝自分の手札から公開したら公開の記録（`hand_revealed_just`）を立てる。
+    // 🔴旧＝続きが素の `{ type: 'REVEAL' }` で記録を立てず、「手札から公開したとき」の【自】（`ON_REVEALED_FROM_HAND`／
+    //   `ON_SELF_REVEAL_FROM_HAND`）がこの経路（汎用の REVEAL と、効果文中の任意コストの公開）では一度も誘発しなかった。
+    const thenReveal: EffectAction = src.owner === 'self'
+      ? { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_FROM_HAND' }] } as EffectAction
+      : { type: 'REVEAL' } as EffectAction;
+    return selectOrInteract(cands, revealCount, (a.optional ?? false) || (src.upToCount ?? false), scope, thenReveal, undefined, ctx,
       false, { selectionConstraint: src.selectionConstraint });
   }
   return done(addLog(ctx, 'カードを公開'));
