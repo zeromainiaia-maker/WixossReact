@@ -96074,6 +96074,33 @@ test('§5.3 O-546 デッキを探している間に割り込む【常】（WXK06
   ok(!pr.done && pr.pending.type === 'SEARCH', 'デッキに無いのに割り込みが挟まった');
 }));
 
+test('2026-10-24 画面の useEffect は「処理中（loading）なら抜ける」なら依存に loading を持ち、自分の書き込みが届くまで待つ', () => {
+  // 🔴依存に `loading` が無いと、処理中に盤面が届いた回は抜け、処理が終わっても盤面が動かなければ**二度と見直さない**
+  //   （10-01 バグ報告 131184e7＝CPU のアーツでリミット超過のシグニが場に残った）。
+  // 🔴ただし `loading` を足すだけだと、下りた瞬間に**自分の書き込みがまだ届いていない古い盤面**で同じ処理をもう一度走らせる
+  //   （`persist.commit` は手元の盤面を書き換えない＝盤面は Realtime の通知で届く）＝`ownCommitsArrived(bs)` と組で使う。
+  //   ⚠例外＝同じ予約を ref で締めている見張り（グロウの予約3本・エンドフェイズの自動進行の `autoKey`）と、前回の盤面との差分を見るエナ・パワーの見張り。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const REF_DEDUPED = ['flipGrowRef.current', 'effectAssistGrowRef.current', 'effectGrowRef.current', 'turnEndAutoKeyRef.current', 'prevEnergyRef.current'];
+  const noDep: string[] = [], noWait: string[] = [];
+  const re = /useEffect\(\s*\(\)\s*=>\s*\{/g;
+  let m: RegExpExecArray | null; let count = 0;
+  while ((m = re.exec(src))) {
+    const start = m.index + m[0].length; let i = start, depth = 1;
+    while (i < src.length && depth > 0) { const c = src[i]; if (c === '{') depth++; else if (c === '}') depth--; i++; }
+    const body = src.slice(start, i - 1);
+    if (!/\bloading\b/.test(body)) continue;
+    count++;
+    const line = src.slice(0, m.index).split('\n').length;
+    const deps = /^\s*,\s*\[([\s\S]*?)\]\s*\)/.exec(src.slice(i, i + 800))?.[1] ?? '';
+    if (!/\bloading\b/.test(deps)) noDep.push(`BattleScreen.tsx:${line}`);
+    if (!REF_DEDUPED.some(r => body.includes(r)) && !body.includes('ownCommitsArrived(bs)')) noWait.push(`BattleScreen.tsx:${line}`);
+  }
+  ok(count >= 20, `走査が壊れた（loading を見る useEffect が ${count} 本しか見つからない）`);
+  eq(JSON.stringify(noDep), '[]', '🔴「処理中なら抜ける」のに依存に loading が無い（処理中に盤面が届くと二度と見直さない）');
+  eq(JSON.stringify(noWait), '[]', '🔴loading が下りた直後の古い盤面で二重に処理しうる（ownCommitsArrived(bs) で自分の書き込みが届くまで待つ）');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -548,6 +548,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // CPU対戦：effectスタック整列をCPUが自動確定
   useEffect(() => {
     if (!isCpuBattle || !bs?.effect_stack || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     const stack = bs.effect_stack;
     const cpuIsTurnPlayer = bs.active_user_id === CPU_PLAYER_ID;
     const cpuNeedsOrder = cpuIsTurnPlayer
@@ -564,7 +565,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }, CPU_ACTION_DELAY);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCpuBattle, bs?.effect_stack]);
+  }, [loading, isCpuBattle, bs?.effect_stack]);
 
   // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
   // 自分のデッキ + bs の全ゾーンにある CardNum を収集し、大本の cards から Map を作る。
@@ -1176,6 +1177,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (stack.queue.length === 0) return;
     if (bs.pending_effect) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     // ターンプレイヤーが自分か、キュー先頭のエフェクト所有者が自分の場合に解決する
     // （相手ターン中の自分のライフバーストなど、非ターンプレイヤーのエフェクトにも対応）
     // CPU戦はクライアントが人間側のみのため、CPUターン中のCPU所有エントリも人間クライアントが解決する
@@ -1188,7 +1190,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isCpuBattle && opStateForCheck.field?.check) return;
     resolveStackNextRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 「このメインフェイズを終了する」（`SKIP_MAIN_PHASE`＝`WXK06-078-E1`・§6.4 O-3 続き491）。
   // ⚠🔴従来は**ログを1行出すだけのハンドラ**で、`census:stubs` は「ハンドラがある＝実装済み」と
@@ -1213,6 +1215,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs?.pending_spell?.cutin_response_complete || !user) return;
     if (bs.pending_spell.caster_id === user.id) return;
     if (bs.effect_stack || bs.pending_effect || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     handleCutinPassRef.current?.();
   }, [bs?.pending_spell, bs?.effect_stack, bs?.pending_effect, loading, user]);
 
@@ -1222,13 +1225,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.global_phase !== 'PLAYING') return;
     if (bs.effect_stack || bs.pending_effect) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (localMy.field?.check) return;
     if (!(localMy.pending_crashed_cards?.length ?? 0)) return;
     triggerPendingCrashRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // パワー0以下シグニの自動バニッシュ
   // 🆕2026-10-01 バグ報告 131184e7＝**処理中フラグ（`loading`）が下りたときにも見直す**＝処理中に盤面が変わり、その後盤面が動かない局面で永久に見逃していた（CPU のアーツでリミット超過のシグニが場に残った）。
@@ -1237,6 +1241,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.global_phase !== 'PLAYING') return;
     if (bs.effect_stack || bs.pending_effect) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.active_user_id !== user.id) return;
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1253,6 +1258,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'UP') return;
     if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.active_user_id !== user.id && !isCpuBattle) return;
     checkDeferredRefreshRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1269,6 +1275,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'UP') return;
     if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     // 🆕2026-10-23＝CPU 戦では CPU の手番も見る（手札調整を CPU の捨て順で自動で行ってから終える）。
     //   旧＝自分の手番だけ＝CPU が効果スタックの外で2回目のリフレッシュをしてもターンが終わらなかった。
     if (bs.active_user_id !== user.id && !isCpuBattle) return;
@@ -1285,6 +1292,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.global_phase !== 'PLAYING') return;
     if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     checkLimitExcessRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1296,6 +1304,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.global_phase !== 'PLAYING') return;
     if (bs.effect_stack || bs.pending_effect) return;
     if (loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.active_user_id !== user.id) return;
     checkContMutationsRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1317,7 +1326,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!ownCommitsArrived(bs)) return;
     resolvePendingSigniBattleRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_ATTACK_LRIG処理完了後のガード応答セット（pending_lrig_attackが設定されスタックが空になったとき）
   useEffect(() => {
@@ -1331,7 +1340,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!ownCommitsArrived(bs)) return;   // ↑シグニアタックと同じ（バグ報告 `4b765502`）
     resolvePendingLrigAttackRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
   // my は後で定義されるため bs から直接参照（isHost も後定義のため bs から計算）
@@ -1340,6 +1349,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     : undefined;
   useEffect(() => {
     if (!bs || !user || !acceJustDoneRef || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.active_user_id !== user.id) return;
     if (bs.effect_stack || bs.pending_effect) return;
     const hostCardNum = acceJustDoneRef;
@@ -1357,7 +1367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acceJustDoneRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, acceJustDoneRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 手札公開（hand_revealed_just）/効果による手札捨て（hand_discarded_just）フラグを検出してトリガーを発火
   // フラグはトリガーの有無に関わらず必ずクリアする（残存すると後で誤発火するため）
@@ -1375,6 +1385,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     ? bs.guest_state?.hand_revealed_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     const revealedHJ = handRevealedJustRef ?? [];
     const discardedHJ = handDiscardedJustRef ?? [];
     const cpuDiscardedHJ = cpuHandDiscardedRef ?? [];
@@ -1476,7 +1487,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handRevealedJustRef, handDiscardedJustRef, cpuHandDiscardedRef, cpuHandRevealedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, handRevealedJustRef, handDiscardedJustRef, cpuHandDiscardedRef, cpuHandRevealedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 対戦相手の場のウィルス増減フラグ（opp_virus_placed_just / opp_virus_removed_just）を検出して
   // ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED トリガーを発火（WD19-009 / WX21-030）
@@ -1491,6 +1502,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuVirusRemovedRef = isCpuBattle ? bs?.guest_state?.opp_virus_removed_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const processOwn = !!(myVirusPlacedRef || myVirusRemovedRef);
@@ -1555,7 +1567,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🆕🔴§5.3 `O-376`（2026-09-15）＝「あなたが**対戦相手の**スペルを使用したとき」（`opp_spell_used_just`）。
   // 🔑通常のスペル使用 funnel（下の `useSpell`）は**自分の手札のスペルしか通らない**ので、
@@ -1567,6 +1579,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuOppSpellUsedRef = isCpuBattle ? bs?.guest_state?.opp_spell_used_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const processOwn = !!(myOppSpellUsedRef && myOppSpellUsedRef.length > 0);
@@ -1619,7 +1632,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myOppSpellUsedRef, cpuOppSpellUsedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myOppSpellUsedRef, cpuOppSpellUsedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // シグニが効果によって他のシグニゾーンに移動した直後フラグ（zone_moved_just）を検出して ON_ZONE_MOVED を発火（G073 等）。
   // フラグは移動シグニの所有者(=mover)の state に積まれる。mover のクライアントが処理し、mover 側(self/any_ally/any)と
@@ -1630,6 +1643,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuZoneMovedRef = isCpuBattle ? bs?.guest_state?.zone_moved_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const processOwn = !!(myZoneMovedRef && myZoneMovedRef.length > 0);
@@ -1685,7 +1699,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myZoneMovedRef, cpuZoneMovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myZoneMovedRef, cpuZoneMovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // シグニがドライブ状態になった直後フラグ（drive_became_just）を検出して ON_SIGNI_BECOMES_DRIVE を発火（G184/G218）。
   // フラグはドライブ化したシグニの所有者(=driver)の state に積まれる。driver のクライアントが処理し、driver 側(self/any_ally/any)と
@@ -1696,6 +1710,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuDriveBecameRef = isCpuBattle ? bs?.guest_state?.drive_became_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const processOwn = !!(myDriveBecameRef && myDriveBecameRef.length > 0);
@@ -1751,7 +1766,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myDriveBecameRef, cpuDriveBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myDriveBecameRef, cpuDriveBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // カードが【ビート】になった直後フラグ（beat_became_just）を検出して ON_BECOME_BEAT を発火。
   // フラグは【ビート】になったカードの所有者の state に積まれる（drive_became_just と同型）。
@@ -1761,6 +1776,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuBeatBecameRef = isCpuBattle ? bs?.guest_state?.beat_became_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
+    if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const processOwn = !!(myBeatBecameRef && myBeatBecameRef.length > 0);
@@ -1811,7 +1827,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myBeatBecameRef, cpuBeatBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, myBeatBecameRef, cpuBeatBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー（WX03-032）。
   // 状態変化のたびに、前回スナップショット（prevEnergyRef/prevPowersRef）と比較して

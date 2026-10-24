@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-24（第574バッチ）画面の `useEffect` の「処理中（`loading`）なら抜ける」を全部そろえた（依存に `loading`＋自分の書き込みが届くまで待つ）
+- 🔴**形**＝`if (loading) return` で抜けるのに依存配列に `loading` が無い `useEffect` が **12か所**（`BattleScreen.tsx`＝CPU のスタック整列・スタックの自動解決・同時クラッシュの消化・シグニ／ルリグのアタックの解決・アクセ／手札の公開と捨て／ウィルス／相手のスペル使用／ゾーン移動／ドライブ／ビートの【自】の見張り）。処理中に盤面が届いた回は抜け、処理が終わっても盤面が動かなければ**二度と見直さない**＝10-01 のバグ報告 `131184e7`（リミット超過のシグニが場に残る）と同じ壊れ方。実害は今回は観測していない（前回の注記の「15か所」は数え直して12か所）。
+- 🔴**`loading` を足すだけでは足りない**＝`persist.commit` は手元の盤面を書き換えない（盤面は Realtime の通知で届く）ので、`loading` が下りた瞬間は**自分の書き込みがまだ届いていない古い盤面**＝同じスタックの項目を2回解決する／消したはずの印でもう一度【自】を積む形になる。⇒ **`ownCommitsArrived(bs)`（自分の書き込みが全部届いたか）と組で足した**（既にアタックの解決2か所が使っていた形・バグ報告 `4b765502`）。
+- **同じ形を全数で**＝`loading` の依存だけ足してあった6か所（10-01 に直したルール処理の見張り4本＝パワー0・保留のリフレッシュ・2回目のリフレッシュ・リミット超過／【常】の自動適用／カットインの続き）にも同じ待ちを足した＝**依存を12か所・待ちを16か所**。⚠**足さなかった5か所**＝同じ予約を ref で締めている見張り（グロウの予約3本・エンドフェイズの自動進行の `autoKey`）と、前回の盤面との差分を見るエナ・パワーの見張り（古い盤面では差分が出ない）。
+- **検証**＝golden 新規1本（`BattleScreen.tsx` の `loading` を見る `useEffect` を全部走査し、依存に `loading` が無いもの・待ちが無いものを0件で固定＝**修正前の BattleScreen では FAIL**）・全件 4544/4544・`npm run gates` 全緑。実機（`src/screens/` を触った）＝見張りの種類ごとの12本（`handDiscard`／`acceAttach`／`beatBecomeSelfWDK14017`／`o376OppSpellUse`／`meltFactVirusRemoval`／`censusHandDiscardedBuruakaFires`／`c9refreshturnend`／`c9refreshturnenddiscard`／`c9limitexcesspick`／`powerzero`／`ontargeted`／`b16banish3`）PASS・`verifyFullMatch cpu`（`SYNC_TRACE=1`・199手・古い通知を捨てた7回・見張り0回）PASS・`verifyRewind` PASS。
+- ⚠**別件で見つけた（未調査）**＝`verifyFullMatch pvp` が**約260手（ターン13〜14）でブラウザごと落ちる**（`Target crashed`）。**変更前の版でも同じく落ちた**＝今回の変更とは無関係。長い PvP でページのメモリが増え続けている疑い（2ブラウザ同時）。
+
 ## 2026-10-24（第573バッチ）§5.3 `O-546` クローズ＝「あなたがデッキからカードを探している間」に割り込む【常】（WXK06-029《フリーダム団　ワイルドライガー》）
 - 🔴**旧**＝live は【常】に `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN, TRANSFER_TO_HAND{DECK_CARD}}]` を載せただけ＝【常】の action はどこからも実行されず、デッキを探しても何も起きなかった（実行しても `DECK_CARD` は `fromTop` が無いので何もしない）。
 - **直し方**＝①`manualEffects.ts` で宣言の STUB `DECK_SEARCH_REVEAL_TO_HAND{costColors:[青,無]}` に書き直した（`syncManualLive.ts` で live へ）。②**デッキを探す唯一の入口 `execSearch`**（live の SEARCH from deck 443ノード・他の型で「探す」を表すものは無いことを実測）が、自分のデッキを探すときに候補を見せる前にデッキの該当カードを1枚ずつ「〈名前〉を公開して手札に加える（《青》《無》）／スキップ」の CHOOSE で問う → 払えば `INTERNAL_DECK_SEARCH_REVEAL_TO_HAND` で手札へ → 探索をやり直す（手札へ移ったカードは候補から外れる・同じカードは2度問わない＝`SearchAction.deckInterruptAsked`）。候補0枚の探索でも問う（「探している」ので）。支払いは既存の任意コストと同じ＝画面は肢の `costColors` を見て `resumeOptionalCost`、CPU は `pickCpuChoice`（払えれば払う）。③逆翻訳＝`miscStubMap`＋payload のコストを描く（原文と一致）。
