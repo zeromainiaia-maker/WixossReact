@@ -177,6 +177,9 @@ export const performLrigAttack = async (p: {
 
     // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
     const lrigCardEffects = attackingLrigPrintedEffects(ctx.trigCtx(), newMyState, lrigNum);
+    // 🆕2026-10-24（第579）＝《ターン1回／2回》の消費を書く（シグニのアタックと同じ＝`attackerSelfUsedIds`）。
+    const lrigSelfUsed = lrigCardEffects.filter(e => e.usageLimit === 'once_per_turn' || e.usageLimit === 'twice_per_turn').map(e => e.effectId);
+    if (lrigSelfUsed.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...lrigSelfUsed] };
     // ⚠**付与ストア／コピー／CONTINUOUS 付与はいずれも「センタールリグの能力」**なので、
     //   アシストルリグのアタックでは収集しない（収集すると同じ能力がアシストのアタックでも
     //   撃てる過剰実行になる）。アシストは**そのカード自身の** ON_ATTACK_LRIG だけが発火する。

@@ -65,7 +65,7 @@ import {
   hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, attackerSelfUsedIds, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, attackerSelfUsedIds, collectAbilityRemovedNums, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectNaturalTrapTrigger } from '../src/engine/naturalTrap';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
@@ -96279,6 +96279,27 @@ test('2026-10-24 カード名の絞り込み（cardName／cardNames／excludeCar
   const ctx = mkCtx({ signi: [R, null, null] }, {});   // ⚠golden の cardMap は素の Map＝個体番号では引けない
   ok(evalCondition(eff.activeCondition as unknown as Condition, ctx), '🔴場に《羅星　人生さんR》がいるのに「《羅星　人生さんＲ》がある場合」が成立しない');
   ok(checkActiveCondition(eff.activeCondition as never, ctx.ownerState, ctx.otherState, true, cardMap as Map<string, CardData>, 'WXK07-054-CB'), '🔴【常】の評価器（effectEngine）でも成立しない');
+}));
+
+test('2026-10-24 ルリグのアタックで誘発する【自】も《ターン1回》と能力喪失を守る（《タマ・おーら》で1ターン12回アタックした）', () => withSavedCursor(() => {
+  // 🔴旧＝アタックしたルリグ自身の【自】（印刷＋効果表に合成された付与）の収集は《ターン1回》も、センタールリグの能力喪失
+  //   （`lrig_abilities_disabled`）も見ていなかった＝「ルリグがアタックしたとき、このルリグをアップし、能力を失う《ターン1回》」が何度も誘発した。
+  const grant = (effectsMap.get('WXDi-D09-H07')![0].action as unknown as { effect: CardEffect }).effect;
+  eq(grant.usageLimit, 'once_per_turn', '前提＝付与する能力が《ターン1回》');
+  const L = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const eff = new Map(effectsMap); eff.set(L, [...(effectsMap.get(L) ?? []), grant]);
+  const collect = (st: PlayerState) => {
+    const bs = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'ATTACK_LRIG', host_state: st, guest_state: mkState() } as unknown as BattleStateRow;
+    const trig = makeTrigCtx({ bs, effectsMap: eff, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' });
+    return attackingLrigPrintedEffects(trig, st, L).filter(e => e.effectId === grant.effectId);
+  };
+  const st0 = mkState({ lrig: [L] });
+  eq(collect(st0).length, 1, '前提＝1回目のアタックで誘発する');
+  eq(collect({ ...st0, actions_done: [grant.effectId] } as PlayerState).length, 0, '🔴《ターン1回》を使ったのに2回目のルリグアタックでも誘発した');
+  eq(collect({ ...st0, lrig_abilities_disabled: true } as PlayerState).length, 0, '🔴センタールリグが能力を失ったのに【自】が誘発した');
+  ok(collectAbilityRemovedNums({ ...st0, lrig_abilities_disabled: true } as PlayerState).has(L), '🔴能力を失ったセンタールリグが【自】の収集全体から外れない');
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigAttack.ts'), 'utf8');
+  ok(src.includes('const lrigSelfUsed = lrigCardEffects.filter('), '🔴ルリグアタックの実行が《ターン1回》の消費を actions_done へ書かない');
 }));
 
 if (listMode) {

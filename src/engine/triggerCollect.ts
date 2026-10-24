@@ -171,7 +171,13 @@ export const triggerEffectsForCollection = effsOf;
 
 /** 🆕2026-10-24＝能力を失っているカード（両者の `abilities_removed`）。`TrigCtx.abilityRemovedNums` に入れる。 */
 export function collectAbilityRemovedNums(...states: PlayerState[]): Set<string> {
-  return new Set(states.flatMap(s => s.abilities_removed ?? []));
+  // 🆕2026-10-24（第579）＝**センタールリグの能力喪失（`lrig_abilities_disabled`）も同じ**＝そのルリグの【自】は印刷・付与とも誘発しない。
+  //   旧＝ルリグ側は別の印で、【自】の収集はどこも見ていなかった＝《タマ・おーら》（WXDi-D09-H07）で得た
+  //   「ルリグがアタックしたとき、このルリグをアップし、能力を失う」が失った後も誘発し、ルリグが1ターンに12回アタックした。
+  return new Set(states.flatMap(s => [
+    ...(s.abilities_removed ?? []),
+    ...(s.lrig_abilities_disabled && s.field.lrig.at(-1) ? [s.field.lrig.at(-1)!] : []),
+  ]));
 }
 
 /** 抑止フラグが立つプレイヤーの物理ゾーンから、トリガー発生源になりうる instanceId を集める。 */
@@ -1046,9 +1052,21 @@ export function attackingLrigPrintedEffects(
   attackingLrigNum: string,
 ): CardEffect[] {
   if ((attackerState.abilities_removed ?? []).includes(attackingLrigNum)) return [];
+  // 🆕2026-10-24（第579）＝センタールリグの能力喪失（`lrig_abilities_disabled`）と《ターン1回／2回》も見る（シグニ側 `collectAttackerSelfTriggers` と同じ）。
+  //   消費した id は呼び出し側が `attackerSelfUsedIds` で `actions_done` へ書く。
+  if (attackerState.lrig_abilities_disabled && attackerState.field.lrig.at(-1) === attackingLrigNum) return [];
+  const usedNowAL: string[] = [];
   return effsOf(ctx, attackingLrigNum)
     // 🔴`any_opp` は防御側の能力＝アタックしたルリグ自身では拾わない（シグニ側 `collectAttackerSelfTriggers` と同じ規約・2026-10-01）。
-    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG') && e.triggerScope !== 'any_opp');
+    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG') && e.triggerScope !== 'any_opp')
+    .filter(e => {
+      const max = e.usageLimit === 'once_per_turn' ? 1 : e.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+      if (max === Infinity) return true;
+      const used = (attackerState.actions_done ?? []).filter(id => id === e.effectId).length + usedNowAL.filter(id => id === e.effectId).length;
+      if (used >= max) return false;
+      usedNowAL.push(e.effectId);
+      return true;
+    });
 }
 
 /**
