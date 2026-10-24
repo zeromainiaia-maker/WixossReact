@@ -1242,7 +1242,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.effect_stack || bs.pending_effect) return;
     if (loading) return;
     if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
-    if (bs.active_user_id !== user.id) return;
+    // 🆕2026-10-24＝CPU 戦では CPU の手番も見る（ルール処理は手番に関係なく即座＝旧はパワー0のシグニが CPU の手番中に残った）。
+    if (bs.active_user_id !== user.id && !isCpuBattle) return;
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1305,7 +1306,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.effect_stack || bs.pending_effect) return;
     if (loading) return;
     if (!ownCommitsArrived(bs)) return;   // 🆕2026-10-24＝自分の書き込みが手元に届くまで待つ（`loading` が下りた直後の古い盤面で二重に処理しない）
-    if (bs.active_user_id !== user.id) return;
+    if (bs.active_user_id !== user.id && !isCpuBattle) return;   // 🆕2026-10-24＝CPU 戦では CPU の手番も見る（パワー0と同じ）
     checkContMutationsRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps

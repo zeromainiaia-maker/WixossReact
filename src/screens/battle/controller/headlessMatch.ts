@@ -300,7 +300,6 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     const rc = () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo });
     const meIsHost = true;                                   // クライアントは host 席
     const me = meIsHost ? bs.host_state : bs.guest_state;
-    const isMyTurn = bs.active_user_id === bs.host_id;
     const stackBusy = !!bs.effect_stack || !!bs.pending_effect;
     if (bs.global_phase !== 'PLAYING') return false;
     // 🆕2026-10-23＝**1つ書いたらそこで返す**（次の手で新しい盤面から回し直す＝画面の useEffect と同じ「盤面ごとに1回」）。
@@ -309,12 +308,14 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     //   （自己対戦で実測＝次のターンのルリグがダウンのまま＝勝てる場面でルリグアタックできなかった）。
     const wrote = () => persist.commitCount() > before;
     if (!stackBusy && !me.field?.check && (me.pending_crashed_cards?.length ?? 0) > 0) { await rc().triggerPendingCrash(); if (wrote()) return true; }
-    if (!stackBusy && isMyTurn) { await rc().checkAndBanishPowerZero(); if (wrote()) return true; }
+    // 🆕2026-10-24＝**パワー0のバニッシュ・【常】の自動適用は CPU（guest）の手番も見る**（画面と同じ＝CPU 戦では手番に関係なく回す）。
+    //   🔴旧＝自分の手番だけ＝CPU の手番中はパワー0のシグニが残ったまま CPU が次の判断へ進み、席を入れ替えた試合と食い違った（`MIRROR`）。
+    if (!stackBusy) { await rc().checkAndBanishPowerZero(); if (wrote()) return true; }
     if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP') { await rc().checkDeferredRefreshRule(); if (wrote()) return true; }
     // 🆕2026-10-23＝画面と同じく CPU（guest）の手番も見る。
     if (!stackBusy && !bs.pending_spell && bs.turn_phase !== 'UP') { await rc().checkRefreshForcedTurnEnd(); if (wrote()) return true; }
     if (!stackBusy && !bs.pending_spell) { await rc().checkLimitExcessRule(); if (wrote()) return true; }
-    if (!stackBusy && isMyTurn) { await rc().checkAndApplyContMutations(); if (wrote()) return true; }
+    if (!stackBusy) { await rc().checkAndApplyContMutations(); if (wrote()) return true; }
     // ⚠バトル解決は画面も「薄いラッパ」しか持っていない（本体は `resolveSigniBattle.ts`）＝同じ1本を直接呼ぶ。
     if (!stackBusy && me.pending_signi_battle) { await resolvePendingSigniBattleForImpl(
       me, bs.guest_state, 'host_state', bs.host_id, bs.guest_id, clientCtx()); if (wrote()) return true; }

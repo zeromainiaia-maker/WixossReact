@@ -112,6 +112,8 @@ const RESUME_FRESH_MEMO = argv.includes('--resume-fresh-memo');
  * ⚠**ヘッドレスの進行役そのものが非対称**（ルール処理は host 席＝実機の人間のクライアント視点）＝差は候補として読む。
  */
 const MIRROR = argv.includes('--mirror');
+/** `MIRROR_DEBUG=1` のときは食い違ったターンのログを長めに残す（食い違いの起点を読む）。 */
+const MIRROR_LOGS = process.env.MIRROR_DEBUG ? -150 : -8;
 /**
  * 🆕`--answer-fuzz P`＝**CPU の対話の答えを確率 P で乱数の（合法な）答えに差し替える**（`HeadlessMatchDeps.reviseAnswer`）。
  * 🔑CPU はいつも「得な答え」を選ぶ＝断る・変わった対象・少なく選ぶ分岐を踏まない。差し替えるのは3形だけ＝
@@ -499,7 +501,7 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
       const lim = collectHandLimits(ps, os, instMap, effectsMap);
       if (ps.hand.length > lim) once(`HANDLIMIT:${r.turn_count}`, { kind: 'HANDLIMIT', step, turn: r.turn_count, detail: `${prevIsHost ? 'H' : 'G'} 手札${ps.hand.length} > 上限${lim}`, logs: m.logs.slice(-10) });
     }
-    if (MIRROR && r.turn_count !== prevRow.turn_count) turnSnaps.push({ turn: r.turn_count, row: r, logs: m.logs.slice(-8) });
+    if (MIRROR && r.turn_count !== prevRow.turn_count) turnSnaps.push({ turn: r.turn_count, row: r, logs: m.logs.slice(MIRROR_LOGS) });
     // 🆕LRIGJUMP＝センタールリグが重なった（枚数が増えた）のに、レベルが2以上跳ねた（グロウはレベル+1まで）
     //   ⚠候補出し＝「【グロウ】を無視して上に置く」効果は跳ねうる（ログで判定する）
     for (const [side, a0, a1] of [['H', prevRow.host_state, r.host_state], ['G', prevRow.guest_state, r.guest_state]] as [string, PlayerState, PlayerState][]) {
@@ -625,7 +627,7 @@ async function mirrorCompare(row0: BattleStateRow, logs0: string[], deps: any, r
     const prev = y.row();
     try { k = await y.step(); } catch (e: any) { k = 'crash'; ySnaps.push({ turn: -1, row: prev, logs: [String(e?.message ?? e)] }); break; }
     if (k === 'finished' || k === 'idle') break;
-    if (y.row().turn_count !== prev.turn_count) ySnaps.push({ turn: y.row().turn_count, row: y.row(), logs: y.logs.slice(-8) });
+    if (y.row().turn_count !== prev.turn_count) ySnaps.push({ turn: y.row().turn_count, row: y.row(), logs: y.logs.slice(MIRROR_LOGS) });
   }
   const pick = (r: BattleStateRow) => ({ active: r.active_user_id, phase: r.turn_phase, winner: r.winner_id ?? null, host_state: r.host_state, guest_state: r.guest_state });
   for (let i = 0; i < Math.max(snaps.length, ySnaps.length); i++) {

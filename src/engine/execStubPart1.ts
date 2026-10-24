@@ -4889,16 +4889,19 @@ export function execStubPart1(
   if (stub.id === 'INTERNAL_OPP_FIELD_TO_ENERGY') {
     const targetIOFTE = ctx.lastProcessedCards?.[0];
     if (!targetIOFTE) return done(addLog(ctx, '対象なし（INTERNAL_OPP_FIELD_TO_ENERGY）'));
-    const newSigniIOFTE = ctx.otherState.field.signi.map(stack => {
-      if (!stack?.includes(targetIOFTE)) return stack;
-      const filtered = stack.filter(c => c !== targetIOFTE);
-      return filtered.length > 0 ? filtered : null;
-    }) as (string[] | null)[];
-    const newOtherIOFTE: PlayerState = {
+    // 🔴2026-10-24＝**場のシグニ（一番上）は `removeFromField` で離す**＝付いていた【チャーム】【アクセ】【ソウル】・下のカード・印も片づく（`R-41`）。
+    //   旧＝ゾーンを手で組み直していた＝《翠魔姫　バン//ディソナ》（WXDi-P12-051-E2）で相手がシグニをエナへ置いた後、
+    //   空のゾーンに【アクセ】が残った（自己対戦の `SHAPE`）。⚠一番上でなければ（下のカード）従来どおりそのカードだけ抜く。
+    const isTopIOFTE = fieldSigniStacks(ctx.otherState).some(stack => stack?.at(-1) === targetIOFTE);
+    const baseIOFTE: PlayerState = isTopIOFTE ? removeFromField(targetIOFTE, ctx.otherState) : {
       ...ctx.otherState,
-      field: { ...ctx.otherState.field, signi: newSigniIOFTE },
-      energy: [...ctx.otherState.energy, targetIOFTE],
+      field: { ...ctx.otherState.field, signi: ctx.otherState.field.signi.map(stack => {
+        if (!stack?.includes(targetIOFTE)) return stack;
+        const filtered = stack.filter(c => c !== targetIOFTE);
+        return filtered.length > 0 ? filtered : null;
+      }) as (string[] | null)[] },
     };
+    const newOtherIOFTE: PlayerState = { ...baseIOFTE, energy: [...baseIOFTE.energy, targetIOFTE] };
     return done(addLog({ ...ctx, otherState: newOtherIOFTE },
       `${ctx.cardMap.get(targetIOFTE)?.CardName ?? targetIOFTE}→相手エナゾーンへ`));
   }

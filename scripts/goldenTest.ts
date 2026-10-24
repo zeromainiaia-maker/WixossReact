@@ -96179,6 +96179,35 @@ test('2026-10-24 【起】の「手札を１枚デッキの一番下に置く」
   eq(paid.state.deck.at(-1), 'B#1', '選んだ札がデッキの一番下に無い');
 });
 
+test('2026-10-24 相手が自分のシグニをエナへ置く（INTERNAL_OPP_FIELD_TO_ENERGY）・場のシグニを下に置く でも付いていたカードは片づく', () => withSavedCursor(() => {
+  // 🔴旧＝ゾーンを手で組み直していた＝《翠魔姫　バン//ディソナ》（WXDi-P12-051-E2）で相手がシグニをエナへ置いた後、空のゾーンに【アクセ】が残った（自己対戦の `SHAPE`）。
+  const S = `${SIGNI}#o1`, U = `${SIGNI}#o2`, A = 'WXK04-076#o3';
+  const ctx = mkCtx({}, {});
+  ctx.otherState = { ...ctx.otherState, field: { ...ctx.otherState.field, signi: [[U, S], null, null], signi_acce: [[A], null, null] } };
+  const r = executeAction({ type: 'STUB', id: 'INTERNAL_OPP_FIELD_TO_ENERGY' } as unknown as EffectAction, { ...ctx, lastProcessedCards: [S] } as ExecCtx);
+  ok(r.done, '完了しない');
+  if (r.done) {
+    ok(r.otherState.energy.includes(S), 'シグニがエナへ行かない');
+    eq(JSON.stringify(r.otherState.field.signi), '[null,null,null]', '🔴下のカードがゾーンに残る');
+    eq(JSON.stringify(r.otherState.field.signi_acce ?? [null, null, null]), '[null,null,null]', '🔴空のゾーンに【アクセ】が残る');
+    ok(r.otherState.trash.includes(A) && r.otherState.trash.includes(U), '🔴アクセ・下のカードがトラッシュへ行かない');
+  }
+}));
+
+test('2026-10-24 CPU 戦ではパワー0のバニッシュ・【常】の自動適用を CPU の手番も回す（画面・ヘッドレスとも）', () => {
+  // 🔴旧＝自分（人間）の手番だけ＝CPU の手番中はパワー0のシグニが残ったまま CPU が次の判断へ進み、
+  //   席を入れ替えた試合と食い違った（自己対戦の `MIRROR`）。ルール処理は手番に関係なく即座。
+  const bsrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  for (const ref of ['checkPowerZeroBanishRef', 'checkContMutationsRef']) {
+    const i = bsrc.indexOf(`${ref}.current?.();`);
+    const head = bsrc.slice(Math.max(0, i - 400), i);
+    ok(i > 0 && /bs\.active_user_id !== user\.id && !isCpuBattle\) return;/.test(head), `🔴画面の ${ref} が CPU の手番で回らない`);
+  }
+  const hsrc = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/if \(!stackBusy\) \{ await rc\(\)\.checkAndBanishPowerZero\(\)/.test(hsrc), '🔴ヘッドレスのパワー0のバニッシュが自分の手番に絞られている');
+  ok(/if \(!stackBusy\) \{ await rc\(\)\.checkAndApplyContMutations\(\)/.test(hsrc), '🔴ヘッドレスの【常】の自動適用が自分の手番に絞られている');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

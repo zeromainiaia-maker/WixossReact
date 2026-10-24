@@ -14823,12 +14823,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         // 🆕`LOOK_PICK_CHAIN{then:'under'}` の公開札（2026-08-31）＝まだデッキに残っているので抜く。
         newState = { ...newState, deck: newState.deck.filter(c => c !== cardNum) };
       } else if (fromLoc === 'field') {
-        const newSigniWithRemoval = newState.field.signi.map(stack => {
-          if (!stack?.includes(cardNum)) return stack;
-          const filtered = stack.filter(c => c !== cardNum);
-          return filtered.length > 0 ? filtered : null;
-        }) as (string[] | null)[];
-        newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
+        // 🔴2026-10-24＝場のシグニ（一番上）を別のシグニの下へ置く＝**場を離れる**＝`removeFromField` で付いていたカード・印も片づける。
+        //   旧＝ゾーンを手で組み直していた＝【チャーム】【アクセ】【ソウル】が空のゾーンに残った。⚠下のカードなら従来どおり抜くだけ。
+        if (fieldSigniStacks(newState).some(stack => stack?.at(-1) === cardNum)) {
+          newState = removeFromField(cardNum, newState);
+        } else {
+          const newSigniWithRemoval = newState.field.signi.map(stack => {
+            if (!stack?.includes(cardNum)) return stack;
+            const filtered = stack.filter(c => c !== cardNum);
+            return filtered.length > 0 ? filtered : null;
+          }) as (string[] | null)[];
+          newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
+        }
       }
       // ゾーンの先頭に追加（下に置く）
       const placedPUSS = placeUnderFieldSigni(newState, sourceCard, [cardNum]);
