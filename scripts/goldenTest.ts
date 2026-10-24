@@ -65,7 +65,7 @@ import {
   hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, attackerSelfUsedIds, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectNaturalTrapTrigger } from '../src/engine/naturalTrap';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
@@ -44707,10 +44707,11 @@ test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから�
   const bloom = (bounce: boolean) => run(
     { type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: 0, ...(bounce ? { bounceOccupant: true } : {}) } as EffectAction,
     { ...ctx, ownerState: seeded } as ExecCtx);
-  // 置換なし＝従来どおり開花不可（シードだけ失われる）
+  // 置換なし＝開花不可。🆕2026-10-24＝**シードはそのまま残る**（旧＝シードをゾーンから外したまま置き場が無く、カードが消えていた＝自己対戦の `VANISH`）。
   const plain = bloom(false).ownerState as PlayerState;
   eq(plain.field.signi[0]?.at(-1), SIGNI, '置換なしでシグニが入れ替わっている');
   eq(plain.hand.length, handBefore, '置換なしで手札が増えている');
+  eq(plain.field.signi_seeds?.[0] ?? null, SEED_LV1, '🔴開花できなかったシードが消えた（どこにも置かれていない）');
   // 置換あり＝居座るシグニが手札へ戻り、シードが開花して場に出る
   const bounced = bloom(true).ownerState as PlayerState;
   ok(bounced.hand.includes(SIGNI), '居座るシグニが手札に戻っていない');
@@ -96207,6 +96208,44 @@ test('2026-10-24 CPU 戦ではパワー0のバニッシュ・【常】の自動�
   ok(/if \(!stackBusy\) \{ await rc\(\)\.checkAndBanishPowerZero\(\)/.test(hsrc), '🔴ヘッドレスのパワー0のバニッシュが自分の手番に絞られている');
   ok(/if \(!stackBusy\) \{ await rc\(\)\.checkAndApplyContMutations\(\)/.test(hsrc), '🔴ヘッドレスの【常】の自動適用が自分の手番に絞られている');
 });
+
+test('2026-10-24 自分のアタックで誘発する【自】の《ターン1回》は2回目のアタックで誘発しない（アップして再アタックしても）', () => withSavedCursor(() => {
+  // 🔴旧＝`collectAttackerSelfTriggers` だけ回数を見ていなかった＝《アイヤイ★ディール》（WXK02-023）で得る
+  //   「【自】《ターン1回》：このシグニがアタックしたとき、このシグニをアップする。」がアップのたびに誘発し、1ターンに12回アタックした（`REPEAT`）。
+  const grantAction = (effectsMap.get('WXK02-023')!.find(e => e.effectId === 'WXK02-023-E1')!.action as unknown as { abilities: { action: { effect: CardEffect } }[] }).abilities[0].action.effect;
+  eq(grantAction.usageLimit, 'once_per_turn', '付与する能力が《ターン1回》でない（前提）');
+  const S = `${SIGNI}#at1`;
+  const eff = new Map(effectsMap); eff.set(S, [...(effectsMap.get(SIGNI) ?? []), grantAction]);
+  const collect = (st: PlayerState) => {
+    const bs = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'ATTACK_SIGNI', host_state: st, guest_state: mkState() } as unknown as BattleStateRow;
+    const trig = makeTrigCtx({ bs, effectsMap: eff, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' });
+    return collectAttackerSelfTriggers(trig, st, mkState(), S, 'H').filter(e => e.effectId === grantAction.effectId);
+  };
+  const st0 = mkState({ signi: [S, null, null] });
+  const first = collect(st0);
+  eq(first.length, 1, '1回目のアタックで誘発しない（前提）');
+  eq(JSON.stringify(attackerSelfUsedIds(first)), JSON.stringify([grantAction.effectId]), '🔴《ターン1回》を消費した id が返らない');
+  eq(collect({ ...st0, actions_done: [grantAction.effectId] } as PlayerState).length, 0, '🔴《ターン1回》を使ったのに2回目のアタックでも誘発した');
+  // 配線＝アタックの実行が消費した id を actions_done へ書く
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniAttack.ts'), 'utf8');
+  ok(src.includes('const attackSelfUsed = attackerSelfUsedIds(attackEntries);') && src.includes('...atkDownUsedMine, ...attackSelfUsed]'), '🔴アタックの実行が《ターン1回》の消費を actions_done へ書かない');
+}));
+
+test('2026-10-24 開花できない（ゾーンにシグニがいる）ときシードは残る／手札に戻してから開花するのはシグニだけ', () => withSavedCursor(() => {
+  const LRIG = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const SEED = findCard(c => isSigni(c) && c.Level === '1');
+  const S = `${SIGNI}#bl1`, U = `${SIGNI}#bl2`, A = 'WXK04-076#bl3';
+  const ctx = mkCtx({ lrig: [LRIG] }, {});
+  const st = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: [[U, S], null, null], signi_acce: [[A], null, null], signi_seeds: [SEED, null, null] } } as PlayerState;
+  const bloom = (bounce: boolean) => run({ type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: 0, ...(bounce ? { bounceOccupant: true } : {}) } as EffectAction, { ...ctx, ownerState: st } as ExecCtx).ownerState as PlayerState;
+  const plain = bloom(false);
+  eq(plain.field.signi_seeds?.[0] ?? null, SEED, '🔴開花できなかったシードが消えた');
+  const b = bloom(true);
+  ok(b.hand.includes(S) && !b.hand.includes(U), '🔴手札に戻るのはシグニだけのはず（下のカードまで手札へ入った）');
+  ok(b.trash.includes(U) && b.trash.includes(A), '🔴下のカード・アクセがトラッシュへ行かない');
+  eq(b.field.signi[0]?.at(-1), SEED, 'シードが開花していない');
+  eq(JSON.stringify(b.field.signi_acce ?? [null, null, null]), '[null,null,null]', '🔴開花したゾーンに前のシグニのアクセが残る');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

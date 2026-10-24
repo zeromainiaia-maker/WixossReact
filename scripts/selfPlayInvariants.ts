@@ -532,7 +532,8 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
         const deckMin = Math.min(prevRow.host_state.deck.length, prevRow.guest_state.deck.length);
         const drawN = stepLogs.reduce((n, l) => n + Number(toAscii(l).match(/^(?:\[CPU\] )?(\d+)枚ドロー$/)?.[1] ?? 0), 0);
         // ⚠同じ手で手札からデッキへ戻したカードを引く形（「デッキの一番上へ」→「1枚ドロー」）は前の盤面のデッキに無い＝数えない
-        if (drawN > 0 && drawN <= deckMin && !stepLogs.some(l => /デッキの一番上へ|デッキに戻/.test(l))) {
+        //   🆕2026-10-24＝「手札N枚をデッキ上に置く」→「N枚ドロー」（《コードラビリンス　アトラン》＝戻した札を引き直す）も同じ＝誤報だった
+        if (drawN > 0 && drawN <= deckMin && !stepLogs.some(l => /デッキの一番上へ|デッキに戻|デッキ上に置/.test(l))) {
           // ⚠「引いて、手札を見ないで1枚捨てる」（《羅原　ＣＺ》ほか）は引いた札そのものが捨てられうる＝同じ手に手札を捨てるログがあればトラッシュ行きも数える。
           const got = moved(st => st.deck, st => st.hand) + (stepLogs.some(l => /^手札から.*トラッシュへ$/.test(l)) ? moved(st => st.deck, st => st.trash) : 0);
           if (got < drawN) once(`DRAWLOG:${stepLogs.find(l => /ドロー$/.test(l))}`, { kind: 'DRAWLOG', step, turn: r.turn_count, detail: `ログはドロー${drawN}枚・デッキ→手札は${got}枚`, logs: m.logs.slice(-8) });
@@ -573,7 +574,9 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number) {
           if (!spec.boundaries.includes('turn-end')) continue;
           const b = before[f], a = after[f];
           // ⚠「次のターン」の予約（`<キー>_next_turn`／`<キー>_until_next_own_turn`）から昇格した分は正しい持ち越し（「次の対戦相手のターン終了時まで」＝2ターン）
-          const reserved = [`${f}_next_turn`, `${f}_until_next_own_turn`].some(k => !empty(before[k]));
+          // 🆕2026-10-24＝「次の対戦相手のターン終了時まで」の場レベル付与は `field_grants_next_opp_turn` に予約される（`_active` を外した名前）＝誤報だった
+          const baseF = f.replace(/_active$/, '');
+          const reserved = [`${f}_next_turn`, `${f}_until_next_own_turn`, `${baseF}_next_opp_turn`].some(k => !empty(before[k]));
           if (!reserved && !empty(b) && JSON.stringify(b) === JSON.stringify(a)) once(`TURNLEAK:${f}`, { kind: 'TURNLEAK', step, turn: r.turn_count, detail: `${side}.${f} がターンを越えて残った ${JSON.stringify(a).slice(0, 160)}`, logs: m.logs.slice(-10) });
         }
     }

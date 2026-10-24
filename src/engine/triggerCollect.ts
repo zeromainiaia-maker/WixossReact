@@ -4842,6 +4842,19 @@ export function collectAttackerSelfTriggers(
 ): StackEntry[] {
   const attackerCard = ctx.cardMap.get(getCardNum(attackerNum));
   const crossOk = isCrossZoneActive(myState, attackerNum, ctx.cardMap);
+  // 🆕2026-10-24＝**《ターン1回／2回》を見る**（他の収集関数と同じ＝`actions_done`＋この収集内の回数）。消費した id は
+  //   呼び出し側が `attackerSelfUsedIds` で `actions_done` へ書く。
+  //   🔴旧＝この経路だけ回数を見ていなかった＝「アタックしたとき、このシグニをアップする」《ターン1回》（《アイヤイ★ディール》で得る能力）が
+  //   アップのたびに誘発し、同じシグニが1ターンに12回アタックした（自己対戦の `REPEAT`）。母集団＝自分のアタックで誘発し回数制限のある42効果。
+  const usedNowAS: string[] = [];
+  const limitOkAS = (e: CardEffect): boolean => {
+    const max = e.usageLimit === 'once_per_turn' ? 1 : e.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+    if (max === Infinity) return true;
+    const used = (myState.actions_done ?? []).filter(id => id === e.effectId).length + usedNowAS.filter(id => id === e.effectId).length;
+    if (used >= max) return false;
+    usedNowAS.push(e.effectId);
+    return true;
+  };
   return (effsOf(ctx, attackerNum) ?? [])
     .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
     // 🔴2026-10-01（バグ報告 c7242f30）＝**`any_opp`（「対戦相手のシグニがアタックしたとき」）はアタッカー自身では拾わない**。
@@ -4853,11 +4866,17 @@ export function collectAttackerSelfTriggers(
     .filter(e => !e.kizunaIcon || isKizunaActive(myState, attackerNum, ctx.cardMap))
     .filter(e => attackerSelfTriggerFilterOk(e, attackerCard, effectivePowers?.get(attackerNum)))
     .filter(e => !e.condition || evalUseCondition(e.condition, myState, opState, ctx.cardMap, attackerNum, ctx.turnPhase, effectivePowers, ctx.effectsMap))
+    .filter(limitOkAS)
     .map(e => ({
       id: ctx.genId(), playerId: ownerId, cardNum: attackerNum, effectId: e.effectId,
       label: `${attackerCard?.CardName ?? attackerNum} の【自】効果（シグニアタック時）`,
       effect: e, triggeringCardNum: attackerNum,
     }));
+}
+
+/** 🆕2026-10-24＝`collectAttackerSelfTriggers` の結果のうち《ターン1回／2回》を消費した effectId（呼び出し側が `actions_done` へ書く）。 */
+export function attackerSelfUsedIds(entries: StackEntry[]): string[] {
+  return entries.filter(e => e.effect?.usageLimit === 'once_per_turn' || e.effect?.usageLimit === 'twice_per_turn').map(e => e.effectId);
 }
 
 /**

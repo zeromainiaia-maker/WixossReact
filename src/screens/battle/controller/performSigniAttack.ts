@@ -4,7 +4,7 @@ import {collectNaturalTrapTrigger} from '../../../engine/naturalTrap';
 import {calcFieldPowers, checkActiveCondition, collectGrantedFromLayer} from '../../../engine/effectEngine';
 import {getCardNum} from '../../../engine/effectExecutor';
 import {initStack, pushToStack} from '../../../engine/effectStack';
-import {type TrigCtx, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectTrashTriggers as pureCollectTrashTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers} from '../../../engine/triggerCollect';
+import {type TrigCtx, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectTrashTriggers as pureCollectTrashTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, attackerSelfUsedIds} from '../../../engine/triggerCollect';
 import {type PlayerState, type StackEntry} from '../../../types';
 import {attackFieldTrashCost, deterministicAttackFieldTrashZones, payAttackFieldTrashCost} from '../attackFieldTrashCost';
 import {consumeNthAttackNegation} from '../attackNegation';
@@ -277,6 +277,7 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     //   「このターン、あなたのシグニ１体がアタックしたとき、…」watcher（`WX10-035`）。
     //   防御側の収集（下の `pureCollectSigniAttackDelayedTriggers`）は `attackerOwner:'self'` を
     //   読み飛ばすので、ここを足さないと設置しても永久に発火しない。
+    const attackSelfUsed = attackerSelfUsedIds(attackEntries);
     attackEntries.push(...pureCollectAttackerSelfDelayedTriggers(ctx.trigCtx(), attackerId, newMyState, myTopNum));
 
     // any_ally scope: 味方フィールドの他シグニが持つON_ATTACK_SIGNIへの応答（例: WX01-029）
@@ -420,8 +421,9 @@ export const performSigniAttack = async (zoneIndex: number, p: {
       //   ⚠アタック宣言によるダウンも**同じ台帳へ積む**（原文の「ダウン状態になったとき」は
       //     効果起因に限らない。`byEffect` の絞りは watcher 側の役目）。
       ...newMyStateDownRec,
-      ...(atkUsedMine.length > 0 || atkDownUsedMine.length > 0
-        ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine, ...atkDownUsedMine] } : {}),
+      // 🆕2026-10-24＝自分のアタックで誘発した【自】の《ターン1回／2回》も消費する（`attackerSelfUsedIds`）。
+      ...(atkUsedMine.length > 0 || atkDownUsedMine.length > 0 || attackSelfUsed.length > 0
+        ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine, ...atkDownUsedMine, ...attackSelfUsed] } : {}),
       pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) },
     };
 

@@ -3373,19 +3373,16 @@ export function execStubPart2(
     let ctxIBS = ctx;
     const signiStackIBS = ctxIBS.ownerState.field.signi[zoneIdxIBS];
     if (signiStackIBS?.length && stub.bounceOccupant) {
-      const newSigniBO = [...ctxIBS.ownerState.field.signi] as (string[] | null)[];
-      newSigniBO[zoneIdxIBS] = null;
-      ctxIBS = addLog({
-        ...ctxIBS,
-        ownerState: {
-          ...ctxIBS.ownerState,
-          hand: [...ctxIBS.ownerState.hand, ...signiStackIBS],
-          field: { ...ctxIBS.ownerState.field, signi: newSigniBO },
-        },
-      }, `${signiStackIBS.map(n => ctxIBS.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を手札に戻してから開花`);
+      // 🔴2026-10-24＝**シグニ（一番上）だけを手札へ**＝`removeFromField` で離す（下のカードはトラッシュ・付いていた【アクセ】等も片づく＝`R-41`）。
+      //   旧＝ゾーンを手で空にして下のカードまで手札へ入れ、【アクセ】【チャーム】はゾーンに残っていた。
+      const topBO = signiStackIBS.at(-1)!;
+      const leftBO = removeFromField(topBO, ctxIBS.ownerState);
+      ctxIBS = addLog({ ...ctxIBS, ownerState: { ...leftBO, hand: [...leftBO.hand, topBO] } },
+        `${ctxIBS.cardMap.get(getCardNum(topBO))?.CardName ?? topBO}を手札に戻してから開花`);
     } else if (signiStackIBS?.length) {
-      const newOwnerSkip = { ...ctxIBS.ownerState, field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
-      return done(addLog({ ...ctxIBS, ownerState: newOwnerSkip }, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
+      // 🔴2026-10-24＝**開花できないならシードはそのまま**。旧＝シードをゾーンから外したまま**どこにも置かずに**終わっていた
+      //   ＝シードのカードが消えた（自己対戦の `VANISH`＝《満開の巫女　ユキ》の【起】で、シグニのいるゾーンのシードを選んだ）。
+      return done(addLog(ctxIBS, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
     }
     const seedCardDataIBS = ctxIBS.cardMap.get(seedCardIBS);
     // シグニ以外はトラッシュへ
