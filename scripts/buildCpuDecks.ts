@@ -5,6 +5,7 @@
  *   npx tsx scripts/buildCpuDecks.ts [--format diva|legacy|both] [--out scratchpad-cpudecks] [--only <ルリグタイプ>]
  *   → <out>/decks_cpu.json を書く ⇒ 自己対戦で止まらないか確かめる（`npm run selfplay:inv -- --deck-dir <out>`）
  *   ⇒ `node scripts/importDecks.mjs --from <out>/decks_cpu.json --kinds cpu --to claude1 --apply`
+ *   🆕2026-10-25＝`--multi`＝レガシーで2色の系統（最上位のルリグが2色とも持つ）を組む。序盤のルリグの色を持たない札は Lv3 以上・スペルで `--off-early-max`（既定12）枚まで。
  *   🆕2026-10-25＝`--axes <カード番号,…>`（`--axis-lrigs N`＝1枚あたりのルリグ数・既定2）＝**軸のカードを決めて、それを使えるルリグで組む**
  *     （ユーザー要望「レベル4シグニで強そうなのを軸にいろいろ作る」）。限定つきは限定先のルリグ、限定なしはセンターの色が合うルリグ。
  *
@@ -137,6 +138,12 @@ const GUARDS = Number(arg('--guards', '8'));
  *   **持っているだけで働く（【常】【自】だけの）キー**を先にする。`--keys N`＝キーを変えた候補をいくつ組むか。
  */
 const KEY_VARIANTS = Number(arg('--keys', '1'));
+/**
+ * 🆕2026-10-25＝`--multi`＝**レガシーで2色の系統だけを組む**（ユーザー要望「多色デッキにも着手して」）。
+ *   2色の組ごとに「各レベルのルリグの色がその2色の中・グロウコストもその2色（か無色）で払える・最上位のルリグが2色とも持つ」系統を組み、
+ *   デッキの色をその2色にする（シグニはセンタールリグと共通の色でないと場に出せない＝最上位で2色そろう系統だけ）。
+ */
+const MULTI = argv.includes('--multi');
 
 interface Line { type: string; cards: CardData[]; colors: Set<string>; team: string }
 /** ルリグタイプ1つの系統（Lv0 → 最上位）。`kind`＝センター（ルリグ）／アシスト（アシストルリグ）。 */
@@ -151,15 +158,19 @@ function lineOf(type: string, pool: string, kind: 'ルリグ' | 'アシストル
   // 🆕2026-10-21＝**レガシーは色を1つに決め、グロウコストをその色（と無色）で払えるルリグだけで系統を組む**。
   //   ⚠旧＝レベルごとに「一番多い色を持つか」で並べるだけだった＝タウィルの Lv1〜3 に赤青緑の《リワト》が入り、グロウに緑・青のエナが要るのに
   //   メインデッキは赤＝グロウできずに止まって10戦全敗だった。⇒ 色ごとに系統を組んでみて、一番高いレベルまで届く色を採る（同じなら多い色）。
-  const build = (main: string | undefined) => {
+  const build = (main: string | undefined, second?: string) => {
+    const okColor = (ch: string) => ch === main || ch === second;
     const growColorsOk = (c: CardData) => pool !== 'legacy' || [...(c.GrowCost ?? '').matchAll(/《([白赤青緑黒])》×([０-９0-9]+)/g)]
-      .every(m => m[1] === main || toAscii(m[2]) === '0');
+      .every(m => okColor(m[1]) || toAscii(m[2]) === '0');
     // Lv0 はその色か無色（旧＝最初に見つかった Lv0＝サシェに《ＲｉＲｉ》が入った）
     const lv0 = [...lv0s].sort((a, b) => Number(colorsOf(b).includes(main ?? '')) - Number(colorsOf(a).includes(main ?? ''))
       || Number(colorsOf(b).length === 0) - Number(colorsOf(a).length === 0))[0];
     const line = [lv0];
     for (let l = 1; l <= 5; l++) {
-      const atL = ups.filter(c => lv(c) === l && growColorsOk(c) && (pool !== 'legacy' || colorsOf(c).includes(main ?? '')));
+      const atL = ups.filter(c => lv(c) === l && growColorsOk(c) && (pool !== 'legacy'
+        || (second ? colorsOf(c).length > 0 && colorsOf(c).every(okColor) : colorsOf(c).includes(main ?? ''))));
+      // 2色の系統では2色とも持つルリグを先に（最上位で2色そろえるため）
+      if (second) atL.sort((a, b) => colorsOf(b).length - colorsOf(a).length);
       if (atL.length === 0) break;
       atL.sort((a, b) => Number(colorsOf(b).includes(main ?? '')) - Number(colorsOf(a).includes(main ?? ''))
         || Number((b.Team ?? '-') === (lv0.Team ?? '-')) - Number((a.Team ?? '-') === (lv0.Team ?? '-'))
@@ -169,6 +180,19 @@ function lineOf(type: string, pool: string, kind: 'ルリグ' | 'アシストル
     }
     return line;
   };
+  if (MULTI && pool === 'legacy') {
+    const all = [...colorCount.keys()];
+    let best: { line: CardData[]; cols: [string, string] } | null = null;
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+      const l = build(all[i], all[j]);
+      while (l.length > 1 && !(colorsOf(l.at(-1)!).includes(all[i]) && colorsOf(l.at(-1)!).includes(all[j]))) l.pop();
+      if (l.length < 2 || lv(l.at(-1)!) < 3) continue;
+      if (!best || lv(l.at(-1)!) > lv(best.line.at(-1)!)) best = { line: l, cols: [all[i], all[j]] };
+    }
+    if (!best) return null;
+    const lv0m = best.line[0];
+    return { type, cards: best.line, colors: new Set(best.cols), team: lv0m.Team && lv0m.Team !== '-' ? lv0m.Team : '' };
+  }
   const colorsByCount = [...colorCount].sort((a, b) => b[1] - a[1]).map(([ch]) => ch);
   const tries = pool === 'legacy' ? colorsByCount : colorsByCount.slice(0, 1);
   let main = tries[0];
@@ -271,8 +295,14 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   const main: string[] = [];
   const count = (n: string) => main.filter(x => x === n).length;
   const lbCount = () => main.filter(n => hasLB(cardMap.get(n)!)).length;
+  // 🆕2026-10-25（`--multi`）＝序盤のルリグ（Lv0〜2）の色を持たない札は場に出せるのが Lv3 以降＝Lv3 以上かスペルに限り、合計 OFF_EARLY_MAX 枚まで。
+  //   ⚠旧（初版）＝タマ白赤で「赤32枚」の山ができ、Lv0〜2 の白いルリグでは1枚も出せず20戦0勝だった。
+  const early = new Set(core.center.cards.filter(c => lv(c) <= 2).flatMap(colorsOf));
+  const offEarly = (c: CardData) => MULTI && colorsOf(c).length > 0 && !colorsOf(c).some(ch => early.has(ch));
+  const OFF_EARLY_MAX = Number(arg('--off-early-max', '12'));
   const addMain = (c: CardData, n: number) => {
     let k = Math.min(n, 4 - count(c.CardNum), 40 - main.length);
+    if (offEarly(c)) k = (c.Type === 'スペル' || lv(c) >= 3) ? Math.min(k, OFF_EARLY_MAX - main.filter(x => offEarly(cardMap.get(x)!)).length) : 0;
     if (hasLB(c)) k = Math.min(k, LB_MAX - lbCount());
     for (let i = 0; i < k; i++) main.push(c.CardNum);
     return k > 0;
@@ -404,7 +434,7 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
   if (deckLrigSetupProblem({ ...roles, lrigDeck }, cardMap)) return null;
   const formatJa = core.pool === 'diva' ? 'ディーバ' : 'レガシー';
   return {
-    name: `${formatJa}／${core.center.type}／${axis.CardName}軸${key && keyRank > 0 ? `／${key.CardName}` : ''}`, _rank: rank, _key: key?.CardName ?? null, _lrigType: core.center.type, deck_kind: 'cpu', deck_format: core.pool,
+    name: `${formatJa}／${core.center.type}／${MULTI ? `${[...core.colors].join("")}／` : ""}${axis.CardName}軸${key && keyRank > 0 ? `／${key.CardName}` : ''}`, _rank: rank, _key: key?.CardName ?? null, _lrigType: core.center.type, deck_kind: 'cpu', deck_format: core.pool,
     main_deck: main, lrig_deck: lrigDeck,
     center_lrig: roles.centerLrig, assist_lrig_l: roles.assistLrigL, assist_lrig_r: roles.assistLrigR,
     thumbnail_card_num: core.center.cards.at(-1)!.CardNum,
