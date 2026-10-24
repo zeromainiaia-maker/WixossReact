@@ -5,6 +5,8 @@
  *   npx tsx scripts/buildCpuDecks.ts [--format diva|legacy|both] [--out scratchpad-cpudecks] [--only <ルリグタイプ>]
  *   → <out>/decks_cpu.json を書く ⇒ 自己対戦で止まらないか確かめる（`npm run selfplay:inv -- --deck-dir <out>`）
  *   ⇒ `node scripts/importDecks.mjs --from <out>/decks_cpu.json --kinds cpu --to claude1 --apply`
+ *   🆕2026-10-25＝`--axes <カード番号,…>`（`--axis-lrigs N`＝1枚あたりのルリグ数・既定2）＝**軸のカードを決めて、それを使えるルリグで組む**
+ *     （ユーザー要望「レベル4シグニで強そうなのを軸にいろいろ作る」）。限定つきは限定先のルリグ、限定なしはセンターの色が合うルリグ。
  *
  * ■ 組み方（ユーザー指示）＝**ルリグ（ルリグタイプ）ごとに1つ、軸のカードを1枚決めて、それを中心に組む**。
  *   ディーバとレガシーは分ける（デッキのフォーマットを明示し、名前の先頭にも書く）。
@@ -412,7 +414,33 @@ function buildDeck(core: Core, rank = 0, keyRank = 0, fixedAxis?: CardData) {
 
 const rows: ReturnType<typeof buildDeck>[] = [];
 const failed: string[] = [];
-for (const pool of FORMATS) {
+// 🆕2026-10-25＝軸を指定して組む（`--axes`）。軸ごとに使えるルリグ（限定先 → センターの色が合う系統）を `--axis-lrigs` 個まで。
+const AXES = arg('--axes', '').split(',').map(x => x.trim()).filter(Boolean);
+const AXIS_LRIGS = Number(arg('--axis-lrigs', '2'));
+if (AXES.length) {
+  for (const pool of FORMATS) {
+    const types = [...new Set(cards.filter(c => c.Type === 'ルリグ' && inPool(c, pool) && lv(c) === 0).map(c => c.CardClass ?? ''))].filter(Boolean);
+    const cores = types.map(t => coreOf(t, pool)).filter((c): c is Core => !!c);
+    for (const num of AXES) {
+      const axis = cardMap.get(num);
+      if (!axis) { failed.push(`${num}（カードが無い）`); continue; }
+      const fits = cores.filter(core => fitsMain(axis, core) && (restrictedTo(axis, core) || colorsOf(axis).some(ch => core.center.colors.has(ch))));
+      fits.sort((a, b) => Number(restrictedTo(axis, b)) - Number(restrictedTo(axis, a)) || (KB ? kbSyn(axis, kbCtxOf(b.center.cards)) - kbSyn(axis, kbCtxOf(a.center.cards)) : 0));
+      let made = 0;
+      for (const core of fits) {
+        if (made >= AXIS_LRIGS) break;
+        let got = false;
+        for (let k = 0; k < KEY_VARIANTS; k++) {
+          const d = buildDeck(core, 0, k, axis);
+          if (d && !rows.some(r => r!.name === d.name)) { rows.push(d); got = true; }
+        }
+        if (got) made++;
+      }
+      if (!made) failed.push(`${pool}/${axis.CardName}`);
+    }
+  }
+}
+for (const pool of AXES.length ? [] : FORMATS) {
   const types = [...new Set(cards.filter(c => c.Type === 'ルリグ' && inPool(c, pool) && lv(c) === 0).map(c => c.CardClass ?? ''))].filter(Boolean);
   for (const t of types) {
     if (ONLY && t !== ONLY) continue;
