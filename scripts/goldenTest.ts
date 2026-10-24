@@ -43886,7 +43886,10 @@ test('§6.4 O-10（続き515）: チェックゾーン裏返し→無償グロ�
   const ctx = mkCtx({ lrig: ['WXDi-P16-001A'] }, {}, 'WXDi-P16-001A');
   ctx.ownerState.lrig_trash = ['WXDi-P16-001A'];
   const ok1 = run(act as unknown as EffectAction, ctx);
-  eq(ok1.ownerState.pending_flip_grow_card, 'WXDi-P16-001B', 'グロウ予約が立つ（CardNum へ解決済み）');
+  // 🆕2026-10-24＝**予約は裏返す前の個体番号のまま**＋その個体を裏面として扱う印（夢限と同じ規約）。
+  //   旧＝素のカード番号（'WXDi-P16-001B'）を入れていた＝個体番号の無いルリグが現れ、ピースの個体は消えた（自己対戦の `NEW`）。
+  eq(ok1.ownerState.pending_flip_grow_card, 'WXDi-P16-001A', '🔴グロウ予約が裏返す前の個体ではない（個体番号が消える）');
+  eq(ok1.ownerState.card_identity_overrides?.['WXDi-P16-001A'], 'WXDi-P16-001B', '🔴裏返した個体を裏面（ウトゥルス）として扱う印が無い');
   ok(!ok1.ownerState.lrig_trash.includes('WXDi-P16-001A'),
      '⚠裏返して**ルリグになる**ので、自分自身はルリグトラッシュに残さない');
   // 🔴負方向＝このターン既にグロウしていれば何も起きない。
@@ -50872,8 +50875,8 @@ test('§6.4 離場置換: 宣言走査は印字＋付与2ストアの3軸（付�
   //   無言で落ちる状態だった（現状 live に付与するカードは 0 件なので挙動は変わらない）。
   const src = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
   const helper = src.match(/function declaredContinuousEffects\([\s\S]*?\n\}/)?.[0] ?? '';
-  ok(helper.includes('granted_effects?.'), '付与ストア（ターン限定）を見る');
-  ok(helper.includes('granted_effects_until_opp_turn'), '付与ストア（次の相手ターンまで）を見る');
+  // 🆕2026-10-24＝付与2ストアは `grantedEffectsOf`（両ストア＋「能力を失う」の反映）を通して読む。
+  ok(helper.includes('grantedEffectsOf(state, grantKeys[0])'), '付与ストア（ターン限定・次の相手ターンまで）を grantedEffectsOf で見る');
   // 置換の**関数本体だけ**を見る（無関係な印字走査＝PREVENT_LIFE_REFRESH_TRASH 等を巻き込まない）
   const bodyOf = (name: string): string => {
     const i = src.indexOf(`function ${name}(`);
@@ -50889,8 +50892,8 @@ test('§6.4 離場置換: 宣言走査は印字＋付与2ストアの3軸（付�
     ok(body.includes('declaredContinuousEffects'), `${fn}: 3軸ヘルパを通している`);
   }
   // F-3 身代わりの列挙も付与ストアを見る（fallback 鎖の末尾に印字が残るのは正常＝それに足す形）
-  ok(bodyOf('collectEffectBanishSubstituteChoices').includes('granted_effects?.'),
-     'collectEffectBanishSubstituteChoices: 付与ストアも走査する');
+  ok(bodyOf('collectEffectBanishSubstituteChoices').includes('grantedEffectsOf(state, num)'),
+     'collectEffectBanishSubstituteChoices: 付与ストアも走査する（grantedEffectsOf＝2026-10-24 に揃えた）');
 });
 
 
@@ -76973,11 +76976,14 @@ test('§5.0 WX16-033-E1: 相手のシグニゾーンが下のカード・チャ�
   eq((r33.otherState.field.signi_charms ?? []).filter(Boolean).length, 0, 'チャームも残らない');
   eq((r33.otherState.field.signi_acce ?? []).flatMap(a => a ?? []).length, 0, 'アクセも残らない');
   eq(r33.ownerState.trash.includes(top), false, '自分のトラッシュへは入らない（持ち主のトラッシュ）');
-  // 🔴既定（`zoneAttachments` なし）は付随カードを触らない＝既存の「すべてのシグニをトラッシュに置き」型を変えない。
+  // 🆕2026-10-24＝既定（`zoneAttachments` なし＝「すべてのシグニをトラッシュに置き」）でも、**シグニに付いていた【チャーム】【アクセ】は
+  //   シグニと一緒に落ちる**（`R-41`＝場を離れたシグニの後始末）。旧＝「既定ではチャームは残る」をここで固定していた＝ルールに反する挙動だった
+  //   （自己対戦で《台風一過》の後に【アクセ】だけが空のゾーンに残った）。⚠**【トラップ】はゾーンに属する**＝既定では残る（違いはここだけ）。
   const plain33 = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY',
     trashAllScope: { zones: ['signi'], owner: 'opponent' } } as unknown as EffectAction, ctx33);
-  eq(plain33.otherState.field.signi_charms?.[0], charm, '既定ではチャームは残る（意味を変えない）');
-  eq(plain33.otherState.trash.includes(charm), false, '既定ではチャームは落ちない');
+  eq(plain33.otherState.field.signi_charms?.[0] ?? null, null, '🔴シグニが離れたのにチャームがゾーンに残る');
+  ok(plain33.otherState.trash.includes(charm), '🔴シグニが離れたのにチャームがトラッシュへ行かない');
+  ok(!plain33.otherState.trash.includes(trap), '既定（すべてのシグニ）なのにゾーンの【トラップ】まで落ちた');
 }));
 
 // ═══ §5.0 実装キュー（2026-09-08）＝`WX19-025-E1` チェックゾーン経由の《トラップアイコン》発動 ═══
@@ -96099,6 +96105,78 @@ test('2026-10-24 画面の useEffect は「処理中（loading）なら抜ける
   ok(count >= 20, `走査が壊れた（loading を見る useEffect が ${count} 本しか見つからない）`);
   eq(JSON.stringify(noDep), '[]', '🔴「処理中なら抜ける」のに依存に loading が無い（処理中に盤面が届くと二度と見直さない）');
   eq(JSON.stringify(noWait), '[]', '🔴loading が下りた直後の古い盤面で二重に処理しうる（ownCommitsArrived(bs) で自分の書き込みが届くまで待つ）');
+});
+
+test('2026-10-24 「能力を失う」は【自】にも効く（印刷された能力・効果で得た能力とも誘発しない）', () => withSavedCursor(() => {
+  // 🔴旧＝【自】の収集（`effsOf` を通る102か所）は `abilities_removed` を見ておらず、能力を失ったシグニの【自】が誘発した。
+  //   自己対戦で見つけた形＝《インフィニット・フォース》（WX24-P2-001）で得た「アタックしたとき、このシグニをアップし、能力を失う」が
+  //   失った後もアタックのたびに誘発し、同じシグニが1ターンに12回アタックした。
+  const grant = (effectsMap.get('WX24-P2-001')![0].action as { steps: { type: string; effect?: CardEffect }[] }).steps
+    .find(s => s.type === 'GRANT_EFFECT')!.effect!;
+  eq(grant.effectId, 'WX24-P2-001-E1-GRANT', '付与する能力が見つからない');
+  const printed = [...effectsMap.entries()].find(([cn, effs]) => isSigni(cardMap.get(cn)!) && effs.some(e => e.effectType === 'AUTO'
+    && e.timing?.includes('ON_ATTACK_SIGNI') && (e.triggerScope ?? 'self') === 'self' && !e.condition && !e.triggerCondition
+    && !e.crossOnly && !e.kizunaIcon && !e.triggerFilter))![0];
+  const collect = (num: string, st: PlayerState) => {
+    const bs = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'ATTACK_SIGNI', host_state: st, guest_state: mkState() } as unknown as BattleStateRow;
+    const trig = makeTrigCtx({ bs, effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' });
+    return collectAttackerSelfTriggers(trig, st, mkState(), num, 'H');
+  };
+  // 印刷された【自】
+  const P = `${printed}#1`;
+  const stP = mkState({ signi: [P, null, null] });
+  ok(collect(P, stP).length > 0, `能力を失っていない ${printed} の【自】が集まらない（前提）`);
+  eq(collect(P, { ...stP, abilities_removed: [P] }).length, 0, `🔴能力を失った ${printed} の【自】がアタックで誘発した`);
+  // 効果で得た【自】（付与ストア＝画面は効果表へ合成、engine は grantedEffectsOf）
+  const G = `${SIGNI}#7`;
+  const stG = { ...mkState({ signi: [G, null, null] }), granted_effects: { [G]: [grant] } } as PlayerState;
+  ok(grantedEffectsOf(stG, G).length === 1, '付与が読めない（前提）');
+  eq(grantedEffectsOf({ ...stG, abilities_removed: [G] }, G).length, 0, '🔴能力を失ったのに効果で得た能力が残る');
+  const augmented = new Map(effectsMap); augmented.set(G, [...(effectsMap.get(SIGNI) ?? []), grant]);
+  const bsG = { host_id: 'H', guest_id: 'G', active_user_id: 'H', turn_phase: 'ATTACK_SIGNI', host_state: { ...stG, abilities_removed: [G] }, guest_state: mkState() } as unknown as BattleStateRow;
+  const trigG = makeTrigCtx({ bs: bsG, effectsMap: augmented, cardMap: cardMap as Map<string, CardData>, effectivePowers: new Map(), userId: 'H' });
+  eq(collectAttackerSelfTriggers(trigG, bsG.host_state, mkState(), G, 'H').filter(e => e.effectId === grant.effectId).length, 0,
+    '🔴《インフィニット・フォース》で得た【自】が、能力を失った後もアタックで誘発した（1ターンに何度でもアタックできる）');
+}));
+
+test('2026-10-24 全体トラッシュ（台風一過・MASS_TRASH）でもシグニに付いていたカードは片づく（アクセ・チャーム・下のカード→トラッシュ／ソウル→ルリグトラッシュ）', () => withSavedCursor(() => {
+  // 🔴旧＝ゾーンを直接空にしていた＝自己対戦で《台風一過》（WX07-017）の後に【アクセ】だけが空のゾーンに残った（`SHAPE`）。
+  const S = `${SIGNI}#a1`, U = `${SIGNI}#u1`, A = 'WXK04-050#a2', C = `${SIGNI}#c1`, SO = `${SIGNI}#s1`;
+  const dress = (st: PlayerState): PlayerState => ({ ...st, field: { ...st.field, signi: [[U, S], null, null],
+    signi_acce: [[A], null, null], signi_charms: [C, null, null], signi_soul: [SO, null, null], signi_down: [true, false, false] } });
+  const check = (st: PlayerState, who: string) => {
+    eq(JSON.stringify(st.field.signi), '[null,null,null]', `${who}: シグニが残る`);
+    eq(JSON.stringify(st.field.signi_acce ?? [null, null, null]), '[null,null,null]', `🔴${who}: 空のゾーンに【アクセ】が残る`);
+    eq(JSON.stringify(st.field.signi_charms ?? [null, null, null]), '[null,null,null]', `🔴${who}: 空のゾーンに【チャーム】が残る`);
+    eq(JSON.stringify(st.field.signi_soul ?? [null, null, null]), '[null,null,null]', `🔴${who}: 空のゾーンに【ソウル】が残る`);
+    eq(st.field.signi_down?.[0] ?? false, false, `${who}: ダウンの印が残る`);
+    ok([S, U, A, C].every(n => st.trash.includes(n)), `${who}: シグニ・下のカード・アクセ・チャームがトラッシュに無い`);
+    ok(st.lrig_trash.includes(SO), `🔴${who}: 【ソウル】がルリグトラッシュに無い`);
+  };
+  const wx = effectsMap.get('WX07-017')![0];
+  const step = (wx.action as { steps: EffectAction[] }).steps[0];
+  const ctx = mkCtx({}, {});
+  const r = executeAction(step, { ...ctx, ownerState: dress(ctx.ownerState), otherState: dress(ctx.otherState) } as ExecCtx);
+  ok(r.done, 'TRASH_ALL_SIGNI_AND_KEY が完了しない');
+  if (r.done) { check(r.ownerState, '台風一過・自分'); check(r.otherState, '台風一過・相手'); }
+  const ctx2 = mkCtx({}, {});
+  const r2 = executeAction({ type: 'STUB', id: 'MASS_TRASH' } as unknown as EffectAction, { ...ctx2, otherState: dress(ctx2.otherState) } as ExecCtx);
+  if (r2.done) check(r2.otherState, 'MASS_TRASH・相手');
+}));
+
+test('2026-10-24 【起】の「手札を１枚デッキの一番下に置く」は選んだ札だけがデッキの一番下へ（手札から二重に抜かない）', () => {
+  // 🔴旧＝`performSigniActivated` が「手札を捨てる」の流れで選んだ札を手札から抜き、続けて `payHandBottomDeckCost` が
+  //   **ずれた後の手札**から同じ添字をもう一度抜いていた＝選んだ札は消え（トラッシュにも行かない）、選んでいない札がデッキの一番下へ行った
+  //   （自己対戦の `VANISH`＝《走英の空力　スリスト》WXK10-072 の【起】）。人間・CPU 共通の経路。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniActivated.ts'), 'utf8');
+  const line = src.split('\n').find(l => l.includes('const baseNewHand = my.hand.filter')) ?? '';
+  ok(/effect\.cost\?\.handBottomDeck\s*\|\|\s*!discardCostIndices\.has\(i\)/.test(line),
+    `🔴handBottomDeck の選択を手札から先に抜いている（支払いが同じ添字をもう一度抜く）: ${line.trim()}`);
+  // 支払い本体＝選んだ1枚だけがデッキの一番下へ
+  const st = { ...mkState(), hand: ['A#1', 'B#1', 'C#1'], deck: ['D#1'] } as PlayerState;
+  const paid = payHandBottomDeckCost(st, new Set([1]), 1)!;
+  eq(JSON.stringify(paid.state.hand), JSON.stringify(['A#1', 'C#1']), '選んでいない札が手札から消えた');
+  eq(paid.state.deck.at(-1), 'B#1', '選んだ札がデッキの一番下に無い');
 });
 
 if (listMode) {

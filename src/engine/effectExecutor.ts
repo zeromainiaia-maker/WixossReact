@@ -426,10 +426,7 @@ function declaredContinuousEffects(
   const grantKeys = base === cardNum ? [base] : [cardNum, base];
   return [
     ...(cardMap.get(base)?.effects ?? []),
-    ...grantKeys.flatMap(k => [
-      ...(state.granted_effects?.[k] ?? []),
-      ...(state.granted_effects_until_opp_turn?.[k] ?? []),
-    ]),
+    ...grantedEffectsOf(state, grantKeys[0]),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）（instance と base の両方を引く）
   ];
 }
 
@@ -798,8 +795,7 @@ export function collectEffectBanishSubstituteChoices(
         ?? ctx.effectsMap?.get(getCardNum(num))
         ?? ctx.cardMap.get(getCardNum(num))?.effects
         ?? []),
-      ...(state.granted_effects?.[getCardNum(num)] ?? []),
-      ...(state.granted_effects_until_opp_turn?.[getCardNum(num)] ?? []),
+      ...grantedEffectsOf(state, num),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）
     ]);
   };
   for (const stack of state.field.signi) {

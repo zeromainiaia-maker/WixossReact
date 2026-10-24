@@ -92,6 +92,11 @@ export interface TrigCtx {
   effectivePowers?: Map<string, number>;
   /** トリガー収集を止めるプレイヤーの物理ゾーンにあるシグニ instanceId。 */
   suppressedSigniTriggerNums?: ReadonlySet<string>;
+  /**
+   * 🆕2026-10-24＝**能力を失っているカード**（両者の `abilities_removed`）。`effsOf` がこのカードの能力を空にする
+   * ＝【自】は1つも誘発しない（印刷・付与とも）。作るのは `collectAbilityRemovedNums`。
+   */
+  abilityRemovedNums?: ReadonlySet<string>;
   genId: () => string;
 }
 
@@ -147,6 +152,12 @@ export function oppLifeCrashSourceMatches(
  */
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] => {
   const base = getCardNum(n);
+  // 🆕2026-10-24＝**「能力を失う」は【自】にも効く**（印刷された能力も、効果で得た能力も）。
+  //   🔴旧＝どの収集関数も `abilities_removed` を見ておらず（102か所がこの関数を通る）、能力を失ったシグニの【自】が誘発していた。
+  //   自己対戦で見つけた形＝《インフィニット・フォース》（WX24-P2-001）で得た「アタックしたとき、このシグニをアップし、能力を失う」が
+  //   失った後もアタックのたびに誘発し、同じシグニが1ターンに12回アタックした（無限ループ）。
+  const removed = ctx.abilityRemovedNums;
+  if (removed && (removed.has(n) || removed.has(base))) return [];
   const effects = (Map.prototype.get.call(ctx.effectsMap, n) as CardEffect[] | undefined)
     ?? (Map.prototype.get.call(ctx.effectsMap, base) as CardEffect[] | undefined)
     ?? [];
@@ -157,6 +168,11 @@ const effsOf = (ctx: TrigCtx, n: string): CardEffect[] => {
   return effects.filter(effect => effect.effectType !== 'AUTO');
 };
 export const triggerEffectsForCollection = effsOf;
+
+/** 🆕2026-10-24＝能力を失っているカード（両者の `abilities_removed`）。`TrigCtx.abilityRemovedNums` に入れる。 */
+export function collectAbilityRemovedNums(...states: PlayerState[]): Set<string> {
+  return new Set(states.flatMap(s => s.abilities_removed ?? []));
+}
 
 /** 抑止フラグが立つプレイヤーの物理ゾーンから、トリガー発生源になりうる instanceId を集める。 */
 export function collectSuppressedSigniTriggerNums(...states: PlayerState[]): Set<string> {

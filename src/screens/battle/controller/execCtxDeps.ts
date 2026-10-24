@@ -4,7 +4,7 @@ import type { ExecCtx } from '../../../engine/effectExecutor';
 import { collectLifeCrashPreventions } from '../../../engine/lifeCrashGate';
 import { collectGrantedFromUnderSigni } from '../../../engine/effectEngine';
 import { getCardNum } from '../../../engine/effectExecutor';
-import { collectSuppressedSigniTriggerNums, type TrigCtx } from '../../../engine/triggerCollect';
+import { collectSuppressedSigniTriggerNums, collectAbilityRemovedNums, type TrigCtx } from '../../../engine/triggerCollect';
 import type { BattleStateRow, CardData, PlayerState, TurnPhase } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import { generateUUID, InstanceMap } from '../battleUtils';
@@ -33,6 +33,7 @@ export function makeTrigCtx(p: {
     turnPhase: bs.turn_phase, effectsMap: p.effectsMap, cardMap: p.cardMap,
     effectivePowers: p.effectivePowers, genId: generateUUID,
     suppressedSigniTriggerNums: collectSuppressedSigniTriggerNums(bs.host_state, bs.guest_state),
+    abilityRemovedNums: collectAbilityRemovedNums(bs.host_state, bs.guest_state),
   };
 }
 

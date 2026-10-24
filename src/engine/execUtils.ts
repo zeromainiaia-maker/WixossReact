@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
+import { grantedEffectsOf } from './grantedStore';
 import { signiClassesOf } from './cardClasses';
 import { fieldSigniStacks, cheerCardOf, isZoneFrozen } from './cheerZoneView';
 import { privateLine, isInPublicZone } from './hiddenInfo';
@@ -4316,6 +4317,20 @@ export function removeFromField(cardNum: string, state: PlayerState, opts?: { ke
   return wasOnField && !opts?.keepAcquired ? clearOnFieldAcquiredState(out, cardNum, { keepAbilityLoss: true }) : out;
 }
 
+/**
+ * 🆕2026-10-24＝**場のシグニを全部（チアゾーンも）場から離す**＝1体ずつ `removeFromField` を通す。
+ * 下のカード・【チャーム】【アクセ】はトラッシュ、【ソウル】はルリグトラッシュ、裏向きで付けたカードは手札へ、ダウン・凍結の印も消える（`R-41`）。
+ * 🔑**離れたシグニ本体（`tops`）の行き先は呼び出し側が決める**（トラッシュ／エナ など）。
+ * 🔴旧＝全体トラッシュ（`TRASH_ALL_SIGNI_AND_KEY`／`MASS_TRASH`）はゾーンを直接空にしていた＝付いていたカードがゾーンに残った
+ *   （自己対戦で《台風一過》の後に【アクセ】だけが空のゾーンに残った）。
+ */
+export function removeAllFieldSigni(state: PlayerState): { state: PlayerState; tops: string[] } {
+  const tops = fieldSigniStacks(state).map(stack => stack?.at(-1)).filter((n): n is string => !!n);
+  let next = state;
+  for (const top of tops) next = removeFromField(top, next);
+  return { state: next, tops };
+}
+
 /** 遅延除外マークを、場を離れた直後またはターン終了時に専用ゾーンへ移す。 */
 export function resolvePendingExiles(state: PlayerState, forceTurnEnd = false): PlayerState {
   const pending = state.pending_exile_nums ?? [];
@@ -4443,8 +4458,7 @@ export function selectOrInteract(
       //     ＝条件を付けた瞬間に走査軸から外れる。印字能力とまったく同じ規則で評価する。
       const condShadowSources = [
         ...(ctx.cardMap.get(n)?.effects ?? []),
-        ...(ctx.otherState.granted_effects?.[n] ?? []),
-        ...(ctx.otherState.granted_effects_until_opp_turn?.[n] ?? []),
+        ...grantedEffectsOf(ctx.otherState, n),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）
       ];
       const hasCondShadow = condShadowSources.some(eff => {
         if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) return false;

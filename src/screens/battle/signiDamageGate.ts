@@ -1,4 +1,5 @@
 import type { PlayerState } from '../../types';
+import { grantedEffectsOf } from '../../engine/grantedStore';
 import type { CardEffect, StubAction } from '../../types/effects';
 
 /**
@@ -27,8 +28,7 @@ export function signiCannotDealDamageToOpponent(
   if (!attackerNum) return false;
   const effects: CardEffect[] = [
     ...(effectsMap.get(attackerNum) ?? []),
-    ...(attackerState.granted_effects?.[attackerNum] ?? []),
-    ...(attackerState.granted_effects_until_opp_turn?.[attackerNum] ?? []),
+    ...grantedEffectsOf(attackerState, attackerNum),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）
   ];
   return effects.some(eff => {
     if (eff.effectType !== 'CONTINUOUS') return false;

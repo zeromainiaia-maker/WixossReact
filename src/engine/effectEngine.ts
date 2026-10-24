@@ -4873,8 +4873,7 @@ export function collectOppGuardExtraColorlessCost(
     //     ガード税が一切効かなくなる**（`lrig_granted_auto_effects`＝プレイヤー単位のストアしか見ていなかった）。
     const effs = [
       ...(effectsMap.get(cn) ?? []),
-      ...(ownerState.granted_effects?.[cn] ?? []),
-      ...(ownerState.granted_effects_until_opp_turn?.[cn] ?? []),
+      ...grantedEffectsOf(ownerState, cn),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）
     ];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;

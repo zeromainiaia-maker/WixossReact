@@ -11,15 +11,15 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-10-24＝O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・`useEffect` の `loading`（v0.664〜0.666）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第569〜574バッチ。前回（Supabase の権限・BattleScreen の分割ほか）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
+**直近＝2026-10-24＝O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・`useEffect` の `loading`・自己対戦の走査で4系統（v0.664〜0.667）**。全文は [BUGFIXES.md](./BUGFIXES.md) 第569〜575バッチ。前回（Supabase の権限・BattleScreen の分割ほか）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🏁**登録済みの作業キューは全部空**（機構 `O-nn` 0・実機 `V-nn` 0・実装キュー 0）｜次はユーザーの指示待ち＝候補は ①自己対戦の不変条件走査を新しいシード・生成デッキで回し直す（`selfplay:inv`／`synth:decks`）｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
+| 🔥**次に取るもの** | 🏁**登録済みの作業キューは全部空**（機構 `O-nn` 0・実機 `V-nn` 0・実装キュー 0）｜次はユーザーの指示待ち＝候補は ①生成デッキの続き（未発動の残り約2,260枚＝`synth:decks -- --covered scratchpad-inv/cov-*.jsonl`・第575で3巡して4系統）｜⏸**CPU デッキの全員公開（RELEASE 1.1）はユーザーが後で行う** |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない） |
 | 📦**在庫** | 🏁実機 `V-nn` **0**／🏁機構 `O-nn` **0**／実装キュー **0**／🏁CPU 完成度 **0**／🏁CPU の強さ **0**／リリース作業 **1**（ユーザー） |
 | ⚠**直近の不具合** | 🏁`useEffect` の `loading` は第574で全部そろえた（golden が固定）｜🏁「PvP でブラウザが落ちる」は私の `timeout 590` だった（アプリの不具合ではない・第574の訂正） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4544**・lint error **0**）｜実機 新設4本＋見張りの代表12本・`verifyFullMatch cpu`／`pvp`（16ターン・324手）・`verifyRewind` PASS｜ディーバ総当たり 1,512戦 所見 **0** |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4547**・lint error **0**）｜実機 新設6本＋見張りの代表12本・`verifyFullMatch cpu`／`pvp`（16ターン・324手）・`verifyRewind` PASS｜自己対戦 第575＝792戦・所見6→0（4系統）｜ディーバ総当たり 1,512戦 所見 **0** |
 | 🆕🔑**この回の芯** | ①**同期の不具合は推測せず流れを記録する**（`SYNC_TRACE=1`）＝「取りこぼし」は0件で、正体は順番が入れ替わった古い通知と DB の時刻（`now()`）だった ②**場の外で働く【常】は、その場面の唯一の入口で読む**（デッキを探す＝`execSearch`）③**SEQUENCE の任意コストは後続を吸い込む**＝割り込みの CHOOSE は自分で立てる |
 
 ---
@@ -502,10 +502,10 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-10-24 時点**（O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・`useEffect` の `loading`・v0.664〜0.666）
+- **2026-10-24 時点**（O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・`useEffect` の `loading`・自己対戦の走査で4系統・v0.664〜0.667）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
   - 📦**在庫**＝🏁機構 worklist **0**｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4544**＝+6・lint error **0**）｜実機 新設4本 PASS（`c9refreshturnenddiscard`／`lingeringZoneWX10051`／`o546DeckSearchLigerPay`／`o546DeckSearchLigerSkip`）・`verifyFullMatch cpu`（`SYNC_TRACE=1`）・`verifyRewind` PASS
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4547**＝+9・lint error **0**）｜実機 新設4本 PASS（`c9refreshturnenddiscard`／`lingeringZoneWX10051`／`o546DeckSearchLigerPay`／`o546DeckSearchLigerSkip`）・`verifyFullMatch cpu`（`SYNC_TRACE=1`）・`verifyRewind` PASS
   - 🗄️**DB**＝`battle_states.updated_at` は `clock_timestamp()`（確定の順に増える＝`docs/sql/2026-10-24_updated_at_clock_timestamp.sql`）
   - 🧱**`BattleScreen.tsx`**＝**4,459行**
 

@@ -11,7 +11,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, addPrivateLog, logCardLabel, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter, evalCondition,
+  removeFromField, removeAllFieldSigni, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter, evalCondition,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveCountRef,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
@@ -3375,21 +3375,16 @@ export function execStubPart1(
   // 表示: 対戦相手のエナゾーンにあるすべてのカードと対戦相手の場にあるすべてのシグニをトラッシュに置く
   if (stub.id === 'MASS_TRASH') {
     // 相手のエナゾーン全カード + フィールド全シグニをトラッシュ
-    const oppSigniAll = fieldSigniStacks(ctx.otherState).flatMap(s => s ?? []);   // 🆕`O-540`＝チアゾーンも「すべてのシグニ」
+    // 🆕2026-10-24＝1体ずつ場から離す（付いていた【チャーム】【アクセ】【ソウル】・下のカードも片づく＝`removeAllFieldSigni`）。
     const oppEnaAll = [...ctx.otherState.energy];
-    const newOtherField: PlayerState['field'] = {
-      ...ctx.otherState.field,
-      signi: [null, null, null],
-      cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [],
-    };
+    const leftMT = removeAllFieldSigni(ctx.otherState);
     const newOther: PlayerState = {
-      ...ctx.otherState,
+      ...leftMT.state,
       energy: [],
-      trash: [...ctx.otherState.trash, ...oppSigniAll, ...oppEnaAll],
-      field: newOtherField,
+      trash: [...leftMT.state.trash, ...leftMT.tops, ...oppEnaAll],
     };
     return done(addLog({ ...ctx, otherState: newOther },
-      `相手エナ${oppEnaAll.length}枚+シグニ${oppSigniAll.length}体をトラッシュ`));
+      `相手エナ${oppEnaAll.length}枚+シグニ${leftMT.tops.length}体をトラッシュ`));
   }
   // 🆕🔴**§5.3 `O-60` 第59バッチ（2026-09-03）＝原文 regex を撤去して payload で決める。**
   //   旧実装は `sourceAbilityText(ctx)` に `各プレイヤー|すべてのシグニ` と `対戦相手` の**2本だけ**を当てて
@@ -3412,7 +3407,11 @@ export function execStubPart1(
       const moveSigni = specTAK.zones.includes('signi');
       const moveHand = specTAK.zones.includes('hand');
       const moveEnergy = specTAK.zones.includes('energy');
-      const signiAll = moveSigni ? fieldSigniStacks(st).flatMap(s => s ?? []) : [];   // 🆕`O-540`＝チアゾーンも
+      const signiAll = moveSigni ? fieldSigniStacks(st).flatMap(s => s ?? []) : [];   // 🆕`O-540`＝チアゾーンも（数えるだけ）
+      // 🆕2026-10-24＝シグニは1体ずつ場から離す＝付いていた【チャーム】【アクセ】【ソウル】・下のカード・印も片づく（`removeAllFieldSigni`）。
+      //   🔴旧＝ゾーンを直接空にしていた＝《台風一過》の後に【アクセ】だけが空のゾーンに残った（自己対戦）。
+      const leftTAK = moveSigni ? removeAllFieldSigni(st) : { state: st, tops: [] as string[] };
+      const stL = leftTAK.state;
       const handAll = moveHand ? [...st.hand] : [];
       const energyAll = moveEnergy ? [...st.energy] : [];
       const keyCard = specTAK.keys ? st.field.key_piece : null;
@@ -3422,20 +3421,19 @@ export function execStubPart1(
       //   ⚠既定では触らない＝「すべてのシグニをトラッシュに置き」型の意味を変えない。
       const attachTAK = (moveSigni && specTAK.zoneAttachments)
         ? [
-          ...(st.field.signi_charms ?? []).filter((c): c is string => !!c),
-          ...(st.field.signi_acce ?? []).flatMap(a => a ?? []),
-          ...(st.field.signi_traps ?? []).filter((c): c is string => !!c),
+          ...(stL.field.signi_charms ?? []).filter((c): c is string => !!c),
+          ...(stL.field.signi_acce ?? []).flatMap(a => a ?? []),
+          ...(stL.field.signi_traps ?? []).filter((c): c is string => !!c),
         ]
         : [];
       const newSt: PlayerState = {
-        ...st,
+        ...stL,
         ...(moveHand ? { hand: [] } : {}),
         ...(moveEnergy ? { energy: [] } : {}),
-        trash: [...st.trash, ...signiAll, ...attachTAK, ...handAll, ...energyAll],
-        lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
+        trash: [...stL.trash, ...leftTAK.tops, ...attachTAK, ...handAll, ...energyAll],
+        lrig_trash: keyCard ? [...stL.lrig_trash, keyCard] : stL.lrig_trash,
         field: {
-          ...st.field,
-          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[], cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] } : {}),
+          ...stL.field,
           ...(moveSigni && specTAK.zoneAttachments
             ? {
               signi_charms: [null, null, null] as (string | null)[],

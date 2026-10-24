@@ -15,7 +15,7 @@ import {
   matchesFilter,
   resolveHandCardPick, handCardPickLabel,
   fieldCandidatesByOwner, energyCandidatesForOwner, movableTrashCandidates, oppZoneMoveBlocked,
-  signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard,
+  signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard, removeAllFieldSigni,
 } from './execUtils';
 import { collectMultiAcceLimits } from './effectEngine';
 import { negateCoinAbility } from './coinAbilityNegation';
@@ -5228,8 +5228,13 @@ export function execStubPart3(
     const lrigTrashCZ = selfIdCZ
       ? ctx.ownerState.lrig_trash.filter(n => n !== selfIdCZ)
       : ctx.ownerState.lrig_trash;
+    // 🔴2026-10-24＝**裏返しても同じ個体**＝個体番号はそのまま（`WXDi-P16-001A#g1`）で、`card_identity_overrides` で裏面として扱う
+    //   （夢限 -Q- → -A- と同じ規約）。旧＝予約に素のカード番号（`WXDi-P16-001B`）を入れていた＝個体番号の無いカードが
+    //   ルリグゾーンに現れ、ピースの個体は消えた（自己対戦の `NEW`）。⚠効果元が分からなければ従来どおり素の番号（過少側）。
+    const flipInstCZ = selfIdCZ ?? flipTo;
     return done(addLog({ ...ctx, ownerState: {
-      ...ctx.ownerState, lrig_trash: lrigTrashCZ, pending_flip_grow_card: flipTo,
+      ...ctx.ownerState, lrig_trash: lrigTrashCZ, pending_flip_grow_card: flipInstCZ,
+      ...(selfIdCZ ? { card_identity_overrides: { ...(ctx.ownerState.card_identity_overrides ?? {}), [selfIdCZ]: flipTo } } : {}),
     } }, `チェックゾーンのこのカードを裏返し、${flipName}へグロウする（コスト不要）`));
   }
   // COUNTER_TEAM_PIECE_AND_EXILE（§6.4 O-10・続き518・`WXDi-P05-006-E1` の選択肢①）＝
@@ -5636,12 +5641,11 @@ export function execStubPart3(
       logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手が手札${blueCountPDL}枚を選んで捨てる`);
     }
     if (qualifies('緑')) {
-      const movedPDL = fieldSigniStacks(othPDL).flatMap(s => s ?? []);   // 🆕`O-540`＝チアゾーンも
-      othPDL = {
-        ...othPDL,
-        energy: [...othPDL.energy, ...movedPDL],
-        field: { ...othPDL.field, signi: [null, null, null], cheer: null, cheer_down: false, cheer_frozen: false, cheer_under: [] },
-      };
+      // 🆕2026-10-24＝1体ずつ場から離す（シグニ本体だけがエナへ・下のカードや付いていたカードはルールどおり＝`removeAllFieldSigni`）。
+      //   旧＝ゾーンを直接空にして下のカードまでエナへ置き、【チャーム】【アクセ】【ソウル】はゾーンに残っていた。
+      const leftPDL = removeAllFieldSigni(othPDL);
+      const movedPDL = leftPDL.tops;
+      othPDL = { ...leftPDL.state, energy: [...leftPDL.state.energy, ...movedPDL] };
       logsPDL.push(`緑：相手シグニ${movedPDL.length}枚をエナゾーンへ`);
     }
     if (qualifies('黒')) {

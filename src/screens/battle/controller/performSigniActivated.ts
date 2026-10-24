@@ -109,7 +109,10 @@ export const performSigniActivated = async (
       const lv = parseInt((ctx.cardMap.get(cn) ?? ctx.cardMap.get(getCardNum(cn)))?.Level ?? '0', 10) || 0;
       return s + lv;
     }, 0);
-    const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i) && !(discardVarIndices?.has(i)));
+    // 🔴2026-10-24＝**`handBottomDeck` の選択はここで手札から抜かない**（抜くのは下の `payHandBottomDeckCost`）。
+    //   旧＝ここで抜いた後、支払いが**ずれた後の手札**から同じ添字をもう一度抜いていた＝選んだ札が消え（トラッシュにも行かない）、
+    //   選んでいない札がデッキの一番下へ行った（自己対戦の `VANISH`＝《走英の空力　スリスト》の【起】）。
+    const baseNewHand = my.hand.filter((_, i) => (effect.cost?.handBottomDeck || !discardCostIndices.has(i)) && !(discardVarIndices?.has(i)));
     // discardAll: 手札をすべて捨てる（選択不要、自動）
     const discardAllCards = effect.cost?.discardAll ? [...baseNewHand] : [];
     const newHand = effect.cost?.discardAll ? [] : baseNewHand;

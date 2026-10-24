@@ -66798,6 +66798,126 @@ scenarios.o546DeckSearchLigerSkip = {
   },
 };
 order.push('o546DeckSearchLigerPay', 'o546DeckSearchLigerSkip');
+
+// 🔴**`hbDeckBottomSliceSlist`＝【起】の「手札を１枚デッキの一番下に置く」は選んだ札だけが動く**（2026-10-24・自己対戦の `VANISH`）。
+//   《走英の空力　スリスト》（WXK10-072-E2）。旧＝選んだ札は手札から消え（トラッシュにも行かない）、選んでいない札がデッキの一番下へ行った。
+//   🔑**真ん中（添字1）を選ぶのが反転確認**＝旧実装は「選んだ札を抜いた後の手札」から同じ添字をもう一度抜くので、隣の札が動く。
+scenarios.hbDeckBottomSliceSlist = {
+  title: 'WXK10-072-E2【起】手札を１枚デッキの一番下に置く：選んだ札（真ん中）だけがデッキの一番下へ・他の札は手札に残る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#hb9'],
+      'field.signi': [['WXK10-072#hb0'], null, null],
+      'field.signi_down': [false, false, false],
+      'hand': ['WD01-013#hb1', 'WD03-013#hb2', 'WD01-012#hb3'],
+      'deck': ['WD01-013#hb4', 'WD01-013#hb5'],
+      'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: { 'field.signi': [['WD01-013#hbg1'], null, null], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const PICK = 'WD03-013#hb2';
+    await H.ensureMain();
+    let opened = false, act = false, picked = false, fired = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-signi-zone-0'); if (did) opened = true; }
+      if (!did && opened && !act) {
+        const b = page.locator('[data-action-label^="【起】"]').first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); act = true; did = 'act:' + (await b.getAttribute('data-action-label').catch(() => '')); }
+      }
+      if (!did && act && !picked) {
+        // 選ぶ札は data-card-num で決める（並びに頼らない）
+        const c = page.locator(`[data-testid^="signiact-discard-"][data-card-num="${PICK}"]`).first();
+        const fallback = page.getByTestId('signiact-discard-1').first();
+        const tgt = (await c.count()) ? c : fallback;
+        if (await tgt.count() && await tgt.isVisible().catch(() => false)) { await tgt.click().catch(() => {}); picked = true; did = 'pick:' + PICK; }
+      }
+      if (!did && picked && !fired) { did = await H.clickBtn('発動', { exact: true }); if (did) fired = true; }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      H.log(`  hb[${s}] -> ${did ?? 'なし'} | hand=${JSON.stringify(st?.host?.handCards)} deck=${JSON.stringify(st?.host?.deckCards)} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (fired && !st?.pendingEffect && !(st?.stackLen > 0) && (st?.host?.handCards ?? []).length < 3) {
+        const hand = st.host.handCards, deck = st.host.deckCards;
+        const ok = JSON.stringify(hand) === JSON.stringify(['WD01-013#hb1', 'WD01-012#hb3']) && deck.at(-1) === PICK && deck.length === 3;
+        return { pass: ok, detail: ok
+          ? `選んだ ${PICK} だけがデッキの一番下へ（手札 ${JSON.stringify(hand)}・デッキ ${JSON.stringify(deck)}）`
+          : `🔴hand=${JSON.stringify(hand)} deck=${JSON.stringify(deck)} trash=${JSON.stringify(st.host.trashCards)}（期待＝手札 [hb1,hb3]・デッキの一番下 ${PICK}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `発動まで到達しなかった（opened=${opened} act=${act} picked=${picked} fired=${fired} hand=${JSON.stringify(fin?.host?.handCards)}）` };
+  },
+};
+
+// 🔴**`loseAbilityStopsGrantedAuto`＝「能力を失う」の後は、効果で得た【自】も誘発しない**（2026-10-24・自己対戦の `REPEAT`）。
+//   《インフィニット・フォース》（WX24-P2-001）で得る「【自】：このシグニがアタックしたとき、このシグニをアップし、ターン終了時まで、このシグニは能力を失う。」
+//   旧＝失った後もアタックのたびに誘発し、同じシグニが1ターンに何度でもアタックできた（自己対戦で12回）。
+//   ⇒ 1回目のアタック＝誘発してアップ・能力を失う ／ 2回目のアタック＝**誘発せず**ダウンしたまま。
+const LOSE_GRANT = (() => {
+  try {
+    const j = JSON.parse(readFileSync('public/data/effects_WX24_26.json', 'utf8'));
+    return j['WX24-P2-001'][0].action.steps.find(s => s.type === 'GRANT_EFFECT').effect;
+  } catch { return null; }
+})();
+scenarios.loseAbilityStopsGrantedAuto = {
+  title: 'WX24-P2-001 で得た【自】（アタック時にアップ・能力を失う）は2回目のアタックで誘発しない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#la9'],
+      'field.signi': [['WD01-013#la0'], null, null],
+      'field.signi_down': [false, false, false],
+      'granted_effects': LOSE_GRANT ? { 'WD01-013#la0': [LOSE_GRANT] } : {},
+      'abilities_removed': [],
+      'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.signi': [null, null, null],
+      'life_cloth': ['WD01-013#lag1', 'WD01-013#lag2', 'WD01-013#lag3', 'WD01-013#lag4', 'WD01-013#lag5'],
+      'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    if (!LOSE_GRANT) return { pass: false, detail: '付与する能力を live JSON から読めなかった' };
+    const trigLogs = (st) => (st?.logTail ?? []).filter(l => /インフィニット|シグニアタック時/.test(l)).length;
+    let attacks = 0, sawUpAfterFirst = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(800);
+      const st = await H.queryState();
+      const down = st?.host?.signiDown?.[0];
+      const removed = (st?.host?.abilitiesRemoved ?? []).includes('WD01-013#la0');
+      const busy = st?.pendingEffect || (st?.stackLen ?? 0) > 0 || st?.host?.fieldCheck || st?.guest?.fieldCheck;
+      if (attacks === 1 && !busy && removed && down === false) sawUpAfterFirst = true;
+      if (attacks === 2 && !busy && s > 0) {
+        await page.waitForTimeout(1500);
+        const fin = await H.queryState();
+        const autoCount = (fin?.logTail ?? []).filter(l => /【自】効果（シグニアタック時）/.test(l)).length;
+        const ok = sawUpAfterFirst && fin?.host?.signiDown?.[0] === true && autoCount === 1;
+        return { pass: ok, detail: ok
+          ? `1回目＝誘発してアップ・能力を失う → 2回目＝誘発せずダウンのまま（【自】のログ ${autoCount}回）`
+          : `🔴upAfterFirst=${sawUpAfterFirst} down=${fin?.host?.signiDown?.[0]} 【自】のログ=${autoCount}回 logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}` };
+      }
+      let did = null;
+      const canAttack = !busy && down === false && attacks < 2 && (attacks === 0 || sawUpAfterFirst);
+      if (canAttack) {
+        await H.clickTestId('my-signi-zone-0');
+        await page.waitForTimeout(400);
+        const a = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        if (await a.count() && await a.isVisible().catch(() => false) && await a.isEnabled().catch(() => false)) { await a.click().catch(() => {}); attacks++; did = `アタック${attacks}回目`; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'エナに送る', 'ライフバーストなし', 'OK', '決定']);
+      H.log(`  la[${s}] -> ${did ?? 'なし'} | attacks=${attacks} down=${down} removed=${removed} upAfterFirst=${sawUpAfterFirst} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} trig=${trigLogs(st)}`);
+      // 2回目のアタックが撃てない（ダウンのまま）＝正しい側。旧実装なら誘発してアップするので撃ち続けられる
+      if (attacks === 1 && sawUpAfterFirst && s > 30) break;
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `判定まで到達しなかった（attacks=${attacks} upAfterFirst=${sawUpAfterFirst} down=${fin?.host?.signiDown?.[0]} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+  },
+};
+order.push('hbDeckBottomSliceSlist', 'loseAbilityStopsGrantedAuto');
 // 🔴**`c9lriglevellowered`＝ルリグ側のレベルが下がって超過した場合も落とす**（`R-48` 追加裁定・2026-09-17）。
 //   live の発生源＝`SP38-005`（アーツ）「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」。
 //   ⚠その上書きは**効果を撃った側の state**（`attack_phase_level_overrides`）に載るので、ここでも**guest 側へ**注入する。

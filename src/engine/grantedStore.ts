@@ -33,13 +33,18 @@ import type { CardEffect, TriggerScope, EffectTiming } from '../types/effects';
  * ⚠これは**付与ぶんだけ**を返す＝印刷能力（`effectsMap` / `cardMap.effects`）は呼び出し側の担当。
  */
 export function grantedEffectsOf(
-  state: Pick<PlayerState, 'granted_effects' | 'granted_effects_until_opp_turn' | 'granted_abilities_removed'> | undefined,
+  state: Pick<PlayerState, 'granted_effects' | 'granted_effects_until_opp_turn' | 'granted_abilities_removed' | 'abilities_removed'> | undefined,
   num: string,
 ): CardEffect[] {
   if (!state) return [];
   const base = num.split('#')[0];
   const lost = state.granted_abilities_removed;
   if (lost && (lost.includes(num) || lost.includes(base))) return [];
+  // 🆕2026-10-24＝**「能力を失う」（`abilities_removed`）は効果で得た能力も失わせる**（公式ルール＝その時点で持つ能力をすべて失う）。
+  //   旧＝ここは「効果で得た能力を失う」（`granted_abilities_removed`）しか見ていなかった。
+  //   ⚠近似＝能力を失った**後に**得た能力も同じターンは読まない（記録に順番が無い）。
+  const lostAll = state.abilities_removed;
+  if (lostAll && (lostAll.includes(num) || lostAll.includes(base))) return [];
   const pick = (map: Record<string, CardEffect[]> | undefined) => map?.[num] ?? (num === base ? undefined : map?.[base]) ?? [];
   return [...pick(state.granted_effects), ...pick(state.granted_effects_until_opp_turn)];
 }

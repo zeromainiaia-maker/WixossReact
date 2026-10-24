@@ -1,4 +1,5 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
+import { grantedEffectsOf } from '../../engine/grantedStore';
 import type { CardEffect, StubAction } from '../../types/effects';
 
 /**
@@ -100,8 +101,7 @@ function collectUnderCardEnergySources(
     const num = getCardNum(top);
     const effects: CardEffect[] = [
       ...(ctx.effectsMap.get(num) ?? []),
-      ...(my.granted_effects?.[num] ?? []),
-      ...(my.granted_effects_until_opp_turn?.[num] ?? []),
+      ...grantedEffectsOf(my, top),   // 🆕2026-10-24＝付与ぶんは `grantedEffectsOf` で読む（「能力を失う」「効果で得た能力を失う」を反映する唯一の入口）
     ];
     for (const eff of effects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
