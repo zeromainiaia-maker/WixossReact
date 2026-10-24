@@ -845,3 +845,4 @@
    🔑**ついでに `select` の `value` が選択肢の中にあることも assert する**＝
    **画面は「使わない」と出しているのに保存されるのは `defense`** という実バグをこの回に直した
    （カード未選択のとき選択肢が `['never']` だけなのに state は `'defense'` のままだった）。
+133. 🔴🆕**通し対戦を `timeout` で囲まない**（2026-10-24）＝`verifyFullMatch pvp` は**10分を超える**（実測 700秒）。`timeout 590` で囲むと Chromium が先に止められ、`Target crashed`／`Page crashed` という**ブラウザの異常終了に見える**（アプリの不具合と誤って報告した）。🔑**見分け方＝2つのページが同時刻に落ちる**（ページ単位の異常なら片方だけ）。長いものはバックグラウンドで時間制限なしに回す。メモリを疑うときは `MEM_TRACE=1`（CDP の `Performance.getMetrics`・`performance.memory` はヘッドレスでは丸められて動かない）。

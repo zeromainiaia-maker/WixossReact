@@ -17,7 +17,7 @@
 //     手詰まり（何もクリックできない状態が続く）を FAIL として明示的に検出する。
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { harnessAccounts } from './verifyAccounts.mjs';
@@ -526,6 +526,25 @@ async function playToFinish(seats, tag) {
         await seats[0].page.screenshot({ path: `${SHOT}/lingering-open.png` }).catch(() => {});
         console.log(`   発動中の効果欄: ${(await panel.first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300)}`);
         await panel.first().click().catch(() => {});
+      }
+    }
+    // 🆕2026-10-24＝`MEM_TRACE=1` で20手ごとに各席のページのメモリを記録（長い PvP でブラウザが落ちる件の調査）。
+    //   ⚠`performance.memory` はヘッドレスでは丸められて動かない＝CDP の `Performance.getMetrics` で読む。
+    if (process.env.MEM_TRACE === '1' && steps % 20 === 0) {
+      for (const S of seats) {
+        let m;
+        try {
+          if (!S.cdp) {
+            S.cdp = await S.page.context().newCDPSession(S.page);
+            await S.cdp.send('Performance.enable');
+            S.page.on('crash', () => appendFileSync(`${SHOT}/memtrace-${tag}.log`, `CRASH\t${S.name}\t${new Date().toISOString()}\n`));
+          }
+          const { metrics } = await S.cdp.send('Performance.getMetrics');
+          const g = (k) => metrics.find(x => x.name === k)?.value ?? 0;
+          m = { heapMB: Math.round(g('JSHeapUsedSize') / 1e6), totalMB: Math.round(g('JSHeapTotalSize') / 1e6),
+            nodes: g('Nodes'), listeners: g('JSEventListeners'), docs: g('Documents'), frames: g('Frames') };
+        } catch (e) { m = { error: e.message }; }
+        appendFileSync(`${SHOT}/memtrace-${tag}.log`, `${steps}\t${S.name}\tT${st.turnCount}\t${Math.round((Date.now() - t0) / 1000)}s\t${JSON.stringify(m)}\n`);
       }
     }
     const fp = fingerprint(st);
