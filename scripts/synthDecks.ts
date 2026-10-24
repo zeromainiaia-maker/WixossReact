@@ -24,9 +24,10 @@ import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData } from '../src/types';
 import { meetsRestriction } from '../src/screens/battle/growLogic';
-import { isDivaCardNum } from '../src/utils/deckFormat';
+import { cardPoolsOf } from '../src/utils/deckFormat';
+import { buildVariantNumIndex } from '../src/utils/cardSearch';
 import { deckLrigSetupProblem } from '../src/utils/deckLrigSetup';
-import { cardCsvRelPaths } from './cardDataFiles.mjs';
+import { cardCsvRelPaths, variantsCsvPath } from './cardDataFiles.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
@@ -37,12 +38,20 @@ const REPORT = argv.includes('--report');
 
 // ── カード（再録・別絵柄は本体と同じ効果＝除く）──
 const cards: CardData[] = [];
+// 🆕2026-10-24＝再録はプールの判定にだけ使う（`cardPoolsOf`＝`buildCpuDecks.ts` と同じ）。
+const variantCards: CardData[] = [];
 for (const f of cardCsvRelPaths()) {
-  if (/_Variants\.csv$/.test(f)) continue;
   const p = join('public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
   for (const r of data) if (r.CardNum?.trim()) cards.push(r as unknown as CardData);
+}
+// 🔴2026-10-24＝**再録は `variantsCsvPath()` で読む**（`cardCsvRelPaths` は列の違う `_Variants.csv` を返さない）。
+//   旧＝ループの中で `_Variants.csv` を待っていたが一度も来ず、再録が空＝**プールの判定が本体の番号だけ**になっていた
+//   （ディーバの Lv0 が再録のルリグ＝ドーナ・あや・レイラ …の系統がディーバで組めなかった）。
+{
+  const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(variantsCsvPath(), 'utf-8').replace(/^\uFEFF/, ''), { header: true, skipEmptyLines: true });
+  for (const r of data) if (r.CardNum?.trim()) variantCards.push(r as unknown as CardData);
 }
 const cardMap = new Map(cards.map(c => [c.CardNum, c]));
 const byName = new Map<string, CardData[]>();
@@ -94,7 +103,12 @@ const classesOf = (c: CardData): string[] => (c.CardClass ?? '').split(/[/／]/)
 const signiOfClass = (cls: string) => cards.filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes(cls));
 const colorsOf = (c: CardData) => [...(c.Color ?? '')].filter(ch => '白赤青緑黒'.includes(ch));
 const lv = (c: CardData) => parseInt(c.Level ?? '', 10);
-const poolOf = (c: CardData) => (isDivaCardNum(c.CardNum) ? 'diva' : 'legacy');
+// 🔴2026-10-24＝**プールは再録も見る**（`cardPoolsOf`）。旧＝本体の番号だけ（`isDivaCardNum`）＝ディーバの Lv0 が再録（`SPDi03-18`＝本体 `PR-410`）
+//   のルリグ（ドーナ・あや・レイラ・ハナレ・サシェ・アイヤイ・ミルルン …）は**ディーバ側の系統が1本も作られず**、そのルリグ・アシストルリグ（約95枚）が
+//   生成デッキに一度も入らなかった。⚠両方のプールにある札がある＝「そのプールに居るか」で判定する（`inPool`）。
+const variantIndex = buildVariantNumIndex(variantCards);
+const inPool = (c: CardData, pool: string) => cardPoolsOf(c, variantIndex)[pool as 'diva' | 'legacy'];
+const POOLS = ['diva', 'legacy'] as const;
 
 // ── 核＝ルリグの系統（同じクラス・同じプールの Lv0〜） ──
 interface Line { cls: string; pool: string; cards: CardData[]; team: string; colors: Set<string> }
@@ -102,14 +116,14 @@ function buildLines(): Line[] {
   const groups = new Map<string, CardData[]>();
   for (const c of cards) {
     if (c.Type !== 'ルリグ' && c.Type !== 'アシストルリグ') continue;
-    const key = `${poolOf(c)}|${c.CardClass}|${c.Type === 'アシストルリグ' || (c.Type === 'ルリグ' && lv(c) === 0) ? 'any' : 'center'}`;
+    const key = `${POOLS.find(p => inPool(c, p)) ?? 'legacy'}|${c.CardClass}|${c.Type === 'アシストルリグ' || (c.Type === 'ルリグ' && lv(c) === 0) ? 'any' : 'center'}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(c);
   }
   const out: Line[] = [];
   const all = cards.filter(c => c.Type === 'ルリグ' || c.Type === 'アシストルリグ');
   const lv0s = all.filter(c => c.Type === 'ルリグ' && lv(c) === 0);
-  for (const z of lv0s) {
-    const same = all.filter(c => c.CardClass === z.CardClass && poolOf(c) === poolOf(z) && c !== z);
+  for (const z of lv0s) for (const pool of POOLS.filter(p => inPool(z, p))) {
+    const same = all.filter(c => c.CardClass === z.CardClass && inPool(c, pool) && c !== z);
     // センター系統（ルリグ Lv1〜）とアシスト系統（アシストルリグ Lv1〜）の2つを作る
     for (const kind of ['ルリグ', 'アシストルリグ'] as const) {
       const ups = same.filter(c => c.Type === kind && lv(c) >= 1);
@@ -124,7 +138,7 @@ function buildLines(): Line[] {
         line.push(atL[0]);
       }
       if (line.length < 2) continue;
-      out.push({ cls: z.CardClass ?? '', pool: poolOf(z), cards: line, team: z.Team && z.Team !== '-' ? z.Team : '', colors: new Set(line.flatMap(colorsOf)) });
+      out.push({ cls: z.CardClass ?? '', pool, cards: line, team: z.Team && z.Team !== '-' ? z.Team : '', colors: new Set(line.flatMap(colorsOf)) });
     }
   }
   return out;
@@ -144,9 +158,17 @@ function coresOf(lines: Line[]): Core[] {
     out.push({ center: c, assists: [], pool: c.pool, classes: [c.cls], colors: c.colors, team: c.team });
     // キーセレクション＝アシストルリグ2系統（センターと違うルリグタイプ）
     const as = assists.filter(a => a.pool === c.pool && a.cls !== c.cls);
+    // 🆕2026-10-24＝**組を1つに絞らない**＝未発動の多いアシスト系統の上位6本から、ルリグタイプの違う組を最大5つ作る。
+    //   旧＝どのセンターにも同じ上位2本の組しか作らず、アシストの系統が一部しか回らなかった（アシストルリグ46枚が一度も入らない）。
     if (as.length >= 2) {
-      const pick = [...as].sort((a, b) => b.cards.filter(want).length - a.cards.filter(want).length).slice(0, 2);
-      if (pick[0].cls !== pick[1].cls) out.push({ center: c, assists: pick, pool: c.pool, classes: [c.cls, ...pick.map(p => p.cls)], colors: new Set([...c.colors, ...pick.flatMap(p => [...p.colors])]), team: c.team });
+      const top = [...as].sort((a, b) => b.cards.filter(want).length - a.cards.filter(want).length).slice(0, 6);
+      let made = 0;
+      for (let i = 0; i < top.length && made < 5; i++) for (let j = i + 1; j < top.length && made < 5; j++) {
+        if (top[i].cls === top[j].cls) continue;
+        const pick = [top[i], top[j]];
+        out.push({ center: c, assists: pick, pool: c.pool, classes: [c.cls, ...pick.map(p => p.cls)], colors: new Set([...c.colors, ...pick.flatMap(p => [...p.colors])]), team: c.team });
+        made++;
+      }
     }
     // ディーバ＝同じチームのルリグ3系統（センター1＋アシスト2）
     // 🔴2026-10-21（ユーザー回答）＝**アシストゾーンのルリグはアシストルリグにしかグロウできない**（グロウフェイズにアシストはグロウできない）。
@@ -175,7 +197,7 @@ const coreCoins = (core: Core) => [core.center, ...core.assists].flatMap(l => l.
 const coinOk = (c: CardData, core: Core) => coinNeed(c) <= coreCoins(core);
 const restrictionOk = (c: CardData, core: Core) => core.classes.some(cls => meetsRestriction(c.Restriction ?? '-', cls));
 const colorOk = (c: CardData, core: Core) => colorsOf(c).every(ch => core.colors.has(ch));
-const poolOk = (c: CardData, core: Core) => poolOf(c) === core.pool;
+const poolOk = (c: CardData, core: Core) => inPool(c, core.pool);
 const teamOk = (c: CardData, core: Core) => !c.Team || c.Team === '-' || c.Team === core.team;
 const fitsMain = (c: CardData, core: Core) => MAIN_TYPES.has(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core) && coinOk(c, core);
 const fitsLrigSide = (c: CardData, core: Core) => ['アーツ', 'ピース', 'キー', 'レゾナ'].includes(c.Type) && poolOk(c, core) && colorOk(c, core) && restrictionOk(c, core) && teamOk(c, core) && coinOk(c, core);
@@ -189,7 +211,7 @@ function buildDeck(core: Core, idx: number) {
     let extra = 0;
     for (const l of lrigLines) {
       const kind = l.cards.at(-1)!.Type;
-      for (const c of cards.filter(x => x.Type === kind && x.CardClass === l.cls && poolOf(x) === l.pool && lv(x) >= 1 && want(x) && !lrigDeck.includes(x.CardNum))) {
+      for (const c of cards.filter(x => x.Type === kind && x.CardClass === l.cls && inPool(x, l.pool) && lv(x) >= 1 && want(x) && !lrigDeck.includes(x.CardNum))) {
         if (extra >= 3 || lrigDeck.length >= lrigCap - 2) break;
         lrigDeck.push(c.CardNum); planned.add(c.CardNum); extra++;
       }
@@ -204,7 +226,7 @@ function buildDeck(core: Core, idx: number) {
   /** 相方（名前の参照）を入れる。メイン側→2枚／ルリグ側→1枚。 */
   const addPartners = (c: CardData) => {
     for (const nm of nameRefs(c)) {
-      const cand = (byName.get(nm) ?? []).filter(x => poolOf(x) === core.pool) ;
+      const cand = (byName.get(nm) ?? []).filter(x => inPool(x, core.pool)) ;
       const pick = cand.find(x => fitsMain(x, core)) ?? cand.find(x => fitsLrigSide(x, core));
       if (!pick) continue;
       if (MAIN_TYPES.has(pick.Type)) { if (addMain(pick, 2)) demandFrom(pick); }
@@ -218,7 +240,7 @@ function buildDeck(core: Core, idx: number) {
   const lrigNames = new Set(lrigLines.flatMap(l => l.cards.map(c => c.CardName)));
   const partnersFit = (c: CardData): boolean => nameRefs(c).every(nm => {
     if (lrigNames.has(nm) || main.some(n => cardMap.get(n)?.CardName === nm) || lrigDeck.some(n => cardMap.get(n)?.CardName === nm)) return true;
-    const cand = (byName.get(nm) ?? []).filter(x => poolOf(x) === core.pool);
+    const cand = (byName.get(nm) ?? []).filter(x => inPool(x, core.pool));
     return cand.some(x => fitsMain(x, core) || fitsLrigSide(x, core));
   });
   const seedOk = (c: CardData): boolean => {

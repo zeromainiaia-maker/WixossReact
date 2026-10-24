@@ -28,7 +28,7 @@ import { cardPoolsOf } from '../src/utils/deckFormat';
 import { buildVariantNumIndex } from '../src/utils/cardSearch';
 import { deckLrigSetupProblem } from '../src/utils/deckLrigSetup';
 import { LB_MAX, LRIG_MAX, isExtraLrigCard, isTeamPieceCard } from '../src/utils/deckBuildLimits';
-import { cardCsvRelPaths } from './cardDataFiles.mjs';
+import { cardCsvRelPaths, variantsCsvPath } from './cardDataFiles.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
@@ -43,15 +43,17 @@ const cards: CardData[] = [];
 const variantCards: CardData[] = [];
 for (const f of cardCsvRelPaths()) {
   if (/_TK\.csv$/.test(f)) continue;
-  if (/_Variants\.csv$/.test(f)) {
-    const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(join('public/data', f), 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
-    for (const r of data) if (r.CardNum?.trim()) variantCards.push(r as unknown as CardData);
-    continue;
-  }
   const p = join('public/data', f);
   if (!fs.existsSync(p)) continue;
   const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(p, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true });
   for (const r of data) if (r.CardNum?.trim()) cards.push(r as unknown as CardData);
+}
+// 🔴2026-10-24＝**再録は `variantsCsvPath()` で読む**（`cardCsvRelPaths` は列の違う `_Variants.csv` を返さない）。
+//   旧＝ループの中で `_Variants.csv` を待っていたが一度も来ず、再録が空＝**プールの判定が本体の番号だけ**になっていた
+//   （ディーバの Lv0 が再録のルリグ＝ドーナ・あや・レイラ …の系統がディーバで組めなかった）。
+{
+  const { data } = Papa.parse<Record<string, string>>(fs.readFileSync(variantsCsvPath(), 'utf-8').replace(/^\uFEFF/, ''), { header: true, skipEmptyLines: true });
+  for (const r of data) if (r.CardNum?.trim()) variantCards.push(r as unknown as CardData);
 }
 const effectsOf = new Map<string, CardEffect[]>();
 for (const f of fs.readdirSync('public/data').filter(x => /^effects_.*\.json$/.test(x))) {
