@@ -195,6 +195,7 @@ import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { listCpuRemoves, removeSigniSim } from '../src/screens/battle/cpuMoves';
 import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, cpuDeployBudget, cpuDeployPlaceable, cpuHandSignis, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
@@ -88120,6 +88121,43 @@ test('§5.7 S-16 先読みは山の順序を見ない（カンニングを塞ぐ
     '🔴同じ盤面で先読みの結果が変わる（決定論が壊れている）');
   // ⑤ 渡した盤面は書き換えない（本番の山を混ぜない）
   eq(JSON.stringify(base.deck), JSON.stringify(deck), '🔴先読みが本番の山の並びを書き換えた');
+}));
+
+test('2026-10-25 CPU の先読み：効果で場を離れたシグニの【自】（バニッシュされたとき）も解決する（leaveTriggers）', () => withSavedCursor(() => {
+  // 🔑相手の《バニッシュされたとき、カードを1枚引く》シグニ（WXDi-P00-054）をバニッシュすると、相手の手札が1枚増える。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const base = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const mk = () => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = []; st.deck = ['WD03-013#d1', 'WD03-012#d2', 'WD03-010#d3']; st.energy = []; st.life_cloth = ['WD01-013#l1'];
+    st.field.lrig = ['WD03-003#r1'];
+    return st;
+  };
+  const cpu = mk(), opp = mk();
+  opp.field.signi = [['WXDi-P00-054#o1'], null, null];
+  const banish = { effectId: 'LT_BANISH', effectType: 'ACTIVATED', action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const off = simulateEffect(banish, 'WD03-003#r1', cpu, opp, { ...base, policy: DEFAULT_CPU_POLICY });
+  const on = simulateEffect(banish, 'WD03-003#r1', cpu, opp, { ...base, policy: { ...DEFAULT_CPU_POLICY, leaveTriggers: 1 } });
+  ok(!!off && !!on, '前提崩れ＝バニッシュの先読みが解決しない');
+  ok(!off!.opp.field.signi[0]?.length && !on!.opp.field.signi[0]?.length, '前提崩れ＝バニッシュされていない');
+  eq(off!.opp.hand.length, 0, '既定（leaveTriggers=0）は従来どおり【自】を見ない');
+  eq(on!.opp.hand.length, 1, '🔴相手の「バニッシュされたとき、カードを1枚引く」を先読みに入れていない');
+}));
+
+test('2026-10-25 CPU のリムーブ：新しく出せるシグニがあるゾーンだけ候補（removeMoves）・封じは見る', () => withSavedCursor(() => {
+  const st = mkState({ signi: ['WD03-013#f1', 'WD03-012#f2', 'WD03-010#f3'] });
+  st.field.lrig = ['WD03-001#r1'];
+  st.hand = ['WD03-013#h1'];
+  st.energy = Array.from({ length: 8 }, (_, i) => `WD03-013#e${i}`);
+  const ctx = { actor: st, opponent: mkState({}), allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap, effectsMap,
+    lookahead: { cardMap, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] }, reserveFor: () => undefined } as unknown as Parameters<typeof listCpuRemoves>[0];
+  eq(listCpuRemoves({ ...ctx, policy: DEFAULT_CPU_POLICY }, new Set()).length, 0, '既定（removeMoves=0）はリムーブを列挙しない');
+  const on = { ...ctx, policy: { ...DEFAULT_CPU_POLICY, removeMoves: 1 } };
+  ok(listCpuRemoves(on, new Set()).length > 0, '🔴場が埋まっていて手札に出せるシグニがあるのにリムーブを列挙しない');
+  eq(listCpuRemoves(on, new Set(['SELF_SIGNI_TRASH'])).length, 0, '🔴リムーブ封じ（SELF_SIGNI_TRASH）を見ていない');
+  eq(listCpuRemoves({ ...on, actor: { ...st, hand: [] } }, new Set()).length, 0, '手札にシグニが無ければリムーブしない');
+  const after = removeSigniSim(st, 0);
+  ok(!after.field.signi[0]?.length && after.trash.includes('WD03-013#f1'), '🔴リムーブしたシグニがトラッシュへ行かない');
 }));
 
 test('§5.7 S-16 探索の配線：既定は幅0（挙動不変）・実行は人間と同じ perform*・扱えない手は従来の優先順', () => withSavedCursor(() => {

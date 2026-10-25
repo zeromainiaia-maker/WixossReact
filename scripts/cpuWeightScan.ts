@@ -129,6 +129,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'betCoinValue', base: 1500, values: [0, 4000] },
   // ── 🆕2026-10-25＝リムーブを手に入れる（0＝使わない）。
   { key: 'removeMoves', base: 0, values: [1] },
+  // ── 🆕2026-10-25＝場を離れたときの【自】を先読みに入れる（0＝見ない）。
+  { key: 'leaveTriggers', base: 0, values: [1] },
 ];
 
 /**

@@ -51,6 +51,8 @@ export interface LookaheadCtx {
    * ⚠**席ごとに違うものが来る**（自己対戦の A/B）＝ここから先で `BOARD_WEIGHTS` を直接読まない。
    */
   policy?: CpuPolicy;
+  /** 🆕2026-10-25＝場を離れたときの【自】を解決している最中（`applyLeaveTriggersSim` の入れ子を1段に止める）。 */
+  inLeaveTrigger?: boolean;
   /**
    * 🆕§5.7 `S-18`＝**その盤面で次のグロウのコストを払えるか**（`cpuGrowReserve` の予約＝人間と同じ支払い判定）。
    * ⚠**渡さなければこの項は 0**（採点は従来どおり）＝`cpuTurnAction` が渡す。
@@ -410,12 +412,68 @@ export function simulateEffect(
     } as ExecCtx;
     // 🆕§5.7 `S-29`＝この効果の対象宣言に「レベル１につき」のコストが続くなら、対象選択に渡す。
     const followUpCost = declarationScalingCost(effect) ?? undefined;
-    return runToDone(executeEffect(effect, base), base, lctx, followUpCost, 0);
+    const res = runToDone(executeEffect(effect, base), base, lctx, followUpCost, 0);
+    // 🆕2026-10-25＝場を離れたシグニの【自】（バニッシュされたとき・場を離れたとき 等）も解決する（`leaveTriggers`）。
+    return res && (lctx.policy?.leaveTriggers ?? 0) > 0 && !lctx.inLeaveTrigger ? applyLeaveTriggersSim(cpu, opp, res, lctx) : res;
   } catch {
     return null;
   } finally {
     setRng(prevRng);
   }
+}
+
+/** 🆕2026-10-25＝`applyLeaveTriggersSim` が数える条件キー（これ以外の条件が付いた【自】は数えない＝安全側）。 */
+const LEAVE_TRIGGER_COND_KEYS = new Set(['turnOwner', 'outsideMainPhase', 'duringAttackPhase', 'byOpponentEffect', 'byEffect', 'fromZones', 'fromFieldByCostOrEffect']);
+
+/**
+ * 🆕2026-10-25＝**効果で場を離れたシグニの【自】を先読みに入れる**（ユーザー要望「相手の盤面の自動効果などを確認し最適なカードを選ぶ」）。
+ *
+ * ■ なぜ要るか＝`simulateEffect` は効果1つを解決するだけで、その結果として誘発する【自】を解決しない＝
+ *   **「バニッシュされたとき、カードを1枚引く／相手のシグニをバニッシュする」を持つ相手のシグニも、持たないシグニも同じに見える**
+ *   （母集団＝ON_BANISH 110・ON_LEAVE_FIELD 39 ほか）。自分のシグニの「バニッシュされたとき」の得も数えていなかった。
+ * ■ やること＝解決の前後で**場の一番上から消えたシグニ**を探し、行き先で timing を決めて（エナ＝バニッシュ／トラッシュ／それ以外＝場を離れた）、
+ *   その札の【自】を**持ち主の立場で**解決する（相手の札なら相手にとって良い選び方＝こちらには最悪の見積り）。
+ * ⚠**1段まで**（誘発した【自】がさらに誘発するものは数えない）。⚠知らない条件が付いた【自】は数えない。
+ * ⚠バトルでのバニッシュ（アタックの先読み）はここを通らない＝効果による退場だけ。
+ */
+export function applyLeaveTriggersSim(
+  cpu0: PlayerState, opp0: PlayerState, after: { cpu: PlayerState; opp: PlayerState }, lctx: LookaheadCtx,
+): { cpu: PlayerState; opp: PlayerState } {
+  let cpu = after.cpu, opp = after.opp;
+  const phase = lctx.turnPhase ?? 'MAIN';
+  const cpuTurn = lctx.isCpuTurn ?? true;
+  for (const side of ['opp', 'cpu'] as const) {
+    const before = side === 'cpu' ? cpu0 : opp0;
+    for (let zi = 0; zi < 3; zi++) {
+      const id = before.field.signi[zi]?.at(-1);
+      if (!id) continue;
+      const now = side === 'cpu' ? cpu : opp;
+      if (now.field.signi.some(stk => stk?.includes(id))) continue;
+      const timings = now.energy.includes(id) ? ['ON_BANISH', 'ON_LEAVE_FIELD']
+        : now.trash.includes(id) ? ['ON_TRASH', 'ON_LEAVE_FIELD'] : ['ON_LEAVE_FIELD'];
+      const ownerTurn = side === 'cpu' ? cpuTurn : !cpuTurn;
+      for (const e of lctx.effectsOf(id)) {
+        if (e.effectType !== 'AUTO' || !(e.timing ?? []).some(t => timings.includes(t))) continue;
+        if (e.triggerScope !== undefined && e.triggerScope !== 'self') continue;
+        const c = (e.triggerCondition ?? {}) as Record<string, unknown>;
+        if (Object.keys(c).some(k => !LEAVE_TRIGGER_COND_KEYS.has(k))) continue;
+        if (c.turnOwner === 'self' && !ownerTurn) continue;
+        if (c.turnOwner === 'opponent' && ownerTurn) continue;
+        if (c.outsideMainPhase && phase === 'MAIN') continue;
+        if (c.duringAttackPhase && !String(phase).startsWith('ATTACK')) continue;
+        // 効果の持ち主は CPU（`simulateEffect` の規約）＝相手の札にとっては「相手の効果」。
+        if (c.byOpponentEffect && side === 'cpu') continue;
+        if (Array.isArray(c.fromZones) && !(c.fromZones as string[]).includes('field')) continue;
+        if ((e.timing ?? []).includes('ON_TRASH') && !(e.timing ?? []).some(t => t !== 'ON_TRASH' && timings.includes(t)) && !Array.isArray(c.fromZones) && !c.fromFieldByCostOrEffect && !c.byEffect) continue;
+        const owner = side === 'cpu' ? cpu : opp, other = side === 'cpu' ? opp : cpu;
+        if (e.activeCondition && !checkActiveCondition(e.activeCondition, owner, other, ownerTurn, lctx.cardMap, id)) continue;
+        const res = simulateEffect(e, id, owner, other, { ...lctx, isCpuTurn: ownerTurn, inLeaveTrigger: true });
+        if (!res) continue;
+        if (side === 'cpu') { cpu = res.cpu; opp = res.opp; } else { opp = res.cpu; cpu = res.opp; }
+      }
+    }
+  }
+  return { cpu, opp };
 }
 
 /**
