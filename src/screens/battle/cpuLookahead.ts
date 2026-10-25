@@ -259,10 +259,20 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
   const threatLanes = (me: PlayerState, them: PlayerState) =>
     [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined && !isZoneFrozen(me, zi)).length;
   const nextThreatLanes = (ctx.isCpuTurn ?? true) ? -threatLanes(opp, cpu) : threatLanes(cpu, opp);
+  // 🆕2026-10-25＝**次の相手ターンにバトルで落とされる見込みのシグニ**の場の価値（`nextTurnLoss`）＝手番側のシグニのうち、
+  //   正面の相手シグニ（凍結していない）のほうがパワーが上のもの。
+  const doomedValue = (me: PlayerState, them: PlayerState) =>
+    [0, 1, 2].reduce((sum, zi) => {
+      const mine = topOf(me, zi), theirs = topOf(them, 2 - zi);
+      if (!mine || !theirs || isZoneFrozen(them, 2 - zi)) return sum;
+      return scoringPowerOf(theirs, ctx, powers) > scoringPowerOf(mine, ctx, powers) ? sum + signiValue(me, zi) : sum;
+    }, 0);
+  const nextTurnLoss = W.nextTurnLoss ? ((ctx.isCpuTurn ?? true) ? -doomedValue(cpu, opp) : doomedValue(opp, cpu)) * W.nextTurnLoss : 0;
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
     + attackerOpenLanes * W.turnDamage
     + nextThreatLanes * (W.nextThreat ?? 0)
+    + nextTurnLoss
     + (wonLanes(cpu, opp) - wonLanes(opp, cpu)) * W.laneWin
     + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && isZoneFrozen(opp, zi)).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life

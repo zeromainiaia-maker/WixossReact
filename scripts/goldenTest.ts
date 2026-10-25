@@ -89096,6 +89096,32 @@ test('2026-10-23 次の相手ターンに殴られるレーン（nextThreat）�
     '🔴凍結している相手のシグニを「次に殴ってくる」に数えている');
 }));
 
+test('2026-10-25 次の相手ターンにバトルで落とされる見込み（nextTurnLoss）：正面の相手のほうが強いときだけ・同値と凍結は除く・既定0', () => withSavedCursor(() => {
+  eq(DEFAULT_CPU_POLICY.boardWeights.nextTurnLoss ?? 0, 0, '🔴既定で `nextTurnLoss` が効いている（実機の挙動が変わる）');
+  const cm = new InstanceMap<CardData>(cardMap);
+  const side = (signi: (string | null)[]) => {
+    const st = mkState({ signi });
+    st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#l1'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    return st;
+  };
+  const pol = patchCpuPolicy(DEFAULT_CPU_POLICY, 'nextTurnLoss=1');
+  const lctx = (powers: Map<string, number>, isCpuTurn = true, policy = pol) => ({
+    cardMap: cm as Map<string, CardData>, effectsOf: () => [], powersOf: () => powers, isCpuTurn, policy,
+  });
+  // 自分のゾーン2 の正面＝相手のゾーン0。
+  const me = side([null, null, 'WD01-013#m1']);
+  const opp = side(['WD01-013#o1', null, null]);
+  const diff = (p: Map<string, number>, o = opp, isCpuTurn = true) => evaluateBoard(me, o, lctx(p, isCpuTurn)) - evaluateBoard(me, o, lctx(p, isCpuTurn, DEFAULT_CPU_POLICY));
+  const weaker = new Map([['WD01-013#m1', 3000], ['WD01-013#o1', 8000]]);
+  ok(diff(weaker) < 0, `🔴正面の相手のほうが強いのに、落とされる見込みを引いていない（${diff(weaker)}）`);
+  eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 5000]])), 0, '🔴同じパワーを割り引いている（こちらが先に殴れば勝つ）');
+  eq(diff(weaker, opp, false), 0, '🔴相手の手番で自分のシグニを割り引いている＝手番側だけの項でない');
+  const frozenOpp = side(['WD01-013#o1', null, null]);
+  frozenOpp.field.signi_frozen = [true, false, false];
+  eq(diff(weaker, frozenOpp), 0, '🔴凍結している相手のシグニに殴られる見込みを数えている');
+}));
+
 test('§5.7 S-21 探索の目的関数：「打たない」を割る計器／行動への下駄／このターンに通るダメージ', () => withSavedCursor(() => {
   // 🔴**なぜ要るか**＝`S-16` の探索は従来と互角（A/B 50.0%）で止まっており、
   //   実測（2026-09-20・`--census-moves`）では **111手中 58手で「打たない」**を選んでいた。

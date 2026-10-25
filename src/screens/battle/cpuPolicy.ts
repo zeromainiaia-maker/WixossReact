@@ -139,6 +139,15 @@ export interface BoardWeights {
    */
   nextThreat: number;
   /**
+   * 🆕2026-10-25＝**次の相手ターンにバトルで落とされる見込みのシグニ**の価値を割り引く割合（手番側だけ・既定 0＝従来どおり）。
+   * 🔑ユーザー要望「次のターンの予想までしてカードを残す判断」＝正面の相手シグニのほうがパワーが上なら、
+   *   次の相手のアタックでバトルに負けて場から消える見込み＝その札の場の価値 × この割合を引く。
+   *   ⇒ 強い相手の正面に弱いシグニを出すより手札に残す／落とされる札を場からエナへ置く、を探索と採点が比べられる。
+   * ⚠同じパワーは割り引かない（このターンにこちらが先に殴ればこちらが勝つ）。⚠凍結している相手シグニは次のターンにアップしない＝殴られない。
+   * ⚠壁として1点を防ぐ価値は `openLane`／`nextThreat` 側（この項は「消える札の価値」だけ）。
+   */
+  nextTurnLoss?: number;
+  /**
    * 🆕2026-09-22＝**ルリグデッキに残っているアーツ1枚**（自分側だけ）。
    * 🔴**なぜ要るか（ユーザーのバグ報告 `aa903772`）**＝アーツは**1回しか使えない資源**なのに採点に1点も入っていなかった
    *   ⇒ 探索（`S-16`）には**アーツを使うことがタダ**に見え、**少しでも点が上がれば撃つ**。
@@ -363,6 +372,7 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
     turnDamage: 0,
     // 🆕2026-10-23＝次の相手ターンに殴られるレーン。既定 0＝入れる前と同じ。
     nextThreat: 0,
+    nextTurnLoss: 0,
     // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。⚠手で決めた初期値＝A/B で調整する対象。
     artsKept: 2500,
   },
@@ -502,6 +512,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   remove: variant('remove', { removeMoves: 1 }),
   /** 🆕2026-10-25＝場を離れたときの【自】を先読みに入れる CPU（A/B の B 側）。 */
   'leave-triggers': variant('leave-triggers', { leaveTriggers: 1 }),
+  /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みのシグニを割り引く CPU（A/B の B 側）。 */
+  'next-turn-loss': variant('next-turn-loss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0.5 } }),
   'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
   // 🆕2026-09-22＝ベットを一度も宣言しない（直す前の CPU）。
   'legacy-bet': variant('legacy-bet', { betCoinValue: Number.POSITIVE_INFINITY }),

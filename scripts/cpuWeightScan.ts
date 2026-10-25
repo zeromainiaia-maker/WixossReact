@@ -64,6 +64,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   // 既定 0 のつまみ＝「入れるとどうなるか」。値は**過去のプリセットの実績値**（`search-damage` ほか）。
   { key: 'turnDamage', base: 0, values: [3000] },
   { key: 'nextThreat', base: 0, values: [3000] },
+  // ── 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みのシグニを割り引く割合。
+  { key: 'nextTurnLoss', base: 0, values: [0.5, 1] },
   // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。
   { key: 'artsKept', base: 2500, values: [1250, 5000] },
   // ── ポリシー（`CpuPolicy`）──
