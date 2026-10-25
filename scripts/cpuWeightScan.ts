@@ -65,7 +65,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'turnDamage', base: 0, values: [3000] },
   { key: 'nextThreat', base: 0, values: [3000] },
   // ── 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みのシグニを割り引く割合。
-  { key: 'nextTurnLoss', base: 0, values: [0.5, 1] },
+  { key: 'nextTurnLoss', base: 0.5, values: [0, 1] },
   // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。
   { key: 'artsKept', base: 2500, values: [1250, 5000] },
   // ── ポリシー（`CpuPolicy`）──
@@ -130,9 +130,9 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   // ── 🆕2026-09-22＝コイン1枚の値段（【ベット】の判断）。⚠旧挙動（ベットしない）は `Infinity`＝プリセット `legacy-bet` で当てる。
   { key: 'betCoinValue', base: 1500, values: [0, 4000] },
   // ── 🆕2026-10-25＝リムーブを手に入れる（0＝使わない）。
-  { key: 'removeMoves', base: 0, values: [1] },
+  { key: 'removeMoves', base: 1, values: [0] },
   // ── 🆕2026-10-25＝場を離れたときの【自】を先読みに入れる（0＝見ない）。
-  { key: 'leaveTriggers', base: 0, values: [1] },
+  { key: 'leaveTriggers', base: 1, values: [0] },
 ];
 
 /**

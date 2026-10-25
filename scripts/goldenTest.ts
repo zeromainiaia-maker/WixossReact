@@ -88136,11 +88136,12 @@ test('2026-10-25 CPU の先読み：効果で場を離れたシグニの【自�
   const cpu = mk(), opp = mk();
   opp.field.signi = [['WXDi-P00-054#o1'], null, null];
   const banish = { effectId: 'LT_BANISH', effectType: 'ACTIVATED', action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, duration: 'INSTANT', mandatory: true } as CardEffect;
-  const off = simulateEffect(banish, 'WD03-003#r1', cpu, opp, { ...base, policy: DEFAULT_CPU_POLICY });
+  const off = simulateEffect(banish, 'WD03-003#r1', cpu, opp, { ...base, policy: { ...DEFAULT_CPU_POLICY, leaveTriggers: 0 } });
   const on = simulateEffect(banish, 'WD03-003#r1', cpu, opp, { ...base, policy: { ...DEFAULT_CPU_POLICY, leaveTriggers: 1 } });
   ok(!!off && !!on, '前提崩れ＝バニッシュの先読みが解決しない');
   ok(!off!.opp.field.signi[0]?.length && !on!.opp.field.signi[0]?.length, '前提崩れ＝バニッシュされていない');
-  eq(off!.opp.hand.length, 0, '既定（leaveTriggers=0）は従来どおり【自】を見ない');
+  eq(DEFAULT_CPU_POLICY.leaveTriggers, 1, '🔴既定で場を離れたときの【自】を見ていない（2026-10-25 ユーザー決定で既定オン）');
+  eq(off!.opp.hand.length, 0, 'leaveTriggers=0（legacy-leavetriggers）は従来どおり【自】を見ない');
   eq(on!.opp.hand.length, 1, '🔴相手の「バニッシュされたとき、カードを1枚引く」を先読みに入れていない');
 }));
 
@@ -88151,7 +88152,8 @@ test('2026-10-25 CPU のリムーブ：新しく出せるシグニがあるゾ�
   st.energy = Array.from({ length: 8 }, (_, i) => `WD03-013#e${i}`);
   const ctx = { actor: st, opponent: mkState({}), allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap, effectsMap,
     lookahead: { cardMap, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] }, reserveFor: () => undefined } as unknown as Parameters<typeof listCpuRemoves>[0];
-  eq(listCpuRemoves({ ...ctx, policy: DEFAULT_CPU_POLICY }, new Set()).length, 0, '既定（removeMoves=0）はリムーブを列挙しない');
+  eq(DEFAULT_CPU_POLICY.removeMoves, 1, '🔴既定でリムーブを使っていない（2026-10-25 ユーザー決定で既定オン）');
+  eq(listCpuRemoves({ ...ctx, policy: { ...DEFAULT_CPU_POLICY, removeMoves: 0 } }, new Set()).length, 0, 'removeMoves=0（legacy-remove）はリムーブを列挙しない');
   const on = { ...ctx, policy: { ...DEFAULT_CPU_POLICY, removeMoves: 1 } };
   ok(listCpuRemoves(on, new Set()).length > 0, '🔴場が埋まっていて手札に出せるシグニがあるのにリムーブを列挙しない');
   eq(listCpuRemoves(on, new Set(['SELF_SIGNI_TRASH'])).length, 0, '🔴リムーブ封じ（SELF_SIGNI_TRASH）を見ていない');
@@ -89097,7 +89099,8 @@ test('2026-10-23 次の相手ターンに殴られるレーン（nextThreat）�
 }));
 
 test('2026-10-25 次の相手ターンにバトルで落とされる見込み（nextTurnLoss）：正面の相手のほうが強いときだけ・同値と凍結は除く・既定0', () => withSavedCursor(() => {
-  eq(DEFAULT_CPU_POLICY.boardWeights.nextTurnLoss ?? 0, 0, '🔴既定で `nextTurnLoss` が効いている（実機の挙動が変わる）');
+  eq(DEFAULT_CPU_POLICY.boardWeights.nextTurnLoss, 0.5, '🔴既定の `nextTurnLoss` が 0.5 でない（2026-10-25 ユーザー決定）');
+  const OFF = patchCpuPolicy(DEFAULT_CPU_POLICY, 'nextTurnLoss=0');
   const cm = new InstanceMap<CardData>(cardMap);
   const side = (signi: (string | null)[]) => {
     const st = mkState({ signi });
@@ -89112,7 +89115,7 @@ test('2026-10-25 次の相手ターンにバトルで落とされる見込み（
   // 自分のゾーン2 の正面＝相手のゾーン0。
   const me = side([null, null, 'WD01-013#m1']);
   const opp = side(['WD01-013#o1', null, null]);
-  const diff = (p: Map<string, number>, o = opp, isCpuTurn = true) => evaluateBoard(me, o, lctx(p, isCpuTurn)) - evaluateBoard(me, o, lctx(p, isCpuTurn, DEFAULT_CPU_POLICY));
+  const diff = (p: Map<string, number>, o = opp, isCpuTurn = true) => evaluateBoard(me, o, lctx(p, isCpuTurn)) - evaluateBoard(me, o, lctx(p, isCpuTurn, OFF));
   const weaker = new Map([['WD01-013#m1', 3000], ['WD01-013#o1', 8000]]);
   ok(diff(weaker) < 0, `🔴正面の相手のほうが強いのに、落とされる見込みを引いていない（${diff(weaker)}）`);
   eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 5000]])), 0, '🔴同じパワーを割り引いている（こちらが先に殴れば勝つ）');
@@ -89266,7 +89269,8 @@ test('§5.7 S-10 盤面の採点のパワー項：線形から閾値へ（勝敗
       cardMap: cm as Map<string, CardData>,
       effectsOf: () => [],                               // 効果の点数を 0 にして**パワー項だけ**を見る
       powersOf: () => new Map([[`${VAN}#m0`, minePower], [`${VAN}#t0`, theirPower]]),
-      policy,
+      // 🆕2026-10-25＝`nextTurnLoss`（次のターンの予想・既定0.5）は別の項＝ここではパワー項だけを見るので0にする。
+      policy: { ...policy, boardWeights: { ...policy.boardWeights, nextTurnLoss: 0 } },
     };
     return evaluateBoard(me, them, lctx);
   };

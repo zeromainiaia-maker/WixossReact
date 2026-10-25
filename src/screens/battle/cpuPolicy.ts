@@ -372,7 +372,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
     turnDamage: 0,
     // 🆕2026-10-23＝次の相手ターンに殴られるレーン。既定 0＝入れる前と同じ。
     nextThreat: 0,
-    nextTurnLoss: 0,
+    // 🆕2026-10-25（ユーザー決定）＝既定 0.5。計器（`cpuTurnEval`）では差なし（28/473 ターンで分かれ 良2／悪3）＝人間らしい手のために入れた。旧挙動は `legacy-nextturnloss`。
+    nextTurnLoss: 0.5,
     // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。⚠手で決めた初期値＝A/B で調整する対象。
     artsKept: 2500,
   },
@@ -456,8 +457,10 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   mulliganLv1Target: 2,
   // 🆕§5.6 `C-11`（2026-09-22）＝**打ち消す価値のないスペルに札を使わない**。旧挙動（常に打ち消す）は `legacy-cutin`。
   cutinGainMin: 4000,
-  removeMoves: 0,
-  leaveTriggers: 0,
+  // 🆕2026-10-25（ユーザー決定）＝既定で使う。計器では差なし（リムーブ 良21／悪19・【自】6/473 ターン）＝人間らしい手のために入れた。
+  //   旧挙動は `legacy-remove`／`legacy-leavetriggers`。
+  removeMoves: 1,
+  leaveTriggers: 1,
   // 🆕2026-09-22＝ベットを判断する。旧挙動（一度もベットしない）は `legacy-bet`。
   betCoinValue: 1500,
 };
@@ -508,12 +511,12 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 🆕§5.6 `C-11` の **A 側＝「打ち消せるなら必ず打ち消す」だった頃のカットイン判断**（`C-10` 第2段の v1）。
    * ⚠**消さない**＝`C-11` の A/B（`--a legacy-cutin --b default`）で使う。
    */
-  /** 🆕2026-10-25＝リムーブを使う CPU（A/B の B 側）。 */
-  remove: variant('remove', { removeMoves: 1 }),
-  /** 🆕2026-10-25＝場を離れたときの【自】を先読みに入れる CPU（A/B の B 側）。 */
-  'leave-triggers': variant('leave-triggers', { leaveTriggers: 1 }),
-  /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みのシグニを割り引く CPU（A/B の B 側）。 */
-  'next-turn-loss': variant('next-turn-loss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0.5 } }),
+  /** 🆕2026-10-25＝リムーブを使わない（既定にする前の CPU）。⚠消さない＝A/B の A 側。 */
+  'legacy-remove': variant('legacy-remove', { removeMoves: 0 }),
+  /** 🆕2026-10-25＝場を離れたときの【自】を先読みに入れない（既定にする前の CPU）。 */
+  'legacy-leavetriggers': variant('legacy-leavetriggers', { leaveTriggers: 0 }),
+  /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みを割り引かない（既定にする前の CPU）。 */
+  'legacy-nextturnloss': variant('legacy-nextturnloss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0 } }),
   'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
   // 🆕2026-09-22＝ベットを一度も宣言しない（直す前の CPU）。
   'legacy-bet': variant('legacy-bet', { betCoinValue: Number.POSITIVE_INFINITY }),
