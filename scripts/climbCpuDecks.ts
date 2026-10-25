@@ -12,11 +12,12 @@
  * 🔴**学習に使ったシードの勝数で採用を言わない**＝同じ試合で比べ続けるので過適合する
  *   （実測＝10戦判定12巡で 4勝以上 15/30 → 別シードの検証では 9/30）。採用は必ず `--validate` の数字で決める。
  * ⚠初回（state.json が無い）は `--pool` の中でルリグごとに一番勝った候補から始め、その勝数を学習シードで測り直す（選別は別シード）。
- *   `--only 甲,乙`＝そのルリグタイプだけ登る／`--mutants N`＝1巡でルリグごとに作る変異の数／`--rebase`＝学習シードを変えたら全ルリグを測り直す。
+ *   `--only 甲,乙`＝そのルリグタイプだけ登る／`--mutants N`＝1巡でルリグごとに作る変異の数／`--rebase`＝学習シードを変えたら全ルリグを測り直す／`--wide`＝同じクラスの札もプールの外から入れ替え先にする（手組みの出発点用）。
  *   ⚠`--validate` は state.json にあるルリグだけを測る（プールの残りを混ぜない）。
  */
 import fs from 'fs'; import { join } from 'path'; import Papa from 'papaparse'; import { spawnSync } from 'child_process';
-import { cardCsvRelPaths } from './cardDataFiles.mjs';
+import { cardPoolsOf } from '../src/utils/deckFormat'; import { buildVariantNumIndex } from '../src/utils/cardSearch';
+import { cardCsvRelPaths, variantsCsvPath } from './cardDataFiles.mjs';
 const argv = process.argv.slice(2);
 const arg = (n: string, d: string) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const ITERS = Number(arg('--iters', '5')); const TARGET = Number(arg('--target', '7'));
@@ -63,6 +64,16 @@ for (const [t, ds] of Object.entries(pool)) if (!state[t] && (!ONLY || ONLY.has(
 const deckColors = (d: any) => { const s = new Set<string>(); for (const n of d.main_deck) for (const c of colors(n)) s.add(c); return s; };
 const lrigLine = (d: any) => d.lrig_deck.filter((n: string) => C(n).Type === 'ルリグ').sort().join();
 
+// `--wide`＝入れ替え先にプールの外の札も足す＝今のデッキのシグニと同じクラスを持つ、色・限定の合うレガシーのシグニ／スペル
+//   （手組みのデッキはルリグの系統がプールのどれとも一致しない＝プールからは入れ替え先が出ない）。
+const WIDE = argv.includes('--wide');
+const variantIdx = buildVariantNumIndex([...(Papa.parse<any>(fs.readFileSync(variantsCsvPath(), 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true }).data)].filter((r: any) => r.CardNum));
+const legacyCards = [...card.values()].filter(c => (c.Type === 'シグニ' || c.Type === 'スペル') && cardPoolsOf(c, variantIdx).legacy);
+function wideCands(cur: any, t: string): string[] {
+  const classes = new Set<string>(cur.main_deck.flatMap((n: string) => (C(n).CardClass ?? '').split(/[／/]/).map((x: string) => x.replace(/^.*：/, '')).filter((x: string) => x && x !== '-' && x !== '精元')));
+  return legacyCards.filter(c => (!c.Restriction || c.Restriction === '-' || c.Restriction.includes(t))
+    && (c.Type === 'スペル' ? true : (c.CardClass ?? '').split(/[／/]/).some((x: string) => classes.has(x.replace(/^.*：/, ''))))).map(c => c.CardNum);
+}
 function mutate(t: string): any | null {
   const cur = state[t].deck; const cols = deckColors(cur);
   const same = pool[t].filter(d => lrigLine(d) === lrigLine(cur));
@@ -72,7 +83,8 @@ function mutate(t: string): any | null {
     const names = [...new Set<string>(cur.main_deck)].filter(n => !isGuard(n));
     const old = names[rnd(names.length)]; const k = cur.main_deck.filter((n: string) => n === old).length;
     const curNames = new Set(cur.main_deck.map((n: string) => C(n).CardName));
-    const cand = [...new Set<string>(same.flatMap(d => d.main_deck))].filter(n => !isGuard(n) && bucket(n) === bucket(old) && !curNames.has(C(n).CardName) && okColor(n));
+    const src = WIDE ? [...same.flatMap(d => d.main_deck), ...wideCands(cur, t)] : same.flatMap(d => d.main_deck);
+  const cand = [...new Set<string>(src)].filter(n => !isGuard(n) && bucket(n) === bucket(old) && !curNames.has(C(n).CardName) && okColor(n));
     if (!cand.length) return null;
     const nw = cand[rnd(cand.length)];
     const lb = cur.main_deck.filter(isLB).length - (isLB(old) ? k : 0) + (isLB(nw) ? k : 0);
