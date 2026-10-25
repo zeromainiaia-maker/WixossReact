@@ -44,6 +44,7 @@ import { computeEffectiveLrigLimit } from './lrigLimit';
 import { getResonaSummonCandidate, type ResonaPaymentSelection, type ResonaSummonCandidate } from './resonaSummon';
 import { planRiseSummon } from './riseSummon';
 import { resolveSigniZonePlacement } from './signiZoneBlock';
+import { clearZoneOnSigniLeave } from './leaveFieldZone';
 
 /**
  * 🆕§5.7 `S-15`＝**CPU の候補列挙器**（2026-09-20）。
@@ -96,6 +97,8 @@ export type CpuMove =
   | { kind: 'energy'; from: 'field'; zone: number; id: string }
   | { kind: 'grow'; card: CardData; costIndices: Set<number>; pool: EnergyPayEntry[] }
   | { kind: 'deploy'; handIndex: number; id: string; zone: number }
+  /** 🆕2026-10-25＝リムーブ（メインフェイズに自分のシグニを場からトラッシュへ＝ルール処理）。ポリシー `removeMoves` が 1 のときだけ列挙する。 */
+  | { kind: 'remove'; zone: number; id: string }
   | { kind: 'assistGrow'; card: CardData; side: 'l' | 'r'; costIndices: Set<number>; pool: EnergyPayEntry[] }
   | { kind: 'resona'; card: CardData; candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection; zone: number }
   | { kind: 'rise'; card: CardData; handIndex: number; zone: number; selection: NonNullable<ReturnType<typeof planRiseSummon>>['selection'] }
@@ -327,6 +330,44 @@ export function listCpuDeploys(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'deplo
     }
   }
   return out;
+}
+
+/**
+ * 🆕2026-10-25＝**リムーブの候補**（ユーザー要望「リムーブをしてさらに強い盤面にする判断」）。
+ * ■ 候補に出すのは**リムーブすると新しく出せるシグニがある**ゾーンだけ（そのゾーンへ出せる／リミットが空いて別のゾーンへ出せる札が増える）＝
+ *   探索の枝を無駄に増やさない。リムーブしてから何を出すかは探索（深さ4）が比べる。
+ * ⚠`SELF_SIGNI_TRASH`（リムーブ封じ）は人間と同じく見る（`blocked_actions` と【常】）。
+ */
+export function listCpuRemoves(ctx: CpuMoveCtx, blockedSelf: ReadonlySet<string>): Extract<CpuMove, { kind: 'remove' }>[] {
+  const s = ctx.actor;
+  if ((ctx.policy?.removeMoves ?? 0) <= 0) return [];
+  if (s.blocked_actions?.includes('SELF_SIGNI_TRASH') || blockedSelf.has('SELF_SIGNI_TRASH')) return [];
+  if (cpuHandSignis(ctx, s).length === 0) return [];
+  const before = new Set(listCpuDeploys(ctx).map(m => `${m.id}@${m.zone}`));
+  const out: Extract<CpuMove, { kind: 'remove' }>[] = [];
+  for (let zone = 0; zone < 3; zone++) {
+    const top = s.field.signi[zone]?.at(-1);
+    if (!top) continue;
+    const after = removeSigniSim(s, zone);
+    const enabled = listCpuDeploys({ ...ctx, actor: after }).some(m => !before.has(`${m.id}@${m.zone}`));
+    if (enabled) out.push({ kind: 'remove', zone, id: top });
+  }
+  return out;
+}
+
+/** リムーブを盤面へ写す（探索用＝誘発は数えない。ゾーンの後始末は人間と同じ `clearZoneOnSigniLeave`）。 */
+export function removeSigniSim(s: PlayerState, zone: number): PlayerState {
+  const stack = s.field.signi[zone] ?? [];
+  const cleaned = clearZoneOnSigniLeave(s.field, zone);
+  const signi = [...cleaned.field.signi] as (string[] | null)[];
+  signi[zone] = null;
+  return {
+    ...s,
+    field: { ...cleaned.field, signi },
+    trash: [...s.trash, ...stack, ...cleaned.trash],
+    lrig_trash: [...s.lrig_trash, ...cleaned.lrigTrash],
+    actions_done: [...(s.actions_done ?? []), 'REMOVE'],
+  };
 }
 
 // ─── アシストグロウ・レゾナ・ライズ（§5.6 `C-5`/`C-6`） ─────────────────
@@ -688,6 +729,7 @@ export function listCpuMoves(ctx: CpuMoveCtx, phase: TurnPhase, opts: { pendingS
     const pieceIn = cpuKeyPieceInput(ctx, 'MAIN');
     return [
       ...listCpuDeploys(ctx),
+      ...listCpuRemoves(ctx, blockedSelf),
       ...listCpuAssistGrows(ctx),
       ...(opts.pendingSpell ? [] : listCpuResonas(ctx)),
       ...listCpuRises(ctx),
@@ -718,7 +760,7 @@ export function listCpuMoves(ctx: CpuMoveCtx, phase: TurnPhase, opts: { pendingS
 export const CPU_MOVE_PRIORITY: Readonly<Partial<Record<TurnPhase, readonly CpuMoveKind[]>>> = {
   ENERGY: ['energy'],
   GROW: ['grow'],
-  MAIN: ['deploy', 'assistGrow', 'resona', 'rise', 'piece', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell'],
+  MAIN: ['deploy', 'remove', 'assistGrow', 'resona', 'rise', 'piece', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell'],
   ATTACK_ARTS: ['arts', 'piece', 'activate', 'lrigActivate', 'offFieldActivate'],
   ATTACK_SIGNI: ['signiAttack'],
   ATTACK_LRIG: ['lrigAttack'],
@@ -1188,6 +1230,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
         opp: opponent,
       };
     }
+    case 'remove': return { cpu: removeSigniSim(actor, move.zone), opp: opponent };
     case 'deploy': {
       const card = ctx.cardMap.get(getCardNum(move.id));
       if (!card) return null;
@@ -1266,7 +1309,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
 
 /** 探索用の適用ができる手の種類（できないものは従来の優先順に委ねる＝上の `applyCpuMoveSim`）。 */
 export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
-  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'assistGrow', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
+  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'remove', 'assistGrow', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
 
 /**
  * 🆕**その手が作戦データ（`S-2`）のどの「手」に当たるか**（§5.7 `S-14`・2026-09-21）。
@@ -1300,6 +1343,7 @@ export function describeCpuMove(m: CpuMove): string {
     case 'energy': return m.from === 'field' ? `energy:field:${m.id}@${m.zone}` : `energy:${m.id}`;
     case 'grow': return `grow:${m.card.CardNum}`;
     case 'deploy': return `deploy:${m.id}@${m.zone}`;
+    case 'remove': return `remove:${m.id}@${m.zone}`;
     case 'assistGrow': return `assistGrow:${m.card.CardNum}@${m.side}`;
     case 'resona': return `resona:${m.card.CardNum}@${m.zone}`;
     case 'rise': return `rise:${m.card.CardNum}@${m.zone}`;

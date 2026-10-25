@@ -127,6 +127,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'cutinGainMin', base: 4000, values: [0, 8000] },
   // ── 🆕2026-09-22＝コイン1枚の値段（【ベット】の判断）。⚠旧挙動（ベットしない）は `Infinity`＝プリセット `legacy-bet` で当てる。
   { key: 'betCoinValue', base: 1500, values: [0, 4000] },
+  // ── 🆕2026-10-25＝リムーブを手に入れる（0＝使わない）。
+  { key: 'removeMoves', base: 0, values: [1] },
 ];
 
 /**

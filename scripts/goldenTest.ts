@@ -89644,7 +89644,9 @@ test('§5.6 C-9 R-41/R-49 リムーブ＝場を離れたゾーンの後始末（
   eq(clearZoneOnSigniLeave(bare, 0).field.signi_soul, undefined, '未設定のソウル枠を生やしている');
   // 🔴**配線**＝リムーブと `reduceFieldSigniToLimit` は同じ関数を通る。
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(/const handleRemove = async[\s\S]{0,2000}clearZoneOnSigniLeave\(/.test(screen),
+  // 🆕2026-10-25＝リムーブの本体は `controller/performRemove.ts`（人間も CPU も同じ関数）。
+  const removeSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/performRemove.ts'), 'utf8');
+  ok(/const handleRemove = async[\s\S]{0,2000}performRemove\(/.test(screen) && /clearZoneOnSigniLeave\(/.test(removeSrc),
     '🔴リムーブがゾーンの後始末を通っていない');
   const limitSrc = fs.readFileSync(join(root, 'src/screens/battle/fieldLimit.ts'), 'utf8');
   ok(/clearZoneOnSigniLeave\(/.test(limitSrc), '🔴reduceFieldSigniToLimit が後始末を写経している');
@@ -93985,8 +93987,10 @@ test('2026-09-23 リムーブのログ：場からトラッシュへ動いたら
   // 🔴リムーブはルール処理（コスト/効果起因ではない）＝engine のログ経路を通らないので画面が書く。
   const battle = battleScreenSource();
   const h = battle.slice(battle.indexOf('const handleRemove = async ()'), battle.indexOf('const performArts = ('));
-  ok(h.includes('をリムーブ（場からトラッシュ）'), '🔴リムーブのログが無い＝盤面だけ黙って変わる（ユーザー報告）');
-  ok(h.includes('appendBattleLogs(removedSigniNums.map('), '🔴取り除いた枚数ぶん書いていない');
+  // 🆕2026-10-25＝本体は `controller/performRemove.ts`（人間も CPU も同じ関数）＝画面はその logs を書くだけ。
+  const rmSrc = fs.readFileSync(join(process.cwd(), 'src/screens/battle/controller/performRemove.ts'), 'utf8');
+  ok(rmSrc.includes('をリムーブ（場からトラッシュ）'), '🔴リムーブのログが無い＝盤面だけ黙って変わる（ユーザー報告）');
+  ok(rmSrc.includes('removedSigniNums.map(') && h.includes('appendBattleLogs(rm.logs)'), '🔴取り除いた枚数ぶん書いていない');
 }));
 
 test('2026-09-26 CPU のエナ：スペルをエナへ置かない／作戦データの「エナの扱い」（積極的に払う・温存）', () => withSavedCursor(() => {

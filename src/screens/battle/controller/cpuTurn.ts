@@ -8,6 +8,7 @@ import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, col
 import {getCardNum, evalUseCondition} from '../../../engine/effectExecutor';
 import {resolvePendingExiles} from '../../../engine/execUtils';
 import {initStack, pushToStack} from '../../../engine/effectStack';
+import {performRemove} from './performRemove';
 import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectTurnTriggers as pureCollectTurnTriggers, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay} from '../../../engine/triggerCollect';
 import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
@@ -694,6 +695,21 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         { card: move.choice.card, check: move.choice.check, kind: move.choice.kinds[0] ?? 'removal', costIndices: move.choice.costIndices, betCoins: move.choice.betCoins });
       case 'spell': return tryCpuMainSpell(actorState, move.choice);
       case 'assistGrow': return tryCpuAssistGrow(actorState, phase, move);
+      case 'remove': {
+        // 🆕2026-10-25＝リムーブ（人間と同じ `performRemove`）。再入した探索が空いたゾーン／リミットへ出す札を選ぶ。
+        if (phase !== 'MAIN') return false;
+        const rm = performRemove({ me: actorState, opp: huSt, meId: CPU_PLAYER_ID, meIsHost: false, zones: [move.zone], cardMap: battleCardMap, trigCtx: mkTrigCtx() });
+        d.observeChoice?.(move);
+        appendBattleLogs([`[CPU] リムーブ: ${battleCardMap.get(getCardNum(move.id))?.CardName ?? move.id}（ゾーン${move.zone + 1}）`, ...rm.logs]);
+        const opp = rm.oppChanged ? { key: 'host_state' as const, state: rm.opp } : undefined;
+        if (rm.entries.length > 0) {
+          const stack = bs.effect_stack ? pushToStack(bs.effect_stack, rm.entries) : initStack(CPU_PLAYER_ID, rm.entries);
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: rm.me, opp, effectStack: stack }));
+        } else {
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: rm.me, opp }));
+        }
+        return true;
+      }
       default: return false;
     }
   };

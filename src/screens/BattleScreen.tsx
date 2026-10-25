@@ -7,7 +7,7 @@ import {calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverri
 import {getCardNum} from '../engine/effectExecutor';
 import {LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
-import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
+import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
 import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers, collectSelfRevealFromHandTriggers as pureCollectSelfRevealFromHandTriggers} from '../engine/triggerCollect';
 import {allAcceCards} from '../utils/acce';
 import {C, CardModal, HandCards, PlayerField} from '../components/BoardComponents';
@@ -137,7 +137,7 @@ import { resolveStackStep, type StackResolveDeps} from './battle/controller/stac
 import {makeEffectInteractionHandlers} from './battle/controller/effectInteraction';
 import {reduceBattle, type PlayerStateKey} from './battle/controller/battleController';
 import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
-import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
+import {performRemove} from './battle/controller/performRemove';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
 import {normalizeCpuDeckPlan} from './battle/cpuDeckPlan';
@@ -2172,17 +2172,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
 
-  const collectTrashTriggers = (
-    trashedCardNum: string,
-    trashedPlayerId: string,
-    afterHostState: PlayerState,
-    afterGuestState: PlayerState,
-    causeByOpponent = false,
-    byCostOrEffect = true,
-    byEffectCause = true,
-    resonaConditionCardNum?: string,
-  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect, byEffectCause, resonaConditionCardNum);
   // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ON_BANISH／ON_SIGNI_POWER_ZERO_OR_LESS の薄いラッパも `controller/ruleChecks.ts` へ（同上）。
   /**
    * ON_TARGETED（「このシグニが対戦相手の能力か効果の対象になったとき」）のトリガーを収集する（C1 配線）。
@@ -2723,65 +2712,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     setShowRemoveModal(false);
     try {
-      const newSigni = [...my.field.signi] as (string[] | null)[];
-      let newTrash = [...my.trash];
-      let newLrigTrash = [...my.lrig_trash];
-      // 🔴**§5.6 `C-9` `R-41`（2026-09-17）＝リムーブだけがゾーンの後始末を1つもしていなかった。**
-      //   【チャーム】【アクセ】【ソウル】が浮いたまま残り（カードが消える）、`signi_down` / `signi_frozen` が
-      //   立ったままになって**次にそのゾーンへ置いたシグニがいきなりダウン／凍結**していた。
-      let removeField = my.field;
-      const removedSigniNums: string[] = [];
-      for (const zi of selectedRemoveZones) {
-        const stack = my.field.signi[zi] ?? [];
-        const top = stack.at(-1);
-        if (top) removedSigniNums.push(top);
-        newTrash = [...newTrash, ...stack];
-        newSigni[zi] = null;
-        const cleaned = clearZoneOnSigniLeave(removeField, zi);
-        removeField = cleaned.field;
-        newTrash = [...newTrash, ...cleaned.trash];
-        newLrigTrash = [...newLrigTrash, ...cleaned.lrigTrash];
-      }
-      const newMyState: PlayerState = clearEndOfAttackEffects({
-        ...my,
-        field: { ...removeField, signi: newSigni },
-        trash: newTrash,
-        lrig_trash: newLrigTrash,
-        actions_done: [...(my.actions_done ?? []), 'REMOVE'],
-      });
+      // 🆕2026-10-25＝本体は `controller/performRemove.ts`（CPU も同じ関数でリムーブする）。
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      // ON_TRASH トリガー（フィールドから直接トラッシュ）
-      // リムーブはルール処理でコスト/効果起因ではない（fromFieldByCostOrEffect/byEffect は発火しない。G204）
-      const removeTrashEntries: StackEntry[] = [];
-      // ⚠ 引数は host/guest 順（my/op 順ではない）。ゲスト側で my/op を渡すと watcher の場走査が
-      //    相手側にすり替わる（any_ally パスが死んでいた続き181 以前は無害だったが (xxxii) で顕在化）。
-      let myAfterTrash = newMyState;
-      let opAfterTrash = op;
-      for (const cn of removedSigniNums) {
-        const tt = collectTrashTriggers(cn, user.id, isHost ? myAfterTrash : opAfterTrash, isHost ? opAfterTrash : myAfterTrash, false, false, false);
-        removeTrashEntries.push(...tt.entries);
-        // self/any_ally は自分側、any_opp は相手側の watcher。両側の usageLimit をそれぞれ永続化する。
-        const usedMine = isHost ? tt.usedHostIds : tt.usedGuestIds;
-        const usedOpp = isHost ? tt.usedGuestIds : tt.usedHostIds;
-        if (usedMine.length > 0) myAfterTrash = { ...myAfterTrash, actions_done: [...(myAfterTrash.actions_done ?? []), ...usedMine] };
-        if (usedOpp.length > 0) opAfterTrash = { ...opAfterTrash, actions_done: [...(opAfterTrash.actions_done ?? []), ...usedOpp] };
-      }
-      const oppUsage = opAfterTrash !== op
-        ? { key: isHost ? ('guest_state' as const) : ('host_state' as const), state: opAfterTrash }
+      const rm = performRemove({ me: my, opp: op, meId: user.id, meIsHost: isHost, zones: selectedRemoveZones, cardMap: battleCardMap, trigCtx: mkTrigCtx() });
+      const oppUsage = rm.oppChanged
+        ? { key: isHost ? ('guest_state' as const) : ('host_state' as const), state: rm.opp }
         : undefined;
-      // 🆕🔴**リムーブのログが1行も出ていなかった**（2026-09-22 バグ報告 `5658e3f6`）＝
-      //   場からトラッシュへ3枚動いても**ログは無言**で、相手の画面では盤面だけが変わっていた。
-      //   ⚠**コスト/効果起因ではないルール処理**（上のコメント）なので engine のログ経路を通らない＝ここで書く。
-      if (removedSigniNums.length > 0) {
-        appendBattleLogs(removedSigniNums.map(cn =>
-          `${battleCardMap.get(getCardNum(cn))?.CardName ?? cn}をリムーブ（場からトラッシュ）`));
-      }
-      if (removeTrashEntries.length > 0) {
+      if (rm.logs.length > 0) appendBattleLogs(rm.logs);
+      if (rm.entries.length > 0) {
         const existing = bs?.effect_stack ?? null;
-        const stack = existing ? pushToStack(existing, removeTrashEntries) : initStack(user.id, removeTrashEntries);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: myAfterTrash, opp: oppUsage, effectStack: stack }));
+        const stack = existing ? pushToStack(existing, rm.entries) : initStack(user.id, rm.entries);
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: rm.me, opp: oppUsage, effectStack: stack }));
       } else {
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: myAfterTrash, opp: oppUsage }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: rm.me, opp: oppUsage }));
       }
     } finally {
       setLoading(false);
