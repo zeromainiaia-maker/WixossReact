@@ -49,6 +49,17 @@ const PREVENT_TYPES = new Set<string>([
   'PREVENT_DAMAGE', 'PREVENT_NEXT_DAMAGE', 'REPLACE_NEXT_DAMAGE_WITH_MILL', 'LIFE_CRASH_REPLACE',
 ]);
 /** 相手シグニを盤面から退かす／アタックできなくするアクション（`target.owner === 'opponent'` のときだけ守り）。 */
+/**
+ * 🆕2026-10-25＝**守りの意味が id で決まっている STUB**（`defensiveKindOf` は STUB を既定で見ない＝ここに明示した id だけ）。
+ * 🔴**なぜ要るか（自己対戦の負け方の集計）**＝緑子が《暴風警報》（このターン一度目と二度目のアタックを無効）を
+ *   **20敗すべてで使わずに**負けていた＝分類に入らず、作戦データで指名しないかぎりどの窓でも撃たれなかった。
+ *   - `NEGATE_NTH_ATTACK`＝《暴風警報》《避難勧告》《決闘文具》②（n 度目のアタックを無効）
+ *   - `PREVENT_DEFEAT_THIS_TURN`＝《炎のタマ》《不敗炎話》《ワンデイ・ポリス》ほか（このターン敗北しない）＝軽減と同じ扱い（ライフ2枚以下だけ）
+ */
+const DEFENSIVE_STUB_KINDS: Record<string, CpuDefensiveKind> = {
+  NEGATE_NTH_ATTACK: 'negate',
+  PREVENT_DEFEAT_THIS_TURN: 'prevent',
+};
 const REMOVAL_TYPES = new Set<string>([
   'BANISH', 'TRASH', 'BOUNCE', 'SEND_TO_ENERGY', 'FREEZE', 'DOWN',
 ]);
@@ -84,6 +95,7 @@ export function defensiveKindOf(action: EffectAction | undefined): CpuDefensiveK
     const obj = node as Record<string, unknown>;
     const type = typeof obj.type === 'string' ? obj.type : null;
     if (type === 'NEGATE_ATTACK') better('negate');
+    else if (type === 'STUB' && typeof obj.id === 'string' && DEFENSIVE_STUB_KINDS[obj.id]) better(DEFENSIVE_STUB_KINDS[obj.id]);
     else if (type && PREVENT_TYPES.has(type)) better('prevent');
     else if (type === 'SIGNI_ATTACK_BAN' && obj.owner === 'opponent') better('removal');
     else if (isOppPowerMinus(obj)) better('removal');

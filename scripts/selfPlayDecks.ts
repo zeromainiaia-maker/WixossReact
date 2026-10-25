@@ -44,7 +44,8 @@ interface DeckRow {
   cpu_plan?: unknown;
 }
 
-export const DECK_EXPORT_DIR = 'scratchpad-decks';
+// 🆕2026-10-25＝環境変数 `SELFPLAY_DECK_DIR` で読み先を差し替えられる（CPU デッキの書き出し先で A/B する＝子プロセスにも引き継がれる）。
+export const DECK_EXPORT_DIR = process.env.SELFPLAY_DECK_DIR || 'scratchpad-decks';
 
 /**
  * 合成デッキ（既定）＝`VERIFY_DECK_MECH`（`scripts/verifySetupDeck.mjs` と同じ構成）。

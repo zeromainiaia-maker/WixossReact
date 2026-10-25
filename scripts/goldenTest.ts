@@ -54047,6 +54047,10 @@ test('O-1 cpuArts: 守りの分類は「無効化→除去→軽減」で、STUB
   eq(kind({ type: 'BANISH', target: { type: 'LRIG', owner: 'opponent', count: 1 } }), null, 'シグニ以外の対象は除去に数えない');
   eq(kind({ type: 'DRAW', owner: 'self', count: 1 }), null, 'ドローは守りではない');
   eq(kind({ type: 'STUB', id: 'SOMETHING_DEFENSIVE' }), null, '🔴STUB は id ごとに意味が違う＝機械的に守りと決めつけない');
+  // 🆕2026-10-25＝守りの意味が id で決まっている STUB だけは明示して数える（緑子が《暴風警報》を20敗すべてで使わずに負けた）。
+  eq(kind({ type: 'STUB', id: 'NEGATE_NTH_ATTACK', negateNthAttack: { count: 2, signi: true, lrig: true } }), 'negate', '🔴n 度目のアタック無効（《暴風警報》）を守りに数えていない');
+  eq(kind({ type: 'STUB', id: 'PREVENT_DEFEAT_THIS_TURN' }), 'prevent', '🔴「このターン敗北しない」を軽減に数えていない');
+  eq(kind(effectsMap.get('WX10-018')?.[0]?.action), 'negate', '🔴live の《暴風警報》が守りの分類に入らない');
   // 🆕2026-10-23＝相手シグニへのパワーマイナスは除去（0 以下でバニッシュ）。ウリスが《サーベイジ・イリュージョン》を抱えて負けた。
   eq(kind({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -8000 }), 'removal', '🔴相手へのパワーマイナスを除去に数えていない');
   eq(kind({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: -8000 }), null, '自分のシグニへのマイナスは守りではない');
