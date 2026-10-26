@@ -11,7 +11,7 @@ import {
   pickCpuSearch, pickCpuTargets, pickCpuVirusZone, targetIntentFor, type CpuInteractionCtx,
 } from './cpuInteraction';
 import { declarationScalingCost } from './cpuDeclarationCost';
-import { pickCpuChoiceByLookahead } from './cpuLookahead';
+import { pickCpuChoiceByLookahead, pickCpuTargetsByLookahead, type LookaheadCtx } from './cpuLookahead';
 import type { ExecCtx } from '../../engine/effectExecutor';
 
 /**
@@ -136,8 +136,30 @@ export function decideCpuInteractionResponse(
   // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
   let selected: string[] = [];
   const logs: string[] = [];
+  const cpuTurn = d.activePlayerId === d.cpuPlayerId;
+  // 🆕2026-10-26＝先読みに渡す盤面（CPU が効果の持ち主のときだけ使う）。
+  const lookCtx = (): ExecCtx => ({
+    ownerState: cpuCtx.cpuState, otherState: cpuCtx.oppState, cardMap: d.cardMap, logs: [],
+    currentPhase: d.turnPhase ?? undefined, isOwnerTurn: cpuTurn,
+    sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, triggeringCardNum: pe.triggeringCardNum,
+    storedTargetCards: pe.storedTargetCards,
+  } as ExecCtx);
+  const lookLctx = (): LookaheadCtx => ({
+    cardMap: d.cardMap, effectsOf: id => d.effectsMap.get(id) ?? [],
+    powersOf: (c, o) => calcFieldPowers(c, o, cpuTurn, d.effectsMap, d.cardMap, d.turnPhase ?? 'MAIN'),
+    turnPhase: d.turnPhase ?? 'MAIN', isCpuTurn: cpuTurn, policy: d.policy,
+  });
   if (inter.type === 'SELECT_TARGET') {
     selected = pickCpuTargets(inter, cpuCtx);
+    // 🆕2026-10-26＝**候補ごとに効果を解決した盤面で比べ、従来の選び方より良ければ差し替える**（`targetLookahead`）。
+    //   ⚠CPU の効果のときだけ（相手の効果で CPU が選ぶ形は、効果の持ち主の目線で解決するので採点が逆になる）。
+    const looked = pe.sourcePlayerId === d.cpuPlayerId && !('opponentResponds' in inter && inter.opponentResponds)
+      ? pickCpuTargetsByLookahead(inter, lookCtx(), lookLctx(), selected)
+      : null;
+    if (looked) {
+      selected = looked;
+      logs.push('[CPU] 対象を先読みで選んだ');
+    }
     // 🆕🔴§5.7 `S-22`（2026-09-21）＝**効果の意味も置き場も読めず乱数で決めた対象選択**の回数＝**0 が正**
     //   （`census:play` の規則 `targetRandom`）。🔑**この失敗はどの計器にも映っていなかった**＝
     //   盤面も勝敗も静かに悪くなるだけで、golden も smoke も緑のまま通る。
@@ -150,19 +172,7 @@ export function decideCpuInteractionResponse(
     // 🆕2026-09-27（ユーザー指摘「WDA3 のディノスを CPU が弱く使っている」）＝**「AかB」は各肢を解決した盤面で比べる**
     //   （`cpuLookahead.pickCpuChoiceByLookahead`）。比べられない形（断る肢・支払い・複数選択・相手が選ぶ・CPU の効果でない）は従来の選び方。
     //   🔴旧＝押せる肢から**乱数**＝ディノスの【出】で、公開できるのに半分は自分をトラッシュしていた。
-    const cpuTurn = d.activePlayerId === d.cpuPlayerId;
-    const looked = pe.sourcePlayerId === d.cpuPlayerId
-      ? pickCpuChoiceByLookahead(inter, {
-        ownerState: cpuCtx.cpuState, otherState: cpuCtx.oppState, cardMap: d.cardMap, logs: [],
-        currentPhase: d.turnPhase ?? undefined, isOwnerTurn: cpuTurn,
-        sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, triggeringCardNum: pe.triggeringCardNum,
-        storedTargetCards: pe.storedTargetCards,
-      } as ExecCtx, {
-        cardMap: d.cardMap, effectsOf: id => d.effectsMap.get(id) ?? [],
-        powersOf: (c, o) => calcFieldPowers(c, o, cpuTurn, d.effectsMap, d.cardMap, d.turnPhase ?? 'MAIN'),
-        turnPhase: d.turnPhase ?? 'MAIN', isCpuTurn: cpuTurn, policy: d.policy,
-      })
-      : null;
+    const looked = pe.sourcePlayerId === d.cpuPlayerId ? pickCpuChoiceByLookahead(inter, lookCtx(), lookLctx()) : null;
     selected = looked ? [looked] : pickCpuChoice(inter, cpuCtx);
     const chosen = inter.options.find(o => o.id === selected[0]);
     // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。

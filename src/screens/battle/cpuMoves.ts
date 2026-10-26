@@ -629,6 +629,8 @@ export function cpuArtsInput(ctx: CpuMoveCtx, turnPhase: TurnPhase): CpuArtsPick
     actor: s, opponent: ctx.opponent, cards: ctx.battleCards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
     payer, turnPhase, alreadyUsedNums: s.cpu_used_card_nums_this_turn ?? [],
     lookahead: isActorTurn ? { ...ctx.lookahead, turnPhase } : undefined,
+    // 🆕2026-10-26＝相手ターンの応答窓の先読み（`defenseArtsLookahead`・既定0＝使わない）。
+    defenseLookahead: isActorTurn ? undefined : { ...ctx.lookahead, turnPhase, isCpuTurn: false },
     energyReserve: ctx.reserveFor(s),
     // 🆕§5.7 `S-31` ③＝**札ごとの使いどころ**（守り／攻め／使わない）。⚠アーツだけが窓を2つ持つ。
     plan: ctx.plan,

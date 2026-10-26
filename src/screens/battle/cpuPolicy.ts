@@ -344,6 +344,16 @@ export interface CpuPolicy {
    */
   readonly leaveTriggers: number;
   /**
+   * 🆕2026-10-26＝**効果の対象を先読みで比べる**（1＝本番の応答で、候補ごとに効果を最後まで解決した盤面を採点して選ぶ／
+   *   2＝探索の中の先読みでも同じことをする（測って差なし＝時間だけ増える）／0＝従来＝強さの並びだけ＝`legacy-targetlookahead`）。
+   */
+  readonly targetLookahead: number;
+  /**
+   * 🆕2026-10-26＝**相手ターンのアーツを先読みで選ぶ**（1＝応答窓の全アーツを「使った盤面＋このアタックフェイズに通るクラッシュ」で採点し、
+   *   一番良くなる札を使う・良くならなければ除去は撃たない／0＝従来＝分類の優先順＝`legacy-defensearts`）。
+   */
+  readonly defenseArtsLookahead: number;
+  /**
    * 🆕2026-09-22＝**コイン1枚の値段**（【ベット】の判断・`cpuBet.ts`）。
    *   「ベットして使った盤面」と「ベットせずに使った盤面」の増分の差が **この値 × ベット枚数** 以上ならベットする。
    *   🔑値段が要る理由＝`evaluateBoard` はコインを数えない（0 にすると差が1点でもベットする）。
@@ -461,6 +471,9 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   //   旧挙動は `legacy-remove`／`legacy-leavetriggers`。
   removeMoves: 1,
   leaveTriggers: 1,
+  // 🆕2026-10-26 ユーザー決定＝既定にした（cpuTurnEval 3シード：対象 21/11・相手ターンのアーツ 23/3、どちらも有意）。
+  targetLookahead: 1,
+  defenseArtsLookahead: 1,
   // 🆕2026-09-22＝ベットを判断する。旧挙動（一度もベットしない）は `legacy-bet`。
   betCoinValue: 1500,
 };
@@ -515,6 +528,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-remove': variant('legacy-remove', { removeMoves: 0 }),
   /** 🆕2026-10-25＝場を離れたときの【自】を先読みに入れない（既定にする前の CPU）。 */
   'legacy-leavetriggers': variant('legacy-leavetriggers', { leaveTriggers: 0 }),
+  'legacy-targetlookahead': variant('legacy-targetlookahead', { targetLookahead: 0 }),
+  'legacy-defensearts': variant('legacy-defensearts', { defenseArtsLookahead: 0 }),
   /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みを割り引かない（既定にする前の CPU）。 */
   'legacy-nextturnloss': variant('legacy-nextturnloss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0 } }),
   'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
@@ -691,13 +706,13 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
       || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'knowledgeArtsUse' || key === 'keyTrashAbility' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
-      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers') {
+      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers' || key === 'targetLookahead' || key === 'defenseArtsLookahead') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers / targetLookahead / defenseArtsLookahead`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

@@ -194,7 +194,7 @@ import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screen
 import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES, withKnowledgeArtsUse } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
-import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, pickCpuTargetsByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { listCpuRemoves, removeSigniSim } from '../src/screens/battle/cpuMoves';
 import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, cpuDeployBudget, cpuDeployPlaceable, cpuHandSignis, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
@@ -89096,6 +89096,48 @@ test('2026-10-23 次の相手ターンに殴られるレーン（nextThreat）�
   frozenOpp.field.signi_frozen = [true, false, false];
   eq(evaluateBoard(me(), frozenOpp, lctx(true)) - evaluateBoard(me(), frozenOpp, lctx(true, DEFAULT_CPU_POLICY)), 0,
     '🔴凍結している相手のシグニを「次に殴ってくる」に数えている');
+}));
+
+test('2026-10-26 CPU の効果の対象を先読みで選ぶ（targetLookahead）：落とせない大物より落とせる札を狙う・既定1', () => withSavedCursor(() => {
+  eq(DEFAULT_CPU_POLICY.targetLookahead, 1, '🔴既定の `targetLookahead` が 1 でない（2026-10-26 ユーザー決定）');
+  const powerOf = (n: string) => parseInt(cardMap.get(n)?.Power || '0', 10);
+  const WEAK = findCard(c => isSigni(c) && powerOf(c.CardNum) > 0 && powerOf(c.CardNum) <= 3000 && !(effectsMap.get(c.CardNum) ?? []).length);
+  const STRONG = findCard(c => isSigni(c) && powerOf(c.CardNum) >= 12000 && !(effectsMap.get(c.CardNum) ?? []).length);
+  const ctx = mkCtx({}, { signi: [WEAK, STRONG, null] });
+  const res = executeAction({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, delta: -5000 } as EffectAction, ctx);
+  ok(!res.done && res.pending.type === 'SELECT_TARGET', '前提崩れ＝対象選択にならない');
+  if (res.done || res.pending.type !== 'SELECT_TARGET') return;
+  const after = { ...ctx, ownerState: res.ownerState, otherState: res.otherState };
+  const lctx = (policy: CpuPolicy): LookaheadCtx => ({
+    cardMap: cardMap as Map<string, CardData>, effectsOf: () => [], policy,
+    powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, cardMap as Map<string, CardData>, 'MAIN'),
+  });
+  const heuristic = pickCpuTargets(res.pending, { cpuState: res.ownerState, oppState: res.otherState, cardMap: cardMap as Map<string, CardData>, effectsOf: () => [] });
+  eq(heuristic.join(), STRONG, '前提崩れ＝従来の選び方が一番強い札（落とせない大物）を狙っていない');
+  eq(pickCpuTargetsByLookahead(res.pending, after, lctx(DEFAULT_CPU_POLICY), heuristic)?.join(), WEAK,
+    '🔴先読みで「−5000 で落とせる札」を選ばない（12000 に −5000 しても場に残る）');
+  eq(pickCpuTargetsByLookahead(res.pending, after, lctx(CPU_POLICIES['legacy-targetlookahead']), heuristic), null, '🔴`legacy-targetlookahead` で先読みが止まらない（A/B の口）');
+}));
+
+test('2026-10-26 CPU の相手ターンのアーツを先読みで選ぶ（defenseArtsLookahead）：何も起きない札は撃たない・通るアタックを止める除去は撃つ・既定1', () => withSavedCursor(() => {
+  eq(DEFAULT_CPU_POLICY.defenseArtsLookahead, 1, '🔴既定の `defenseArtsLookahead` が 1 でない（2026-10-26 ユーザー決定）');
+  const allCards = [...cardMap.values()];
+  const ON = DEFAULT_CPU_POLICY;
+  const pick = (action: unknown, policy: CpuPolicy) => {
+    const f = artsFixture({ effs: [mkArtsEff(action)] });
+    return pickCpuResponseArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: 'ATTACK_ARTS_OP', alreadyUsedNums: [],
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+      defenseLookahead: { cardMap: f.cm, effectsOf: id => f.em.get(getCardNumG(id)) ?? [], policy, isCpuTurn: false },
+    });
+  };
+  // 正面が空いた相手シグニ（＝このアタックフェイズにライフが割られる）をバニッシュする札は、先読みでも使う。
+  const banish = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } };
+  eq(pick(banish, ON)?.card.CardNum, 'T-ARTS-1', '🔴通るアタックを止める除去を先読みが撃たない');
+  // 何も起きない札（自分の場にいないシグニを手札に戻す＝解決しても盤面が変わらない）は、アーツを1枚失うだけ＝撃たない。
+  //   ⚠作戦データで守りに指名した札だけが分類を通らず候補になる＝ここでは指名の代わりに「無効化」分類の STUB 以外で確かめる。
+  eq(pick({ type: 'DRAW', owner: 'self', count: 0 }, ON), null, '🔴何も起きないアーツを先読みが撃った');
 }));
 
 test('2026-10-25 次の相手ターンにバトルで落とされる見込み（nextTurnLoss）：正面の相手のほうが強いときだけ・同値と凍結は除く・既定0', () => withSavedCursor(() => {

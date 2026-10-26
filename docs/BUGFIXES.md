@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-10-26（第589バッチ・v0.676）CPU が相手ターンのアーツと効果の対象を先読みで選ぶ（既定オン＝ユーザー決定）／盤面の重みは据え置き
+- **ユーザー指示**＝「盤面の採点の重みを、この計器で調整する」→「重み以外で強くする方法」→「相手ターンのアーツ、効果の対象選びが強い手になると強くなる」。
+- **重みの調整（変えていない）**＝`cpuTurnEval`（claude1 のレガシー26対・打ち切り4回）で盤面の重み14本を半分／倍の27候補にした。**有意に出たのは全部「弱くなる」側**（`openLane=3000`・`hand=750`・`energy=2000`・`oppFrozen=5000`）＝既定はほぼ局所最適。良い向きの4候補をシード2・3で測り直すと全部差なし（`laneWin=3000` だけ3シード合計 11/6・有意ではない）。結果は作業ツリー `../wx-eval/out/weights_summary_s*.txt`。
+- **効果の対象選び（`targetLookahead`）**＝1体を選ぶ対象選択で、候補ごとに効果を最後まで解決した盤面を `evaluateBoard` で採点し、従来の並び（`pickCpuTargets`＝相手の一番強い札）より**真に高いときだけ**差し替える（任意なら「選ばない」も比べる）。`cpuLookahead.pickCpuTargetsByLookahead`／`cpuInteractionRespond`（CPU の効果のときだけ・ログ `[CPU] 対象を先読みで選んだ`）。2＝探索の中の先読みでも使う（測って差なし＝既定は1）。例＝12000 と 3000 に −5000 なら 3000 を落とす。
+- **相手ターンのアーツ（`defenseArtsLookahead`）**＝応答窓の使える全アーツを `scoreCardUseGain` で採点（`turnDamage` を `life` と同じ重みにして「このアタックフェイズに通るクラッシュ」を数える・アーツの値段は `artsKept`）し、一番良くなる札を使う。**採点して得にならない札は従来の分類からも外す**（解けない札＝無効化・敗北しない等の STUB は従来の分類に任せる）。`cpuArts.pickDefenseArtsByLookahead`・入力は `cpuArtsInput` の `defenseLookahead`。
+- **計器（3シード合計・判断が分かれた場面の 良／悪）**＝相手ターンのアーツ **23／3**（シード1 +0.120 [0.012, 0.227]・シード2,3 +0.154 [0.058, 0.250]）／対象 **21／11**（シード1 +0.050 差なし・シード2,3 +0.077 [0.017, 0.137]）。**今回のふるい分け約30候補で初めて有意に強くなった2つ**。
+- **既定**＝`targetLookahead: 1`／`defenseArtsLookahead: 1`。旧挙動のプリセット＝`legacy-targetlookahead`／`legacy-defensearts`。走査表の base も実値へ。
+- **検証**＝golden +2（−5000 で落とせる札を選ぶ／通るアタックを止める除去は撃つ・何も起きない札は撃たない・既定1・旧プリセットで止まる）・`npm run gates` 全緑・`selfplay:inv`（ユーザー作の全デッキ・2シード＝248戦）所見0・実機 `verifyFullMatch cpu` PASS（6ターン/142手で決着）。実機は `src/screens/battle/` を触ったため必須。
+
 ## 2026-10-25（第588バッチ・v0.675）CPU の既定に3つの判断を入れた（リムーブ・相手の【自】・次のターンの予想）＝ユーザー決定
 - **ユーザー決定**＝第587の3つ（計器 `cpuTurnEval` では差なし）を「人間らしい手のために」既定でオンにする。⚠アタックの探索（`searchAttacks`）は入れていない（1手ごとの計算が重く、計器でも 良7／悪4 で差なし）。
 - **既定**＝`removeMoves: 1`／`leaveTriggers: 1`／`boardWeights.nextTurnLoss: 0.5`。**旧挙動のプリセット**＝`legacy-remove`／`legacy-leavetriggers`／`legacy-nextturnloss`（A/B の A 側・消さない）。走査表（`cpuWeightScan.ts`）の base も実値へ。

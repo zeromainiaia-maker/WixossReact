@@ -300,7 +300,14 @@ function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx
   const them = opponentChooses ? ctx.ownerState : ctx.otherState;
   const ictx: CpuInteractionCtx = { cpuState: me, oppState: them, cardMap: lctx.cardMap, effectsOf: lctx.effectsOf, followUpCost };
   switch (pending.type) {
-    case 'SELECT_TARGET': return resumeSelectTarget(pickCpuTargets(pending, ictx), pending, ctx);
+    case 'SELECT_TARGET': {
+      const heuristic = pickCpuTargets(pending, ictx);
+      // 🆕2026-10-26＝`targetLookahead >= 2`＝探索の中でも対象を候補ごとに解決して比べる（相手が選ぶ対話は従来どおり）。
+      const best = !opponentChooses && (lctx.policy ?? DEFAULT_CPU_POLICY).targetLookahead >= 2
+        ? bestTargetByLookahead(pending, ctx, lctx, heuristic, followUpCost, choiceDepth)
+        : null;
+      return resumeSelectTarget(best ?? heuristic, pending, ctx);
+    }
     case 'SEARCH': return resumeSearch(pickCpuSearch(pending, ictx), pending, ctx);
     case 'CHOOSE': {
       // 🆕2026-09-27＝「AかB」は各肢を解決して比べる（比べられなければ従来の選び方）。
@@ -381,6 +388,67 @@ function bestChoiceByLookahead(
     if (!best || v > best.v) { best = { id: o.id, v }; tied = false; } else if (v === best.v) tied = true;
   }
   return best && !tied ? best.id : null;
+}
+
+/**
+ * 🆕2026-10-26（ユーザー「効果の対象選びが強い手になると強くなる」）＝**効果の対象を、候補ごとに最後まで解決した盤面で比べる**。
+ * 🔴**なぜ要るか**＝`pickCpuTargets` は「相手の一番強い札」の並びだけで選ぶ＝**パワーを下げる効果で落とせない大物を狙う**、
+ *   **バニッシュしても次のアタックが通らない札を選ぶ**、といった「盤面で見れば明らかな損」を見ない。
+ * ■ 比べるのは**1体を選ぶ形だけ**（パワー合計の上限・レベル合計の制約・相手が選ぶ形は従来どおり＝`null`）。
+ *   任意（`optional`）なら「選ばない」も1つの候補として比べる。
+ * ■ 🔑**従来の選び方（`heuristic`）より点数が真に高いときだけ**差し替える＝同点なら従来どおり（挙動を無駄に揺らさない）。
+ */
+function bestTargetByLookahead(
+  pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx, heuristic: string[],
+  followUpCost: DeclarationScalingCost | undefined, choiceDepth: number,
+): string[] | null {
+  if (pending.type !== 'SELECT_TARGET' || choiceDepth >= CHOICE_DEPTH) return null;
+  if (pending.totalPowerMax !== undefined || pending.selectionConstraint) return null;
+  if ((typeof pending.count === 'number' ? pending.count : 1) !== 1) return null;
+  const unplaceable = new Set(pending.unplaceableCards ?? []);
+  const options: string[][] = pending.candidates.filter(c => !unplaceable.has(c)).slice(0, TARGET_CANDIDATE_CAP).map(c => [c]);
+  if (pending.optional) options.push([]);
+  if (options.length < 2) return null;
+  const score = (sel: string[]): number | null => {
+    const end = runToDone(resumeSelectTarget(sel, pending, ctx), ctx, lctx, followUpCost, choiceDepth + 1);
+    return end ? evaluateBoard(end.cpu, end.opp, lctx) : null;
+  };
+  const base = score(heuristic);
+  if (base === null) return null;
+  let best: { sel: string[]; v: number } | null = null;
+  for (const sel of options) {
+    if (sel.length === heuristic.length && sel.every((c, i) => c === heuristic[i])) continue;
+    const v = score(sel);
+    if (v !== null && v > base && (!best || v > best.v)) best = { sel, v };
+  }
+  return best?.sel ?? null;
+}
+
+/** 🆕2026-10-26＝対象の先読みで比べる候補の上限（1候補＝効果1つを最後まで解決する）。 */
+const TARGET_CANDIDATE_CAP = 10;
+
+/**
+ * 🆕2026-10-26＝**本番の応答で効果の対象を先読みで選ぶ**（`cpuInteractionRespond`・`targetLookahead >= 1`）。
+ * 比べられない形・従来の選び方より良い候補が無いときは `null`＝従来の選び方。規律は `pickCpuChoiceByLookahead` と同じ。
+ */
+export function pickCpuTargetsByLookahead(
+  pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx, heuristic: string[],
+): string[] | null {
+  if ((lctx.policy ?? DEFAULT_CPU_POLICY).targetLookahead <= 0) return null;
+  const prevRng = currentRng();
+  setRng(mulberry32(0x5eed));
+  try {
+    const seed = boardSeed(ctx.ownerState, ctx.otherState, lctx.turnPhase ?? 'MAIN');
+    const hidden: ExecCtx = {
+      ...ctx, logs: [],
+      ownerState: hideDeckOrder(clone(ctx.ownerState), seed), otherState: hideDeckOrder(clone(ctx.otherState), seed ^ 0x9e3779b9),
+    };
+    return bestTargetByLookahead(pending, hidden, lctx, heuristic, undefined, 0);
+  } catch {
+    return null;
+  } finally {
+    setRng(prevRng);
+  }
 }
 
 /**

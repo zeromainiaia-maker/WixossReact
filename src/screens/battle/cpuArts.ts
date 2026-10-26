@@ -7,6 +7,7 @@ import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseG
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
 import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
+import { DEFAULT_CPU_POLICY } from './cpuPolicy';
 import { planArtsMarkedFor, planCardUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { cpuBetCoinsFor, cpuBetCoinsNeeded, cpuCanDeclareBet, withCpuBet } from './cpuBet';
 
@@ -305,6 +306,8 @@ export interface CpuArtsPickInput {
    * 増分が0以下なら使わない。⚠アーツは使い切りなので**使う条件（正面が塞がれている・除去）は据置**＝1手先だけで使い切らない。
    */
   lookahead?: LookaheadCtx;
+  /** 🆕2026-10-26＝相手ターンの応答窓の先読み（`isCpuTurn: false`）。使うのは `defenseArtsLookahead > 0` のときだけ。 */
+  defenseLookahead?: LookaheadCtx;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）＝応答アーツでも CPU の次のグロウ用エナを残す。 */
   energyReserve?: CpuEnergyReserve;
   /**
@@ -412,6 +415,13 @@ function pickCpuArtsBy(
     if (!kind) continue;
     candidates.push({ card, check, kind, costIndices, betCoins });
   }
+  // 🆕2026-10-26＝**相手ターンの応答窓は、使える全アーツを先読みで比べる**（`defenseArtsLookahead`）。
+  const defense = opts.isMyTurn ? null : pickDefenseArtsByLookahead(p);
+  if (defense) {
+    if (defense.choice) return defense.choice;
+    // 先読みで「使っても良くならない」と出た札は従来の選び方からも外す（解けなかった札＝無効化・軽減の STUB 等は残る）。
+    for (let i = candidates.length - 1; i >= 0; i--) if (defense.rejected.has(candidates[i].card.CardNum)) candidates.splice(i, 1);
+  }
   if (candidates.length === 0) return null;
   if (p.lookahead && opts.isMyTurn) {
     const lrigIdOf = (num: string) => actor.lrig_deck.find(id => getCardNum(id) === num) ?? num;
@@ -435,6 +445,35 @@ function pickCpuArtsBy(
     (PICK_PRIORITY[a.kind] - PICK_PRIORITY[b.kind]) ||
     ((deckOrder.get(a.card.CardNum) ?? 0) - (deckOrder.get(b.card.CardNum) ?? 0)));
   return candidates[0];
+}
+
+/**
+ * 🆕2026-10-26（ユーザー「相手ターンのアーツが強い手になると強くなる」）＝**応答窓のアーツを先読みで選ぶ**。
+ * 🔴**なぜ要るか**＝従来は分類（無効化→除去→軽減）の優先順とデッキ順だけ＝**どのアーツが一番効くか**、
+ *   **除去がアタックを止めるのか**を見ない。分類できない札（強化・ドロー・展開）は作戦データの指名が無いと撃たれない。
+ * ■ 採点＝`scoreCardUseGain`（使った盤面 − 使う前）。ただし**このアタックフェイズに通るクラッシュ**を数えるため、
+ *   `turnDamage` を `life` と同じ重みにして採点する（相手の手番＝`isCpuTurn: false` なので「殴られるレーン × ライフ1枚」）。
+ *   🔑アーツの値段は `artsKept`（残ったアーツの価値）がそのまま差し引く＝増分が正の札だけが「使う価値がある」。
+ * ⚠解けない札（無効化・敗北しない等の STUB）は採点できない＝`rejected` に入れず、従来の選び方に任せる。
+ * @returns `null`＝先読みしない（ポリシーが0・材料が無い）。
+ */
+function pickDefenseArtsByLookahead(p: CpuArtsPickInput): { choice: CpuArtsChoice | null; rejected: Set<string> } | null {
+  const look = p.defenseLookahead;
+  const policy = look?.policy ?? DEFAULT_CPU_POLICY;
+  if (!look || policy.defenseArtsLookahead <= 0) return null;
+  const W = policy.boardWeights;
+  const lctx: LookaheadCtx = { ...look, isCpuTurn: false, policy: { ...policy, boardWeights: { ...W, turnDamage: W.life } } };
+  const lrigIdOf = (num: string) => p.actor.lrig_deck.find(id => getCardNum(id) === num) ?? num;
+  const rejected = new Set<string>();
+  let best: { choice: CpuArtsChoice; gain: number } | null = null;
+  for (const { card, check, kinds, costIndices, betCoins } of listCpuArts(p, false)) {
+    const gain = scoreCardUseGain(lrigIdOf(card.CardNum), costIndices.size, withCpuBet(p.actor, betCoins ?? 0), p.opponent, lctx, 'lrig_deck');
+    if (gain === null) continue;
+    if (gain <= 0) { rejected.add(card.CardNum); continue; }
+    const kind: CpuArtsPickKind = planArtsMarkedFor(p.plan, card.CardNum, 'defense') ? 'plan' : (kinds[0] ?? 'plan');
+    if (!best || gain > best.gain) best = { choice: { card, check, kind, costIndices, betCoins }, gain };
+  }
+  return { choice: best?.choice ?? null, rejected };
 }
 
 /** 🆕§5.7 `S-31` ③＝その窓に指名された札が**1枚でも使える状態にあるか**（窓の足切りを外す判定）。 */
