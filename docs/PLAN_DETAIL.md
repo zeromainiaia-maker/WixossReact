@@ -2774,6 +2774,15 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-10-24 O-547・同期の真因・自己対戦の走査ほか・PLAN §6 から退避）
+
+- **2026-10-24 時点**（O-547・ディーバ総当たりの所見・同期の真因・実機の残り2点・O-546・`useEffect` の `loading`・自己対戦の走査で9系統・全角半角・v0.664〜0.671）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **2 / BASELINE 3**（原文照合の在庫に触れていない回＝動かない）
+  - 📦**在庫**＝🏁機構 worklist **0**｜実機 `V-nn` **0**｜実装キュー **0**｜CPU 完成度 **0**｜CPU の強さ **0**｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4554**＝+16・lint error **0**）｜実機 新設4本 PASS（`c9refreshturnenddiscard`／`lingeringZoneWX10051`／`o546DeckSearchLigerPay`／`o546DeckSearchLigerSkip`）・`verifyFullMatch cpu`（`SYNC_TRACE=1`）・`verifyRewind` PASS
+  - 🗄️**DB**＝`battle_states.updated_at` は `clock_timestamp()`（確定の順に増える＝`docs/sql/2026-10-24_updated_at_clock_timestamp.sql`）
+  - 🧱**`BattleScreen.tsx`**＝**4,459行**
+
 ## 恒久指標アーカイブ（2026-10-24 Supabase の権限・BattleScreen の分割ほか・PLAN §6 から退避）
 
 - **2026-10-24 時点**（Supabase の権限・Realtime の見張り・ディーバの CPU デッキ・BattleScreen の分割・CPU の召喚の条件・v0.655〜0.663）
