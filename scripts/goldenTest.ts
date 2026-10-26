@@ -194,7 +194,7 @@ import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screen
 import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES, withKnowledgeArtsUse } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
-import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuTargetsByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuOptionalCostByLookahead, pickCpuTargetsByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { listCpuRemoves, removeSigniSim } from '../src/screens/battle/cpuMoves';
 import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, cpuDeployBudget, cpuDeployPlaceable, cpuHandSignis, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
@@ -89223,6 +89223,79 @@ test('2026-10-26 パワー0以下のシグニはルール処理でバニッシ�
   eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 0]])), -E, '🔴相手のパワー0のシグニで相手のエナ+1を数えていない');
   eq(diff(new Map([['WD01-013#m1', -1000], ['WD01-013#o1', 5000]])), E, '🔴自分のパワー0以下のシグニで自分のエナ+1を数えていない');
   eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 1000]])), 0, '🔴パワーが残っているシグニでエナを数えている');
+}));
+
+test('2026-10-26 先読みの3つの読み違い（cpuSimDrift の所見）：保護（simProtection）・山札の並び（deckSamples）・チアガールと任意コスト（cheerValue/optionalCostLookahead）・チアガールの組だけ既定オン', () => withSavedCursor(() => {
+  eq(DEFAULT_CPU_POLICY.simProtection, 0, '🔴既定の `simProtection` が 0 でない（cpuTurnEval で差なし＝既定にしない・ユーザー決定）');
+  eq(DEFAULT_CPU_POLICY.deckSamples, 1, '🔴既定の `deckSamples` が 1 でない（差なし・計器が5.4倍遅い＝既定にしない・ユーザー決定）');
+  eq(DEFAULT_CPU_POLICY.cheerValue, 1, '🔴既定の `cheerValue` が 1 でない（2026-10-26 ユーザー決定＝既定オン）');
+  eq(DEFAULT_CPU_POLICY.optionalCostLookahead, 1, '🔴既定の `optionalCostLookahead` が 1 でない（2026-10-26 ユーザー決定＝既定オン）');
+  const LEGACY = CPU_POLICIES['legacy-cheer'];
+  const cm = new InstanceMap<CardData>(cardMap);
+  // 実戦の effectsMap は個体番号（`#…`）で引く＝保護の収集もそれで引くので、個体番号でも引ける Map を渡す。
+  const instEffects = new (class extends Map<string, CardEffect[]> { get(k: string) { return super.get(k) ?? super.get(getCardNumG(k)); } })(effectsMap);
+  const lctx = (policy: CpuPolicy): LookaheadCtx => ({
+    cardMap: cm as Map<string, CardData>, effectsOf: id => effectsMap.get(getCardNumG(id)) ?? [], effectsMap: instEffects, policy,
+    powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, cm as Map<string, CardData>, 'MAIN'),
+  });
+  // ① 保護＝《羅星姫　ペルセデス》【起】「対戦相手のシグニ１体をトラッシュに置く」は、《不可解な誇超　コンテンポラ》（＜美巧＞は対戦相手のシグニの効果を受けない）を動かせない。
+  {
+    const e3 = (effectsMap.get('WXEX2-29') ?? []).find(e => e.effectId === 'WXEX2-29-E3');
+    ok(!!e3, '前提崩れ＝《羅星姫　ペルセデス》の【起】が無い');
+    if (e3) {
+      const cpu = mkState({ signi: ['WXEX2-29#c1', null, null] });
+      const opp = mkState({ signi: ['WX04-035#o1', null, null] });
+      const top = (policy: CpuPolicy) => simulateEffect(e3, 'WXEX2-29#c1', cpu, opp, lctx(policy))?.opp.field.signi[0]?.at(-1);
+      eq(top(CPU_POLICIES['sim-protection']), 'WX04-035#o1', '🔴`simProtection` でも「対戦相手の効果を受けない」シグニを動かせる前提で読む');
+      ok(top(DEFAULT_CPU_POLICY) !== 'WX04-035#o1', '前提崩れ＝保護なしの先読みでも《コンテンポラ》が動かない（比べる意味が無い）');
+    }
+  }
+  // ② 山札の並び＝《羅石　ルリル》【出】「デッキの一番上が赤でなければこのシグニをトラッシュ」。山が赤1枚＋赤以外7枚なら、4通り試した真ん中は「トラッシュ」。
+  {
+    const onPlay = (effectsMap.get('WX12-Re12') ?? []).find(e => e.effectType === 'AUTO' && (e.timing ?? []).includes('ON_PLAY'));
+    ok(!!onPlay, '前提崩れ＝《羅石　ルリル》の【出】が無い');
+    const plain = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(c => isSigni(c) && !(effectsMap.get(c.CardNum) ?? []).length && pred(c))!.CardNum;
+    const RED = plain(c => c.Color === '赤'), BLUE = plain(c => c.Color === '青');
+    if (onPlay) {
+      const run = (deck: string[], policy: CpuPolicy) => {
+        const cpu = mkState({ signi: ['WX12-Re12#c1', null, null] });
+        cpu.deck = deck;
+        return simulateEffect(onPlay, 'WX12-Re12#c1', cpu, mkState({}), lctx(policy))?.cpu.field.signi[0]?.at(-1);
+      };
+      const mostlyBlue = [`${RED}#d0`, ...[1, 2, 3, 4, 5, 6, 7].map(i => `${BLUE}#d${i}`)];
+      eq(run(mostlyBlue, CPU_POLICIES['deck-samples']), undefined, '🔴`deckSamples` でも、ほぼ外れる公開を「当たる」で読む');
+      eq(run([1, 2, 3, 4].map(i => `${RED}#d${i}`), CPU_POLICIES['deck-samples']), 'WX12-Re12#c1', '🔴山が全部赤なのにトラッシュされる読み（標本の取り方が壊れている）');
+    }
+  }
+  // ③ チアガール＝チアゾーンのシグニの効果の点数を数える／埋まっているのに【出】《白》を払わない。
+  {
+    const st = (cheer: string | null) => { const s = mkState({ signi: [null, null, null] }); s.field.cheer = cheer; return s; };
+    const v = (policy: CpuPolicy) => evaluateBoard(st('WXEX2-29#c9'), st(null), lctx(policy)) - evaluateBoard(st(null), st(null), lctx(policy));
+    eq(v(LEGACY), 0, '前提崩れ＝`legacy-cheer` でチアゾーンを数えている');
+    ok(v(DEFAULT_CPU_POLICY) > 0, `🔴既定でチアゾーンのシグニの効果を数えていない（${v(DEFAULT_CPU_POLICY)}）`);
+    ok(v(CPU_POLICIES['cheer-value']) > 0, `🔴\`cheerValue\` でチアゾーンのシグニの効果を数えていない（${v(CPU_POLICIES['cheer-value'])}）`);
+    const e2 = (effectsMap.get('WXEX2-29') ?? []).find(e => e.effectId === 'WXEX2-29-E2');
+    const wrapped = e2 ? wrapOptionalOnPlay(e2) : null;
+    ok(!!wrapped, '前提崩れ＝《羅星姫　ペルセデス》の【出】《白》が「払いますか？」に包めない');
+    if (wrapped) {
+      const WHITE = [...cardMap.values()].find(c => isSigni(c) && c.Color === '白')!.CardNum;
+      const ctx = mkCtx({ signi: ['WXEX2-29', null, null] }, {}, 'WXEX2-29');
+      ctx.ownerState.energy = [WHITE, WHITE];
+      ctx.ownerState.field.cheer = 'WXEX2-29#c9';
+      const res = executeEffect(wrapped, ctx);
+      ok(!res.done && res.pending.type === 'CHOOSE', '前提崩れ＝「払いますか？」にならない');
+      if (!res.done && res.pending.type === 'CHOOSE') {
+        const after = { ...ctx, ownerState: res.ownerState, otherState: res.otherState };
+        const picked = pickCpuChoice(res.pending, { cpuState: res.ownerState, oppState: res.otherState, cardMap: cm as Map<string, CardData>, effectsOf: id => effectsMap.get(getCardNumG(id)) ?? [] });
+        const opt = res.pending.options.find(o => o.id === picked[0]);
+        ok(!!opt?.costColors?.length, `前提崩れ＝従来の選び方が払う肢を選ばない（${picked.join(',')}）`);
+        const dec = pickCpuOptionalCostByLookahead(res.pending, picked, after, lctx(CPU_POLICIES['cheer-value']));
+        ok(!!dec && isDeclineOption(res.pending.options.find(o => o.id === dec)!), '🔴チアゾーンが埋まっていて何も起きないのに《白》を払う');
+        ok(pickCpuOptionalCostByLookahead(res.pending, picked, after, lctx(DEFAULT_CPU_POLICY)) === dec, '🔴既定で任意コストの先読みが動かない');
+        eq(pickCpuOptionalCostByLookahead(res.pending, picked, after, lctx(LEGACY)), null, '🔴`legacy-cheer` で任意コストの先読みが動く（A/B の口）');
+      }
+    }
+  }
 }));
 
 test('§5.7 S-21 探索の目的関数：「打たない」を割る計器／行動への下駄／このターンに通るダメージ', () => withSavedCursor(() => {

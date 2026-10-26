@@ -1,5 +1,5 @@
 import { findSigniAutoPayGate, isSigniAutoAbility, wrapSigniAutoPayGate } from '../../../engine/blockAction';
-import { applyContinuousBaseLevelOverride, applyDeclaredZoneClassOverride, calcContinuousBlockedActions, calcFieldPowers, collectAbilityGainProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAttackPhaseLevelOverrides, collectAllColorSigniForField, collectBanishBySourceProtectedSigni, collectBanishEffectProtectedSigni, collectBounceProtectedSigni, collectCharmShieldSigni, collectDeckTrashLevel1Nums, collectDownProtectedSigni, collectEffectImmuneSigni, collectFieldSigniExtraColors, collectForcedTargets, collectOppTrashLoseColorClass, collectProtectedZoneRules, collectProtectedZones, collectSelfTrashPreventNums, collectTrashFieldProtectedSigni, collectTreatAsClassAllZones } from '../../../engine/effectEngine';
+import { collectForcedTargets } from '../../../engine/effectEngine';
 import { type ExecCtx, applyRefreshOnDone, executeEffect, getCardNum } from '../../../engine/effectExecutor';
 import { initStack, isReadyToResolve, isStackDone, pushToStack, shiftQueue } from '../../../engine/effectStack';
 import { pendingRespondsOpponent, resolvePendingExiles } from '../../../engine/execUtils';
@@ -12,6 +12,7 @@ import { type BattleAction } from './battleController';
 import { collectArtsUseForResolution, collectOppArtsUseForResolution } from './artsUseTriggers';
 import { makeBoardDiffCollector } from './boardDiffTriggers';
 import { makeFillDeployCaps, makeTrigCtx } from './execCtxDeps';
+import { effectProtectionMaterials } from './effectProtectionCtx';
 
 /**
  * 🆕**スタック解決の切り出し**（§5.7 `S-5a`・2026-09-18）＝`BattleScreen.resolveStackNext` の本体（385行）を
@@ -136,72 +137,11 @@ export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): S
   const newStack = abilityWatchEntries.length > 0 ? pushToStack(shiftedStack, abilityWatchEntries) : shiftedStack;
   const who = entry.playerId === deps.userId ? '自分' : '相手';
   logs.push(...[`[${who}] ${entry.label}`]);
-  // 【英知】条件のレベル読み替えを収集（位相限定かどうかは収集側が原文から判定する）。
-  // 値は**取りうるレベル群**なので `eichi_level_options` に入れる（単一値の
-  // `attack_phase_level_overrides` は SET_BASE_LEVEL 等が使う別物）。
-  const ownerLevelOverrides = collectAttackPhaseLevelOverrides(ownerState, deps.effectsMap, deps.cardMap, bs.turn_phase ?? undefined);
-  const ownerStateForCtx = Object.keys(ownerLevelOverrides).length > 0
-    ? { ...ownerState, eichi_level_options: ownerLevelOverrides } : ownerState;
-  const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, deps.effectsMap, deps.cardMap, bs.turn_phase);
-  // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
-  const otherProtectedZoneRules = collectProtectedZoneRules(otherState, deps.cardMap, deps.effectsMap, bs.turn_phase ?? undefined);
-  const otherProtectedZones = collectProtectedZones(otherState, deps.cardMap, deps.effectsMap, bs.turn_phase ?? undefined);
-  // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
-  const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, ownerStateForCtx, deps.cardMap, deps.effectsMap, !isOwnerTurn);
-  const otherAttackNegationProtectedNums = collectAttackNegationProtectedSigni(otherState, ownerStateForCtx, deps.cardMap, deps.effectsMap, !isOwnerTurn);
-  // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
-  // !isOwnerTurn: 相手(otherState)視点での isOwnerTurn を渡す（collectAbilityProtectedSigni と同じ慣例）
-  const otherDownProtectedNums = collectDownProtectedSigni(otherState, deps.cardMap, deps.effectsMap, ownerStateForCtx, !isOwnerTurn);
-  // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
-  const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, deps.cardMap, deps.effectsMap, ownerStateForCtx, !isOwnerTurn, bs.turn_phase);
-  // GRANT_PROTECTION from=['BANISH'/'any']: 相手フィールドのバニッシュ保護シグニ
-  const otherBanishProtectedNums = collectBanishEffectProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, deps.effectsMap, deps.cardMap, undefined, 'opponent', bs.turn_phase);
-  // 発生源無限定（sourceOwner:any）の耐性は、自分の効果で自場をバニッシュする場合にも有効。
-  // opponent 指定はこの集合へ入らないため、既存の相手限定耐性は広がらない。
-  const ownBanishProtectedNums0 = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, deps.effectsMap, deps.cardMap, ctxPowers, 'self', bs.turn_phase);
-  // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
-  const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, deps.cardMap, deps.effectsMap, ownerStateForCtx, !isOwnerTurn);
-  // SELF_TRASH_PREVENT（WX07-033）: 効果オーナー自身が自シグニをトラッシュに置けない制限（§6.1）
-  const ownSelfTrashPreventNums = collectSelfTrashPreventNums(ownerStateForCtx, otherState, isOwnerTurn, deps.effectsMap, deps.cardMap);
-  // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP: 能力付与保護シグニ
-  // !isOwnerTurn: 第1引数 otherState（相手）視点でのisOwnerTurnを渡す
-  const otherAbilityGainProtectedNums0 = collectAbilityGainProtectedSigni(otherState, ownerStateForCtx, deps.cardMap, deps.effectsMap, !isOwnerTurn);
-  // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」WX04-035-E1等）:
-  // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
-  const immuneSourceType = deps.cardMap.get(entry.cardNum)?.Type ?? '';
-  const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, deps.cardMap, deps.effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType);
-  // 🆕**§5.3 `O-284`（2026-09-08）＝自分側の完全効果耐性も対で計算する。**
-  //   🔴上の1本だけだと「**対戦相手の効果が自分側を侵すか**」しか判定されず、
-  //     `sourceOwner:'any'`（`WX17-001-E1`「自身以外の効果を受けない」）は**自分の効果に対して素通り**だった。
-  //   🔑先例＝`collectBanishEffectProtectedSigni` の `otherBanishProtectedNums` / `ownBanishProtectedNums` の対。
-  //   ⚠`sourceOwner:'opponent'` の耐性はこの集合に入らない（collector が弾く）＝既存の相手限定耐性は広がらない。
-  const ownEffectImmuneNums = collectEffectImmuneSigni(ownerStateForCtx, otherState, deps.cardMap, deps.effectsMap, isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType, ctxPowers);
-  // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
-  const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(
-    otherState, ownerStateForCtx, !isOwnerTurn, deps.effectsMap, deps.cardMap, immuneSourceType, entry.cardNum,
-  );
-  const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
-  const otherBounceProtectedNumsM = [...otherBounceProtectedNums, ...otherEffectImmuneNums];
-  const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums, ...otherBanishBySourceNums]);
-  const otherTrashFieldProtectedNumsM = [...otherTrashFieldProtectedNums, ...otherEffectImmuneNums];
-  const otherProtectedSigniNumsM  = [...otherProtectedSigniNums, ...otherEffectImmuneNums];
-  // 🆕§5.3 `O-284`＝自分側の完全効果耐性はバニッシュ保護へも union する（相手側と同じ扱い）。
-  const ownBanishProtectedNumsM = new Set<string>([...ownBanishProtectedNums0, ...ownEffectImmuneNums]);
-  const otherAbilityGainProtectedNums = [...otherAbilityGainProtectedNums0, ...otherEffectImmuneNums];
-  // BLOCK_OPP_DECK_TO_ENERGY / BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT
-  const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, deps.effectsMap, deps.cardMap);
-  const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerStateForCtx, deps.cardMap, deps.effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, deps.cardMap, deps.effectsMap, ownerStateForCtx, !isOwnerTurn)]);
-  const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerStateForCtx, deps.cardMap, deps.effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, deps.cardMap, deps.effectsMap, ownerStateForCtx, !isOwnerTurn)]);
-  // OPP_TRASH_LOSE_COLOR_AND_CLASS: otherState が自ターン中にこの効果を持つとき ownerState のトラッシュが色/クラスを失う
-  const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerStateForCtx, deps.effectsMap, deps.cardMap, !isOwnerTurn);
-  const treatAsClassAllZones = collectTreatAsClassAllZones(ownerStateForCtx, otherState, deps.effectsMap, deps.cardMap);
-  const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerStateForCtx, otherState, deps.effectsMap, deps.cardMap);
-  const declaredCardMap1 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(deps.cardMap, ownerStateForCtx, otherState), ownerStateForCtx, otherState, deps.effectsMap, isOwnerTurn);
-  // CHARM_PROTECTION（WX04-052-E1）: 両プレイヤーのチャーム盾シグニ
-  const charmShieldNums = new Set<string>([
-    ...collectCharmShieldSigni(ownerStateForCtx, otherState, isOwnerTurn, deps.effectsMap, deps.cardMap),
-    ...collectCharmShieldSigni(otherState, ownerStateForCtx, !isOwnerTurn, deps.effectsMap, deps.cardMap),
-  ]);
+  // 🆕2026-10-26＝保護・常時効果の材料は `effectProtectionCtx.ts` へ移設（CPU の先読みも同じ関数を使う）。
+  const { ownerStateForCtx, ctxPowers, declaredCardMap1, otherProtectedZones, otherProtectedZoneRules, otherProtectedSigniNumsM, otherAttackNegationProtectedNums, otherDownProtectedNumsM, otherBounceProtectedNumsM, otherBanishProtectedNumsM, ownBanishProtectedNumsM, otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums, ownEffectImmuneNums, charmShieldNums, contBlockedCtx, allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums } = effectProtectionMaterials({
+    ownerState, otherState, isOwnerTurn, cardMap: deps.cardMap, effectsMap: deps.effectsMap, turnPhase: bs.turn_phase,
+    sourceCardNum: entry.cardNum, effectType: entry.effect.effectType,
+  });
   // ⚠ `currentPhase` は**この8箇所すべてに渡すこと**（タスク12(cvii)）。engine 側にはフェイズを見る
   //   機構が4本あるが（`isOwnTrashMoveLocked`／`DURING_PHASE` 条件／`applyEffectLeaveNoAbilityDeck
   //   BottomSubstitute`／`banishRedirectOpts.turnPhase`）、いずれも**フェイズ不明なら成立させない側へ

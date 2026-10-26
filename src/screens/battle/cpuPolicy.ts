@@ -364,6 +364,20 @@ export interface CpuPolicy {
    */
   readonly zeroPowerEnergy: number;
   /**
+   * 🆕2026-10-26＝**先読みの効果解決に保護・常時効果を入れる**（1＝実戦のスタック解決と同じ「対戦相手の効果を受けない」・バニッシュ耐性等／
+   *   0＝従来＝入れない＝守られたシグニも対象にできる前提で読む）。`scripts/cpuSimDrift.ts` の所見。
+   */
+  readonly simProtection: number;
+  /**
+   * 🆕2026-10-26＝**山札の並び・相手の手札の中身で結果が変わる効果を何通り試すか**（1＝従来＝1通り／N＝山を N 通りに混ぜて解決し、
+   *   点数が真ん中の結果を予想に使う）。山札の枚数が変わる効果だけ（公開・ドロー・サーチ・ミル）。
+   */
+  readonly deckSamples: number;
+  /** 🆕2026-10-26＝**チアゾーンのシグニの効果の点数を盤面の採点に入れる**（1＝入れる＝既定／0＝従来＝チアガールは場から消えた扱い＝`legacy-cheer`）。 */
+  readonly cheerValue: number;
+  /** 🆕2026-10-26＝**任意のコストを、払った盤面と断った盤面で比べる**（1＝断るほうが高ければ断る／0＝従来＝払えるなら払う）。 */
+  readonly optionalCostLookahead: number;
+  /**
    * 🆕2026-09-22＝**コイン1枚の値段**（【ベット】の判断・`cpuBet.ts`）。
    *   「ベットして使った盤面」と「ベットせずに使った盤面」の増分の差が **この値 × ベット枚数** 以上ならベットする。
    *   🔑値段が要る理由＝`evaluateBoard` はコインを数えない（0 にすると差が1点でもベットする）。
@@ -487,6 +501,11 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   // 🆕2026-10-26 ユーザー決定＝既定にした（3シード 17/12・有意ではないが乱数の選択をなくす・アーツの予想のズレ 1687→976）。
   multiChoiceLookahead: 1,
   zeroPowerEnergy: 0,
+  simProtection: 0,
+  deckSamples: 1,
+  // 🆕2026-10-26 ユーザー決定＝既定にした（cpuTurnEval 3シード 11/3・+0.092 [0.019, 0.164] 有意）。旧挙動は `legacy-cheer`。
+  cheerValue: 1,
+  optionalCostLookahead: 1,
   // 🆕2026-09-22＝ベットを判断する。旧挙動（一度もベットしない）は `legacy-bet`。
   betCoinValue: 1500,
 };
@@ -546,6 +565,12 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-multichoice': variant('legacy-multichoice', { multiChoiceLookahead: 0 }),
   /** 🆕2026-10-26＝パワー0以下のバニッシュで持ち主のエナが増えるのを採点に入れる（既定にする前の試験）。 */
   'zero-power-energy': variant('zero-power-energy', { zeroPowerEnergy: 1 }),
+  /** 🆕2026-10-26＝先読みに保護・常時効果を入れる／山札の並びを4通り試す（既定にする前の試験）。 */
+  'sim-protection': variant('sim-protection', { simProtection: 1 }),
+  'deck-samples': variant('deck-samples', { deckSamples: 4 }),
+  'cheer-value': variant('cheer-value', { cheerValue: 1, optionalCostLookahead: 1 }),
+  /** 🆕2026-10-26＝チアガールを場から消えた扱い・任意コストは払えるなら払う（既定にする前の CPU）。 */
+  'legacy-cheer': variant('legacy-cheer', { cheerValue: 0, optionalCostLookahead: 0 }),
   /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みを割り引かない（既定にする前の CPU）。 */
   'legacy-nextturnloss': variant('legacy-nextturnloss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0 } }),
   'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
@@ -722,13 +747,13 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
       || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'knowledgeArtsUse' || key === 'keyTrashAbility' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
-      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers' || key === 'targetLookahead' || key === 'defenseArtsLookahead' || key === 'multiChoiceLookahead' || key === 'zeroPowerEnergy') {
+      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers' || key === 'targetLookahead' || key === 'defenseArtsLookahead' || key === 'multiChoiceLookahead' || key === 'zeroPowerEnergy' || key === 'simProtection' || key === 'deckSamples' || key === 'cheerValue' || key === 'optionalCostLookahead') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers / targetLookahead / defenseArtsLookahead / multiChoiceLookahead / zeroPowerEnergy`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers / targetLookahead / defenseArtsLookahead / multiChoiceLookahead / zeroPowerEnergy / simProtection / deckSamples / cheerValue / optionalCostLookahead`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

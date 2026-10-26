@@ -11,7 +11,7 @@ import {
   pickCpuSearch, pickCpuTargets, pickCpuVirusZone, targetIntentFor, type CpuInteractionCtx,
 } from './cpuInteraction';
 import { declarationScalingCost } from './cpuDeclarationCost';
-import { pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuTargetsByLookahead, type LookaheadCtx } from './cpuLookahead';
+import { pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuOptionalCostByLookahead, pickCpuTargetsByLookahead, type LookaheadCtx } from './cpuLookahead';
 import type { ExecCtx } from '../../engine/effectExecutor';
 
 /**
@@ -145,7 +145,7 @@ export function decideCpuInteractionResponse(
     storedTargetCards: pe.storedTargetCards,
   } as ExecCtx);
   const lookLctx = (): LookaheadCtx => ({
-    cardMap: d.cardMap, effectsOf: id => d.effectsMap.get(id) ?? [],
+    cardMap: d.cardMap, effectsOf: id => d.effectsMap.get(id) ?? [], effectsMap: d.effectsMap,
     powersOf: (c, o) => calcFieldPowers(c, o, cpuTurn, d.effectsMap, d.cardMap, d.turnPhase ?? 'MAIN'),
     turnPhase: d.turnPhase ?? 'MAIN', isCpuTurn: cpuTurn, policy: d.policy,
   });
@@ -177,6 +177,10 @@ export function decideCpuInteractionResponse(
     const lookedMulti = !looked && inter.multiSelect && pe.sourcePlayerId === d.cpuPlayerId
       ? pickCpuMultiChoiceByLookahead(inter, lookCtx(), lookLctx()) : null;
     selected = looked ? [looked] : lookedMulti ?? pickCpuChoice(inter, cpuCtx);
+    // 🆕2026-10-26＝任意のコストは払った盤面と断った盤面を比べ、断るほうが高ければ断る（`optionalCostLookahead`）。
+    const declined = !looked && !lookedMulti && pe.sourcePlayerId === d.cpuPlayerId
+      ? pickCpuOptionalCostByLookahead(inter, selected, lookCtx(), lookLctx()) : null;
+    if (declined) selected = [declined];
     if (lookedMulti) logs.push(`[CPU] 選択: ${lookedMulti.map(id => inter.options.find(o => o.id === id)?.label ?? id).join('／')}（先読み）`);
     const chosen = inter.options.find(o => o.id === selected[0]);
     // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。

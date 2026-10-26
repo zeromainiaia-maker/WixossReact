@@ -603,6 +603,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const cpuLookahead: LookaheadCtx = {
     cardMap: battleCardMap,
     effectsOf: id => effectsMap.get(id) ?? [],
+    effectsMap,
     powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, battleCardMap, 'MAIN'),
     turnPhase: 'MAIN',
     policy: cpuPolicy,

@@ -11,6 +11,7 @@ import { getCardNum } from '../../engine/execUtils';
 import { checkActiveCondition } from '../../engine/effectEngine';
 import { onPlayOriginMatches } from '../../engine/triggerCollect';
 import { currentRng, mulberry32, setRng, shuffle } from '../../engine/rng';
+import { effectProtectionCtxFields, effectProtectionMaterials } from './controller/effectProtectionCtx';
 import { effectValueOf } from './cpuCardStrength';
 import { cpuAttackValueOf } from './cpuBoardEval';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
@@ -59,6 +60,11 @@ export interface LookaheadCtx {
    * 🔑**「グロウ先が無い」と「払えない」を分ける**＝前者は `undefined` を返す（加点も減点もしない）。
    */
   canPayNextGrow?: (st: PlayerState) => boolean | undefined;
+  /**
+   * 🆕2026-10-26＝カード番号 → 効果（実戦の `effectsMap`）。渡すと先読みの効果解決にも保護・常時効果（「対戦相手の効果を受けない」等）を入れる
+   *   （`simProtection`・材料は実戦のスタック解決と同じ `effectProtectionMaterials`）。
+   */
+  effectsMap?: Map<string, CardEffect[]>;
 }
 
 const STEP_CAP = 40;
@@ -181,7 +187,10 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     if (!top) return 0;
     return scoringPowerOf(top, ctx, powers) * W.fieldPowerScale + effectValueOf(ctx.effectsOf(top), 'field', ctx.policy);
   };
-  const fieldValue = (st: PlayerState) => [0, 1, 2].reduce((sum, zi) => sum + signiValue(st, zi), 0);
+  // 🆕2026-10-26＝チアゾーンのシグニ（チアガール）は能力が働く＝効果の点数だけ数える（パワー・レーンは無い）。`cheerValue`。
+  const cheerOn = (ctx.policy ?? DEFAULT_CPU_POLICY).cheerValue > 0;
+  const cheerValue = (st: PlayerState) => cheerOn && st.field.cheer ? effectValueOf(ctx.effectsOf(st.field.cheer), 'field', ctx.policy) : 0;
+  const fieldValue = (st: PlayerState) => [0, 1, 2].reduce((sum, zi) => sum + signiValue(st, zi), 0) + cheerValue(st);
   // ⚠**空き判定も `topOf` を通す**＝パワー0以下のシグニが正面に残っていると「塞がっている」と誤読する。
   /**
    * 🆕§5.7 `S-18`＝**次のターンの制約**。①次のグロウが払えるか ②手札が0（③【ガード】の温存は下の自分側だけの項）。
@@ -436,6 +445,38 @@ function bestMultiChoiceByLookahead(
   return best?.sel ?? null;
 }
 
+/**
+ * 🆕2026-10-26＝**任意のコスト（「《白》を支払ってもよい」）を、払った盤面と断った盤面で比べる**（`optionalCostLookahead`）。
+ * 🔴なぜ要るか（`scripts/cpuSimDrift.ts`）＝従来は払えるなら必ず払う＝《羅星姫　ペルセデス》の【出】《白》を
+ *   **チアゾーンが埋まっていて何も起きないのに払っていた**（エナ1枚の損）。
+ * 断るほうが**真に高いとき**だけ断る肢の id を返す（それ以外は `null`＝従来どおり払う）。`picked` は従来の選び方（`[肢, 払うエナ…]`）。
+ */
+export function pickCpuOptionalCostByLookahead(pending: PendingInteractionDef, picked: string[], ctx: ExecCtx, lctx: LookaheadCtx): string | null {
+  if ((lctx.policy ?? DEFAULT_CPU_POLICY).optionalCostLookahead <= 0) return null;
+  if (pending.type !== 'CHOOSE' || pending.multiSelect || pending.opponentResponds || pending.leaveSubstituteAsk || pending.costlessOpponentChoice) return null;
+  const opt = pending.options.find(o => o.id === picked[0]);
+  if (!opt || !(opt.costColors?.length || opt.coinCost)) return null;
+  const decline = pending.options.find(o => o.available && isDeclineOption(o));
+  if (!decline) return null;
+  const prevRng = currentRng();
+  setRng(mulberry32(0x5eed));
+  try {
+    const seed = boardSeed(ctx.ownerState, ctx.otherState, lctx.turnPhase ?? 'MAIN');
+    const hidden: ExecCtx = {
+      ...ctx, logs: [],
+      ownerState: hideDeckOrder(clone(ctx.ownerState), seed), otherState: hideDeckOrder(clone(ctx.otherState), seed ^ 0x9e3779b9),
+    };
+    const pay = runToDone(resumeOptionalCost(opt.id, picked.slice(1), pending, hidden), hidden, lctx, undefined, 1);
+    const dec = runToDone(resumeChoose(decline.id, pending, hidden), hidden, lctx, undefined, 1);
+    if (!pay || !dec) return null;
+    return evaluateBoard(dec.cpu, dec.opp, lctx) > evaluateBoard(pay.cpu, pay.opp, lctx) ? decline.id : null;
+  } catch {
+    return null;
+  } finally {
+    setRng(prevRng);
+  }
+}
+
 /** 🆕2026-10-26＝**本番の応答で「４つから２つまで選ぶ」を先読みで選ぶ**（`cpuInteractionRespond`）。規律は `pickCpuChoiceByLookahead` と同じ。 */
 export function pickCpuMultiChoiceByLookahead(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx): string[] | null {
   const prevRng = currentRng();
@@ -543,15 +584,63 @@ export function pickCpuChoiceByLookahead(pending: PendingInteractionDef, ctx: Ex
 export function simulateEffect(
   effect: CardEffect, sourceId: string, cpu: PlayerState, opp: PlayerState, lctx: LookaheadCtx,
 ): { cpu: PlayerState; opp: PlayerState } | null {
+  // 🔴山の順序は見てはいけない（`hideDeckOrder`）＝seed は見えている情報だけから作る。
+  const seed = boardSeed(cpu, opp, lctx.turnPhase ?? 'MAIN');
+  const first = simulateEffectOnce(effect, sourceId, cpu, opp, lctx, seed, 0x5eed);
+  /**
+   * 🆕2026-10-26＝**山札の並び・相手の手札の中身で結果が変わる効果は N 通り試して、点数が真ん中の結果を使う**（`deckSamples`）。
+   * 🔴なぜ要るか（`scripts/cpuSimDrift.ts`）＝「デッキの一番上を公開し、それが○○なら場に出す」（PR-372 ほか）を
+   *   伏せた山の1通りだけで読むと、たまたま当たった並びで「得」と判断して撃つ（実際は外れて損）。
+   * ⚠試すのは**山札・公開・ドロー・ランダムに触れる効果か、山札か相手の手札の枚数が変わった効果だけ**（それ以外は並びに依らない＝1通りで足りる）。
+   *   🔑「一番上を公開する」は山の枚数が変わらない（外れたら戻るだけ）ので、枚数だけでは見落とす＝効果の中身でも判定する。
+   * ⚠決定論は保つ＝2通り目以降の seed も盤面から決める。
+   */
+  const n = Math.max(1, Math.floor((lctx.policy ?? DEFAULT_CPU_POLICY).deckSamples));
+  if (!first || n <= 1 || lctx.inLeaveTrigger) return first;
+  const touched = deckDependent(effect)
+    || first.cpu.deck.length !== cpu.deck.length || first.opp.deck.length !== opp.deck.length || first.opp.hand.length !== opp.hand.length;
+  if (!touched) return first;
+  const samples = [first];
+  for (let i = 1; i < n; i++) {
+    const r = simulateEffectOnce(effect, sourceId, cpu, opp, lctx, (seed + Math.imul(i, 0x632be5ab)) >>> 0, (0x5eed + i * 0x9e37) >>> 0);
+    if (r) samples.push(r);
+  }
+  const scored = samples.map(r => ({ r, v: evaluateBoard(r.cpu, r.opp, lctx) })).sort((x, y) => x.v - y.v);
+  // 偶数なら下側の真ん中（楽観しない）。
+  return scored[Math.floor((scored.length - 1) / 2)].r;
+}
+
+/** 🆕2026-10-26＝山札の並び・乱数に結果が依る効果か（効果の中身の語で判定・効果ごとに覚える）。 */
+const deckDependentMemo = new WeakMap<CardEffect, boolean>();
+function deckDependent(e: CardEffect): boolean {
+  let v = deckDependentMemo.get(e);
+  if (v === undefined) {
+    v = /REVEAL|DECK|LOOK|DRAW|MILL|RANDOM/i.test(JSON.stringify(e.action ?? null));
+    deckDependentMemo.set(e, v);
+  }
+  return v;
+}
+
+/** 効果を1通りの山の並び（`seed`）・乱数（`rngSeed`）で解決した盤面。 */
+function simulateEffectOnce(
+  effect: CardEffect, sourceId: string, cpu: PlayerState, opp: PlayerState, lctx: LookaheadCtx, seed: number, rngSeed: number,
+): { cpu: PlayerState; opp: PlayerState } | null {
   const prevRng = currentRng();
-  setRng(mulberry32(0x5eed));
+  setRng(mulberry32(rngSeed));
   try {
     // 🔴山の順序は見てはいけない（`hideDeckOrder`）＝**先読み用のコピーだけ**混ぜる。本番の盤面は触らない。
-    const seed = boardSeed(cpu, opp, lctx.turnPhase ?? 'MAIN');
     const base: ExecCtx = {
       ownerState: hideDeckOrder(clone(cpu), seed), otherState: hideDeckOrder(clone(opp), seed ^ 0x9e3779b9), cardMap: lctx.cardMap, logs: [],
       sourceCardNum: sourceId, triggeringCardNum: sourceId, currentPhase: lctx.turnPhase ?? 'MAIN', isOwnerTurn: lctx.isCpuTurn ?? true,
     } as ExecCtx;
+    // 🆕2026-10-26＝実戦のスタック解決と同じ保護・常時効果を入れる（`simProtection`・`scripts/cpuSimDrift.ts` の所見）。
+    if (lctx.effectsMap && (lctx.policy ?? DEFAULT_CPU_POLICY).simProtection > 0) {
+      Object.assign(base, effectProtectionCtxFields(effectProtectionMaterials({
+        ownerState: base.ownerState, otherState: base.otherState, isOwnerTurn: lctx.isCpuTurn ?? true, cardMap: lctx.cardMap,
+        effectsMap: lctx.effectsMap, turnPhase: lctx.turnPhase ?? 'MAIN', sourceCardNum: sourceId, effectType: effect.effectType,
+      })));
+      base.effectsMap = lctx.effectsMap;
+    }
     // 🆕§5.7 `S-29`＝この効果の対象宣言に「レベル１につき」のコストが続くなら、対象選択に渡す。
     const followUpCost = declarationScalingCost(effect) ?? undefined;
     const res = runToDone(executeEffect(effect, base), base, lctx, followUpCost, 0);

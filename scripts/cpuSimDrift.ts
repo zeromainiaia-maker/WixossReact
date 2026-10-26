@@ -40,6 +40,8 @@ const JOBS = Number(arg('--jobs', '1'));
 const MAX_STEPS = Number(arg('--steps', '4000'));
 const OUT = arg('--out', '');
 const TOP = Number(arg('--top', '20'));
+/** 🆕`--show <手の名前の一部>`＝当たった手ごとに予想と実際の場・トラッシュとその間のログを出す（中身を調べる口）。 */
+const SHOW = arg('--show', '');
 const HOST_ID = 'headless-host';
 
 const allCards: CardData[] = [];
@@ -63,7 +65,7 @@ const rngNext = () => {
 };
 
 /** 1件の突き合わせ。`diffs` は「軸: 予想→実際」。 */
-interface Drift { game: string; turn: number; phase: TurnPhase; kind: string; label: string; pred: number; actual: number; diffs: string[]; failed?: boolean }
+interface Drift { game: string; turn: number; phase: TurnPhase; kind: string; label: string; pred: number; actual: number; diffs: string[]; failed?: boolean; detail?: string }
 
 /** 手のまとめ方＝種類＋カード番号（個体番号 `#…` とゾーン `@n` は落とす）。 */
 const labelOf = (m: CpuMove) => describeCpuMove(m).replace(/#[^@\s:]*/g, '').replace(/@\d/g, '').trim();
@@ -106,14 +108,14 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number): Promise<{
   const setup = buildHeadlessRow({ seats: { host: a0, guest: b0 }, hostId: HOST_ID, firstPlayerId: seed % 2 ? HOST_ID : CPU_PLAYER_ID, cardMap, policy: { host: POL, guest: POL } });
   const tag = `${a0.name} vs ${b0.name} s${seed}`;
   const drifts: Drift[] = [];
-  let pending: { phase: TurnPhase; move: CpuMove; ctx: CpuMoveCtx; pred: CpuSimBoard | null; turn: number; seat: 'host' | 'guest' | null } | null = null;
+  let pending: { phase: TurnPhase; move: CpuMove; ctx: CpuMoveCtx; pred: CpuSimBoard | null; turn: number; seat: 'host' | 'guest' | null; logAt: number } | null = null;
   const m = createHeadlessMatch(setup.row, {
     cards, cpuPlans: { host: a0.plan, guest: b0.plan }, policy: { host: POL, guest: POL }, initialLogs: setup.logs, memo: createRuleCheckMemo(),
     observeSearch: e => {
       // ⚠予想は**探索と同じ関数**で作り直す（決定論＝探索が見た盤面と同じ）。
       let pred: CpuSimBoard | null;
       try { pred = applyCpuMoveSim(e.ctx, e.move); } catch { pred = null; }
-      pending = { ...e, pred, turn: m.row().turn_count, seat: null };
+      pending = { ...e, pred, turn: m.row().turn_count, seat: null, logAt: m.logs.length };
     },
   });
   const close = (r: BattleStateRow) => {
@@ -124,7 +126,14 @@ async function play(a0: SelfPlayDeck, b0: SelfPlayDeck, seed: number): Promise<{
     const act = p.seat === 'host' ? { cpu: r.host_state, opp: r.guest_state } : { cpu: r.guest_state, opp: r.host_state };
     const lctx = p.ctx.lookahead;
     const pv = evaluateBoard(p.pred.cpu, p.pred.opp, lctx), av = evaluateBoard(act.cpu, act.opp, lctx);
-    drifts.push({ game: tag, turn: p.turn, phase: p.phase, kind, label, pred: pv, actual: av, diffs: diffBoards(p.pred, act, p.ctx) });
+    const diffs = diffBoards(p.pred, act, p.ctx);
+    let detail: string | undefined;
+    if (SHOW && label.includes(SHOW) && diffs.length > 0) {
+      const b = (st: PlayerState) => `場=${JSON.stringify(st.field.signi)} チア=${st.field.cheer ?? '-'} トラッシュ末尾=${st.trash.slice(-4).join(',')} 手札${st.hand.length} エナ${st.energy.length}`;
+      detail = [`  予想 自: ${b(p.pred.cpu)}`, `  予想 相: ${b(p.pred.opp)}`, `  実際 自: ${b(act.cpu)}`, `  実際 相: ${b(act.opp)}`,
+        ...m.logs.slice(p.logAt).map(l => `  | ${l}`)].join('\n');
+    }
+    drifts.push({ game: tag, turn: p.turn, phase: p.phase, kind, label, pred: pv, actual: av, diffs, detail });
   };
   for (let i = 0; i < MAX_STEPS; i++) {
     const r0 = m.row();
@@ -171,6 +180,12 @@ function summarize(all: Drift[], games: number) {
   if (failedBy.size) {
     console.log('\n■ 予想できなかった手（探索は選んだのに作り直すと null＝ふつうは0）');
     for (const [l, n] of [...failedBy].sort((a, b) => b[1] - a[1]).slice(0, 10)) console.log(`  ${l} ${n}`);
+  }
+  if (SHOW) {
+    console.log(`
+■ 中身（--show ${SHOW}・最大10件）`);
+    for (const d of all.filter(x => x.detail).slice(0, 10)) console.log(`${d.game} T${d.turn} ${d.label}（${d.pred.toFixed(0)}→${d.actual.toFixed(0)}）
+${d.detail}`);
   }
 }
 
