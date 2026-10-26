@@ -313,6 +313,9 @@ function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx
       // 🆕2026-09-27＝「AかB」は各肢を解決して比べる（比べられなければ従来の選び方）。
       const best = opponentChooses ? null : bestChoiceByLookahead(pending, ctx, lctx, followUpCost, choiceDepth);
       if (best) return resumeChoose(best, pending, ctx);
+      // 🆕2026-10-26＝「４つから２つまで選ぶ」は組み合わせを解決して比べる（`multiChoiceLookahead`）。
+      const bestMulti = opponentChooses ? null : bestMultiChoiceByLookahead(pending, ctx, lctx, followUpCost, choiceDepth);
+      if (bestMulti) return resumeChoose(bestMulti, pending, ctx);
       const picked = pickCpuChoice(pending, ictx);
       const id = picked[0] ?? '';
       const opt = pending.options.find(o => o.id === id);
@@ -388,6 +391,61 @@ function bestChoiceByLookahead(
     if (!best || v > best.v) { best = { id: o.id, v }; tied = false; } else if (v === best.v) tied = true;
   }
   return best && !tied ? best.id : null;
+}
+
+/**
+ * 🆕2026-10-26（`scripts/cpuSimDrift.ts` で見つけた）＝**「以下の４つから２つまで選ぶ」の組み合わせを、各組を解決した盤面で比べる**。
+ * 🔴**なぜ要るか**＝複数選択は `pickCpuChoice` が**押せる肢から乱数で**選んでいた＝《炎竜毒蛇》《紅蓮乙女　遊月》型のアーツで、
+ *   盤面を空にできるのに「トラッシュから回収」と「パワーマイナス」を選ぶ、といったことが起きていた（計器で採点のズレが −10,000 前後）。
+ * ■ 比べるのは**支払いの無い肢だけの複数選択**（同じ肢を2回選べる形・カード名の宣言・相手が選ぶ形は従来どおり）。
+ *   「まで」（`upTo`）なら1つ〜count 個、そうでなければちょうど count 個の組を全部（多い組から）解決して、一番高い組を返す。
+ */
+function bestMultiChoiceByLookahead(
+  pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx,
+  followUpCost: DeclarationScalingCost | undefined, choiceDepth: number,
+): string[] | null {
+  if (pending.type !== 'CHOOSE' || choiceDepth >= CHOICE_DEPTH || !pending.multiSelect) return null;
+  if ((lctx.policy ?? DEFAULT_CPU_POLICY).multiChoiceLookahead <= 0) return null;
+  if (pending.namePool || pending.allowRepeat || pending.opponentResponds || pending.leaveSubstituteAsk || pending.costlessOpponentChoice) return null;
+  const avail = pending.options.filter(o => o.available);
+  if (avail.some(o => o.costColors?.length || o.coinCost)) return null;
+  const ids = avail.filter(o => !isDeclineOption(o)).map(o => o.id);
+  const max = Math.min(pending.count, ids.length);
+  const min = pending.upTo ? 1 : max;
+  if (max < 1 || ids.length > 6) return null;
+  const combos: string[][] = [];
+  const walk = (start: number, cur: string[], size: number) => {
+    if (cur.length === size) { combos.push([...cur]); return; }
+    for (let i = start; i < ids.length; i++) walk(i + 1, [...cur, ids[i]], size);
+  };
+  for (let size = max; size >= min; size--) walk(0, [], size);
+  if (combos.length < 2) return null;
+  let best: { sel: string[]; v: number } | null = null;
+  for (const sel of combos) {
+    const end = runToDone(resumeChoose(sel, pending, ctx), ctx, lctx, followUpCost, choiceDepth + 1);
+    if (!end) continue;
+    const v = evaluateBoard(end.cpu, end.opp, lctx);
+    if (!best || v > best.v) best = { sel, v };
+  }
+  return best?.sel ?? null;
+}
+
+/** 🆕2026-10-26＝**本番の応答で「４つから２つまで選ぶ」を先読みで選ぶ**（`cpuInteractionRespond`）。規律は `pickCpuChoiceByLookahead` と同じ。 */
+export function pickCpuMultiChoiceByLookahead(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx): string[] | null {
+  const prevRng = currentRng();
+  setRng(mulberry32(0x5eed));
+  try {
+    const seed = boardSeed(ctx.ownerState, ctx.otherState, lctx.turnPhase ?? 'MAIN');
+    const hidden: ExecCtx = {
+      ...ctx, logs: [],
+      ownerState: hideDeckOrder(clone(ctx.ownerState), seed), otherState: hideDeckOrder(clone(ctx.otherState), seed ^ 0x9e3779b9),
+    };
+    return bestMultiChoiceByLookahead(pending, hidden, lctx, undefined, 0);
+  } catch {
+    return null;
+  } finally {
+    setRng(prevRng);
+  }
 }
 
 /**

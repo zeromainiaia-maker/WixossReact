@@ -140,6 +140,11 @@ export interface CpuTurnDeps {
    */
   observeChoice?: (m: CpuMove) => void;
   /**
+   * 🆕2026-10-26＝**探索が選んだ手と、そのときの盤面**（計測専用＝`scripts/cpuSimDrift.ts`）。探索の予想（`applyCpuMoveSim`）と、
+   * 実際に打って解決し終わった盤面を突き合わせる。⚠**画面は渡さない**。
+   */
+  observeSearch?: (e: { phase: TurnPhase; move: CpuMove; ctx: CpuMoveCtx }) => void;
+  /**
    * 🆕🔴§5.6 `C-12`（2026-09-22）＝**最新の盤面行を取り直す**（画面の `persist.fetchState`／ヘッドレスの `row()`）。
    *
    * 🔴**ピース応答窓だけが要る**＝`performCutinUse` の `kind==='piece'` 枝は
@@ -1207,6 +1212,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
           }), cpuPolicy, step.effectId);
         },
       });
+      if (searched.move) d.observeSearch?.({ phase: 'MAIN', move: searched.move, ctx: cpuMoveCtx(cpuSt) });
       if (searched.move && searched.move.kind !== 'deploy') {
         // 🔴**実行は人間と同じ `perform*`**（`doCpuSearchedMove`）＝探索用の近似適用では打たない。
         if (await doCpuSearchedMove(cpuSt, searched.move, 'MAIN')) return;
@@ -1564,6 +1570,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         actionBias: cpuPolicy.actionBias,
       })
       : null;
+    if (searchedAttack?.move) d.observeSearch?.({ phase: 'ATTACK_SIGNI', move: searchedAttack.move, ctx: cpuMoveCtx(cpuSt) });
     const searchedZone = searchedAttack?.move?.kind === 'signiAttack' ? searchedAttack.move.zone : null;
     /**
      * 🆕🔴§5.7 `S-17` 第3段（2026-09-21）＝**ここで初めて「撃たない」を探索に決めさせてよくなる**。

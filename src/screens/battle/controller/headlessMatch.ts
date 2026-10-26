@@ -114,6 +114,8 @@ export interface HeadlessMatchDeps {
   /** 🆕§5.7 `S-15`＝候補列挙の観測フック（両席とも・計測専用＝`scripts/headlessSelfPlay.ts --census-moves`）。 */
   observeMoves?: CpuTurnDeps['observeMoves'];
   observeChoice?: CpuTurnDeps['observeChoice'];
+  /** 🆕2026-10-26＝探索の予想と実際のズレの計器（`scripts/cpuSimDrift.ts`）。 */
+  observeSearch?: CpuTurnDeps['observeSearch'];
   /**
    * 🆕2026-10-21＝**対話の答えの差し替え**（検査専用＝`scripts/selfPlayInvariants.ts --answer-fuzz`）。
    * 🔑CPU はいつも「得な答え」を選ぶので、断る・変わった対象を選ぶ・少なく選ぶ分岐を踏まない。ここで乱数の答えに差し替えると、その分岐も通る。
@@ -346,7 +348,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
         allCards: d.cards, cpuPlan: planFor('guest'),
         // 🆕§5.7 `S-9`＝この枝は **guest 席**の CPU（鏡を通していない）。
         policy: d.policy?.guest ?? DEFAULT_CPU_POLICY,
-        observeMoves: d.observeMoves, observeChoice: d.observeChoice,
+        observeMoves: d.observeMoves, observeChoice: d.observeChoice, observeSearch: d.observeSearch,
         checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
         // 🆕§5.6 `C-12`＝ピース応答窓の「最新盤面の読み直し」（ヘッドレスは書き込み済みの行をそのまま返す）。
         fetchLatest: async () => row(),
@@ -371,7 +373,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       allCards: d.cards, cpuPlan: planFor('host'),
       // 🆕§5.7 `S-9`＝この枝は **host 席**の CPU（鏡を通して同じ関数に指させている）。
       policy: d.policy?.host ?? DEFAULT_CPU_POLICY,
-      observeMoves: d.observeMoves, observeChoice: d.observeChoice,
+      observeMoves: d.observeMoves, observeChoice: d.observeChoice, observeSearch: d.observeSearch,
       checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
       // 🆕§5.6 `C-12`＝🔴**鏡の席では鏡に映した行を返す**（そのまま返すと席が入れ替わった盤面で窓を閉じる）。
       fetchLatest: async () => mirrored(),

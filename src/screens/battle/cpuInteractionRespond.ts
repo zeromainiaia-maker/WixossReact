@@ -11,7 +11,7 @@ import {
   pickCpuSearch, pickCpuTargets, pickCpuVirusZone, targetIntentFor, type CpuInteractionCtx,
 } from './cpuInteraction';
 import { declarationScalingCost } from './cpuDeclarationCost';
-import { pickCpuChoiceByLookahead, pickCpuTargetsByLookahead, type LookaheadCtx } from './cpuLookahead';
+import { pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuTargetsByLookahead, type LookaheadCtx } from './cpuLookahead';
 import type { ExecCtx } from '../../engine/effectExecutor';
 
 /**
@@ -173,11 +173,15 @@ export function decideCpuInteractionResponse(
     //   （`cpuLookahead.pickCpuChoiceByLookahead`）。比べられない形（断る肢・支払い・複数選択・相手が選ぶ・CPU の効果でない）は従来の選び方。
     //   🔴旧＝押せる肢から**乱数**＝ディノスの【出】で、公開できるのに半分は自分をトラッシュしていた。
     const looked = pe.sourcePlayerId === d.cpuPlayerId ? pickCpuChoiceByLookahead(inter, lookCtx(), lookLctx()) : null;
-    selected = looked ? [looked] : pickCpuChoice(inter, cpuCtx);
+    // 🆕2026-10-26＝「４つから２つまで選ぶ」も組み合わせを先読みで比べる（`multiChoiceLookahead`）。
+    const lookedMulti = !looked && inter.multiSelect && pe.sourcePlayerId === d.cpuPlayerId
+      ? pickCpuMultiChoiceByLookahead(inter, lookCtx(), lookLctx()) : null;
+    selected = looked ? [looked] : lookedMulti ?? pickCpuChoice(inter, cpuCtx);
+    if (lookedMulti) logs.push(`[CPU] 選択: ${lookedMulti.map(id => inter.options.find(o => o.id === id)?.label ?? id).join('／')}（先読み）`);
     const chosen = inter.options.find(o => o.id === selected[0]);
     // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。
     // 🆕2026-09-27＝先読みで選んだときは「（先読み）」を付ける（何回効いたかを数えるため）。
-    if (chosen) logs.push(`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}${looked ? '（先読み）' : ''}`);
+    if (chosen && !lookedMulti) logs.push(`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}${looked ? '（先読み）' : ''}`);
   } else if (inter.type === 'SEARCH') {
     selected = pickCpuSearch(inter, cpuCtx);
   } else if (inter.type === 'LOOK_AND_REORDER') {

@@ -194,7 +194,7 @@ import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screen
 import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES, withKnowledgeArtsUse } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
-import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, pickCpuTargetsByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, pickCpuMultiChoiceByLookahead, pickCpuTargetsByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { listCpuRemoves, removeSigniSim } from '../src/screens/battle/cpuMoves';
 import { applyCpuMoveSim, cpuLrigActivatedInput, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, cpuDeployBudget, cpuDeployPlaceable, cpuHandSignis, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { assistGrowKindsOf, pickCpuOffensiveAssistGrow, pickCpuResponseAssistGrow } from '../src/screens/battle/cpuAssistGrow';
@@ -87973,7 +87973,7 @@ test('§5.6 C-8 CPU の対話応答（純関数）：損得の分かる選択は
   //   （画面に残るのは遅延と委譲だけ）。**配線の本数は不変＝較正であって退化ではない。**
   const battle = cpuRespondSource();
   // 🆕2026-09-27＝「AかB」はまず先読み（`pickCpuChoiceByLookahead`）、比べられなければ純関数（較正＝純関数の口は残っている）。
-  ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = looked \? \[looked\] : pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
+  ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = looked \? \[looked\] : (lookedMulti \?\? )?pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
   ok(!/const firstAvail = inter\.options\.find/.test(battle), '🔴「押せる先頭」の直書きが残っている');
 }));
 
@@ -89117,6 +89117,41 @@ test('2026-10-26 CPU の効果の対象を先読みで選ぶ（targetLookahead�
   eq(pickCpuTargetsByLookahead(res.pending, after, lctx(DEFAULT_CPU_POLICY), heuristic)?.join(), WEAK,
     '🔴先読みで「−5000 で落とせる札」を選ばない（12000 に −5000 しても場に残る）');
   eq(pickCpuTargetsByLookahead(res.pending, after, lctx(CPU_POLICIES['legacy-targetlookahead']), heuristic), null, '🔴`legacy-targetlookahead` で先読みが止まらない（A/B の口）');
+}));
+
+test('2026-10-26 CPU の「４つから２つまで選ぶ」を先読みで選ぶ（multiChoiceLookahead）：《炎竜毒蛇》で相手の場を空にする組を選ぶ', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**（`scripts/cpuSimDrift.ts`）＝複数選択は押せる肢から乱数＝盤面を空にできるのに別の組を選んでいた。
+  const ARTS = 'WX14-004';
+  const eff = (effectsMap.get(ARTS) ?? []).find(e => e.effectType === 'ACTIVATED');
+  ok(!!eff, '前提崩れ＝《炎竜毒蛇》の効果が無い');
+  if (!eff) return;
+  const powerOf = (n: string) => parseInt(cardMap.get(n)?.Power || '0', 10);
+  // ⚠POOL カーソルに依らない固定の札（効果なし・パワー5000以下）＝全件実行で別の札を引いて結果が変わらないように。
+  const SMALL = [...cardMap.values()].find(c => isSigni(c) && powerOf(c.CardNum) > 0 && powerOf(c.CardNum) <= 5000 && !(effectsMap.get(c.CardNum) ?? []).length)!.CardNum;
+  // 自分の場にもシグニを置く（相手の場が空けば3レーンともアタックが通る＝実戦の形）。
+  //   ⚠自分の場が空だと「バニッシュ＝相手のエナ+1」が「パワー0以下＝場から消えるだけ」より損に見える（採点はルール処理前の盤面）。
+  const ctx = mkCtx({ signi: [SMALL, SMALL, SMALL] }, { signi: [SMALL, SMALL, SMALL] }, ARTS);
+  const res = executeEffect(eff, ctx);
+  ok(!res.done && res.pending.type === 'CHOOSE' && !!res.pending.multiSelect, '前提崩れ＝複数選択にならない');
+  if (res.done || res.pending.type !== 'CHOOSE') return;
+  const after = { ...ctx, ownerState: res.ownerState, otherState: res.otherState };
+  const lctx = (policy: CpuPolicy): LookaheadCtx => ({
+    cardMap: cardMap as Map<string, CardData>, effectsOf: id => effectsMap.get(getCardNumG(id)) ?? [], policy,
+    powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, cardMap as Map<string, CardData>, 'MAIN'),
+  });
+  eq(DEFAULT_CPU_POLICY.multiChoiceLookahead, 1, '🔴既定の `multiChoiceLookahead` が 1 でない（2026-10-26 ユーザー決定）');
+  const sel = pickCpuMultiChoiceByLookahead(res.pending, after, lctx(DEFAULT_CPU_POLICY));
+  ok(!!sel && sel.length >= 1, '🔴先読みで組を選ばない');
+  if (sel) {
+    let r = resumeChoose(sel, res.pending, after);
+    for (let i = 0; i < 10 && !r.done; i++) {
+      const p = r.pending as { type: string; candidates?: string[]; count?: number };
+      if (p.type !== 'SELECT_TARGET') break;
+      r = resumeSelectTarget((p.candidates ?? []).slice(0, p.count ?? 1), r.pending as never, { ...after, ownerState: r.ownerState, otherState: r.otherState });
+    }
+    eq(r.otherState.field.signi.filter(z => (z ?? []).length > 0).length, 0, `🔴先読みの組（${sel.join(',')}）で相手のパワー5000以下の3体が場に残る（②「パワー7000以下をすべてバニッシュ」を選んでいない）`);
+  }
+  eq(pickCpuMultiChoiceByLookahead(res.pending, after, lctx(CPU_POLICIES['legacy-multichoice'])), null, '🔴`legacy-multichoice` で先読みが止まらない（A/B の口）');
 }));
 
 test('2026-10-26 CPU の相手ターンのアーツを先読みで選ぶ（defenseArtsLookahead）：何も起きない札は撃たない・通るアタックを止める除去は撃つ・既定1', () => withSavedCursor(() => {
@@ -92242,7 +92277,7 @@ test('2026-09-27 ディノス：公開できなければ「公開する」は選
   }
   // ── ③ 配線＝本番の応答が先読みを通す（ログに「（先読み）」）──
   const respSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
-  ok(/selected = looked \? \[looked\] : pickCpuChoice\(inter, cpuCtx\);/.test(respSrc) && respSrc.includes("'（先読み）'"),
+  ok(/selected = looked \? \[looked\] : (lookedMulti \?\? )?pickCpuChoice\(inter, cpuCtx\);/.test(respSrc) && respSrc.includes("'（先読み）'"),
     '🔴本番の選択肢の応答が先読みを通っていない');
   ok(SCAN_KNOBS.some(k => k.key === 'choiceLookahead'), '🔴走査表に `choiceLookahead` が無い');
 }));
