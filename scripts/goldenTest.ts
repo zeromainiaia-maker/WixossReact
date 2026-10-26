@@ -89202,6 +89202,29 @@ test('2026-10-25 次の相手ターンにバトルで落とされる見込み（
   eq(diff(weaker, frozenOpp), 0, '🔴凍結している相手のシグニに殴られる見込みを数えている');
 }));
 
+test('2026-10-26 パワー0以下のシグニはルール処理でバニッシュ＝持ち主のエナ+1を採点に入れる（zeroPowerEnergy）：既定0', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**（`scripts/cpuSimDrift.ts` の所見⑥）＝パワー0以下を「場から消えた」とだけ数えると、パワーマイナスがバニッシュより得に見える。
+  eq(DEFAULT_CPU_POLICY.zeroPowerEnergy, 0, '🔴既定の `zeroPowerEnergy` が 0 でない（既定にするかは未決定）');
+  const ON = CPU_POLICIES['zero-power-energy'];
+  const cm = new InstanceMap<CardData>(cardMap);
+  const side = (signi: (string | null)[]) => {
+    const st = mkState({ signi });
+    st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#l1'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    return st;
+  };
+  const lctx = (powers: Map<string, number>, policy: CpuPolicy) => ({
+    cardMap: cm as Map<string, CardData>, effectsOf: () => [], powersOf: () => powers, isCpuTurn: true, policy,
+  });
+  const me = side([null, null, 'WD01-013#m1']);
+  const opp = side(['WD01-013#o1', null, null]);
+  const diff = (p: Map<string, number>) => evaluateBoard(me, opp, lctx(p, ON)) - evaluateBoard(me, opp, lctx(p, DEFAULT_CPU_POLICY));
+  const E = DEFAULT_CPU_POLICY.boardWeights.energy;
+  eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 0]])), -E, '🔴相手のパワー0のシグニで相手のエナ+1を数えていない');
+  eq(diff(new Map([['WD01-013#m1', -1000], ['WD01-013#o1', 5000]])), E, '🔴自分のパワー0以下のシグニで自分のエナ+1を数えていない');
+  eq(diff(new Map([['WD01-013#m1', 5000], ['WD01-013#o1', 1000]])), 0, '🔴パワーが残っているシグニでエナを数えている');
+}));
+
 test('§5.7 S-21 探索の目的関数：「打たない」を割る計器／行動への下駄／このターンに通るダメージ', () => withSavedCursor(() => {
   // 🔴**なぜ要るか**＝`S-16` の探索は従来と互角（A/B 50.0%）で止まっており、
   //   実測（2026-09-20・`--census-moves`）では **111手中 58手で「打たない」**を選んでいた。

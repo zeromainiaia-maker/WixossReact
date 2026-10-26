@@ -136,6 +136,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'targetLookahead', base: 1, values: [0, 2] },
   { key: 'defenseArtsLookahead', base: 1, values: [0] },
   { key: 'multiChoiceLookahead', base: 1, values: [0] },
+  { key: 'zeroPowerEnergy', base: 0, values: [1] },
 ];
 
 /**

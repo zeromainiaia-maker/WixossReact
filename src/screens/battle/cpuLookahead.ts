@@ -267,6 +267,11 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
       if (!mine || !theirs || isZoneFrozen(them, 2 - zi)) return sum;
       return scoringPowerOf(theirs, ctx, powers) > scoringPowerOf(mine, ctx, powers) ? sum + signiValue(me, zi) : sum;
     }, 0);
+  // 🆕2026-10-26＝パワー0以下のシグニ（`topOf` が居ないと数える）はルール処理でバニッシュ＝持ち主のエナ+1（`zeroPowerEnergy`）。
+  const zeroPowerCount = (st: PlayerState) =>
+    [0, 1, 2].filter(zi => st.field.signi[zi]?.at(-1) !== undefined && topOf(st, zi) === undefined).length;
+  const zeroPowerEnergy = (ctx.policy ?? DEFAULT_CPU_POLICY).zeroPowerEnergy > 0
+    ? (zeroPowerCount(cpu) - zeroPowerCount(opp)) * W.energy : 0;
   const nextTurnLoss = W.nextTurnLoss ? ((ctx.isCpuTurn ?? true) ? -doomedValue(cpu, opp) : doomedValue(opp, cpu)) * W.nextTurnLoss : 0;
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
@@ -278,6 +283,7 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
     + (cpu.hand.length - opp.hand.length) * W.hand
     + (cpu.energy.length - opp.energy.length) * W.energy
+    + zeroPowerEnergy
     // 🆕§5.7 `S-18`＝**ルリグのレベル差**（グロウの価値＝リミットと出せるシグニの上限）。
     + (lrigLevelOf(cpu) - lrigLevelOf(opp)) * W.lrigLevel
     // 🆕§5.7 `S-18`＝次のターンの制約（左右対称）＋【ガード】の温存（自分側だけ＝相手の手札は非公開）。

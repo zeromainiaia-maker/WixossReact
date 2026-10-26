@@ -359,6 +359,11 @@ export interface CpuPolicy {
    */
   readonly multiChoiceLookahead: number;
   /**
+   * 🆕2026-10-26＝**パワー0以下のシグニはルール処理でバニッシュ＝持ち主のエナが1枚増える**のを採点に入れる
+   *   （1＝その枚数 × `energy` を持ち主側へ足す／0＝従来＝場から消えるだけ）。`scripts/cpuSimDrift.ts` の所見⑥。
+   */
+  readonly zeroPowerEnergy: number;
+  /**
    * 🆕2026-09-22＝**コイン1枚の値段**（【ベット】の判断・`cpuBet.ts`）。
    *   「ベットして使った盤面」と「ベットせずに使った盤面」の増分の差が **この値 × ベット枚数** 以上ならベットする。
    *   🔑値段が要る理由＝`evaluateBoard` はコインを数えない（0 にすると差が1点でもベットする）。
@@ -481,6 +486,7 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   defenseArtsLookahead: 1,
   // 🆕2026-10-26 ユーザー決定＝既定にした（3シード 17/12・有意ではないが乱数の選択をなくす・アーツの予想のズレ 1687→976）。
   multiChoiceLookahead: 1,
+  zeroPowerEnergy: 0,
   // 🆕2026-09-22＝ベットを判断する。旧挙動（一度もベットしない）は `legacy-bet`。
   betCoinValue: 1500,
 };
@@ -538,6 +544,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-targetlookahead': variant('legacy-targetlookahead', { targetLookahead: 0 }),
   'legacy-defensearts': variant('legacy-defensearts', { defenseArtsLookahead: 0 }),
   'legacy-multichoice': variant('legacy-multichoice', { multiChoiceLookahead: 0 }),
+  /** 🆕2026-10-26＝パワー0以下のバニッシュで持ち主のエナが増えるのを採点に入れる（既定にする前の試験）。 */
+  'zero-power-energy': variant('zero-power-energy', { zeroPowerEnergy: 1 }),
   /** 🆕2026-10-25＝次の相手ターンにバトルで落とされる見込みを割り引かない（既定にする前の CPU）。 */
   'legacy-nextturnloss': variant('legacy-nextturnloss', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, nextTurnLoss: 0 } }),
   'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
@@ -714,13 +722,13 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
       || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'assistGrowAsArts' || key === 'onPlayCostPay' || key === 'knowledgeArtsUse' || key === 'keyTrashAbility' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
-      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers' || key === 'targetLookahead' || key === 'defenseArtsLookahead' || key === 'multiChoiceLookahead') {
+      || key === 'cutinGainMin' || key === 'betCoinValue' || key === 'removeMoves' || key === 'leaveTriggers' || key === 'targetLookahead' || key === 'defenseArtsLookahead' || key === 'multiChoiceLookahead' || key === 'zeroPowerEnergy') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers / targetLookahead / defenseArtsLookahead / multiChoiceLookahead`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / assistGrowAsArts / onPlayCostPay / knowledgeArtsUse / keyTrashAbility / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue / removeMoves / leaveTriggers / targetLookahead / defenseArtsLookahead / multiChoiceLookahead / zeroPowerEnergy`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }
